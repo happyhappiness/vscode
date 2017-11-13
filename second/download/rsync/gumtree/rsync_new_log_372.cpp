@@ -1,1 +1,1 @@
-fprintf(FERROR,"ERROR: buffer overflow in %s\n",str);
+fprintf(FINFO,"data recv %d at %d\n",i,(int)offset);

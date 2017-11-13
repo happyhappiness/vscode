@@ -1,2 +1,1 @@
-die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+packet_buf_write(req_buf, "push-cert%c%s", 0, cap_string);

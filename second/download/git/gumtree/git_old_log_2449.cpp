@@ -1,2 +1,2 @@
-die("Badly quoted content in file '%s': %s",
-			    filename, str.buf);
+error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));

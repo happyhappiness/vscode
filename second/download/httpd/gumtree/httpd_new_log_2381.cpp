@@ -1,3 +1,3 @@
-printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
-       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
-       trstring, tdstring, tdstring, totalbread);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d would require %d "
+                         "servers and ", max_clients, ap_daemons_limit);

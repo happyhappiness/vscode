@@ -1,125 +1,107 @@
-apr_status_t h2_task_input_read(h2_task_input *input,
-                                ap_filter_t* f,
-                                apr_bucket_brigade* bb,
-                                ap_input_mode_t mode,
-                                apr_read_type_e block,
-                                apr_off_t readbytes)
+static void * APR_THREAD_FUNC start_threads(apr_thread_t *thd, void *dummy)
 {
-    apr_status_t status = APR_SUCCESS;
-    apr_off_t bblen = 0;
-    
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                  "h2_task_input(%s): read, block=%d, mode=%d, readbytes=%ld", 
-                  input->env->id, block, mode, (long)readbytes);
-    
-    if (is_aborted(f)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task_input(%s): is aborted", 
-                      input->env->id);
-        return APR_ECONNABORTED;
+    thread_starter *ts = dummy;
+    apr_thread_t **threads = ts->threads;
+    apr_threadattr_t *thread_attr = ts->threadattr;
+    int child_num_arg = ts->child_num_arg;
+    int my_child_num = child_num_arg;
+    proc_info *my_info;
+    apr_status_t rv;
+    int i;
+    int threads_created = 0;
+    int listener_started = 0;
+    int loops;
+    int prev_threads_created;
+
+    /* We must create the fd queues before we start up the listener
+     * and worker threads. */
+    worker_queue = apr_pcalloc(pchild, sizeof(*worker_queue));
+    rv = ap_queue_init(worker_queue, threads_per_child, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "ap_queue_init() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-    
-    if (mode == AP_MODE_INIT) {
-        return APR_SUCCESS;
+
+    rv = ap_queue_info_create(&worker_queue_info, pchild,
+                              threads_per_child);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "ap_queue_info_create() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-    
-    if (input->bb) {
-        status = apr_brigade_length(input->bb, 1, &bblen);
-        if (status != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, f->c,
-                          APLOGNO(02958) "h2_task_input(%s): brigade length fail", 
-                          input->env->id);
-            return status;
-        }
-    }
-    
-    if ((bblen == 0) && input->env->input_eos) {
-        return APR_EOF;
-    }
-    
-    while ((bblen == 0) || (mode == AP_MODE_READBYTES && bblen < readbytes)) {
-        /* Get more data for our stream from mplx.
-         */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      input->env->id, block, 
-                      (long)readbytes, (long)bblen);
-        
-        /* Although we sometimes get called with APR_NONBLOCK_READs, 
-         we seem to  fill our buffer blocking. Otherwise we get EAGAIN,
-         return that to our caller and everyone throws up their hands,
-         never calling us again. */
-        status = h2_mplx_in_read(input->env->mplx, APR_BLOCK_READ,
-                                 input->env->stream_id, input->bb, 
-                                 input->env->io);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): mplx in read returned",
-                      input->env->id);
-        if (status != APR_SUCCESS) {
-            return status;
-        }
-        status = apr_brigade_length(input->bb, 1, &bblen);
-        if (status != APR_SUCCESS) {
-            return status;
-        }
-        if ((bblen == 0) && (block == APR_NONBLOCK_READ)) {
-            return h2_util_has_eos(input->bb, 0)? APR_EOF : APR_EAGAIN;
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): mplx in read, %ld bytes in brigade",
-                      input->env->id, (long)bblen);
-    }
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                  "h2_task_input(%s): read, mode=%d, block=%d, "
-                  "readbytes=%ld, queued=%ld",
-                  input->env->id, mode, block, 
-                  (long)readbytes, (long)bblen);
-           
-    if (!APR_BRIGADE_EMPTY(input->bb)) {
-        if (mode == AP_MODE_EXHAUSTIVE) {
-            /* return all we have */
-            return h2_util_move(bb, input->bb, readbytes, 0, 
-                                "task_input_read(exhaustive)");
-        }
-        else if (mode == AP_MODE_READBYTES) {
-            return h2_util_move(bb, input->bb, readbytes, 0, 
-                                "task_input_read(readbytes)");
-        }
-        else if (mode == AP_MODE_SPECULATIVE) {
-            /* return not more than was asked for */
-            return h2_util_copy(bb, input->bb, readbytes,  
-                                "task_input_read(speculative)");
-        }
-        else if (mode == AP_MODE_GETLINE) {
-            /* we are reading a single LF line, e.g. the HTTP headers */
-            status = apr_brigade_split_line(bb, input->bb, block, 
-                                            HUGE_STRING_LEN);
-            if (APLOGctrace1(f->c)) {
-                char buffer[1024];
-                apr_size_t len = sizeof(buffer)-1;
-                apr_brigade_flatten(bb, buffer, &len);
-                buffer[len] = 0;
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                              "h2_task_input(%s): getline: %s",
-                              input->env->id, buffer);
+
+    worker_sockets = apr_pcalloc(pchild, threads_per_child
+                                        * sizeof(apr_socket_t *));
+
+    loops = prev_threads_created = 0;
+    while (1) {
+        /* threads_per_child does not include the listener thread */
+        for (i = 0; i < threads_per_child; i++) {
+            int status = ap_scoreboard_image->servers[child_num_arg][i].status;
+
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
             }
-            return status;
+
+            my_info = (proc_info *)malloc(sizeof(proc_info));
+            if (my_info == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
+                             "malloc: out of memory");
+                clean_child_exit(APEXIT_CHILDFATAL);
+            }
+            my_info->pid = my_child_num;
+            my_info->tid = i;
+            my_info->sd = 0;
+
+            /* We are creating threads right now */
+            ap_update_child_status_from_indexes(my_child_num, i,
+                                                SERVER_STARTING, NULL);
+            /* We let each thread update its own scoreboard entry.  This is
+             * done because it lets us deal with tid better.
+             */
+            rv = apr_thread_create(&threads[i], thread_attr,
+                                   worker_thread, my_info, pchild);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                    "apr_thread_create: unable to create worker thread");
+                /* let the parent decide how bad this really is */
+                clean_child_exit(APEXIT_CHILDSICK);
+            }
+            threads_created++;
         }
-        else {
-            /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
-             * to support it. Seems to work. */
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                          APLOGNO(02942) 
-                          "h2_task_input, unsupported READ mode %d", mode);
-            return APR_ENOTIMPL;
+        /* Start the listener only when there are workers available */
+        if (!listener_started && threads_created) {
+            create_listener_thread(ts);
+            listener_started = 1;
+        }
+        if (start_thread_may_exit || threads_created == threads_per_child) {
+            break;
+        }
+        /* wait for previous generation to clean up an entry */
+        apr_sleep(apr_time_from_sec(1));
+        ++loops;
+        if (loops % 120 == 0) { /* every couple of minutes */
+            if (prev_threads_created == threads_created) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                             "child %" APR_PID_T_FMT " isn't taking over "
+                             "slots very quickly (%d of %d)",
+                             ap_my_pid, threads_created, threads_per_child);
+            }
+            prev_threads_created = threads_created;
         }
     }
-    
-    if (is_aborted(f)) {
-        return APR_ECONNABORTED;
-    }
-    
-    return (block == APR_NONBLOCK_READ)? APR_EAGAIN : APR_EOF;
+
+    /* What state should this child_main process be listed as in the
+     * scoreboard...?
+     *  ap_update_child_status_from_indexes(my_child_num, i, SERVER_STARTING,
+     *                                      (request_rec *) NULL);
+     *
+     *  This state should be listed separately in the scoreboard, in some kind
+     *  of process_status, not mixed in with the worker threads' status.
+     *  "life_status" is almost right, but it's in the worker's structure, and
+     *  the name could be clearer.   gla
+     */
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
 }

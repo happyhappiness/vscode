@@ -1,2 +1,1 @@
-error(_("cannot open %s: %s"), filename,
-						strerror(errno));
+die("unable to generate word diff");

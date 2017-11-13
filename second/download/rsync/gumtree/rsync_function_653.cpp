@@ -1,83 +1,53 @@
-static int execCommand(poptContext con)
-    /*@*/
+int daemon_main(void)
 {
-    poptItem item = con->doExec;
-    const char ** argv;
-    int argc = 0;
-    int rc;
+	extern char *config_file;
+	char *pid_file;
 
-    if (item == NULL) /*XXX can't happen*/
-	return POPT_ERROR_NOARG;
+	/* this ensures that we don't call getcwd after the chroot,
+           which doesn't work on platforms that use popen("pwd","r")
+           for getcwd */
+	push_dir("/", 0);
 
-    if (item->argv == NULL || item->argc < 1 ||
-	(!con->execAbsolute && strchr(item->argv[0], '/')))
-	    return POPT_ERROR_NOARG;
+	if (is_a_socket(STDIN_FILENO)) {
+		int i;
 
-    argv = malloc(sizeof(*argv) *
-			(6 + item->argc + con->numLeftovers + con->finalArgvCount));
-    if (argv == NULL) return POPT_ERROR_MALLOC;	/* XXX can't happen */
+		/* we are running via inetd - close off stdout and
+		   stderr so that library functions (and getopt) don't
+		   try to use them. Redirect them to /dev/null */
+		for (i=1;i<3;i++) {
+			close(i); 
+			open("/dev/null", O_RDWR);
+		}
 
-    if (!strchr(item->argv[0], '/') && con->execPath) {
-	char *s = alloca(strlen(con->execPath) + strlen(item->argv[0]) + sizeof("/"));
-	sprintf(s, "%s/%s", con->execPath, item->argv[0]);
-	argv[argc] = s;
-    } else {
-	argv[argc] = findProgramPath(item->argv[0]);
-    }
-    if (argv[argc++] == NULL) return POPT_ERROR_NOARG;
+		set_nonblocking(STDIN_FILENO);
 
-    if (item->argc > 1) {
-	memcpy(argv + argc, item->argv + 1, sizeof(*argv) * (item->argc - 1));
-	argc += (item->argc - 1);
-    }
+		return start_daemon(STDIN_FILENO);
+	}
 
-    if (con->finalArgv != NULL && con->finalArgvCount > 0) {
-	memcpy(argv + argc, con->finalArgv,
-		sizeof(*argv) * con->finalArgvCount);
-	argc += con->finalArgvCount;
-    }
+	become_daemon();
 
-    if (con->leftovers != NULL && con->numLeftovers > 0) {
-#if 0
-	argv[argc++] = "--";
-#endif
-	memcpy(argv + argc, con->leftovers, sizeof(*argv) * con->numLeftovers);
-	argc += con->numLeftovers;
-    }
+	if (!lp_load(config_file, 1)) {
+		fprintf(stderr,"failed to load config file %s\n", config_file);
+		exit_cleanup(RERR_SYNTAX);
+	}
 
-    argv[argc] = NULL;
+	log_open();
 
-#ifdef __hpux
-    rc = setresuid(getuid(), getuid(),-1);
-    if (rc) return POPT_ERROR_ERRNO;
-#else
-/*
- * XXX " ... on BSD systems setuid() should be preferred over setreuid()"
- * XXX 	sez' Timur Bakeyev <mc@bat.ru>
- * XXX	from Norbert Warmuth <nwarmuth@privat.circular.de>
- */
-#if defined(HAVE_SETUID)
-    rc = setuid(getuid());
-    if (rc) return POPT_ERROR_ERRNO;
-#elif defined (HAVE_SETREUID)
-    rc = setreuid(getuid(), getuid()); /*hlauer: not portable to hpux9.01 */
-    if (rc) return POPT_ERROR_ERRNO;
-#else
-    ; /* Can't drop privileges */
-#endif
-#endif
+	rprintf(FINFO,"rsyncd version %s starting\n",VERSION);
 
-    if (argv[0] == NULL)
-	return POPT_ERROR_NOARG;
-#ifdef MYDEBUG
-    {	const char ** avp;
-	fprintf(stderr, "==> execvp(%s) argv[%d]:", argv[0], argc);
-	for (avp = argv; *avp; avp++)
-	    fprintf(stderr, " '%s'", *avp);
-	fprintf(stderr, "\n");
-    }
-#endif
+	if (((pid_file = lp_pid_file()) != NULL) && (*pid_file != '\0')) {
+		FILE *f;
+		int pid = (int) getpid();
+		cleanup_set_pid(pid);
+		if ((f = fopen(lp_pid_file(), "w")) == NULL) {
+		    cleanup_set_pid(0);
+		    fprintf(stderr,"failed to create pid file %s\n", pid_file);
+		    exit_cleanup(RERR_FILEIO);
+		}
+		fprintf(f, "%d\n", pid);
+		fclose(f);
+	}
 
-    rc = execvp(argv[0], (char *const *)argv);
-    return POPT_ERROR_ERRNO;
+	start_accept_loop(rsync_port, start_daemon);
+	return -1;
 }

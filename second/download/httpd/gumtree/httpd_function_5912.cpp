@@ -1,44 +1,15 @@
-static void dump_config_name(const char *fname, apr_pool_t *p)
-{
-    unsigned i, recursion, line_number;
-    void *data;
-    apr_file_t *out = NULL;
-
-    apr_file_open_stdout(&out, p);
-
-    /* ap_include_sentinel is defined by the core Include directive; use it to
-     * figure out how deep in the stack we are.
-     */
-    apr_pool_userdata_get(&data, "ap_include_sentinel", p);
-
-    if (data) {
-        recursion = *(unsigned *)data;
-    } else {
-        recursion = 0;
+static void cleanup_zombies(h2_workers *workers, int lock) {
+    if (lock) {
+        apr_thread_mutex_lock(workers->lock);
     }
-
-    /* Indent once for each level. */
-    for (i = 0; i < (recursion + 1); ++i) {
-        apr_file_printf(out, "  ");
+    while (!H2_WORKER_LIST_EMPTY(&workers->zombies)) {
+        h2_worker *zombie = H2_WORKER_LIST_FIRST(&workers->zombies);
+        H2_WORKER_REMOVE(zombie);
+        ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                      "h2_workers: cleanup zombie %d", zombie->id);
+        h2_worker_destroy(zombie);
     }
-
-    /* ap_include_lineno is similarly defined to tell us where in the last
-     * config file we were.
-     */
-    apr_pool_userdata_get(&data, "ap_include_lineno", p);
-
-    if (data) {
-        line_number = *(unsigned *)data;
-    } else {
-        line_number = 0;
+    if (lock) {
+        apr_thread_mutex_unlock(workers->lock);
     }
-
-    /* Print the line number and the name of the parsed file. */
-    if (line_number > 0) {
-        apr_file_printf(out, "(%u)", line_number);
-    } else {
-        apr_file_printf(out, "(*)");
-    }
-
-    apr_file_printf(out, " %s\n", fname);
 }

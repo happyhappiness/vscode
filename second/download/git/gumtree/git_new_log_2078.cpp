@@ -1,1 +1,1 @@
-die("BUG: your snprintf is broken");
+die("%s", err.buf);

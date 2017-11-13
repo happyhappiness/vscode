@@ -1,11 +1,11 @@
 fputs(
-"              To read content from stdin instead of a file, use - as the file-\n"
-"              name. This goes for both @ and <  constructs.  Unfortunately  it\n"
-"              does  not support reading the file from a named pipe or similar,\n"
-"              as it needs the full size before the transfer starts.\n"
+"              by using the Certificate Status Request (aka. OCSP stapling) TLS\n"
+"              extension.\n"
 "\n"
-"              You can also  tell  curl  what  Content-Type  to  use  by  using\n"
-"              'type=', in a manner similar to:\n"
+"              If  this option is enabled and the server sends an invalid (e.g.\n"
+"              expired) response, if the response suggests that the server cer-\n"
+"              tificate  has  been  revoked, or no response at all is received,\n"
+"              the verification fails.\n"
 "\n"
-"              curl -F \"web=@index.html;type=text/html\" example.com\n"
+"              This is currently only implemented in the  OpenSSL,  GnuTLS  and\n"
 , stdout);

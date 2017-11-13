@@ -1,1 +1,1 @@
-strbuf_addstr(err, _("empty filename in tree entry"));
+die(_("--name-only, --name-status, --check and -s are mutually exclusive"));

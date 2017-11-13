@@ -1,54 +1,16 @@
-static int check_updates(struct unpack_trees_options *o)
+static int is_refname_available(const char *refname, const char *oldrefname,
+				struct ref_dir *dir)
 {
-	unsigned cnt = 0, total = 0;
-	struct progress *progress = NULL;
-	struct index_state *index = &o->result;
-	int i;
-	int errs = 0;
+	struct name_conflict_cb data;
+	data.refname = refname;
+	data.oldrefname = oldrefname;
+	data.conflicting_refname = NULL;
 
-	if (o->update && o->verbose_update) {
-		for (total = cnt = 0; cnt < index->cache_nr; cnt++) {
-			const struct cache_entry *ce = index->cache[cnt];
-			if (ce->ce_flags & (CE_UPDATE | CE_WT_REMOVE))
-				total++;
-		}
-
-		progress = start_progress_delay(_("Checking out files"),
-						total, 50, 1);
-		cnt = 0;
+	sort_ref_dir(dir);
+	if (do_for_each_entry_in_dir(dir, 0, name_conflict_fn, &data)) {
+		error("'%s' exists; cannot create '%s'",
+		      data.conflicting_refname, refname);
+		return 0;
 	}
-
-	if (o->update)
-		git_attr_set_direction(GIT_ATTR_CHECKOUT, &o->result);
-	for (i = 0; i < index->cache_nr; i++) {
-		const struct cache_entry *ce = index->cache[i];
-
-		if (ce->ce_flags & CE_WT_REMOVE) {
-			display_progress(progress, ++cnt);
-			if (o->update && !o->dry_run)
-				unlink_entry(ce);
-			continue;
-		}
-	}
-	remove_marked_cache_entries(&o->result);
-	remove_scheduled_dirs();
-
-	for (i = 0; i < index->cache_nr; i++) {
-		struct cache_entry *ce = index->cache[i];
-
-		if (ce->ce_flags & CE_UPDATE) {
-			if (ce->ce_flags & CE_WT_REMOVE)
-				die("BUG: both update and delete flags are set on %s",
-				    ce->name);
-			display_progress(progress, ++cnt);
-			ce->ce_flags &= ~CE_UPDATE;
-			if (o->update && !o->dry_run) {
-				errs |= checkout_entry(ce, &state, NULL);
-			}
-		}
-	}
-	stop_progress(&progress);
-	if (o->update)
-		git_attr_set_direction(GIT_ATTR_CHECKIN, NULL);
-	return errs != 0;
+	return 1;
 }

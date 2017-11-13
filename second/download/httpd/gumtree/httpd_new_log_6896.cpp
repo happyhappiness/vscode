@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
-                                 ap_server_conf, APLOGNO(02644)
-                                 "Child: Event handle #%d (%pp) is invalid",
-                                 i, child_events[i]);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                  H2_STRM_LOG(APLOGNO(03082), stream, "created"));

@@ -1,2 +1,3 @@
-log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
-                               "attempt to invoke directory as script");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
+                         ap_server_conf,
+                         "processor unbind failed");

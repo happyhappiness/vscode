@@ -1,1 +1,1 @@
-path_failure(f_out, strstr(module_dir, "/./"), False);
+path_failure(f_out, module_dir, False);

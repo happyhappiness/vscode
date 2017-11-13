@@ -1,26 +1,27 @@
-static apr_status_t file_cache_el_final(disk_cache_object_t *dobj,
-                                        request_rec *r)
+static const char *set_threads_per_child (cmd_parms *cmd, void *dummy, const char *arg)
 {
-    /* move the data over */
-    if (dobj->tfd) {
-        apr_status_t rv;
-
-        apr_file_close(dobj->tfd);
-
-        /* This assumes that the tempfile is on the same file system
-         * as the cache_root. If not, then we need a file copy/move
-         * rather than a rename.
-         */
-        rv = apr_file_rename(dobj->tempfile, dobj->datafile, r->pool);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
-                         "disk_cache: rename tempfile to datafile failed:"
-                         " %s -> %s", dobj->tempfile, dobj->datafile);
-            apr_file_remove(dobj->tempfile, r->pool);
-        }
-
-        dobj->tfd = NULL;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
 
-    return APR_SUCCESS;
+    ap_threads_per_child = atoi(arg);
+    if (ap_threads_per_child > thread_limit) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                     "value of %d threads,", ap_threads_per_child,
+                     thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " lowering ThreadsPerChild to %d. To increase, please"
+                     " see the", thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " ThreadLimit directive.");
+        ap_threads_per_child = thread_limit;
+    }
+    else if (ap_threads_per_child < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
+        ap_threads_per_child = 1;
+    }
+    return NULL;
 }

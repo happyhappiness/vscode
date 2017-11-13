@@ -1,3 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(02613)
-                          "Error loading %s: %s", spec->file,
-                            lua_tostring(L, -1));
+ap_rputs(ap_escape_html(r->pool, lua_response), r);

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(01980)
-                      "bad response from OCSP server: %s",
-                      line ? line : "(none)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01147)
+                     "Defining worker '%s' for balancer '%s'",
+                     name, balancer->s->name);

@@ -1,1 +1,1 @@
-die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"), name, linenr);
+die("Could not create directory %s", rr_cache);

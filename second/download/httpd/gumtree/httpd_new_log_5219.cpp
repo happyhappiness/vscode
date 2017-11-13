@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                         (startup ? NULL : s),
-                         "could not open pipe-of-death");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf, APLOGNO(00348)
+                 "Child: Accept thread exiting.");

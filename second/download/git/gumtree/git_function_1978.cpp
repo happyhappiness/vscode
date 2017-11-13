@@ -1,21 +1,7 @@
-void parse_date_format(const char *format, struct date_mode *mode)
+static int write_one_shallow(const struct commit_graft *graft, void *cb_data)
 {
-	const char *p;
-
-	/* historical alias */
-	if (!strcmp(format, "local"))
-		format = "default-local";
-
-	mode->type = parse_date_type(format, &p);
-	mode->local = 0;
-
-	if (skip_prefix(p, "-local", &p))
-		mode->local = 1;
-
-	if (mode->type == DATE_STRFTIME) {
-		if (!skip_prefix(p, ":", &p))
-			die("date format missing colon separator: %s", format);
-		mode->strftime_fmt = xstrdup(p);
-	} else if (*p)
-		die("unknown date format %s", format);
+	FILE *fp = cb_data;
+	if (graft->nr_parent == -1)
+		fprintf(fp, "--shallow %s\n", sha1_to_hex(graft->sha1));
+	return 0;
 }

@@ -1,9 +1,11 @@
 fputs(
-"              contains a single public key in PEM or DER format, or any number\n"
-"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
-"              rated by ';'\n"
+"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
+"              PEM is assumed.\n"
 "\n"
-"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
-"              certificate  indicating  its identity. A public key is extracted\n"
-"              from this certificate and if it does not exactly match the  pub-\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --cacert <CA certificate>\n"
+"              (SSL) Tells curl to use the specified certificate file to verify\n"
+"              the  peer.  The  file  may contain multiple CA certificates. The\n"
+"              certificate(s) must be in PEM format. Normally curl is built  to\n"
 , stdout);

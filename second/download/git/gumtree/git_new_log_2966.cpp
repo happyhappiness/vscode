@@ -1,1 +1,1 @@
-error_errno("waitpid for %s failed", argv0);
+error_errno("cannot fork() for %s", cmd->argv[0]);

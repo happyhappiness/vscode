@@ -1,34 +1,33 @@
-void util_ldap_compare_node_display(request_rec *r, util_ald_cache_t *cache, void *n)
+static void usage(void)
 {
-    util_compare_node_t *node = (util_compare_node_t *)n;
-    char date_str[APR_CTIME_LEN+1];
-    char *buf, *cmp_result;
-
-    apr_ctime(date_str, node->lastcompare);
-
-    if (node->result == LDAP_COMPARE_TRUE) {
-        cmp_result = "LDAP_COMPARE_TRUE";
-    }
-    else if (node->result == LDAP_COMPARE_FALSE) {
-        cmp_result = "LDAP_COMPARE_FALSE";
-    }
-    else {
-        cmp_result = apr_itoa(r->pool, node->result);
-    }
-
-    buf = apr_psprintf(r->pool, 
-             "<tr valign='top'>"
-             "<td nowrap>%s</td>"
-             "<td nowrap>%s</td>"
-             "<td nowrap>%s</td>"
-             "<td nowrap>%s</td>"
-             "<td nowrap>%s</td>"
-             "<tr>",
-         node->dn,
-         node->attrib,
-         node->value,
-         date_str,
-         cmp_result);
-
-    ap_rputs(buf, r);
+    apr_file_printf(errfile, "Usage:\n");
+    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");
+    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
+                    "password\n\n");
+    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
+    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
+    apr_file_printf(errfile, " -c  Create a new file.\n");
+    apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout.\n");
+    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+#if defined(WIN32) || defined(TPF) || defined(NETWARE)
+        " (default)"
+#endif
+        ".\n");
+    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+            " (default)"
+#endif
+            ".\n");
+    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");
+    apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
+    apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it.\n");
+    apr_file_printf(errfile, " -D  Delete the specified user.\n");
+    apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by "
+            "default.\n");
+    apr_file_printf(errfile,
+            "On all other systems, the '-p' flag will probably not work.\n");
+    exit(ERR_SYNTAX);
 }

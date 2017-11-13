@@ -1,1 +1,1 @@
-fprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));
+fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");

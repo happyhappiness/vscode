@@ -1,4 +1,7 @@
-printf("%s%s@@ -%ld,%ld +%ld,%ld @@%s\n",
-		       prefix, c_frag,
-		       p_start+1, p_end-p_start, t_start+1, t_end-t_start,
-		       c_reset);
+fprintf(stderr,
+			"If this is correct simply add it to the index "
+			"for example\n"
+			"by using:\n\n"
+			"  git update-index --cacheinfo 160000 %s \"%s\"\n\n"
+			"which will accept this suggestion.\n",
+			sha1_to_hex(merges.objects[0].item->sha1), path);

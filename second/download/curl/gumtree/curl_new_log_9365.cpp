@@ -1,9 +1,11 @@
 fputs(
-"              only  view.  This  is  especially  useful  if  the user wants to\n"
-"              machine-parse the contents of an FTP directory since the  normal\n"
-"              directory  view doesn't use a standard look or format. When used\n"
-"              like this, the option causes a NLST command to be  sent  to  the\n"
-"              server instead of LIST.\n"
+"              certificate indicating its identity. A public key  is  extracted\n"
+"              from  this certificate and if it does not exactly match the pub-\n"
+"              lic key provided to this option, curl will abort the  connection\n"
+"              before sending or receiving any data.\n"
 "\n"
-"              Note:  Some  FTP  servers  list  only files in their response to\n"
+"              This  is  currently  only  implemented in the OpenSSL and GnuTLS\n"
+"              backends.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
 , stdout);

@@ -1,1 +1,1 @@
-rprintf(FERROR,"protocol version mismatch - is your shell clean?\n");
+fprintf(FINFO,"deleting directory %s\n",f_name(f));

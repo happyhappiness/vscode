@@ -1,1 +1,1 @@
-ap_rvputs(r, worker->s->name, "</a></td>", NULL);
+ap_rvputs(r, wsel->s->name, "</h3>\n", NULL);

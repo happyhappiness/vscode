@@ -1,11 +1,11 @@
 fputs(
-"              name with the symbol <. The difference between @ and <  is  then\n"
-"              that  @  makes a file get attached in the post as a file upload,\n"
-"              while the < makes a text field and just  get  the  contents  for\n"
-"              that text field from a file.\n"
+"              certificate  indicating  its identity. A public key is extracted\n"
+"              from this certificate and if it does not exactly match the  pub-\n"
+"              lic  key provided to this option, curl will abort the connection\n"
+"              before sending or receiving any data.\n"
 "\n"
-"              Example,  to send your password file to the server, where 'pass-\n"
-"              word' is the name of the form-field to which /etc/passwd will be\n"
-"              the input:\n"
+"              This is currently only implemented in the  OpenSSL,  GnuTLS  and\n"
+"              GSKit backends.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
 , stdout);

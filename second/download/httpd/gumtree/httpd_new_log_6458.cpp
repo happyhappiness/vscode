@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01184) "Doing workers create: %s (%s), %d, %d [%u]",
-                         balancer->s->name, balancer->s->sname,
-                         (int)ALIGNED_PROXY_WORKER_SHARED_SIZE,
-                         (int)balancer->max_workers, i);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_task(%s): read, mode=%d, block=%d, readbytes=%ld", 
+                  task->id, mode, block, (long)readbytes);

@@ -1,50 +1,44 @@
-static int is_redirect_limit_exceeded(request_rec *r)
+static int handle_autoindex(request_rec *r)
 {
-    request_rec *top = r;
-    rewrite_request_conf *reqc;
-    rewrite_perdir_conf *dconf;
+    autoindex_config_rec *d;
+    int allow_opts;
 
-    /* we store it in the top request */
-    while (top->main) {
-        top = top->main;
-    }
-    while (top->prev) {
-        top = top->prev;
+    if(strcmp(r->handler,DIR_MAGIC_TYPE)) {
+        return DECLINED;
     }
 
-    /* fetch our config */
-    reqc = (rewrite_request_conf *) ap_get_module_config(top->request_config,
-                                                         &rewrite_module);
+    allow_opts = ap_allow_options(r);
 
-    /* no config there? create one. */
-    if (!reqc) {
-        rewrite_server_conf *sconf;
+    d = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config,
+                                                      &autoindex_module);
 
-        reqc = apr_palloc(top->pool, sizeof(rewrite_request_conf));
-        sconf = ap_get_module_config(r->server->module_config, &rewrite_module);
-
-        reqc->redirects = 0;
-        reqc->redirect_limit = sconf->redirect_limit
-                                 ? sconf->redirect_limit
-                                 : REWRITE_REDIRECT_LIMIT;
-
-        /* associate it with this request */
-        ap_set_module_config(top->request_config, &rewrite_module, reqc);
+    r->allowed |= (AP_METHOD_BIT << M_GET);
+    if (r->method_number != M_GET) {
+        return DECLINED;
     }
 
-    /* allow to change the limit during redirects. */
-    dconf = (rewrite_perdir_conf *)ap_get_module_config(r->per_dir_config,
-                                                        &rewrite_module);
+    /* OK, nothing easy.  Trot out the heavy artillery... */
 
-    /* 0 == unset; take server conf ... */
-    if (dconf->redirect_limit) {
-        reqc->redirect_limit = dconf->redirect_limit;
+    if (allow_opts & OPT_INDEXES) {
+        int errstatus;
+
+        if ((errstatus = ap_discard_request_body(r)) != OK) {
+            return errstatus;
+        }
+
+        /* KLUDGE --- make the sub_req lookups happen in the right directory.
+         * Fixing this in the sub_req_lookup functions themselves is difficult,
+         * and would probably break virtual includes...
+         */
+
+        if (r->filename[strlen(r->filename) - 1] != '/') {
+            r->filename = apr_pstrcat(r->pool, r->filename, "/", NULL);
+        }
+        return index_directory(r, d);
     }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "mod_rewrite's internal redirect status: %d/%d.",
-                  reqc->redirects, reqc->redirect_limit);
-
-    /* and now give the caller a hint */
-    return (reqc->redirects++ >= reqc->redirect_limit);
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Directory index forbidden by rule: %s", r->filename);
+        return HTTP_FORBIDDEN;
+    }
 }

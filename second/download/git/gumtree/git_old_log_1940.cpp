@@ -1,1 +1,1 @@
-printf(" %s", sha1_to_hex(parents->item->object.sha1));
+die("Reference has invalid name: '%s'", refname);

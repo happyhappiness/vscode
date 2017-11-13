@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
-                      "DBD: Failed to create thread mutex");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "WARNING: ServerLimit of %d exceeds compile time limit "
+                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);

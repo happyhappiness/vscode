@@ -1,10 +1,11 @@
 fputs(
-"              directory  view doesn't use a standard look or format. When used\n"
-"              like this, the option causes a NLST command to be  sent  to  the\n"
-"              server instead of LIST.\n"
+"              dir given the current user in your system). On Windows, it  then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
 "\n"
-"              Note:  Some  FTP  servers  list  only files in their response to\n"
-"              NLST; they do not include sub-directories and symbolic links.\n"
+"              2) On windows, if there is no _curlrc file in the home  dir,  it\n"
+"              checks for one in the same dir the curl executable is placed. On\n"
+"              Unix-like systems, it will simply try to load .curlrc  from  the\n"
+"              determined home dir.\n"
 "\n"
-"              (POP3) When retrieving a specific email from POP3,  this  switch\n"
 , stdout);

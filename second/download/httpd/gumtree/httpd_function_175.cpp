@@ -1,199 +1,241 @@
-static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
-                                 apr_pool_t *ptemp, server_rec *s)
+static int cache_url_handler(request_rec *r, int lookup)
 {
-    int rc = LDAP_SUCCESS;
-    apr_status_t result;
-    char buf[MAX_STRING_LEN];
+    apr_status_t rv;
+    const char *cc_in, *pragma, *auth;
+    apr_uri_t uri = r->parsed_uri;
+    char *url = r->unparsed_uri;
+    apr_size_t urllen;
+    char *path = uri.path;
+    const char *types;
+    cache_info *info = NULL;
+    cache_request_rec *cache;
+    cache_server_conf *conf;
 
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                                      &cache_module);
 
-#if APR_HAS_SHARED_MEMORY
-    server_rec *s_vhost;
-    util_ldap_state_t *st_vhost;
-    
-    /* initializing cache if file is here and we already don't have shm addr*/
-    if (st->cache_file && !st->cache_shm) {
-#endif
-        result = util_ldap_cache_init(p, st);
-        apr_strerror(result, buf, sizeof(buf));
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
-                     "LDAP cache init: %s", buf);
+    /* we don't handle anything but GET */
+    if (r->method_number != M_GET) {
+        return DECLINED;
+    }
 
-#if APR_HAS_SHARED_MEMORY
-        /* merge config in all vhost */
-        s_vhost = s->next;
-        while (s_vhost) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
-                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
+    /*
+     * Which cache module (if any) should handle this request?
+     */
+    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
+        return DECLINED;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: URL %s is being handled by %s", path, types);
 
-            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
-            st_vhost->cache_shm = st->cache_shm;
-            st_vhost->cache_rmm = st->cache_rmm;
-            st_vhost->cache_file = st->cache_file;
-            s_vhost = s_vhost->next;
+    urllen = strlen(url);
+    if (urllen > MAX_URL_LENGTH) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: URL exceeds length threshold: %s", url);
+        return DECLINED;
+    }
+    /* DECLINE urls ending in / ??? EGP: why? */
+    if (url[urllen-1] == '/') {
+        return DECLINED;
+    }
+
+    /* make space for the per request config */
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config, 
+                                                       &cache_module);
+    if (!cache) {
+        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
+        ap_set_module_config(r->request_config, &cache_module, cache);
+    }
+
+    /* save away the type */
+    cache->types = types;
+
+    /*
+     * Are we allowed to serve cached info at all?
+     */
+
+    /* find certain cache controlling headers */
+    cc_in = apr_table_get(r->headers_in, "Cache-Control");
+    pragma = apr_table_get(r->headers_in, "Pragma");
+    auth = apr_table_get(r->headers_in, "Authorization");
+
+    /* first things first - does the request allow us to return
+     * cached information at all? If not, just decline the request.
+     *
+     * Note that there is a big difference between not being allowed
+     * to cache a request (no-store) and not being allowed to return
+     * a cached request without revalidation (max-age=0).
+     *
+     * Caching is forbidden under the following circumstances:
+     *
+     * - RFC2616 14.9.2 Cache-Control: no-store
+     * - Pragma: no-cache
+     * - Any requests requiring authorization.
+     */
+    if (conf->ignorecachecontrol == 1 && auth == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it", url);
+    }
+    else {
+        if (ap_cache_liststr(NULL, cc_in, "no-store", NULL) ||
+            ap_cache_liststr(NULL, pragma, "no-cache", NULL) || (auth != NULL)) {
+            /* delete the previously cached file */
+            cache_remove_url(r, cache->types, url);
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no-store forbids caching of %s", url);
+            return DECLINED;
+        }
+    }
+
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file
+     *   add cache_in filter
+     * If stale cache file
+     *   If conditional request
+     *     add cache_in filter
+     *   If non-conditional request
+     *     fudge response into a conditional
+     *     add cache_conditional filter
+     * If fresh cache file
+     *   clear filter stack
+     *   add cache_out filter
+     */
+
+    rv = cache_select_url(r, cache->types, url);
+    if (DECLINED == rv) {
+        if (!lookup) {
+            /* no existing cache file */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no cache - add cache_in filter and DECLINE");
+            /* add cache_in filter to cache this request */
+            ap_add_output_filter_handle(cache_in_filter_handle, NULL, r,
+                                        r->connection);
+        }
+        return DECLINED;
+    }
+    else if (OK == rv) {
+        /* RFC2616 13.2 - Check cache object expiration */
+        cache->fresh = ap_cache_check_freshness(cache, r);
+        if (cache->fresh) {
+            /* fresh data available */
+            apr_bucket_brigade *out;
+            conn_rec *c = r->connection;
+
+            if (lookup) {
+                return OK;
+            }
+            rv = ap_meets_conditions(r);
+            if (rv != OK) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "cache: fresh cache - returning status %d", rv);
+                return rv;
+            }
+
+            /*
+             * Not a conditionl request. Serve up the content 
+             */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: fresh cache - add cache_out filter and "
+                         "handle request");
+
+            /* We are in the quick handler hook, which means that no output
+             * filters have been set. So lets run the insert_filter hook.
+             */
+            ap_run_insert_filter(r);
+            ap_add_output_filter_handle(cache_out_filter_handle, NULL,
+                                        r, r->connection);
+
+            /* kick off the filter stack */
+            out = apr_brigade_create(r->pool, c->bucket_alloc);
+            if (APR_SUCCESS
+                != (rv = ap_pass_brigade(r->output_filters, out))) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "cache: error returned while trying to return %s "
+                             "cached data", 
+                             cache->type);
+                return rv;
+            }
+            return OK;
+        }
+        else {
+	    r->err_headers_out = apr_table_make(r->pool, 3);
+            /* stale data available */
+            if (lookup) {
+                return DECLINED;
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: stale cache - test conditional");
+            /* if conditional request */
+            if (ap_cache_request_is_conditional(r)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: conditional - add cache_in filter and "
+                             "DECLINE");
+                /* Why not add CACHE_CONDITIONAL? */
+                ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                            r, r->connection);
+
+                return DECLINED;
+            }
+            /* else if non-conditional request */
+            else {
+                /* fudge response into a conditional */
+                if (info && info->etag) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by etag");
+                    /* if we have a cached etag */
+                    apr_table_set(r->headers_in, "If-None-Match", info->etag);
+                }
+                else if (info && info->lastmods) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by lastmod");
+                    /* if we have a cached IMS */
+                    apr_table_set(r->headers_in, 
+                                  "If-Modified-Since", 
+                                  info->lastmods);
+                }
+                else {
+                    /* something else - pretend there was no cache */
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - no cached "
+                                 "etag/lastmods - add cache_in and DECLINE");
+
+                    ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                                r, r->connection);
+
+                    return DECLINED;
+                }
+                /* add cache_conditional filter */
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: nonconditional - add cache_conditional "
+                             "and DECLINE");
+                ap_add_output_filter_handle(cache_conditional_filter_handle,
+                                            NULL, 
+                                            r, 
+                                            r->connection);
+
+                return DECLINED;
+            }
         }
     }
     else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
+        /* error */
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, 
+                     r->server,
+                     "cache: error returned while checking for cached file by "
+                     "%s cache", 
+                     cache->type);
+        return DECLINED;
     }
-#endif
-    
-    /* log the LDAP SDK used 
-     */
-    #if APR_HAS_NETSCAPE_LDAPSDK 
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Netscape LDAP SDK" );
-
-    #elif APR_HAS_NOVELL_LDAPSDK
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Novell LDAP SDK" );
-
-    #elif APR_HAS_OPENLDAP_LDAPSDK
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with OpenLDAP LDAP SDK" );
-
-    #elif APR_HAS_MICROSOFT_LDAPSDK
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Microsoft LDAP SDK" );
-    #else
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with unknown LDAP SDK" );
-
-    #endif /* APR_HAS_NETSCAPE_LDAPSDK */
-
-
-
-    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
-                              util_ldap_cleanup_module); 
-
-    /* initialize SSL support if requested
-    */
-    if (st->cert_auth_file)
-    {
-        #if APR_HAS_LDAP_SSL /* compiled with ssl support */
-
-        #if APR_HAS_NETSCAPE_LDAPSDK 
-
-            /* Netscape sdk only supports a cert7.db file 
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_CERT7_DB)
-            {
-                rc = ldapssl_client_init(st->cert_auth_file, NULL);
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                         "LDAP: Invalid LDAPTrustedCAType directive - "
-                          "CERT7_DB_PATH type required");
-                rc = -1;
-            }
-
-        #elif APR_HAS_NOVELL_LDAPSDK
-        
-            /* Novell SDK supports DER or BASE64 files
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_DER  ||
-                st->cert_file_type == LDAP_CA_TYPE_BASE64 )
-            {
-                rc = ldapssl_client_init(NULL, NULL);
-                if (LDAP_SUCCESS == rc)
-                {
-                    if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
-                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
-                                                  LDAPSSL_CERT_FILETYPE_B64);
-                    else
-                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
-                                                  LDAPSSL_CERT_FILETYPE_DER);
-
-                    if (LDAP_SUCCESS != rc)
-                        ldapssl_client_deinit();
-                }
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "DER_FILE or BASE64_FILE type required");
-                rc = -1;
-            }
-
-        #elif APR_HAS_OPENLDAP_LDAPSDK
-
-            /* OpenLDAP SDK supports BASE64 files
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
-            {
-                rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, st->cert_auth_file);
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "BASE64_FILE type required");
-                rc = -1;
-            }
-
-
-        #elif APR_HAS_MICROSOFT_LDAPSDK
-            
-            /* Microsoft SDK use the registry certificate store - always
-             * assume support is always available
-            */
-            rc = LDAP_SUCCESS;
-
-        #else
-            rc = -1;
-        #endif /* APR_HAS_NETSCAPE_LDAPSDK */
-
-        #else  /* not compiled with SSL Support */
-
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                     "LDAP: Not built with SSL support." );
-            rc = -1;
-
-        #endif /* APR_HAS_LDAP_SSL */
-
-        if (LDAP_SUCCESS == rc)
-        {
-            st->ssl_support = 1;
-        }
-        else
-        {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
-                         "LDAP: SSL initialization failed");
-            st->ssl_support = 0;
-        }
-    }
-      
-        /* The Microsoft SDK uses the registry certificate store -
-         * always assume support is available
-        */
-    #if APR_HAS_MICROSOFT_LDAPSDK
-        st->ssl_support = 1;
-    #endif
-    
-
-        /* log SSL status - If SSL isn't available it isn't necessarily
-         * an error because the modules asking for LDAP connections 
-         * may not ask for SSL support
-        */
-    if (st->ssl_support)
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support available" );
-    }
-    else
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support unavailable" );
-    }
-    
-    return(OK);
 }

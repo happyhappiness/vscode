@@ -1,1 +1,1 @@
-out_of_memory("send_implied_dirs");
+out_of_memory("open_socket_in");

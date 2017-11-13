@@ -1,15 +1,25 @@
-static void *fill_tree_desc_strict(struct tree_desc *desc,
-				   const unsigned char *hash)
+static int add_recent_loose(const unsigned char *sha1,
+			    const char *path, void *data)
 {
-	void *buffer;
-	enum object_type type;
-	unsigned long size;
+	struct stat st;
+	struct object *obj = lookup_object(sha1);
 
-	buffer = read_sha1_file(hash, &type, &size);
-	if (!buffer)
-		die("unable to read tree (%s)", sha1_to_hex(hash));
-	if (type != OBJ_TREE)
-		die("%s is not a tree", sha1_to_hex(hash));
-	init_tree_desc(desc, buffer, size);
-	return buffer;
+	if (obj && obj->flags & SEEN)
+		return 0;
+
+	if (stat(path, &st) < 0) {
+		/*
+		 * It's OK if an object went away during our iteration; this
+		 * could be due to a simultaneous repack. But anything else
+		 * we should abort, since we might then fail to mark objects
+		 * which should not be pruned.
+		 */
+		if (errno == ENOENT)
+			return 0;
+		return error("unable to stat %s: %s",
+			     sha1_to_hex(sha1), strerror(errno));
+	}
+
+	add_recent_object(sha1, st.st_mtime, data);
+	return 0;
 }

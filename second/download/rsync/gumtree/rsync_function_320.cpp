@@ -1,65 +1,26 @@
-static int delete_file(char *fname)
+void clean_flist(struct file_list *flist)
 {
-	DIR *d;
-	struct dirent *di;
-	char buf[MAXPATHLEN];
-	extern int force_delete;
-	struct stat st;
-	int ret;
+  int i;
 
-	if (do_unlink(fname) == 0 || errno == ENOENT) return 0;
+  if (!flist || flist->count == 0) 
+    return;
+  
+  for (i=0;i<flist->count;i++) {
+    clean_fname(flist->files[i].name);
+  }
+      
+  qsort(flist->files,flist->count,
+	sizeof(flist->files[0]),
+	(int (*)())file_compare);
 
-#if SUPPORT_LINKS
-	ret = lstat(fname, &st);
-#else
-	ret = stat(fname, &st);
-#endif
-	if (ret) {
-		fprintf(FERROR,"stat(%s) : %s\n", fname, strerror(errno));
-		return -1;
-	}
-
-	if (!S_ISDIR(st.st_mode)) {
-		fprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));
-		return -1;
-	}
-
-	if (do_rmdir(fname) == 0 || errno == ENOENT) return 0;
-	if (!force_delete || errno != ENOTEMPTY) {
-		fprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));
-		return -1;
-	}
-
-	/* now we do a recsursive delete on the directory ... */
-	d = opendir(fname);
-	if (!d) {
-		fprintf(FERROR,"opendir(%s): %s\n",
-			fname,strerror(errno));
-		return -1;
-	}
-
-	for (di=readdir(d); di; di=readdir(d)) {
-		if (strcmp(di->d_name,".")==0 ||
-		    strcmp(di->d_name,"..")==0)
-			continue;
-		strncpy(buf, fname, (MAXPATHLEN-strlen(di->d_name))-2);
-		strcat(buf, "/");
-		strcat(buf, di->d_name);
-		buf[MAXPATHLEN-1] = 0;
-		if (verbose > 0)
-			fprintf(FINFO,"deleting %s\n", buf);
-		if (delete_file(buf) != 0) {
-			closedir(d);
-			return -1;
-		}
-	}	
-
-	closedir(d);
-	
-	if (do_rmdir(fname) != 0) {
-		fprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));
-		return -1;
-	}
-
-	return 0;
+  for (i=1;i<flist->count;i++) {
+    if (flist->files[i].name &&
+	strcmp(flist->files[i].name,flist->files[i-1].name) == 0) {
+      if (verbose > 1 && !am_server)
+	fprintf(FERROR,"removing duplicate name %s from file list %d\n",
+		flist->files[i-1].name,i-1);
+      free(flist->files[i-1].name);
+      bzero((char *)&flist->files[i-1],sizeof(flist->files[i-1]));
+    } 
+  }
 }

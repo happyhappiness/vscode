@@ -1,1 +1,1 @@
-fprintf(FINFO,"got file_sum\n");
+fprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));

@@ -1,11 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              Used together with -u, --user and -x, --proxy.\n"
 "\n"
-"       --ciphers <list of ciphers>\n"
-"              (SSL) Specifies which ciphers to use in the connection. The list\n"
-"              of  ciphers  must  specify  valid ciphers. Read up on SSL cipher\n"
-"              list          details           on           this           URL:\n"
-"              http://www.openssl.org/docs/apps/ciphers.html\n"
+"              See also --proxy-basic.\n"
 "\n"
-"              NSS  ciphers  are  done differently than OpenSSL and GnuTLS. The\n"
+"       -c, --cookie-jar <file name>\n"
+"              (HTTP) Specify to which file you want curl to write all  cookies\n"
+"              after  a completed operation. Curl writes all cookies previously\n"
+"              read from a specified file as well as all cookies received  from\n"
+"              remote server(s). If no cookies are known, no data will be writ-\n"
 , stdout);

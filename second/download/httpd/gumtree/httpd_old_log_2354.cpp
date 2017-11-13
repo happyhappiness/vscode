@@ -1,2 +1,2 @@
-printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-            err_conn, err_length, err_except);
+ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_STARTUP, rv, NULL,
+                    "Could not open pipe-of-death.");

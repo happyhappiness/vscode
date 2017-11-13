@@ -1,12 +1,10 @@
 fputs(
-"              size_upload    The total amount of bytes that were uploaded.\n"
+"                             to  a  file  with  the  -O,  --remote-name or -o,\n"
+"                             --output option. It's most useful in  combination\n"
+"                             with  the -J, --remote-header-name option. (Added\n"
+"                             in 7.26.0)\n"
 "\n"
-"              speed_download The average download speed that curl measured for\n"
-"                             the complete download. Bytes per second.\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"                             to the remote FTP server. (Added in 7.15.4)\n"
 "\n"
-"              speed_upload   The average upload speed that curl  measured  for\n"
-"                             the complete upload. Bytes per second.\n"
-"\n"
-"              ssl_verify_result\n"
-"                             The  result of the SSL peer certificate verifica-\n"
 , stdout);

@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+die_errno(_("unable to write file '%s' mode %o"), path, mode);

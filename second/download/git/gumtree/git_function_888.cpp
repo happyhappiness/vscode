@@ -1,46 +1,61 @@
-static int pack_if_possible_fn(struct ref_entry *entry, void *cb_data)
+int read_loose_object(const char *path,
+		      const unsigned char *expected_sha1,
+		      enum object_type *type,
+		      unsigned long *size,
+		      void **contents)
 {
-	struct pack_refs_cb_data *cb = cb_data;
-	enum peel_status peel_status;
-	struct ref_entry *packed_entry;
-	int is_tag_ref = starts_with(entry->name, "refs/tags/");
+	int ret = -1;
+	int fd = -1;
+	void *map = NULL;
+	unsigned long mapsize;
+	git_zstream stream;
+	char hdr[32];
 
-	/* Do not pack per-worktree refs: */
-	if (ref_type(entry->name) != REF_TYPE_NORMAL)
-		return 0;
+	*contents = NULL;
 
-	/* ALWAYS pack tags */
-	if (!(cb->flags & PACK_REFS_ALL) && !is_tag_ref)
-		return 0;
+	map = map_sha1_file_1(path, NULL, &mapsize);
+	if (!map) {
+		error_errno("unable to mmap %s", path);
+		goto out;
+	}
 
-	/* Do not pack symbolic or broken refs: */
-	if ((entry->flag & REF_ISSYMREF) || !entry_resolves_to_object(entry))
-		return 0;
+	if (unpack_sha1_header(&stream, map, mapsize, hdr, sizeof(hdr)) < 0) {
+		error("unable to unpack header of %s", path);
+		goto out;
+	}
 
-	/* Add a packed ref cache entry equivalent to the loose entry. */
-	peel_status = peel_entry(entry, 1);
-	if (peel_status != PEEL_PEELED && peel_status != PEEL_NON_TAG)
-		die("internal error peeling reference %s (%s)",
-		    entry->name, oid_to_hex(&entry->u.value.oid));
-	packed_entry = find_ref(cb->packed_refs, entry->name);
-	if (packed_entry) {
-		/* Overwrite existing packed entry with info from loose entry */
-		packed_entry->flag = REF_ISPACKED | REF_KNOWS_PEELED;
-		oidcpy(&packed_entry->u.value.oid, &entry->u.value.oid);
+	*type = parse_sha1_header(hdr, size);
+	if (*type < 0) {
+		error("unable to parse header of %s", path);
+		git_inflate_end(&stream);
+		goto out;
+	}
+
+	if (*type == OBJ_BLOB) {
+		if (check_stream_sha1(&stream, hdr, *size, path, expected_sha1) < 0)
+			goto out;
 	} else {
-		packed_entry = create_ref_entry(entry->name, entry->u.value.oid.hash,
-						REF_ISPACKED | REF_KNOWS_PEELED, 0);
-		add_ref(cb->packed_refs, packed_entry);
+		*contents = unpack_sha1_rest(&stream, hdr, *size, expected_sha1);
+		if (!*contents) {
+			error("unable to unpack contents of %s", path);
+			git_inflate_end(&stream);
+			goto out;
+		}
+		if (check_sha1_signature(expected_sha1, *contents,
+					 *size, typename(*type))) {
+			error("sha1 mismatch for %s (expected %s)", path,
+			      sha1_to_hex(expected_sha1));
+			free(*contents);
+			goto out;
+		}
 	}
-	oidcpy(&packed_entry->u.value.peeled, &entry->u.value.peeled);
 
-	/* Schedule the loose reference for pruning if requested. */
-	if ((cb->flags & PACK_REFS_PRUNE)) {
-		struct ref_to_prune *n;
-		FLEX_ALLOC_STR(n, name, entry->name);
-		hashcpy(n->sha1, entry->u.value.oid.hash);
-		n->next = cb->ref_to_prune;
-		cb->ref_to_prune = n;
-	}
-	return 0;
+	ret = 0; /* everything checks out */
+
+out:
+	if (map)
+		munmap(map, mapsize);
+	if (fd >= 0)
+		close(fd);
+	return ret;
 }

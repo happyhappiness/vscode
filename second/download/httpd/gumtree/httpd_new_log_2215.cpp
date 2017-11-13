@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "cache: No cache request information available for key"
-                     " generation");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareServers of %d not allowed, "
+                         "increasing to 1", ap_daemons_min_free);

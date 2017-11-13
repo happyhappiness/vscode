@@ -1,39 +1,65 @@
-static char *get_local_name(struct file_list *flist,char *name)
+static struct file_struct *make_file(int recurse,char *fname)
 {
+  static struct file_struct file;
   struct stat st;
+  char sum[SUM_LENGTH];
 
-  if (stat(name,&st) == 0) {
-    if (S_ISDIR(st.st_mode)) {
-      if (chdir(name) != 0) {
-	fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
-	exit_cleanup(1);
-      }
-      return NULL;
-    }
-    if (flist->count > 1) {
-      fprintf(stderr,"ERROR: destination must be a directory when copying more than 1 file\n");
-      exit_cleanup(1);
-    }
-    return name;
+  bzero(sum,SUM_LENGTH);
+
+  if (lstat(fname,&st) != 0) {
+    fprintf(stderr,"%s: %s\n",
+	    fname,strerror(errno));
+    return NULL;
   }
 
-  if (flist->count == 1)
-    return name;
+  if (S_ISDIR(st.st_mode) && !recurse) {
+    fprintf(stderr,"skipping directory %s\n",fname);
+    return NULL;
+  }
 
-  if (!name) 
+  if (one_file_system && st.st_dev != filesystem_dev)
     return NULL;
 
-  if (mkdir(name,0777) != 0) {
-    fprintf(stderr,"mkdir %s : %s\n",name,strerror(errno));
-    exit_cleanup(1);
-  } else {
-    fprintf(am_server?stderr:stdout,"created directory %s\n",name);
-  }
+  if (!match_file_name(fname,&st))
+    return NULL;
 
-  if (chdir(name) != 0) {
-    fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
-    exit_cleanup(1);
-  }
+  if (verbose > 2)
+    fprintf(stderr,"make_file(%s)\n",fname);
 
-  return NULL;
+  file.name = strdup(fname);
+  file.modtime = st.st_mtime;
+  file.length = st.st_size;
+  file.mode = st.st_mode;
+  file.uid = st.st_uid;
+  file.gid = st.st_gid;
+#ifdef HAVE_ST_RDEV
+  file.dev = st.st_rdev;
+#endif
+
+#if SUPPORT_LINKS
+  if (S_ISLNK(st.st_mode)) {
+    int l;
+    char lnk[MAXPATHLEN];
+    if ((l=readlink(fname,lnk,MAXPATHLEN-1)) == -1) {
+      fprintf(stderr,"readlink %s : %s\n",fname,strerror(errno));
+      return NULL;
+    }
+    lnk[l] = 0;
+    file.link = strdup(lnk);
+  }
+#endif
+
+  if (always_checksum && S_ISREG(st.st_mode)) {
+    file_checksum(fname,file.sum,st.st_size);
+  }       
+
+  if (flist_dir)
+    file.dir = strdup(flist_dir);
+  else
+    file.dir = NULL;
+
+  if (!S_ISDIR(st.st_mode))
+    total_size += st.st_size;
+
+  return &file;
 }

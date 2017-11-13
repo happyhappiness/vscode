@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "form parsed, but username field '%s' was missing or empty, unauthorized",
-                      username);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");

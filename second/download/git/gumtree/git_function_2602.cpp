@@ -1,22 +1,20 @@
-static void print_line(const char *prefix, char first,
-		       long line, unsigned long *ends, void *data,
-		       const char *color, const char *reset)
+static int add_info_ref(const char *path, const struct object_id *oid,
+			int flag, void *cb_data)
 {
-	char *begin = get_nth_line(line, ends, data);
-	char *end = get_nth_line(line+1, ends, data);
-	int had_nl = 0;
+	FILE *fp = cb_data;
+	struct object *o = parse_object(oid->hash);
+	if (!o)
+		return -1;
 
-	if (end > begin && end[-1] == '\n') {
-		end--;
-		had_nl = 1;
+	if (fprintf(fp, "%s	%s\n", oid_to_hex(oid), path) < 0)
+		return -1;
+
+	if (o->type == OBJ_TAG) {
+		o = deref_tag(o, path, 0);
+		if (o)
+			if (fprintf(fp, "%s	%s^{}\n",
+				sha1_to_hex(o->sha1), path) < 0)
+				return -1;
 	}
-
-	fputs(prefix, stdout);
-	fputs(color, stdout);
-	putchar(first);
-	fwrite(begin, 1, end-begin, stdout);
-	fputs(reset, stdout);
-	putchar('\n');
-	if (!had_nl)
-		fputs("\\ No newline at end of file\n", stdout);
+	return 0;
 }

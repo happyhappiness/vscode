@@ -1,1 +1,1 @@
-die_errno("BUG: %s", msg);
+die(_("no name was given and auto-detection is disabled"));

@@ -1,11 +1,10 @@
 fputs(
-"              This option can be used  multiple  times  to  add/replace/remove\n"
-"              multiple headers.\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.  This is because undoing a GET doesn't make sense, but you\n"
+"              should then instead enforce the alternative method you prefer.\n"
 "\n"
-"       -h, --help\n"
-"              Usage  help.  This lists all current command line options with a\n"
-"              short description.\n"
-"       --hostpubmd5 <md5>\n"
-"              (SFTP SCP) Pass a string containing 32 hexadecimal  digits.  The\n"
-"              string  should  be the 128 bit MD5 checksum of the remote host's\n"
+"       -g, --globoff\n"
+"              This option switches off the \"URL globbing parser\". When you set\n"
+"              this  option, you can specify URLs that contain the letters {}[]\n"
+"              without having them being interpreted by curl itself. Note  that\n"
 , stdout);

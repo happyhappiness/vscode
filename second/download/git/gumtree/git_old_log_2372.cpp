@@ -1,1 +1,1 @@
-error("cannot create thread: %s", strerror(err));
+printf("%s	%s\n", sha1_to_hex(ref->old_sha1), ref->name);;

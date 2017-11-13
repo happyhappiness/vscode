@@ -1,9 +1,12 @@
 fputs(
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination  with  the -L, --location option. The file format of\n"
-"              the file to read cookies from should be plain HTTP headers (Set-\n"
-"              Cookie style) or the Netscape/Mozilla cookie file format.\n"
+"              (SSL)  Forces  curl to use SSL version 3 when negotiating with a\n"
+"              remote SSL server. Sometimes curl is built  without  SSLv3  sup-\n"
+"              port. SSLv3 is widely considered insecure (see RFC 7568).\n"
 "\n"
-"              The  file  specified with -b, --cookie is only used as input. No\n"
-"              cookies will be written to the file. To store cookies,  use  the\n"
+"       -4, --ipv4\n"
+"              This  option tells curl to resolve names to IPv4 addresses only,\n"
+"              and not for example try IPv6.\n"
+"\n"
+"       -6, --ipv6\n"
+"              This option tells curl to resolve names to IPv6 addresses  only,\n"
 , stdout);

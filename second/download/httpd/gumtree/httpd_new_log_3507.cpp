@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01477)
-                              "lua: Failed to obtain lua interpreter for %s %s",
-                              hook_spec->function_name, hook_spec->file_name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00831)
+                 "socache_shmcb_store (0x%02x -> subcache %d)",
+                 SHMCB_MASK_DBG(header, id));

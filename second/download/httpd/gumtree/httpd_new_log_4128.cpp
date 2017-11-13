@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(01964)
-                  "Connection to child %ld established "
-                  "(server %s)", c->id, sc->vhost_id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00989)
+               "ajp_send_header: ajp_ilink_send failed");

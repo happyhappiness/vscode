@@ -1,1 +1,1 @@
-printf (" [using slang %d]", SLANG_VERSION);
+printf (" [using ncurses %s]", NCURSES_VERSION);

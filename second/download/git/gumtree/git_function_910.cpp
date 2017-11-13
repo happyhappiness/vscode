@@ -1,27 +1,14 @@
-static void submodule_push_check(const char *path, const struct remote *remote,
-				 const char **refspec, int refspec_nr)
+void vreportf(const char *prefix, const char *err, va_list params)
 {
-	struct child_process cp = CHILD_PROCESS_INIT;
-	int i;
+	FILE *fh = error_handle ? error_handle : stderr;
 
-	argv_array_push(&cp.args, "submodule--helper");
-	argv_array_push(&cp.args, "push-check");
-	argv_array_push(&cp.args, remote->name);
+	fflush(fh);
+	if (!tweaked_error_buffering) {
+		setvbuf(fh, NULL, _IOLBF, 0);
+		tweaked_error_buffering = 1;
+	}
 
-	for (i = 0; i < refspec_nr; i++)
-		argv_array_push(&cp.args, refspec[i]);
-
-	prepare_submodule_repo_env(&cp.env_array);
-	cp.git_cmd = 1;
-	cp.no_stdin = 1;
-	cp.no_stdout = 1;
-	cp.dir = path;
-
-	/*
-	 * Simply indicate if 'submodule--helper push-check' failed.
-	 * More detailed error information will be provided by the
-	 * child process.
-	 */
-	if (run_command(&cp))
-		die("process for submodule '%s' failed", path);
+	fputs(prefix, fh);
+	vfprintf(fh, err, params);
+	fputc('\n', fh);
 }

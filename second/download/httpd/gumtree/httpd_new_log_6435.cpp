@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02343)
-                          "Can't evaluate logout expression: %s", err);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
+				  APLOGNO(03404)
+                                  "h2_session(%ld): waiting on conditional",
+                                  session->id);

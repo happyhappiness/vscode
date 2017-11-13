@@ -1,2 +1,2 @@
-die("process for submodule '%s' failed with exit code: %d",
-		    gs->name, status);
+error(_("could not parse commit %s\n"),
+			     oid_to_hex(&commit->object.oid));

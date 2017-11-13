@@ -1,65 +1,13 @@
-static int handle_change_delete(struct merge_options *o,
-				 const char *path, const char *old_path,
-				 const struct object_id *o_oid, int o_mode,
-				 const struct object_id *changed_oid,
-				 int changed_mode,
-				 const char *change_branch,
-				 const char *delete_branch,
-				 const char *change, const char *change_past)
+static int error_failed_squash(struct commit *commit,
+	struct replay_opts *opts, int subject_len, const char *subject)
 {
-	char *alt_path = NULL;
-	const char *update_path = path;
-	int ret = 0;
-
-	if (dir_in_way(path, !o->call_depth, 0)) {
-		update_path = alt_path = unique_path(o, path, change_branch);
-	}
-
-	if (o->call_depth) {
-		/*
-		 * We cannot arbitrarily accept either a_sha or b_sha as
-		 * correct; since there is no true "middle point" between
-		 * them, simply reuse the base version for virtual merge base.
-		 */
-		ret = remove_file_from_cache(path);
-		if (!ret)
-			ret = update_file(o, 0, o_oid, o_mode, update_path);
-	} else {
-		if (!alt_path) {
-			if (!old_path) {
-				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
-				       "and %s in %s. Version %s of %s left in tree."),
-				       change, path, delete_branch, change_past,
-				       change_branch, change_branch, path);
-			} else {
-				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
-				       "and %s to %s in %s. Version %s of %s left in tree."),
-				       change, old_path, delete_branch, change_past, path,
-				       change_branch, change_branch, path);
-			}
-		} else {
-			if (!old_path) {
-				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
-				       "and %s in %s. Version %s of %s left in tree at %s."),
-				       change, path, delete_branch, change_past,
-				       change_branch, change_branch, path, alt_path);
-			} else {
-				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
-				       "and %s to %s in %s. Version %s of %s left in tree at %s."),
-				       change, old_path, delete_branch, change_past, path,
-				       change_branch, change_branch, path, alt_path);
-			}
-		}
-		/*
-		 * No need to call update_file() on path when change_branch ==
-		 * o->branch1 && !alt_path, since that would needlessly touch
-		 * path.  We could call update_file_flags() with update_cache=0
-		 * and update_wd=0, but that's a no-op.
-		 */
-		if (change_branch != o->branch1 || alt_path)
-			ret = update_file(o, 0, changed_oid, changed_mode, update_path);
-	}
-	free(alt_path);
-
-	return ret;
+	if (rename(rebase_path_squash_msg(), rebase_path_message()))
+		return error(_("could not rename '%s' to '%s'"),
+			rebase_path_squash_msg(), rebase_path_message());
+	unlink(rebase_path_fixup_msg());
+	unlink(git_path("MERGE_MSG"));
+	if (copy_file(git_path("MERGE_MSG"), rebase_path_message(), 0666))
+		return error(_("could not copy '%s' to '%s'"),
+			     rebase_path_message(), git_path("MERGE_MSG"));
+	return error_with_patch(commit, subject, subject_len, opts, 1, 0);
 }

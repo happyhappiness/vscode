@@ -1,9 +1,11 @@
 fputs(
-"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
-"              optional password isn't specified, it will be queried for on the\n"
-"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
-"              that is the private key and  the  private  certificate  concate-\n"
-"              nated! See --cert and --key to specify them independently.\n"
+"              only such one.  (Added in 7.33.0)\n"
 "\n"
-"              If  curl  is  built against the NSS SSL library then this option\n"
+"       --dns-ipv6-addr <ip-address>\n"
+"              Tell curl to bind to <ip-address> when making IPv6 DNS requests,\n"
+"              so  that the DNS requests originate from this address. The argu-\n"
+"              ment should be a single IPv6 address.\n"
+"\n"
+"              This option requires that libcurl  was  built  with  a  resolver\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
 , stdout);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: would block");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-T] [-S]", pad);

@@ -1,30 +1,31 @@
-apr_status_t h2_mplx_process(h2_mplx *m, struct h2_stream *stream, 
-                             h2_stream_pri_cmp *cmp, void *ctx)
+apr_status_t h2_workers_register(h2_workers *workers, struct h2_mplx *m)
 {
-    apr_status_t status;
-    
-    H2_MPLX_ENTER(m);
-
-    if (m->aborted) {
-        status = APR_ECONNABORTED;
-    }
-    else {
-        status = APR_SUCCESS;
-        h2_ihash_add(m->streams, stream);
-        if (h2_stream_is_ready(stream)) {
-            /* already have a response */
-            check_data_for(m, stream, 0);
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                          H2_STRM_MSG(stream, "process, add to readyq")); 
+    apr_status_t status = apr_thread_mutex_lock(workers->lock);
+    if (status == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_TRACE2, status, workers->s,
+                     "h2_workers: register mplx(%ld)", m->id);
+        if (in_list(workers, m)) {
+            status = APR_EAGAIN;
         }
         else {
-            h2_iq_add(m->q, stream->id, cmp, ctx);
-            register_if_needed(m);                
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                          H2_STRM_MSG(stream, "process, added to q")); 
+            H2_MPLX_LIST_INSERT_TAIL(&workers->mplxs, m);
+            status = APR_SUCCESS;
         }
+        
+        if (workers->idle_worker_count > 0) { 
+            apr_thread_cond_signal(workers->mplx_added);
+        }
+        else if (workers->worker_count < workers->max_size) {
+            ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                         "h2_workers: got %d worker, adding 1", 
+                         workers->worker_count);
+            add_worker(workers);
+        }
+        
+        /* cleanup any zombie workers that may have accumulated */
+        cleanup_zombies(workers, 0);
+        
+        apr_thread_mutex_unlock(workers->lock);
     }
-
-    H2_MPLX_LEAVE(m);
     return status;
 }

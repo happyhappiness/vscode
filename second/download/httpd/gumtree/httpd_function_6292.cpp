@@ -1,37 +1,93 @@
-apr_status_t h2_stream_write_data(h2_stream *stream,
-                                  const char *data, size_t len, int eos)
+static int winnt_check_config(apr_pool_t *pconf, apr_pool_t *plog,
+                              apr_pool_t *ptemp, server_rec* s)
 {
-    conn_rec *c = stream->session->c;
-    apr_status_t status = APR_SUCCESS;
-    apr_bucket_brigade *tmp;
-    
-    ap_assert(stream);
-    if (!stream->input) {
-        return APR_EOF;
-    }
-    if (input_closed(stream) || !stream->request) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d", 
-                      stream->session->id, stream->id, input_closed(stream),
-                      stream->request != NULL);
-        return APR_EINVAL;
+    int is_parent;
+    int startup = 0;
+
+    /* We want this only in the parent and only the first time around */
+    is_parent = (parent_pid == my_pid);
+    if (is_parent &&
+        ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG) {
+        startup = 1;
     }
 
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  "h2_stream(%ld-%d): add %ld input bytes", 
-                  stream->session->id, stream->id, (long)len);
-    
-    tmp = apr_brigade_create(stream->pool, c->bucket_alloc);
-    apr_brigade_write(tmp, NULL, NULL, data, len);
-    status = h2_beam_send(stream->input, tmp, APR_BLOCK_READ);
-    apr_brigade_destroy(tmp);
-    
-    stream->in_data_frames++;
-    stream->in_data_octets += len;
-    
-    if (eos) {
-        return h2_stream_close_input(stream);
+    if (thread_limit > MAX_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00439)
+                         "WARNING: ThreadLimit of %d exceeds compile-time "
+                         "limit of", thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00440)
+                         "ThreadLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         thread_limit, MAX_THREAD_LIMIT);
+        }
+        thread_limit = MAX_THREAD_LIMIT;
     }
-    
-    return status;
+    else if (thread_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00441)
+                         "WARNING: ThreadLimit of %d not allowed, "
+                         "increasing to 1.", thread_limit);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00442)
+                         "ThreadLimit of %d not allowed, increasing to 1",
+                         thread_limit);
+        }
+        thread_limit = 1;
+    }
+
+    /* You cannot change ThreadLimit across a restart; ignore
+     * any such attempts.
+     */
+    if (!first_thread_limit) {
+        first_thread_limit = thread_limit;
+    }
+    else if (thread_limit != first_thread_limit) {
+        /* Don't need a startup console version here */
+        if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00443)
+                         "changing ThreadLimit to %d from original value "
+                         "of %d not allowed during restart",
+                         thread_limit, first_thread_limit);
+        }
+        thread_limit = first_thread_limit;
+    }
+
+    if (ap_threads_per_child > thread_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00444)
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of", ap_threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         thread_limit, thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ThreadLimit "
+                         "directive.");
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00445)
+                         "ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of %d, decreasing to match",
+                         ap_threads_per_child, thread_limit);
+        }
+        ap_threads_per_child = thread_limit;
+    }
+    else if (ap_threads_per_child < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00446)
+                         "WARNING: ThreadsPerChild of %d not allowed, "
+                         "increasing to 1.", ap_threads_per_child);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00447)
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         ap_threads_per_child);
+        }
+        ap_threads_per_child = 1;
+    }
+
+    return OK;
 }

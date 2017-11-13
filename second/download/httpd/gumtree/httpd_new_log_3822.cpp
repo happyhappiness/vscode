@@ -1,1 +1,2 @@
-ap_rputs("<tr><td>Failover Attempts:</td><td><input name='b_max' id='b_max' type=text ", r);
+log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01262)
+                "Options ExecCGI is off in this directory");

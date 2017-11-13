@@ -1,7 +1,15 @@
-puts(" -C/--continue-at <offset> Specify absolute resume offset\n"
-       " -d/--data <data>   HTTP POST data (H)\n"
-       "    --data-ascii <data>   HTTP POST ASCII data (H)\n"
-       "    --data-binary <data>  HTTP POST binary data (H)\n"
-       " -D/--dump-header <file> Write the headers to this file\n"
-       "    --egd-file <file> EGD socket path for random data (SSL)\n"
-       " -e/--referer       Referer page (H)");
+puts(
+"          500-700,600-799\n"
+"                    specifies 300 bytes from offset 500(H)\n"
+"\n"
+"          100-199,500-599\n"
+"                    specifies two separate 100 bytes ranges(*)(H)\n"
+"\n"
+"     (*)  =  NOTE that this will cause the server to reply with a\n"
+"     multipart response!\n"
+"\n"
+"     You should also be aware that many HTTP/1.1 servers  do  not\n"
+"     have this feature enabled, so that when you attempt to get a\n"
+"     range, you'll instead get the whole document.\n"
+"\n"
+);

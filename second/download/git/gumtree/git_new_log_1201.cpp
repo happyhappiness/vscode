@@ -1,1 +1,1 @@
-anonymize_ident_line(&committer, &committer_end);
+warning(_("adding embedded git repository: %s"), name.buf);

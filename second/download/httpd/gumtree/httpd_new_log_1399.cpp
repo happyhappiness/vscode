@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "TLS session ticket key for %s successfully set, "
-                      "creating new session ticket", sc->vhost_id);
+apr_file_printf(errfile,
+                            "Could not write the pid file '%s': %s" APR_EOL_STR,
+                            pidfilename, 
+                            apr_strerror(status, errmsg, sizeof errmsg));

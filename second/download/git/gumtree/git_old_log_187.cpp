@@ -1,1 +1,1 @@
-die(_("unrecognized whitespace ignore option '%s'"), option);
+die("corrupt tree sha %s", sha1_to_hex(sha1));

@@ -1,1 +1,1 @@
-error("--path=<path> needs --textconv or --filters");
+fprintf(fp, "%s\n", oid_to_hex(&commit));

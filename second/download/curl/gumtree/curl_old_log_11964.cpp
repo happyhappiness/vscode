@@ -1,11 +1,11 @@
 fputs(
-"              Make  curl  sleep  this  amount of time before each retry when a\n"
-"              transfer has failed with  a  transient  error  (it  changes  the\n"
-"              default  backoff time algorithm between retries). This option is\n"
-"              only interesting if --retry is also used. Setting this delay  to\n"
-"              zero  will  make  curl  use the default backoff time.  (Added in\n"
-"              7.12.3)\n"
+"              stamp of the remote file, and if  that  is  available  make  the\n"
+"              local file get that same timestamp.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --random-file <file>\n"
+"              (SSL) Specify the path name to file containing what will be con-\n"
+"              sidered as random data. The data is  used  to  seed  the  random\n"
+"              engine for SSL connections.  See also the --egd-file option.\n"
 "\n"
+"       --raw  (HTTP) When used, it disables all internal HTTP decoding of con-\n"
 , stdout);

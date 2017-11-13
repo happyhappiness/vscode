@@ -1,34 +1,64 @@
-static int on_header_cb(nghttp2_session *ngh2, const nghttp2_frame *frame,
-                        const uint8_t *name, size_t namelen,
-                        const uint8_t *value, size_t valuelen,
-                        uint8_t flags,
-                        void *userp)
+apr_status_t h2_request_write_header(h2_request *req,
+                                     const char *name, size_t nlen,
+                                     const char *value, size_t vlen,
+                                     h2_mplx *m)
 {
-    h2_session *session = (h2_session *)userp;
-    h2_stream * stream;
-    apr_status_t status;
+    apr_status_t status = APR_SUCCESS;
     
-    (void)ngh2;
-    (void)flags;
-    if (!is_accepting_streams(session)) {
-        /* just ignore */
-        return 0;
+    if (nlen <= 0) {
+        return status;
     }
     
-    stream = h2_session_get_stream(session, frame->hd.stream_id);
-    if (!stream) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
-                      APLOGNO(02920) 
-                      "h2_session:  stream(%ld-%d): on_header for unknown stream",
-                      session->id, (int)frame->hd.stream_id);
-        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
+    if (name[0] == ':') {
+        /* pseudo header, see ch. 8.1.2.3, always should come first */
+        if (req->to_h1) {
+            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, req->pool,
+                          APLOGNO(02917) 
+                          "h2_request(%d): pseudo header after request start",
+                          req->id);
+            return APR_EGENERAL;
+        }
+        
+        if (H2_HEADER_METHOD_LEN == nlen
+            && !strncmp(H2_HEADER_METHOD, name, nlen)) {
+            req->method = apr_pstrndup(req->pool, value, vlen);
+        }
+        else if (H2_HEADER_SCHEME_LEN == nlen
+                 && !strncmp(H2_HEADER_SCHEME, name, nlen)) {
+            req->scheme = apr_pstrndup(req->pool, value, vlen);
+        }
+        else if (H2_HEADER_PATH_LEN == nlen
+                 && !strncmp(H2_HEADER_PATH, name, nlen)) {
+            req->path = apr_pstrndup(req->pool, value, vlen);
+        }
+        else if (H2_HEADER_AUTH_LEN == nlen
+                 && !strncmp(H2_HEADER_AUTH, name, nlen)) {
+            req->authority = apr_pstrndup(req->pool, value, vlen);
+        }
+        else {
+            char buffer[32];
+            memset(buffer, 0, 32);
+            strncpy(buffer, name, (nlen > 31)? 31 : nlen);
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, req->pool,
+                          APLOGNO(02954) 
+                          "h2_request(%d): ignoring unknown pseudo header %s",
+                          req->id, buffer);
+        }
+    }
+    else {
+        /* non-pseudo header, append to work bucket of stream */
+        if (!req->to_h1) {
+            status = insert_request_line(req, m);
+            if (status != APR_SUCCESS) {
+                return status;
+            }
+        }
+        
+        if (status == APR_SUCCESS) {
+            status = h2_to_h1_add_header(req->to_h1,
+                                         name, nlen, value, vlen);
+        }
     }
     
-    status = h2_stream_add_header(stream, (const char *)name, namelen,
-                                  (const char *)value, valuelen);
-                                    
-    if (status != APR_SUCCESS) {
-        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
-    }
-    return 0;
+    return status;
 }

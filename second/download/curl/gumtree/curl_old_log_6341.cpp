@@ -1,11 +1,11 @@
 fputs(
-"              See also the -A/--user-agent and -e/--referer options.\n"
+"              you're  doing. Remove an internal header by giving a replacement\n"
+"              without content on the right  side  of  the  colon,  as  in:  -H\n"
+"              \"Host:\".\n"
 "\n"
-"              This option can be used  multiple  times  to  add/replace/remove\n"
-"              multiple headers.\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"       --hostpubmd5 <md5>\n"
-"              Pass  a  string  containing  32  hexadecimal  digits. The string\n"
-"              should be the 128 bit MD5 checksum of the remote  host's  public\n"
-"              key,  curl  will  refuse the connection with the host unless the\n"
 , stdout);

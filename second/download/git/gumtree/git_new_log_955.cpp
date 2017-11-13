@@ -1,1 +1,1 @@
-vreportf(prefix, fmt, params);
+die("strange pathname '%s' blocked", path);

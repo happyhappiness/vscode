@@ -1,30 +1,28 @@
-static void usage(const char *argv0, const char *reason)
+static const char *set_threads_per_child (cmd_parms *cmd, void *dummy,
+                                          const char *arg)
 {
-    if (reason) {
-        fprintf(stderr, "%s\n", reason);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
-    fprintf(stderr,
-            "Usage: %s [-l] <logfile> "
-            "{<rotation time in seconds>|<rotation size in megabytes>} "
-            "[offset minutes from UTC]\n\n",
-            argv0);
-#ifdef OS2
-    fprintf(stderr,
-            "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
-            argv0);
-#else
-    fprintf(stderr,
-            "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
-            argv0);
-    fprintf(stderr,
-            "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv0);
-#endif
-    fprintf(stderr,
-            "to httpd.conf. The generated name will be /some/where.nnnn "
-            "where nnnn is the\nsystem time at which the log nominally "
-            "starts (N.B. if using a rotation time,\nthe time will always "
-            "be a multiple of the rotation time, so you can synchronize\n"
-            "cron scripts with it). At the end of each rotation time or "
-            "when the file size\nis reached a new log is started.\n");
-    exit(1);
+
+    ap_threads_per_child = atoi(arg);
+    if (ap_threads_per_child > thread_limit) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                     "value of %d", ap_threads_per_child,
+                     thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "threads, lowering ThreadsPerChild to %d. To increase, please"
+                     " see the", thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " ThreadLimit directive.");
+        ap_threads_per_child = thread_limit;
+    }
+    else if (ap_threads_per_child < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
+        ap_threads_per_child = 1;
+    }
+    return NULL;
 }

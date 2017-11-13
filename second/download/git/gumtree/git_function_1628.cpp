@@ -1,27 +1,32 @@
-static void show_diff(struct merge_list *entry)
+static size_t parse_color(struct strbuf *sb, /* in UTF-8 */
+			  const char *placeholder,
+			  struct format_commit_context *c)
 {
-	unsigned long size;
-	mmfile_t src, dst;
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	xdemitcb_t ecb;
+	const char *rest = placeholder;
 
-	xpp.flags = 0;
-	memset(&xecfg, 0, sizeof(xecfg));
-	xecfg.ctxlen = 3;
-	ecb.outf = show_outf;
-	ecb.priv = NULL;
+	if (placeholder[1] == '(') {
+		const char *begin = placeholder + 2;
+		const char *end = strchr(begin, ')');
+		char color[COLOR_MAXLEN];
 
-	src.ptr = origin(entry, &size);
-	if (!src.ptr)
-		size = 0;
-	src.size = size;
-	dst.ptr = result(entry, &size);
-	if (!dst.ptr)
-		size = 0;
-	dst.size = size;
-	if (xdi_diff(&src, &dst, &xpp, &xecfg, &ecb))
-		die("unable to generate diff");
-	free(src.ptr);
-	free(dst.ptr);
+		if (!end)
+			return 0;
+		if (skip_prefix(begin, "auto,", &begin)) {
+			if (!want_color(c->pretty_ctx->color))
+				return end - placeholder + 1;
+		}
+		if (color_parse_mem(begin, end - begin, color) < 0)
+			die(_("unable to parse --pretty format"));
+		strbuf_addstr(sb, color);
+		return end - placeholder + 1;
+	}
+	if (skip_prefix(placeholder + 1, "red", &rest))
+		strbuf_addstr(sb, GIT_COLOR_RED);
+	else if (skip_prefix(placeholder + 1, "green", &rest))
+		strbuf_addstr(sb, GIT_COLOR_GREEN);
+	else if (skip_prefix(placeholder + 1, "blue", &rest))
+		strbuf_addstr(sb, GIT_COLOR_BLUE);
+	else if (skip_prefix(placeholder + 1, "reset", &rest))
+		strbuf_addstr(sb, GIT_COLOR_RESET);
+	return rest - placeholder;
 }

@@ -1,9 +1,10 @@
 fputs(
-"              ing a replacement without content  on  the  right  side  of  the\n"
-"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
-"              value then its header must be terminated with a semicolon,  such\n"
-"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
-"              curl  will  make  sure  that each header you add/replace is sent\n"
-"              with the proper end-of-line marker, you should thus not add that\n"
+"       --ftp-ssl-control\n"
+"              (FTP)  Require  SSL/TLS  for  the FTP login, clear for transfer.\n"
+"              Allows secure authentication, but non-encrypted  data  transfers\n"
+"              for  efficiency.   Fails the transfer if the server doesn't sup-\n"
+"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
 , stdout);

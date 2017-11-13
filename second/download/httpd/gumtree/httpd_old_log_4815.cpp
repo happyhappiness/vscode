@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGHUP)");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "Init: Multiple %s server private keys not "
+                             "allowed", an);

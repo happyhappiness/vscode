@@ -1,1 +1,1 @@
-packet_buf_write(&req_buf, "deepen-since %"PRItime, max_age);
+die(_("Only one 'attr:' specification is allowed."));

@@ -1,11 +1,8 @@
 fputs(
-"              100-continue response when curl emits an  Expects:  100-continue\n"
-"              header  in  its  request.  By default curl will wait one second.\n"
-"              This option accepts decimal values! When curl stops waiting,  it\n"
-"              will continue as if the response has been received.\n"
-"\n"
-"              (Added in 7.47.0)\n"
-"\n"
-"       --cert-type <type>\n"
-"              (SSL)  Tells curl what certificate type the provided certificate\n"
+"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
+"              col. The certificate must be in PKCS#12 format if  using  Secure\n"
+"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
+"              optional password isn't specified, it will be queried for on the\n"
+"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
+"              that is the private key and the client certificate concatenated!\n"
 , stdout);

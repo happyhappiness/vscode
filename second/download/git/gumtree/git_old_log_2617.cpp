@@ -1,2 +1,2 @@
-printf("%s<%s>\n", (i > 0 ? "\t" : "References: "),
-			       opt->ref_message_ids->items[i].string);
+fprintf(pipe_fd, "%s\n",
+			sha1_to_hex(have_obj.objects[i].item->sha1));

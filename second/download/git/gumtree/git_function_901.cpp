@@ -1,70 +1,81 @@
-static int read_populate_todo(struct todo_list *todo_list,
-			struct replay_opts *opts)
+void absorb_git_dir_into_superproject(const char *prefix,
+				      const char *path,
+				      unsigned flags)
 {
-	struct stat st;
-	const char *todo_file = get_todo_path(opts);
-	int fd, res;
+	int err_code;
+	const char *sub_git_dir;
+	struct strbuf gitdir = STRBUF_INIT;
+	strbuf_addf(&gitdir, "%s/.git", path);
+	sub_git_dir = resolve_gitdir_gently(gitdir.buf, &err_code);
 
-	strbuf_reset(&todo_list->buf);
-	fd = open(todo_file, O_RDONLY);
-	if (fd < 0)
-		return error_errno(_("could not open '%s'"), todo_file);
-	if (strbuf_read(&todo_list->buf, fd, 0) < 0) {
-		close(fd);
-		return error(_("could not read '%s'."), todo_file);
-	}
-	close(fd);
+	/* Not populated? */
+	if (!sub_git_dir) {
+		char *real_new_git_dir;
+		const char *new_git_dir;
+		const struct submodule *sub;
 
-	res = stat(todo_file, &st);
-	if (res)
-		return error(_("could not stat '%s'"), todo_file);
-	fill_stat_data(&todo_list->stat, &st);
-
-	res = parse_insn_buffer(todo_list->buf.buf, todo_list);
-	if (res) {
-		if (is_rebase_i(opts))
-			return error(_("please fix this using "
-				       "'git rebase --edit-todo'."));
-		return error(_("unusable instruction sheet: '%s'"), todo_file);
-	}
-
-	if (!todo_list->nr &&
-	    (!is_rebase_i(opts) || !file_exists(rebase_path_done())))
-		return error(_("no commits parsed."));
-
-	if (!is_rebase_i(opts)) {
-		enum todo_command valid =
-			opts->action == REPLAY_PICK ? TODO_PICK : TODO_REVERT;
-		int i;
-
-		for (i = 0; i < todo_list->nr; i++)
-			if (valid == todo_list->items[i].command)
-				continue;
-			else if (valid == TODO_PICK)
-				return error(_("cannot cherry-pick during a revert."));
-			else
-				return error(_("cannot revert during a cherry-pick."));
-	}
-
-	if (is_rebase_i(opts)) {
-		struct todo_list done = TODO_LIST_INIT;
-		FILE *f = fopen(rebase_path_msgtotal(), "w");
-
-		if (strbuf_read_file(&done.buf, rebase_path_done(), 0) > 0 &&
-				!parse_insn_buffer(done.buf.buf, &done))
-			todo_list->done_nr = count_commands(&done);
-		else
-			todo_list->done_nr = 0;
-
-		todo_list->total_nr = todo_list->done_nr
-			+ count_commands(todo_list);
-		todo_list_release(&done);
-
-		if (f) {
-			fprintf(f, "%d\n", todo_list->total_nr);
-			fclose(f);
+		if (err_code == READ_GITFILE_ERR_STAT_FAILED) {
+			/* unpopulated as expected */
+			strbuf_release(&gitdir);
+			return;
 		}
-	}
 
-	return 0;
+		if (err_code != READ_GITFILE_ERR_NOT_A_REPO)
+			/* We don't know what broke here. */
+			read_gitfile_error_die(err_code, path, NULL);
+
+		/*
+		* Maybe populated, but no git directory was found?
+		* This can happen if the superproject is a submodule
+		* itself and was just absorbed. The absorption of the
+		* superproject did not rewrite the git file links yet,
+		* fix it now.
+		*/
+		sub = submodule_from_path(null_sha1, path);
+		if (!sub)
+			die(_("could not lookup name for submodule '%s'"), path);
+		new_git_dir = git_path("modules/%s", sub->name);
+		if (safe_create_leading_directories_const(new_git_dir) < 0)
+			die(_("could not create directory '%s'"), new_git_dir);
+		real_new_git_dir = real_pathdup(new_git_dir);
+		connect_work_tree_and_git_dir(path, real_new_git_dir);
+
+		free(real_new_git_dir);
+	} else {
+		/* Is it already absorbed into the superprojects git dir? */
+		char *real_sub_git_dir = real_pathdup(sub_git_dir);
+		char *real_common_git_dir = real_pathdup(get_git_common_dir());
+
+		if (!starts_with(real_sub_git_dir, real_common_git_dir))
+			relocate_single_git_dir_into_superproject(prefix, path);
+
+		free(real_sub_git_dir);
+		free(real_common_git_dir);
+	}
+	strbuf_release(&gitdir);
+
+	if (flags & ABSORB_GITDIR_RECURSE_SUBMODULES) {
+		struct child_process cp = CHILD_PROCESS_INIT;
+		struct strbuf sb = STRBUF_INIT;
+
+		if (flags & ~ABSORB_GITDIR_RECURSE_SUBMODULES)
+			die("BUG: we don't know how to pass the flags down?");
+
+		if (get_super_prefix())
+			strbuf_addstr(&sb, get_super_prefix());
+		strbuf_addstr(&sb, path);
+		strbuf_addch(&sb, '/');
+
+		cp.dir = path;
+		cp.git_cmd = 1;
+		cp.no_stdin = 1;
+		argv_array_pushl(&cp.args, "--super-prefix", sb.buf,
+					   "submodule--helper",
+					   "absorb-git-dirs", NULL);
+		prepare_submodule_repo_env(&cp.env_array);
+		if (run_command(&cp))
+			die(_("could not recurse into submodule '%s'"), path);
+
+		strbuf_release(&sb);
+	}
 }

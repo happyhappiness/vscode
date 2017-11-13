@@ -1,28 +1,19 @@
-static int ssl_tmp_key_init_dh(server_rec *s,
-                               int bits, int idx)
+static apr_status_t h2_session_shutdown_notice(h2_session *session)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-
-#ifdef HAVE_FIPS
-
-    if (FIPS_mode() && bits < 1024) {
-        mc->pTmpKeys[idx] = NULL;
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01880)
-                     "Init: Skipping generating temporary "
-                     "%d bit DH parameters in FIPS mode", bits);
-        return OK;
+    apr_status_t status;
+    
+    ap_assert(session);
+    if (!session->local.accepting) {
+        return APR_SUCCESS;
     }
-
-#endif
-
-    if (!(mc->pTmpKeys[idx] =
-          ssl_dh_GetTmpParam(bits)))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01881)
-                     "Init: Failed to generate temporary "
-                     "%d bit DH parameters", bits);
-        return !OK;
+    
+    nghttp2_submit_shutdown_notice(session->ngh2);
+    session->local.accepting = 0;
+    status = nghttp2_session_send(session->ngh2);
+    if (status == APR_SUCCESS) {
+        status = h2_conn_io_flush(&session->io);
     }
-
-    return OK;
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03457)
+                  "session(%ld): sent shutdown notice", session->id);
+    return status;
 }

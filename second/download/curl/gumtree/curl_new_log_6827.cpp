@@ -1,9 +1,12 @@
 fputs(
-"                     curl  does  a  single CWD operation for each path part in\n"
-"                     the given URL. For deep hierarchies this means very  many\n"
-"                     commands.  This  is  how RFC 1738 says it should be done.\n"
-"                     This is the default but the slowest behavior.\n"
+"              doesn't  currently exist on the server, the standard behavior of\n"
+"              curl is to fail. Using this option, curl will instead attempt to\n"
+"              create missing directories.\n"
 "\n"
-"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
-"                     etc and give a full path to the server for all these com-\n"
+"       --ftp-method [method]\n"
+"              (FTP)  Control  what method curl should use to reach a file on a\n"
+"              FTP(S) server. The method argument should be one of the  follow-\n"
+"              ing alternatives:\n"
+"\n"
+"              multicwd\n"
 , stdout);

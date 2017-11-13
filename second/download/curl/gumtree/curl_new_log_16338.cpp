@@ -1,11 +1,8 @@
 fputs(
-"              Typical  browsers  always  discard  session cookies when they're\n"
-"              closed down.\n"
-"\n"
-"              See also -b, --cookie and -c, --cookie-jar.\n"
-"\n"
-"       --keepalive-time <seconds>\n"
-"              This option sets the time a  connection  needs  to  remain  idle\n"
-"              before  sending keepalive probes and the time between individual\n"
-"              keepalive probes. It is currently effective on operating systems\n"
+"              (HTTP) Extra header to include in the request when sending  HTTP\n"
+"              to  a  server. You may specify any number of extra headers. Note\n"
+"              that if you should add a custom header that has the same name as\n"
+"              one  of  the  internal  ones curl would use, your externally set\n"
+"              header will be used instead of the internal one. This allows you\n"
+"              to  make  even  trickier  stuff than curl would normally do. You\n"
 , stdout);

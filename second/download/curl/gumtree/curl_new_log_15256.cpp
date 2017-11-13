@@ -1,9 +1,12 @@
 fputs(
-"              fectly well what you're doing. Remove an internal header by giv-\n"
-"              ing a replacement without content  on  the  right  side  of  the\n"
-"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
-"              value then its header must be terminated with a semicolon,  such\n"
-"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
+"       address, to tell curl what TCP port range to use. That means you  spec-\n"
+"       ify  a  port  range,  from  a lower to a higher number. A single number\n"
+"       works as well, but do note that it increases the risk of failure  since\n"
+"       the port may not be available.\n"
 "\n"
-"              curl  will  make  sure  that each header you add/replace is sent\n"
+"       See also --ftp-pasv and --disable-eprt.\n"
+"\n"
+"       --ftp-pret\n"
+"              (FTP)  Tell  curl to send a PRET command before PASV (and EPSV).\n"
+"              Certain FTP servers, mainly drftpd,  require  this  non-standard\n"
 , stdout);

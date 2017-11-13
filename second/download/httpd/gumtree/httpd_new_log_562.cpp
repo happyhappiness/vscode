@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "missing argument for config element in %s",
-                      r->filename);
+ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", 
+              ap_escape_html(r->pool, r->uri),
+              "</title>\n</head><body>\n", NULL);

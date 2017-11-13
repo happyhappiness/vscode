@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Got PONG opcode: %x", opcode);
+ap_register_output_filter("H2_SLAVE_OUT", h2_filter_slave_output,
+                              NULL, AP_FTYPE_NETWORK);

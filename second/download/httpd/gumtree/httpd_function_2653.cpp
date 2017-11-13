@@ -1,64 +1,98 @@
-static int check_nonce(request_rec *r, digest_header_rec *resp,
-                       const digest_config_rec *conf)
+static apr_status_t dbd_construct(void **data_ptr,
+                                  void *params, apr_pool_t *pool)
 {
-    apr_time_t dt;
-    int len;
-    time_rec nonce_time;
-    char tmp, hash[NONCE_HASH_LEN+1];
+    dbd_group_t *group = params;
+    dbd_cfg_t *cfg = group->cfg;
+    apr_pool_t *rec_pool, *prepared_pool;
+    ap_dbd_t *rec;
+    apr_status_t rv;
 
-    if (strlen(resp->nonce) != NONCE_LEN) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: invalid nonce %s received - length is not %d",
-                      resp->nonce, NONCE_LEN);
-        note_digest_auth_failure(r, conf, resp, 1);
-        return HTTP_UNAUTHORIZED;
+    rv = apr_pool_create(&rec_pool, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");
+        return rv;
     }
 
-    tmp = resp->nonce[NONCE_TIME_LEN];
-    resp->nonce[NONCE_TIME_LEN] = '\0';
-    len = apr_base64_decode_binary(nonce_time.arr, resp->nonce);
-    gen_nonce_hash(hash, resp->nonce, resp->opaque, r->server, conf);
-    resp->nonce[NONCE_TIME_LEN] = tmp;
-    resp->nonce_time = nonce_time.time;
+    rec = apr_pcalloc(rec_pool, sizeof(ap_dbd_t));
 
-    if (strcmp(hash, resp->nonce+NONCE_TIME_LEN)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: invalid nonce %s received - hash is not %s",
-                      resp->nonce, hash);
-        note_digest_auth_failure(r, conf, resp, 1);
-        return HTTP_UNAUTHORIZED;
-    }
+    rec->pool = rec_pool;
 
-    dt = r->request_time - nonce_time.time;
-    if (conf->nonce_lifetime > 0 && dt < 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: invalid nonce %s received - user attempted "
-                      "time travel", resp->nonce);
-        note_digest_auth_failure(r, conf, resp, 1);
-        return HTTP_UNAUTHORIZED;
-    }
-
-    if (conf->nonce_lifetime > 0) {
-        if (dt > conf->nonce_lifetime) {
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0,r,
-                          "Digest: user %s: nonce expired (%.2f seconds old "
-                          "- max lifetime %.2f) - sending new nonce",
-                          r->user, (double)apr_time_sec(dt),
-                          (double)apr_time_sec(conf->nonce_lifetime));
-            note_digest_auth_failure(r, conf, resp, 1);
-            return HTTP_UNAUTHORIZED;
+    /* The driver is loaded at config time now, so this just checks a hash.
+     * If that changes, the driver DSO could be registered to unload against
+     * our pool, which is probably not what we want.  Error checking isn't
+     * necessary now, but in case that changes in the future ...
+     */
+    rv = apr_dbd_get_driver(rec->pool, cfg->name, &rec->driver);
+    if (rv != APR_SUCCESS) {
+        switch (rv) {
+        case APR_ENOTIMPL:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s not available", cfg->name);
+            break;
+        case APR_EDSOOPEN:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: can't find driver for %s", cfg->name);
+            break;
+        case APR_ESYMNOTFOUND:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s is invalid or corrupted",
+                         cfg->name);
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in get_driver");
+            break;
         }
-    }
-    else if (conf->nonce_lifetime == 0 && resp->client) {
-        if (memcmp(resp->client->last_nonce, resp->nonce, NONCE_LEN)) {
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Digest: user %s: one-time-nonce mismatch - sending "
-                          "new nonce", r->user);
-            note_digest_auth_failure(r, conf, resp, 1);
-            return HTTP_UNAUTHORIZED;
-        }
-    }
-    /* else (lifetime < 0) => never expires */
 
-    return OK;
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    rv = apr_dbd_open(rec->driver, rec->pool, cfg->params, &rec->handle);
+    if (rv != APR_SUCCESS) {
+        switch (rv) {
+        case APR_EGENERAL:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: Can't connect to %s", cfg->name);
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in open");
+            break;
+        }
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    apr_pool_cleanup_register(rec->pool, rec, dbd_close,
+                              apr_pool_cleanup_null);
+
+    /* we use a sub-pool for the prepared statements for each connection so
+     * that they will be cleaned up first, before the connection is closed
+     */
+    rv = apr_pool_create(&prepared_pool, rec->pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    rv = dbd_prepared_init(prepared_pool, cfg, rec);
+    if (rv != APR_SUCCESS) {
+        const char *errmsg = apr_dbd_error(rec->driver, rec->handle, rv);
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                     "DBD: failed to prepare SQL statements: %s",
+                     (errmsg ? errmsg : "[???]"));
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    *data_ptr = rec;
+
+    return APR_SUCCESS;
 }

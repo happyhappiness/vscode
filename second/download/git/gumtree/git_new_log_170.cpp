@@ -1,1 +1,1 @@
-logerror("user-path too large: %s", rpath);
+die("BUG: have_old is true but old_sha1 is NULL");

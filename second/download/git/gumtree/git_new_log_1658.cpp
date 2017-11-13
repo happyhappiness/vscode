@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+die("BUG: delete called for transaction that is not open");

@@ -1,1 +1,0 @@
-die("protocol error: got both push certificate and unsigned commands");

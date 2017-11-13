@@ -1,10 +1,11 @@
 fputs(
-"              Note that using --anyauth is not recommended if you  do  uploads\n"
-"              from  stdin, since it may require data to be sent twice and then\n"
-"              the client must be able to rewind. If the need should arise when\n"
-"              uploading from stdin, the upload operation will fail.\n"
+"              Disable  the  ALPN  TLS extension. ALPN is enabled by default if\n"
+"              libcurl was built with an SSL library that supports  ALPN.  ALPN\n"
+"              is  used  by  a libcurl that supports HTTP 2 to negotiate HTTP 2\n"
+"              support with the server during https sessions.\n"
 "\n"
-"       -b, --cookie <name=data>\n"
-"              (HTTP)  Pass the data to the HTTP server as a cookie. It is sup-\n"
-"              posedly the data previously received from the server in a  \"Set-\n"
+"              (Added in 7.36.0)\n"
+"\n"
+"       -1, --tlsv1\n"
+"              (SSL) Forces curl to use TLS version 1.x when negotiating with a\n"
 , stdout);

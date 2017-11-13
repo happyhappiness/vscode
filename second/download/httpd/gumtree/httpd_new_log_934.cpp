@@ -1,2 +1,1 @@
-fprintf(stderr,
-                "apr_hash_merge: base's pool is not an ancestor of p\n");
+rebuild_conf_hash(s->process->pconf, 1);

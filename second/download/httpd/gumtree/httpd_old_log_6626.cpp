@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01857)
-                      "query execution error updating session '%s' "
-                      "using database query '%s': %s", key, conf->updatelabel,
-                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool, APLOGNO(03060)
+                      "h2_request(%d): pseudo header in trailer",
+                      req->id);

@@ -1,1 +1,1 @@
-packet_write(1, "# service=git-%s\n", svc->name);
+die (_("--subject-prefix and -k are mutually exclusive."));

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03071)
-                          "h2_stream(%ld-%d): suspending",
-                          session->id, (int)stream_id);
+ap_log_rerror(SCRIPT_LOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                              "Invalid status line from script '%s': %s",
+                              apr_filepath_name_get(r->filename), w);

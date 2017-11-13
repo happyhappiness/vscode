@@ -1,1 +1,1 @@
-state_attach_puts (_(": "), s);
+fprintf (msg->fp, "%s", mutt_make_date (buf, sizeof (buf)));

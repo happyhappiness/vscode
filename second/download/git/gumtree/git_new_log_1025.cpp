@@ -1,2 +1,1 @@
-die("object %s cannot be read",
-			    oid_to_hex(&src_entry->idx.oid));
+die("submodule--helper is-active takes exactly 1 argument");

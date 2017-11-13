@@ -1,2 +1,2 @@
-die("BUG: local ref %s is outside of refs/notes/",
-			    o.local_ref);
+error("Out of memory, malloc failed (tried to allocate %lu bytes)",
+				      (unsigned long)size);

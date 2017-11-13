@@ -1,33 +1,49 @@
-static int fill_pack_entry(const unsigned char *sha1,
-			   struct pack_entry *e,
-			   struct packed_git *p)
+static int lock_file(struct lock_file *lk, const char *path, int flags)
 {
-	off_t offset;
+	size_t pathlen = strlen(path);
 
-	if (p->num_bad_objects) {
-		unsigned i;
-		for (i = 0; i < p->num_bad_objects; i++)
-			if (!hashcmp(sha1, p->bad_object_sha1 + 20 * i))
-				return 0;
+	if (!lock_file_list) {
+		/* One-time initialization */
+		sigchain_push_common(remove_lock_files_on_signal);
+		atexit(remove_lock_files_on_exit);
 	}
 
-	offset = find_pack_entry_one(sha1, p);
-	if (!offset)
-		return 0;
-
-	/*
-	 * We are about to tell the caller where they can locate the
-	 * requested object.  We better make sure the packfile is
-	 * still here and can be accessed before supplying that
-	 * answer, as it may have been deleted since the index was
-	 * loaded!
-	 */
-	if (!is_pack_valid(p)) {
-		warning("packfile %s cannot be accessed", p->pack_name);
-		return 0;
+	if (lk->active)
+		die("BUG: cannot lock_file(\"%s\") using active struct lock_file",
+		    path);
+	if (!lk->on_list) {
+		/* Initialize *lk and add it to lock_file_list: */
+		lk->fd = -1;
+		lk->fp = NULL;
+		lk->active = 0;
+		lk->owner = 0;
+		strbuf_init(&lk->filename, pathlen + LOCK_SUFFIX_LEN);
+		lk->next = lock_file_list;
+		lock_file_list = lk;
+		lk->on_list = 1;
+	} else if (lk->filename.len) {
+		/* This shouldn't happen, but better safe than sorry. */
+		die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
+		    path);
 	}
-	e->offset = offset;
-	e->p = p;
-	hashcpy(e->sha1, sha1);
-	return 1;
+
+	strbuf_add(&lk->filename, path, pathlen);
+	if (!(flags & LOCK_NO_DEREF))
+		resolve_symlink(&lk->filename);
+	strbuf_addstr(&lk->filename, LOCK_SUFFIX);
+	lk->fd = open(lk->filename.buf, O_RDWR | O_CREAT | O_EXCL, 0666);
+	if (lk->fd < 0) {
+		strbuf_reset(&lk->filename);
+		return -1;
+	}
+	lk->owner = getpid();
+	lk->active = 1;
+	if (adjust_shared_perm(lk->filename.buf)) {
+		int save_errno = errno;
+		error("cannot fix permission bits on %s", lk->filename.buf);
+		rollback_lock_file(lk);
+		errno = save_errno;
+		return -1;
+	}
+	return lk->fd;
 }

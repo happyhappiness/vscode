@@ -1,35 +1,35 @@
-static authz_status host_check_authorization(request_rec *r, const char *require_line)
+static char *get_password(const char *prompt)
 {
-    const char *t, *w;
-    const char *remotehost = NULL;
-    int remotehost_is_ip;
+    struct termios attr;
+    static char password[MAX_STRING_LEN];
+    int n=0;
+    fputs(prompt, stderr);
+    fflush(stderr);
 
-    remotehost = ap_get_remote_host(r->connection,
-                                    r->per_dir_config,
-                                    REMOTE_DOUBLE_REV,
-                                    &remotehost_is_ip);
+    if (tcgetattr(STDIN_FILENO, &attr) != 0)
+        return NULL;
+    attr.c_lflag &= ~(ECHO);
 
-    if ((remotehost == NULL) || remotehost_is_ip) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "access to %s failed, reason: unable to get the "
-                      "remote host name", r->uri);
-    }
-    else {
-        /* The 'host' provider will allow the configuration to specify a list of
-            host names to check rather than a single name.  This is different
-            from the previous host based syntax. */
-        t = require_line;
-        while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
-            if (in_domain(w, remotehost)) {
-                return AUTHZ_GRANTED;
-            }
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
+        return NULL;
+    while ((password[n] = getchar()) != '\n') {
+        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
+            n++;
+        } else {
+            fprintf(stderr,"\n");
+            fputs(prompt, stderr);
+            fflush(stderr);
+            n = 0;
         }
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "access to %s failed, reason: host name list does not meet "
-                      "'require'ments for user '%s' to be allowed access",
-                      r->uri, r->user);
+    }
+ 
+    password[n] = '\0';
+    printf("\n");
+    if (n > (MAX_STRING_LEN - 1)) {
+        password[MAX_STRING_LEN - 1] = '\0';
     }
 
-    return AUTHZ_DENIED;
+    attr.c_lflag |= ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &attr);
+    return (char*) &password;
 }

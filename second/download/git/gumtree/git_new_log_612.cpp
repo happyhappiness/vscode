@@ -1,1 +1,2 @@
-die(_("option not supported with --recurse-submodules."));
+error(_("could not parse parent commit %s\n"),
+				oid_to_hex(&parent->object.oid));

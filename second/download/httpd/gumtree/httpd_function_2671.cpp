@@ -1,110 +1,31 @@
-static int add_auth_info(request_rec *r)
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
 {
-    const digest_config_rec *conf =
-                (digest_config_rec *) ap_get_module_config(r->per_dir_config,
-                                                           &auth_digest_module);
-    digest_header_rec *resp =
-                (digest_header_rec *) ap_get_module_config(r->request_config,
-                                                           &auth_digest_module);
-    const char *ai = NULL, *nextnonce = "";
+    apr_status_t rv;
 
-    if (resp == NULL || !resp->needed_auth || conf == NULL) {
-        return OK;
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Lock failed for post_request",
+            balancer->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-
-    /* 2069-style entity-digest is not supported (it's too hard, and
-     * there are no clients which support 2069 but not 2617). */
-
-    /* setup nextnonce
+    /* TODO: calculate the bytes transferred
+     * This will enable to elect the worker that has
+     * the lowest load.
+     * The bytes transferred depends on the protocol
+     * used, so each protocol handler should keep the
+     * track on that.
      */
-    if (conf->nonce_lifetime > 0) {
-        /* send nextnonce if current nonce will expire in less than 30 secs */
-        if ((r->request_time - resp->nonce_time) > (conf->nonce_lifetime-NEXTNONCE_DELTA)) {
-            nextnonce = apr_pstrcat(r->pool, ", nextnonce=\"",
-                                   gen_nonce(r->pool, r->request_time,
-                                             resp->opaque, r->server, conf),
-                                   "\"", NULL);
-            if (resp->client)
-                resp->client->nonce_count = 0;
-        }
+
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);
     }
-    else if (conf->nonce_lifetime == 0 && resp->client) {
-        const char *nonce = gen_nonce(r->pool, 0, resp->opaque, r->server,
-                                      conf);
-        nextnonce = apr_pstrcat(r->pool, ", nextnonce=\"", nonce, "\"", NULL);
-        memcpy(resp->client->last_nonce, nonce, NONCE_LEN+1);
-    }
-    /* else nonce never expires, hence no nextnonce */
-
-
-    /* do rfc-2069 digest
-     */
-    if (conf->qop_list[0] && !strcasecmp(conf->qop_list[0], "none")
-        && resp->message_qop == NULL) {
-        /* use only RFC-2069 format */
-        ai = nextnonce;
-    }
-    else {
-        const char *resp_dig, *ha1, *a2, *ha2;
-
-        /* calculate rspauth attribute
-         */
-        if (resp->algorithm && !strcasecmp(resp->algorithm, "MD5-sess")) {
-            ha1 = get_session_HA1(r, resp, conf, 0);
-            if (!ha1) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Digest: internal error: couldn't find session "
-                              "info for user %s", resp->username);
-                return !OK;
-            }
-        }
-        else {
-            ha1 = conf->ha1;
-        }
-
-        if (resp->message_qop && !strcasecmp(resp->message_qop, "auth-int")) {
-            a2 = apr_pstrcat(r->pool, ":", resp->uri, ":",
-                             ap_md5(r->pool,(const unsigned char *) ""), NULL);
-                             /* TBD */
-        }
-        else {
-            a2 = apr_pstrcat(r->pool, ":", resp->uri, NULL);
-        }
-        ha2 = ap_md5(r->pool, (const unsigned char *)a2);
-
-        resp_dig = ap_md5(r->pool,
-                          (unsigned char *)apr_pstrcat(r->pool, ha1, ":",
-                                                       resp->nonce, ":",
-                                                       resp->nonce_count, ":",
-                                                       resp->cnonce, ":",
-                                                       resp->message_qop ?
-                                                         resp->message_qop : "",
-                                                       ":", ha2, NULL));
-
-        /* assemble Authentication-Info header
-         */
-        ai = apr_pstrcat(r->pool,
-                         "rspauth=\"", resp_dig, "\"",
-                         nextnonce,
-                         resp->cnonce ? ", cnonce=\"" : "",
-                         resp->cnonce
-                           ? ap_escape_quotes(r->pool, resp->cnonce)
-                           : "",
-                         resp->cnonce ? "\"" : "",
-                         resp->nonce_count ? ", nc=" : "",
-                         resp->nonce_count ? resp->nonce_count : "",
-                         resp->message_qop ? ", qop=" : "",
-                         resp->message_qop ? resp->message_qop : "",
-                         NULL);
-    }
-
-    if (ai && ai[0]) {
-        apr_table_mergen(r->headers_out,
-                         (PROXYREQ_PROXY == r->proxyreq)
-                             ? "Proxy-Authentication-Info"
-                             : "Authentication-Info",
-                         ai);
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
 
     return OK;
 }

@@ -1,1 +1,1 @@
-die("Timestamp too large for this system: %"PRItime, time);
+die("BUG: setup_git_env called without repository");

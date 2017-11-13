@@ -1,78 +1,93 @@
-static apr_status_t ssl_io_filter_buffer(ap_filter_t *f,
-                                         apr_bucket_brigade *bb,
-                                         ap_input_mode_t mode,
-                                         apr_read_type_e block,
-                                         apr_off_t bytes)
+static int winnt_check_config(apr_pool_t *pconf, apr_pool_t *plog,
+                              apr_pool_t *ptemp, server_rec* s)
 {
-    struct modssl_buffer_ctx *ctx = f->ctx;
-    apr_status_t rv;
+    int is_parent;
+    static int restart_num = 0;
+    int startup = 0;
 
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                  "read from buffered SSL brigade, mode %d, "
-                  "%" APR_OFF_T_FMT " bytes",
-                  mode, bytes);
-
-    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
-        return APR_ENOTIMPL;
+    /* We want this only in the parent and only the first time around */
+    is_parent = (parent_pid == my_pid);
+    if (is_parent && restart_num++ == 0) {
+        startup = 1;
     }
 
-    if (mode == AP_MODE_READBYTES) {
-        apr_bucket *e;
-
-        /* Partition the buffered brigade. */
-        rv = apr_brigade_partition(ctx->bb, bytes, &e);
-        if (rv && rv != APR_INCOMPLETE) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
-                          "could not partition buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
+    if (thread_limit > MAX_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadLimit of %d exceeds compile-time "
+                         "limit of", thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         thread_limit, MAX_THREAD_LIMIT);
         }
-
-        /* If the buffered brigade contains less then the requested
-         * length, just pass it all back. */
-        if (rv == APR_INCOMPLETE) {
-            APR_BRIGADE_CONCAT(bb, ctx->bb);
-        } else {
-            apr_bucket *d = APR_BRIGADE_FIRST(ctx->bb);
-
-            e = APR_BUCKET_PREV(e);
-
-            /* Unsplice the partitioned segment and move it into the
-             * passed-in brigade; no convenient way to do this with
-             * the APR_BRIGADE_* macros. */
-            APR_RING_UNSPLICE(d, e, link);
-            APR_RING_SPLICE_HEAD(&bb->list, d, e, apr_bucket, link);
-
-            APR_BRIGADE_CHECK_CONSISTENCY(bb);
-            APR_BRIGADE_CHECK_CONSISTENCY(ctx->bb);
-        }
+        thread_limit = MAX_THREAD_LIMIT;
     }
-    else {
-        /* Split a line into the passed-in brigade. */
-        rv = apr_brigade_split_line(bb, ctx->bb, mode, bytes);
-
-        if (rv) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
-                          "could not split line from buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
+    else if (thread_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadLimit of %d not allowed, "
+                         "increasing to 1.", thread_limit);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadLimit of %d not allowed, increasing to 1",
+                         thread_limit);
         }
+        thread_limit = 1;
     }
 
-    if (APR_BRIGADE_EMPTY(ctx->bb)) {
-        apr_bucket *e = APR_BRIGADE_LAST(bb);
-
-        /* Ensure that the brigade is terminated by an EOS if the
-         * buffered request body has been entirely consumed. */
-        if (e == APR_BRIGADE_SENTINEL(bb) || !APR_BUCKET_IS_EOS(e)) {
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
+    /* You cannot change ThreadLimit across a restart; ignore
+     * any such attempts.
+     */
+    if (!first_thread_limit) {
+        first_thread_limit = thread_limit;
+    }
+    else if (thread_limit != first_thread_limit) {
+        /* Don't need a startup console version here */
+        if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "changing ThreadLimit to %d from original value "
+                         "of %d not allowed during restart",
+                         thread_limit, first_thread_limit);
         }
-
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                      "buffered SSL brigade now exhausted; removing filter");
-        ap_remove_input_filter(f);
+        thread_limit = first_thread_limit;
     }
 
-    return APR_SUCCESS;
+    if (ap_threads_per_child > thread_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of", ap_threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         thread_limit, thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ThreadLimit "
+                         "directive.");
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of %d, decreasing to match",
+                         ap_threads_per_child, thread_limit);
+        }
+        ap_threads_per_child = thread_limit;
+    }
+    else if (ap_threads_per_child < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d not allowed, "
+                         "increasing to 1.", ap_threads_per_child);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         ap_threads_per_child);
+        }
+        ap_threads_per_child = 1;
+    }
+
+    return OK;
 }

@@ -1,99 +1,62 @@
-int recv_sideband(const char *me, int in_stream, int out)
+static int print_one_push_status(struct ref *ref, const char *dest, int count, int porcelain)
 {
-	unsigned pf = strlen(PREFIX);
-	unsigned sf;
-	char buf[LARGE_PACKET_MAX + 2*FIX_SIZE];
-	char *suffix, *term;
-	int skip_pf = 0;
+	if (!count)
+		fprintf(porcelain ? stdout : stderr, "To %s\n", dest);
 
-	memcpy(buf, PREFIX, pf);
-	term = getenv("TERM");
-	if (isatty(2) && term && strcmp(term, "dumb"))
-		suffix = ANSI_SUFFIX;
-	else
-		suffix = DUMB_SUFFIX;
-	sf = strlen(suffix);
-
-	while (1) {
-		int band, len;
-		len = packet_read(in_stream, NULL, NULL, buf + pf, LARGE_PACKET_MAX, 0);
-		if (len == 0)
-			break;
-		if (len < 1) {
-			fprintf(stderr, "%s: protocol error: no band designator\n", me);
-			return SIDEBAND_PROTOCOL_ERROR;
-		}
-		band = buf[pf] & 0xff;
-		len--;
-		switch (band) {
-		case 3:
-			buf[pf] = ' ';
-			buf[pf+1+len] = '\0';
-			fprintf(stderr, "%s\n", buf);
-			return SIDEBAND_REMOTE_ERROR;
-		case 2:
-			buf[pf] = ' ';
-			do {
-				char *b = buf;
-				int brk = 0;
-
-				/*
-				 * If the last buffer didn't end with a line
-				 * break then we should not print a prefix
-				 * this time around.
-				 */
-				if (skip_pf) {
-					b += pf+1;
-				} else {
-					len += pf+1;
-					brk += pf+1;
-				}
-
-				/* Look for a line break. */
-				for (;;) {
-					brk++;
-					if (brk > len) {
-						brk = 0;
-						break;
-					}
-					if (b[brk-1] == '\n' ||
-					    b[brk-1] == '\r')
-						break;
-				}
-
-				/*
-				 * Let's insert a suffix to clear the end
-				 * of the screen line if a line break was
-				 * found.  Also, if we don't skip the
-				 * prefix, then a non-empty string must be
-				 * present too.
-				 */
-				if (brk > (skip_pf ? 0 : (pf+1 + 1))) {
-					char save[FIX_SIZE];
-					memcpy(save, b + brk, sf);
-					b[brk + sf - 1] = b[brk - 1];
-					memcpy(b + brk - 1, suffix, sf);
-					fprintf(stderr, "%.*s", brk + sf, b);
-					memcpy(b + brk, save, sf);
-					len -= brk;
-				} else {
-					int l = brk ? brk : len;
-					fprintf(stderr, "%.*s", l, b);
-					len -= l;
-				}
-
-				skip_pf = !brk;
-				memmove(buf + pf+1, b + brk, len);
-			} while (len);
-			continue;
-		case 1:
-			write_or_die(out, buf + pf+1, len);
-			continue;
-		default:
-			fprintf(stderr, "%s: protocol error: bad band #%d\n",
-				me, band);
-			return SIDEBAND_PROTOCOL_ERROR;
-		}
+	switch(ref->status) {
+	case REF_STATUS_NONE:
+		print_ref_status('X', "[no match]", ref, NULL, NULL, porcelain);
+		break;
+	case REF_STATUS_REJECT_NODELETE:
+		print_ref_status('!', "[rejected]", ref, NULL,
+						 "remote does not support deleting refs", porcelain);
+		break;
+	case REF_STATUS_UPTODATE:
+		print_ref_status('=', "[up to date]", ref,
+						 ref->peer_ref, NULL, porcelain);
+		break;
+	case REF_STATUS_REJECT_NONFASTFORWARD:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "non-fast-forward", porcelain);
+		break;
+	case REF_STATUS_REJECT_ALREADY_EXISTS:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "already exists", porcelain);
+		break;
+	case REF_STATUS_REJECT_FETCH_FIRST:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "fetch first", porcelain);
+		break;
+	case REF_STATUS_REJECT_NEEDS_FORCE:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "needs force", porcelain);
+		break;
+	case REF_STATUS_REJECT_STALE:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "stale info", porcelain);
+		break;
+	case REF_STATUS_REJECT_SHALLOW:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "new shallow roots not allowed", porcelain);
+		break;
+	case REF_STATUS_REMOTE_REJECT:
+		print_ref_status('!', "[remote rejected]", ref,
+						 ref->deletion ? NULL : ref->peer_ref,
+						 ref->remote_status, porcelain);
+		break;
+	case REF_STATUS_EXPECTING_REPORT:
+		print_ref_status('!', "[remote failure]", ref,
+						 ref->deletion ? NULL : ref->peer_ref,
+						 "remote failed to report status", porcelain);
+		break;
+	case REF_STATUS_ATOMIC_PUSH_FAILED:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "atomic push failed", porcelain);
+		break;
+	case REF_STATUS_OK:
+		print_ok_ref_status(ref, porcelain);
+		break;
 	}
-	return 0;
+
+	return 1;
 }

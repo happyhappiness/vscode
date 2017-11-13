@@ -1,52 +1,43 @@
-static int grab_single_ref(const char *refname, const unsigned char *sha1, int flag, void *cb_data)
+static void parse_options_check(const struct option *opts)
 {
-	struct grab_ref_cbdata *cb = cb_data;
-	struct refinfo *ref;
-	int cnt;
+	int err = 0;
+	char short_opts[128];
 
-	if (flag & REF_BAD_NAME) {
-		  warning("ignoring ref with broken name %s", refname);
-		  return 0;
-	}
-
-	if (flag & REF_ISBROKEN) {
-		  warning("ignoring broken ref %s", refname);
-		  return 0;
-	}
-
-	if (*cb->grab_pattern) {
-		const char **pattern;
-		int namelen = strlen(refname);
-		for (pattern = cb->grab_pattern; *pattern; pattern++) {
-			const char *p = *pattern;
-			int plen = strlen(p);
-
-			if ((plen <= namelen) &&
-			    !strncmp(refname, p, plen) &&
-			    (refname[plen] == '\0' ||
-			     refname[plen] == '/' ||
-			     p[plen-1] == '/'))
-				break;
-			if (!wildmatch(p, refname, WM_PATHNAME, NULL))
-				break;
+	memset(short_opts, '\0', sizeof(short_opts));
+	for (; opts->type != OPTION_END; opts++) {
+		if ((opts->flags & PARSE_OPT_LASTARG_DEFAULT) &&
+		    (opts->flags & PARSE_OPT_OPTARG))
+			err |= optbug(opts, "uses incompatible flags "
+					"LASTARG_DEFAULT and OPTARG");
+		if (opts->short_name) {
+			if (0x7F <= opts->short_name)
+				err |= optbug(opts, "invalid short name");
+			else if (short_opts[opts->short_name]++)
+				err |= optbug(opts, "short name already used");
 		}
-		if (!*pattern)
-			return 0;
+		if (opts->flags & PARSE_OPT_NODASH &&
+		    ((opts->flags & PARSE_OPT_OPTARG) ||
+		     !(opts->flags & PARSE_OPT_NOARG) ||
+		     !(opts->flags & PARSE_OPT_NONEG) ||
+		     opts->long_name))
+			err |= optbug(opts, "uses feature "
+					"not supported for dashless options");
+		switch (opts->type) {
+		case OPTION_COUNTUP:
+		case OPTION_BIT:
+		case OPTION_NEGBIT:
+		case OPTION_SET_INT:
+		case OPTION_NUMBER:
+			if ((opts->flags & PARSE_OPT_OPTARG) ||
+			    !(opts->flags & PARSE_OPT_NOARG))
+				err |= optbug(opts, "should not accept an argument");
+		default:
+			; /* ok. (usually accepts an argument) */
+		}
+		if (opts->argh &&
+		    strcspn(opts->argh, " _") != strlen(opts->argh))
+			err |= optbug(opts, "multi-word argh should use dash to separate words");
 	}
-
-	/*
-	 * We do not open the object yet; sort may only need refname
-	 * to do its job and the resulting list may yet to be pruned
-	 * by maxcount logic.
-	 */
-	ref = xcalloc(1, sizeof(*ref));
-	ref->refname = xstrdup(refname);
-	hashcpy(ref->objectname, sha1);
-	ref->flag = flag;
-
-	cnt = cb->grab_cnt;
-	REALLOC_ARRAY(cb->grab_array, cnt + 1);
-	cb->grab_array[cnt++] = ref;
-	cb->grab_cnt = cnt;
-	return 0;
+	if (err)
+		exit(128);
 }

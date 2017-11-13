@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
-                     "Couldn't initialize cross-process lock in child "
-                     "(%s) (%d)", ap_lock_fname, ap_accept_lock_mech);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", lockname);

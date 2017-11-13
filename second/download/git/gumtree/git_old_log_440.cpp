@@ -1,1 +1,1 @@
-error(_("Your local changes would be overwritten by revert."));
+die("Failed to read ref NOTES_MERGE_PARTIAL");

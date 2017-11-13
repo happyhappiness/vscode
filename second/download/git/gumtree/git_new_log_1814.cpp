@@ -1,2 +1,2 @@
-die("unable to generate diff (%s)",
-		    sha1_to_hex(parent->commit->object.sha1));
+error(_("affected file '%s' is beyond a symbolic link"),
+			     patch->new_name);

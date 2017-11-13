@@ -1,10 +1,11 @@
 fputs(
-"       the options -O, -L and -v at once as -OLv.\n"
+"  formatted certificates to PEM formatted ones. This kind of converter is\n"
+"  included in recent versions of OpenSSL, and for older versions Dr Stephen\n"
+"  N. Henson has written a patch for SSLeay that adds this functionality. You\n"
+"  can get his patch (that requires an SSLeay installation) from his site at:\n"
+"  http://www.drh-consultancy.demon.co.uk/\n"
 "\n"
-"       In general, all boolean options are enabled with --option and yet again\n"
-"       disabled  with --no-option. That is, you use the exact same option name\n"
-"       but prefix it with \"no-\". However, in this list we mostly only list and\n"
-"       show  the --option version of them. (This concept with --no options was\n"
-"       added in  7.19.0.  Previously  most  options  were  toggled  on/off  on\n"
-"       repeated use of the same command line option.)\n"
+"  Example on how to automatically retrieve a document using a certificate with\n"
+"  a personal password:\n"
+"\n"
 , stdout);

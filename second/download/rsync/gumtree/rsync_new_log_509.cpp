@@ -1,1 +1,1 @@
-rprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
+rprintf(FERROR,"ERROR: symbolic links not supported\n");

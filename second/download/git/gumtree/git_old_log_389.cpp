@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports multi_ack_detailed\n");
+die("BUG: finalize_deferred_config() should have been called");

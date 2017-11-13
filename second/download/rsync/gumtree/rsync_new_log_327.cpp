@@ -1,2 +1,2 @@
-fprintf(FINFO,"count=%d n=%d rem=%d\n",
-	    s->count,s->n,s->remainder);
+fprintf(FERROR,"write_longint failed : %s\n",
+			ret==-1?strerror(errno):"EOF");

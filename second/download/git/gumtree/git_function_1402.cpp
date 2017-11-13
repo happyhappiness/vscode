@@ -1,48 +1,28 @@
-static CURL *setup_curl(struct imap_server_conf *srvc)
+static int expire_reflog_ent(struct object_id *ooid, struct object_id *noid,
+			     const char *email, unsigned long timestamp, int tz,
+			     const char *message, void *cb_data)
 {
-	CURL *curl;
-	struct strbuf path = STRBUF_INIT;
+	struct expire_reflog_cb *cb = cb_data;
+	struct expire_reflog_policy_cb *policy_cb = cb->policy_cb;
 
-	if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK)
-		die("curl_global_init failed");
+	if (cb->flags & EXPIRE_REFLOGS_REWRITE)
+		ooid = &cb->last_kept_oid;
 
-	curl = curl_easy_init();
-
-	if (!curl)
-		die("curl_easy_init failed");
-
-	curl_easy_setopt(curl, CURLOPT_USERNAME, server.user);
-	curl_easy_setopt(curl, CURLOPT_PASSWORD, server.pass);
-
-	strbuf_addstr(&path, server.host);
-	if (!path.len || path.buf[path.len - 1] != '/')
-		strbuf_addch(&path, '/');
-	strbuf_addstr(&path, server.folder);
-
-	curl_easy_setopt(curl, CURLOPT_URL, path.buf);
-	strbuf_release(&path);
-	curl_easy_setopt(curl, CURLOPT_PORT, server.port);
-
-	if (server.auth_method) {
-		struct strbuf auth = STRBUF_INIT;
-		strbuf_addstr(&auth, "AUTH=");
-		strbuf_addstr(&auth, server.auth_method);
-		curl_easy_setopt(curl, CURLOPT_LOGIN_OPTIONS, auth.buf);
-		strbuf_release(&auth);
+	if ((*cb->should_prune_fn)(ooid->hash, noid->hash, email, timestamp, tz,
+				   message, policy_cb)) {
+		if (!cb->newlog)
+			printf("would prune %s", message);
+		else if (cb->flags & EXPIRE_REFLOGS_VERBOSE)
+			printf("prune %s", message);
+	} else {
+		if (cb->newlog) {
+			fprintf(cb->newlog, "%s %s %s %lu %+05d\t%s",
+				oid_to_hex(ooid), oid_to_hex(noid),
+				email, timestamp, tz, message);
+			oidcpy(&cb->last_kept_oid, noid);
+		}
+		if (cb->flags & EXPIRE_REFLOGS_VERBOSE)
+			printf("keep %s", message);
 	}
-
-	if (!server.use_ssl)
-		curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_TRY);
-
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, server.ssl_verify);
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, server.ssl_verify);
-
-	curl_easy_setopt(curl, CURLOPT_READFUNCTION, fread_buffer);
-
-	curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-
-	if (0 < verbosity || getenv("GIT_CURL_VERBOSE"))
-		curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-
-	return curl;
+	return 0;
 }

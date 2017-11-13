@@ -1,1 +1,2 @@
-die_errno(_("Unable to read current working directory"));
+error("unknown core.untrackedCache value '%s'; "
+		      "using 'keep' default value", v);

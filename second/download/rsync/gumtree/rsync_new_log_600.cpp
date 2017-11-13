@@ -1,1 +1,1 @@
-out_of_memory("unsafe_symlink");
+rprintf(FINFO,"sender finished %s\n",fname);

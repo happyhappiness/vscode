@@ -1,12 +1,24 @@
-void bitbag_set_bit(struct bitbag *bb, int ndx)
+struct file_list *flist_new(int with_hlink, char *msg)
 {
-	int slot = ndx / BB_PER_SLOT_BITS;
-	ndx %= BB_PER_SLOT_BITS;
+	struct file_list *flist;
 
-	if (!bb->bits[slot]) {
-		if (!(bb->bits[slot] = (uint32*)calloc(BB_PER_SLOT_INTS, 4)))
-			out_of_memory("bitbag_set_bit");
+	flist = new(struct file_list);
+	if (!flist)
+		out_of_memory(msg);
+
+	memset(flist, 0, sizeof (struct file_list));
+
+	if (!(flist->file_pool = pool_create(FILE_EXTENT, 0,
+	    out_of_memory, POOL_INTERN)))
+		out_of_memory(msg);
+
+#if SUPPORT_HARD_LINKS
+	if (with_hlink && preserve_hard_links) {
+		if (!(flist->hlink_pool = pool_create(HLINK_EXTENT,
+		    sizeof (struct idev), out_of_memory, POOL_INTERN)))
+			out_of_memory(msg);
 	}
+#endif
 
-	bb->bits[slot][ndx/32] |= 1u << (ndx % 32);
+	return flist;
 }

@@ -1,24 +1,27 @@
-static void menu_default(request_rec *r, const char *menu, const char *href, const char *text)
+apr_status_t h2_stream_set_response(h2_stream *stream, h2_response *response,
+                                    h2_bucket_beam *output)
 {
-    char *ehref, *etext;
-    if (!strcasecmp(href, "error") || !strcasecmp(href, "nocontent")) {
-        return;                 /* don't print such lines, these aren't
-                                   really href's */
+    apr_status_t status = APR_SUCCESS;
+    conn_rec *c = stream->session->c;
+    
+    if (!output_open(stream)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                      "h2_stream(%ld-%d): output closed", 
+                      stream->session->id, stream->id);
+        return APR_ECONNRESET;
     }
-
-    ehref = ap_escape_uri(r->pool, href);
-    etext = ap_escape_html(r->pool, text);
-
-    if (!strcasecmp(menu, "formatted")) {
-        ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
-                     "</a></pre>\n", NULL);
+    
+    stream->response = response;
+    stream->output = output;
+    stream->buffer = apr_brigade_create(stream->pool, c->bucket_alloc);
+    
+    h2_stream_filter(stream);
+    if (stream->output) {
+        status = fill_buffer(stream, 0);
     }
-    else if (!strcasecmp(menu, "semiformatted")) {
-        ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
-               "</a></pre>\n", NULL);
-    }
-    else if (!strcasecmp(menu, "unformatted")) {
-        ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);
-    }
-    return;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
+                  "h2_stream(%ld-%d): set_response(%d)", 
+                  stream->session->id, stream->id, 
+                  stream->response->http_status);
+    return status;
 }

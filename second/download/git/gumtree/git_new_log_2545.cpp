@@ -1,1 +1,0 @@
-fprintf(log->file, "      %s\n", msg);

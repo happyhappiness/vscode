@@ -1,10 +1,11 @@
 fputs(
-"              See  also  --no-alpn  and  --http2.  --no-npn  requires that the\n"
-"              underlying libcurl was built to support TLS. Added in 7.36.0.\n"
+"              If  this  option  is  used  several times, only the first one is\n"
+"              used.\n"
 "\n"
-"       --no-sessionid\n"
-"              (TLS) Disable curl's use of SSL session-ID caching.  By  default\n"
-"              all  transfers are done using the cache. Note that while nothing\n"
-"              should ever get hurt by attempting  to  reuse  SSL  session-IDs,\n"
-"              there seem to be broken SSL implementations in the wild that may\n"
+"              See also --basic and --ntlm and --anyauth and --proxy-negotiate.\n"
+"\n"
+"       --netrc-file <filename>\n"
+"              This option is similar to -n, --netrc, except that  you  provide\n"
+"              the  path  (absolute  or  relative)  to the netrc file that Curl\n"
+"              should use.  You can only specify one netrc file per invocation.\n"
 , stdout);

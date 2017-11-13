@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00922)
-                         "can not create balancer thread mutex");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00661)
+                          "mod_rewrite: can't access text RewriteMap file %s",
+                          s->checkfile);

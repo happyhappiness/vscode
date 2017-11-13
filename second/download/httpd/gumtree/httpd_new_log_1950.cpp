@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
-                                     "winnt_mpm: falling back to "
-                                     "'AcceptFilter none'.");
+AP_INIT_TAKE12("BalancerNonce", set_balancer_nonce, NULL,
+       RSRC_CONF, "Set value for balancer-manager nonce");

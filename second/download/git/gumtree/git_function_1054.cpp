@@ -1,86 +1,193 @@
-static void write_crash_report(const char *err)
+static CURL *get_curl_handle(void)
 {
-	char *loc = git_pathdup("fast_import_crash_%"PRIuMAX, (uintmax_t) getpid());
-	FILE *rpt = fopen(loc, "w");
-	struct branch *b;
-	unsigned long lu;
-	struct recent_command *rc;
+	CURL *result = curl_easy_init();
 
-	if (!rpt) {
-		error_errno("can't write crash report %s", loc);
-		free(loc);
-		return;
+	if (!result)
+		die("curl_easy_init failed");
+
+	if (!curl_ssl_verify) {
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 0);
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 0);
+	} else {
+		/* Verify authenticity of the peer's certificate */
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 1);
+		/* The name in the cert must match whom we tried to connect */
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 2);
 	}
 
-	fprintf(stderr, "fast-import: dumping crash report to %s\n", loc);
+#if LIBCURL_VERSION_NUM >= 0x070907
+	curl_easy_setopt(result, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
+#endif
+#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
+	curl_easy_setopt(result, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+#endif
 
-	fprintf(rpt, "fast-import crash report:\n");
-	fprintf(rpt, "    fast-import process: %"PRIuMAX"\n", (uintmax_t) getpid());
-	fprintf(rpt, "    parent process     : %"PRIuMAX"\n", (uintmax_t) getppid());
-	fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_MODE(ISO8601)));
-	fputc('\n', rpt);
+#if LIBCURL_VERSION_NUM >= 0x071600
+	if (curl_deleg) {
+		int i;
+		for (i = 0; i < ARRAY_SIZE(curl_deleg_levels); i++) {
+			if (!strcmp(curl_deleg, curl_deleg_levels[i].name)) {
+				curl_easy_setopt(result, CURLOPT_GSSAPI_DELEGATION,
+						curl_deleg_levels[i].curl_deleg_param);
+				break;
+			}
+		}
+		if (i == ARRAY_SIZE(curl_deleg_levels))
+			warning("Unknown delegation method '%s': using default",
+				curl_deleg);
+	}
+#endif
 
-	fputs("fatal: ", rpt);
-	fputs(err, rpt);
-	fputc('\n', rpt);
+	if (http_proactive_auth)
+		init_curl_http_auth(result);
 
-	fputc('\n', rpt);
-	fputs("Most Recent Commands Before Crash\n", rpt);
-	fputs("---------------------------------\n", rpt);
-	for (rc = cmd_hist.next; rc != &cmd_hist; rc = rc->next) {
-		if (rc->next == &cmd_hist)
-			fputs("* ", rpt);
-		else
-			fputs("  ", rpt);
-		fputs(rc->buf, rpt);
-		fputc('\n', rpt);
+	if (getenv("GIT_SSL_VERSION"))
+		ssl_version = getenv("GIT_SSL_VERSION");
+	if (ssl_version && *ssl_version) {
+		int i;
+		for (i = 0; i < ARRAY_SIZE(sslversions); i++) {
+			if (!strcmp(ssl_version, sslversions[i].name)) {
+				curl_easy_setopt(result, CURLOPT_SSLVERSION,
+						 sslversions[i].ssl_version);
+				break;
+			}
+		}
+		if (i == ARRAY_SIZE(sslversions))
+			warning("unsupported ssl version %s: using default",
+				ssl_version);
 	}
 
-	fputc('\n', rpt);
-	fputs("Active Branch LRU\n", rpt);
-	fputs("-----------------\n", rpt);
-	fprintf(rpt, "    active_branches = %lu cur, %lu max\n",
-		cur_active_branches,
-		max_active_branches);
-	fputc('\n', rpt);
-	fputs("  pos  clock name\n", rpt);
-	fputs("  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n", rpt);
-	for (b = active_branches, lu = 0; b; b = b->active_next_branch)
-		fprintf(rpt, "  %2lu) %6" PRIuMAX" %s\n",
-			++lu, b->last_commit, b->name);
+	if (getenv("GIT_SSL_CIPHER_LIST"))
+		ssl_cipherlist = getenv("GIT_SSL_CIPHER_LIST");
+	if (ssl_cipherlist != NULL && *ssl_cipherlist)
+		curl_easy_setopt(result, CURLOPT_SSL_CIPHER_LIST,
+				ssl_cipherlist);
 
-	fputc('\n', rpt);
-	fputs("Inactive Branches\n", rpt);
-	fputs("-----------------\n", rpt);
-	for (lu = 0; lu < branch_table_sz; lu++) {
-		for (b = branch_table[lu]; b; b = b->table_next_branch)
-			write_branch_report(rpt, b);
+	if (ssl_cert != NULL)
+		curl_easy_setopt(result, CURLOPT_SSLCERT, ssl_cert);
+	if (has_cert_password())
+		curl_easy_setopt(result, CURLOPT_KEYPASSWD, cert_auth.password);
+#if LIBCURL_VERSION_NUM >= 0x070903
+	if (ssl_key != NULL)
+		curl_easy_setopt(result, CURLOPT_SSLKEY, ssl_key);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x070908
+	if (ssl_capath != NULL)
+		curl_easy_setopt(result, CURLOPT_CAPATH, ssl_capath);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x072c00
+	if (ssl_pinnedkey != NULL)
+		curl_easy_setopt(result, CURLOPT_PINNEDPUBLICKEY, ssl_pinnedkey);
+#endif
+	if (ssl_cainfo != NULL)
+		curl_easy_setopt(result, CURLOPT_CAINFO, ssl_cainfo);
+
+	if (curl_low_speed_limit > 0 && curl_low_speed_time > 0) {
+		curl_easy_setopt(result, CURLOPT_LOW_SPEED_LIMIT,
+				 curl_low_speed_limit);
+		curl_easy_setopt(result, CURLOPT_LOW_SPEED_TIME,
+				 curl_low_speed_time);
 	}
 
-	if (first_tag) {
-		struct tag *tg;
-		fputc('\n', rpt);
-		fputs("Annotated Tags\n", rpt);
-		fputs("--------------\n", rpt);
-		for (tg = first_tag; tg; tg = tg->next_tag) {
-			fputs(sha1_to_hex(tg->sha1), rpt);
-			fputc(' ', rpt);
-			fputs(tg->name, rpt);
-			fputc('\n', rpt);
+	curl_easy_setopt(result, CURLOPT_MAXREDIRS, 20);
+#if LIBCURL_VERSION_NUM >= 0x071301
+	curl_easy_setopt(result, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
+#elif LIBCURL_VERSION_NUM >= 0x071101
+	curl_easy_setopt(result, CURLOPT_POST301, 1);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x071304
+	curl_easy_setopt(result, CURLOPT_REDIR_PROTOCOLS,
+			 get_curl_allowed_protocols(0));
+	curl_easy_setopt(result, CURLOPT_PROTOCOLS,
+			 get_curl_allowed_protocols(-1));
+#else
+	warning("protocol restrictions not applied to curl redirects because\n"
+		"your curl version is too old (>= 7.19.4)");
+#endif
+	if (getenv("GIT_CURL_VERBOSE"))
+		curl_easy_setopt(result, CURLOPT_VERBOSE, 1L);
+	setup_curl_trace(result);
+
+	curl_easy_setopt(result, CURLOPT_USERAGENT,
+		user_agent ? user_agent : git_user_agent());
+
+	if (curl_ftp_no_epsv)
+		curl_easy_setopt(result, CURLOPT_FTP_USE_EPSV, 0);
+
+#ifdef CURLOPT_USE_SSL
+	if (curl_ssl_try)
+		curl_easy_setopt(result, CURLOPT_USE_SSL, CURLUSESSL_TRY);
+#endif
+
+	/*
+	 * CURL also examines these variables as a fallback; but we need to query
+	 * them here in order to decide whether to prompt for missing password (cf.
+	 * init_curl_proxy_auth()).
+	 *
+	 * Unlike many other common environment variables, these are historically
+	 * lowercase only. It appears that CURL did not know this and implemented
+	 * only uppercase variants, which was later corrected to take both - with
+	 * the exception of http_proxy, which is lowercase only also in CURL. As
+	 * the lowercase versions are the historical quasi-standard, they take
+	 * precedence here, as in CURL.
+	 */
+	if (!curl_http_proxy) {
+		if (http_auth.protocol && !strcmp(http_auth.protocol, "https")) {
+			var_override(&curl_http_proxy, getenv("HTTPS_PROXY"));
+			var_override(&curl_http_proxy, getenv("https_proxy"));
+		} else {
+			var_override(&curl_http_proxy, getenv("http_proxy"));
+		}
+		if (!curl_http_proxy) {
+			var_override(&curl_http_proxy, getenv("ALL_PROXY"));
+			var_override(&curl_http_proxy, getenv("all_proxy"));
 		}
 	}
 
-	fputc('\n', rpt);
-	fputs("Marks\n", rpt);
-	fputs("-----\n", rpt);
-	if (export_marks_file)
-		fprintf(rpt, "  exported to %s\n", export_marks_file);
-	else
-		dump_marks_helper(rpt, 0, marks);
+	if (curl_http_proxy && curl_http_proxy[0] == '\0') {
+		/*
+		 * Handle case with the empty http.proxy value here to keep
+		 * common code clean.
+		 * NB: empty option disables proxying at all.
+		 */
+		curl_easy_setopt(result, CURLOPT_PROXY, "");
+	} else if (curl_http_proxy) {
+#if LIBCURL_VERSION_NUM >= 0x071800
+		if (starts_with(curl_http_proxy, "socks5h"))
+			curl_easy_setopt(result,
+				CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5_HOSTNAME);
+		else if (starts_with(curl_http_proxy, "socks5"))
+			curl_easy_setopt(result,
+				CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+		else if (starts_with(curl_http_proxy, "socks4a"))
+			curl_easy_setopt(result,
+				CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4A);
+		else if (starts_with(curl_http_proxy, "socks"))
+			curl_easy_setopt(result,
+				CURLOPT_PROXYTYPE, CURLPROXY_SOCKS4);
+#endif
+		if (strstr(curl_http_proxy, "://"))
+			credential_from_url(&proxy_auth, curl_http_proxy);
+		else {
+			struct strbuf url = STRBUF_INIT;
+			strbuf_addf(&url, "http://%s", curl_http_proxy);
+			credential_from_url(&proxy_auth, url.buf);
+			strbuf_release(&url);
+		}
 
-	fputc('\n', rpt);
-	fputs("-------------------\n", rpt);
-	fputs("END OF CRASH REPORT\n", rpt);
-	fclose(rpt);
-	free(loc);
+		if (!proxy_auth.host)
+			die("Invalid proxy URL '%s'", curl_http_proxy);
+
+		curl_easy_setopt(result, CURLOPT_PROXY, proxy_auth.host);
+#if LIBCURL_VERSION_NUM >= 0x071304
+		var_override(&curl_no_proxy, getenv("NO_PROXY"));
+		var_override(&curl_no_proxy, getenv("no_proxy"));
+		curl_easy_setopt(result, CURLOPT_NOPROXY, curl_no_proxy);
+#endif
+	}
+	init_curl_proxy_auth(result);
+
+	set_curl_keepalive(result);
+
+	return result;
 }

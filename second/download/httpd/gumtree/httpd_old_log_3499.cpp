@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool,
-                          "loading lua file %s", spec->file);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "shared memory segment too small");

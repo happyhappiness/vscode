@@ -1,1 +1,1 @@
-die("you must specify at least one tree to merge");
+error(_("unable to parse remote unpack status: %s"), line);

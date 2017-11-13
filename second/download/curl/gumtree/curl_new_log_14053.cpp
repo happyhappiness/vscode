@@ -1,12 +1,9 @@
 fputs(
-"              The default service name for a socks server is rcmd/server-fqdn.\n"
-"              This option allows you to change it.\n"
+"              want the file saved in a  different  directory,  make  sure  you\n"
+"              change  the  current working directory before invoking curl with\n"
+"              this option.\n"
 "\n"
-"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
-"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
-"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
-"              where the proxy-name does not match the principal name.\n"
-"\n"
-"              Added in 7.19.4.\n"
-"\n"
+"              The remote file name to use for saving  is  extracted  from  the\n"
+"              given  URL,  nothing  else,  and if it already exists it will be\n"
+"              overwritten. If you want the server to be  able  to  choose  the\n"
 , stdout);

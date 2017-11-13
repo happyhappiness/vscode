@@ -1,10 +1,10 @@
 fputs(
-"              (HTTP) Specifies a custom request method to use when communicat-\n"
-"              ing with the HTTP server.  The specified request method will  be\n"
-"              used  instead  of  the  method otherwise used (which defaults to\n"
-"              GET). Read the HTTP 1.1 specification for details  and  explana-\n"
-"              tions.  Common  additional HTTP requests include PUT and DELETE,\n"
-"              but related technologies like WebDAV offers PROPFIND, COPY, MOVE\n"
-"              and more.\n"
+"                             tion time for multiple  redirections.  (Added  in\n"
+"                             7.12.3)\n"
 "\n"
+"              time_starttransfer\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the first byte was just about to be  trans-\n"
+"                             ferred.  This  includes time_pretransfer and also\n"
+"                             the time  the  server  needed  to  calculate  the\n"
 , stdout);

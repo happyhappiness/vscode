@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_slave_in(%s): %ld data bytes", task->id, (long)bblen);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, APLOGNO(03062)
+                  "h2_session: send error");

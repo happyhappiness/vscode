@@ -1,14 +1,13 @@
-static void use(int bytes)
+static void numstat_patch_list(struct apply_state *state,
+			       struct patch *patch)
 {
-	if (bytes > len)
-		die("used more bytes than were available");
-	len -= bytes;
-	offset += bytes;
-
-	/* make sure off_t is sufficiently large not to wrap */
-	if (signed_add_overflows(consumed_bytes, bytes))
-		die("pack too large for current definition of off_t");
-	consumed_bytes += bytes;
-	if (max_input_size && consumed_bytes > max_input_size)
-		die(_("pack exceeds maximum allowed size"));
+	for ( ; patch; patch = patch->next) {
+		const char *name;
+		name = patch->new_name ? patch->new_name : patch->old_name;
+		if (patch->is_binary)
+			printf("-\t-\t");
+		else
+			printf("%d\t%d\t", patch->lines_added, patch->lines_deleted);
+		write_name_quoted(name, stdout, state->line_termination);
+	}
 }

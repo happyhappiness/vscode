@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02263)
-                                  "Re-negotiation handshake failed: "
-                                  "Client certificate missing");
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01181) "balancer slotmem_grab failed");

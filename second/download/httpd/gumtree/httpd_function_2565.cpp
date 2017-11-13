@@ -1,82 +1,105 @@
-void ap_process_async_request(request_rec *r)
+static void doRotate(rotate_config_t *config, rotate_status_t *status)
 {
-    conn_rec *c = r->connection;
-    int access_status;
 
-    /* Give quick handlers a shot at serving the request on the fast
-     * path, bypassing all of the other Apache hooks.
-     *
-     * This hook was added to enable serving files out of a URI keyed
-     * content cache ( e.g., Mike Abbott's Quick Shortcut Cache,
-     * described here: http://oss.sgi.com/projects/apache/mod_qsc.html )
-     *
-     * It may have other uses as well, such as routing requests directly to
-     * content handlers that have the ability to grok HTTP and do their
-     * own access checking, etc (e.g. servlet engines).
-     *
-     * Use this hook with extreme care and only if you know what you are
-     * doing.
-     */
-    AP_PROCESS_REQUEST_ENTRY((uintptr_t)r, r->uri);
-    if (ap_extended_status) {
-        ap_time_process_request(r->connection->sbh, START_PREQUEST);
-    }
+    int now = get_now(config);
+    int tLogStart;
+    apr_status_t rv;
 
-    if (APLOGrtrace4(r)) {
-        int i;
-        const apr_array_header_t *t_h = apr_table_elts(r->headers_in);
-        const apr_table_entry_t *t_elt = (apr_table_entry_t *)t_h->elts;
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                      "Headers received from client:");
-        for (i = 0; i < t_h->nelts; i++, t_elt++) {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "  %s: %s",
-                          ap_escape_logitem(r->pool, t_elt->key),
-                          ap_escape_logitem(r->pool, t_elt->val));
-        }
-    }
+    status->rotateReason = ROTATE_NONE;
+    status->nLogFDprev = status->nLogFD;
+    status->nLogFD = NULL;
+    status->pfile_prev = status->pfile;
 
-#if APR_HAS_THREADS
-    apr_thread_mutex_create(&r->invoke_mtx, APR_THREAD_MUTEX_DEFAULT, r->pool);
-    apr_thread_mutex_lock(r->invoke_mtx);
-#endif
-    access_status = ap_run_quick_handler(r, 0);  /* Not a look-up request */
-    if (access_status == DECLINED) {
-        access_status = ap_process_request_internal(r);
-        if (access_status == OK) {
-            access_status = ap_invoke_handler(r);
-        }
-    }
-
-    if (access_status == SUSPENDED) {
-        /* TODO: Should move these steps into a generic function, so modules
-         * working on a suspended request can also call _ENTRY again.
+    if (config->tRotation) {
+        int tLogEnd;
+        tLogStart = (now / config->tRotation) * config->tRotation;
+        tLogEnd = tLogStart + config->tRotation;
+        /*
+         * Check if rotation was forced and the last rotation
+         * interval is not yet over. Use the value of now instead
+         * of the time interval boundary for the file name then.
          */
-        AP_PROCESS_REQUEST_RETURN((uintptr_t)r, r->uri, access_status);
-        if (ap_extended_status) {
-            ap_time_process_request(c->sbh, STOP_PREQUEST);
+        if (tLogStart < status->tLogEnd) {
+            tLogStart = now;
         }
-        c->cs->state = CONN_STATE_SUSPENDED;
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(r->invoke_mtx);
-#endif
-        return;
-    }
-#if APR_HAS_THREADS
-    apr_thread_mutex_unlock(r->invoke_mtx);
-#endif
-
-    if (access_status == DONE) {
-        /* e.g., something not in storage like TRACE */
-        access_status = OK;
-    }
-
-    if (access_status == OK) {
-        ap_finalize_request_protocol(r);
+        status->tLogEnd = tLogEnd;
     }
     else {
-        r->status = HTTP_OK;
-        ap_die(access_status, r);
+        tLogStart = now;
     }
 
-    ap_process_request_after_handler(r);
+    if (config->use_strftime) {
+        apr_time_t tNow = apr_time_from_sec(tLogStart);
+        apr_time_exp_t e;
+        apr_size_t rs;
+
+        apr_time_exp_gmt(&e, tNow);
+        apr_strftime(status->filename, &rs, sizeof(status->filename), config->szLogRoot, &e);
+    }
+    else {
+        if (config->truncate) {
+            apr_snprintf(status->filename, sizeof(status->filename), "%s", config->szLogRoot);
+        }
+        else {
+            apr_snprintf(status->filename, sizeof(status->filename), "%s.%010d", config->szLogRoot,
+                    tLogStart);
+        }
+    }
+    apr_pool_create(&status->pfile, status->pool);
+    if (config->verbose) {
+        fprintf(stderr, "Opening file %s\n", status->filename);
+    }
+    rv = apr_file_open(&status->nLogFD, status->filename, APR_WRITE | APR_CREATE | APR_APPEND
+                       | (config->truncate ? APR_TRUNCATE : 0), APR_OS_DEFAULT, status->pfile);
+    if (rv != APR_SUCCESS) {
+        char error[120];
+
+        apr_strerror(rv, error, sizeof error);
+
+        /* Uh-oh. Failed to open the new log file. Try to clear
+         * the previous log file, note the lost log entries,
+         * and keep on truckin'. */
+        if (status->nLogFDprev == NULL) {
+            fprintf(stderr, "Could not open log file '%s' (%s)\n", status->filename, error);
+            exit(2);
+        }
+        else {
+            apr_size_t nWrite;
+            status->nLogFD = status->nLogFDprev;
+            apr_pool_destroy(status->pfile);
+            status->pfile = status->pfile_prev;
+            /* Try to keep this error message constant length
+             * in case it occurs several times. */
+            apr_snprintf(status->errbuf, sizeof status->errbuf,
+                         "Resetting log file due to error opening "
+                         "new log file, %10d messages lost: %-25.25s\n",
+                         status->nMessCount, error);
+            nWrite = strlen(status->errbuf);
+            apr_file_trunc(status->nLogFD, 0);
+            if (apr_file_write(status->nLogFD, status->errbuf, &nWrite) != APR_SUCCESS) {
+                fprintf(stderr, "Error writing to the file %s\n", status->filename);
+                exit(2);
+            }
+        }
+    }
+    else {
+        closeFile(config, status->pfile_prev, status->nLogFDprev);
+        status->nLogFDprev = NULL;
+        status->pfile_prev = NULL;
+    }
+    status->nMessCount = 0;
+    if (config->linkfile) {
+        apr_file_remove(config->linkfile, status->pfile);
+        if (config->verbose) {
+            fprintf(stderr,"Linking %s to %s\n", status->filename, config->linkfile);
+        }
+        rv = apr_file_link(status->filename, config->linkfile);
+        if (rv != APR_SUCCESS) {
+            char error[120];
+            apr_strerror(rv, error, sizeof error);
+            fprintf(stderr, "Error linking file %s to %s (%s)\n",
+                    status->filename, config->linkfile, error);
+            exit(2);
+        }
+    }
 }

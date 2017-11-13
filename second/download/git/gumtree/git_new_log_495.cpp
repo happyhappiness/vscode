@@ -1,1 +1,0 @@
-fprintf(f, "%s(revision walker failed)\n", line_prefix);

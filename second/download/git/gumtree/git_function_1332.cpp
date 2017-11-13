@@ -1,19 +1,25 @@
-int delete_ref(const char *refname, const unsigned char *sha1, int delopt)
+static void write_branch_report(FILE *rpt, struct branch *b)
 {
-	struct ref_transaction *transaction;
-	struct strbuf err = STRBUF_INIT;
+	fprintf(rpt, "%s:\n", b->name);
 
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_delete(transaction, refname, sha1, delopt,
-				   sha1 && !is_null_sha1(sha1), NULL, &err) ||
-	    ref_transaction_commit(transaction, &err)) {
-		error("%s", err.buf);
-		ref_transaction_free(transaction);
-		strbuf_release(&err);
-		return 1;
-	}
-	ref_transaction_free(transaction);
-	strbuf_release(&err);
-	return 0;
+	fprintf(rpt, "  status      :");
+	if (b->active)
+		fputs(" active", rpt);
+	if (b->branch_tree.tree)
+		fputs(" loaded", rpt);
+	if (is_null_sha1(b->branch_tree.versions[1].sha1))
+		fputs(" dirty", rpt);
+	fputc('\n', rpt);
+
+	fprintf(rpt, "  tip commit  : %s\n", sha1_to_hex(b->sha1));
+	fprintf(rpt, "  old tree    : %s\n", sha1_to_hex(b->branch_tree.versions[0].sha1));
+	fprintf(rpt, "  cur tree    : %s\n", sha1_to_hex(b->branch_tree.versions[1].sha1));
+	fprintf(rpt, "  commit clock: %" PRIuMAX "\n", b->last_commit);
+
+	fputs("  last pack   : ", rpt);
+	if (b->pack_id < MAX_PACK_ID)
+		fprintf(rpt, "%u", b->pack_id);
+	fputc('\n', rpt);
+
+	fputc('\n', rpt);
 }

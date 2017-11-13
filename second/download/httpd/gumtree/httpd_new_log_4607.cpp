@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00199) "sigaction(SIGHUP)");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01841)
+                    "encrypt session failed");

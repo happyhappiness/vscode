@@ -1,1 +1,2 @@
-error_errno(_("failed writing detached signature to '%s'"), path);
+printf("%s %s\n",
+		       oid_to_hex(&ref->old_oid), ref->name);

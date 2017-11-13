@@ -1,7 +1,12 @@
-static struct commit *get_commit_reference(const unsigned char *sha1)
+static int do_cvs_cmd(const char *me, char *arg)
 {
-	struct commit *r = lookup_commit_reference(sha1);
-	if (!r)
-		die(_("Not a valid commit name %s"), sha1_to_hex(sha1));
-	return r;
+	const char *cvsserver_argv[3] = {
+		"cvsserver", "server", NULL
+	};
+
+	if (!arg || strcmp(arg, "server"))
+		die("git-cvsserver only handles server: %s", arg);
+
+	setup_path();
+	return execv_git_cmd(cvsserver_argv);
 }

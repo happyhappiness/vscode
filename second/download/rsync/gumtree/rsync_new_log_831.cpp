@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: too many groups\n");
+io_printf(f_out, "@ERROR: your client is speaking an incompatible beta of protocol 30\n");

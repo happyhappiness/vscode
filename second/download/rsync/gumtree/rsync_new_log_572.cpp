@@ -1,2 +1,1 @@
-rprintf(FERROR, "deflate on token returned %d (%d bytes left)\n",
-		    r, tx_strm.avail_in);
+rprintf(FINFO,"IO error encountered - skipping file deletion\n");

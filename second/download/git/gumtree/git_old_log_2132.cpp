@@ -1,1 +1,1 @@
-warning(_("Untracked cache is disabled on this system."));
+die("unable to generate checkdiff for %s", one->path);

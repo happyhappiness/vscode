@@ -1,366 +1,238 @@
-apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
-                            ap_input_mode_t mode, apr_read_type_e block,
-                            apr_off_t readbytes)
+request_rec *ap_read_request(conn_rec *conn)
 {
-    apr_bucket *e;
-    http_ctx_t *ctx = f->ctx;
-    apr_status_t rv;
-    apr_off_t totalread;
-    int http_error = HTTP_REQUEST_ENTITY_TOO_LARGE;
-    apr_bucket_brigade *bb;
+    request_rec *r;
+    apr_pool_t *p;
+    const char *expect;
+    int access_status;
+    apr_bucket_brigade *tmp_bb;
+    apr_socket_t *csd;
+    apr_interval_time_t cur_timeout;
 
-    /* just get out of the way of things we don't want. */
-    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
-        return ap_get_brigade(f->next, b, mode, block, readbytes);
+    apr_pool_create(&p, conn->pool);
+    apr_pool_tag(p, "request");
+    r = apr_pcalloc(p, sizeof(request_rec));
+    r->pool            = p;
+    r->connection      = conn;
+    r->server          = conn->base_server;
+
+    r->user            = NULL;
+    r->ap_auth_type    = NULL;
+
+    r->allowed_methods = ap_make_method_list(p, 2);
+
+    r->headers_in      = apr_table_make(r->pool, 25);
+    r->trailers_in     = apr_table_make(r->pool, 5);
+    r->subprocess_env  = apr_table_make(r->pool, 25);
+    r->headers_out     = apr_table_make(r->pool, 12);
+    r->err_headers_out = apr_table_make(r->pool, 5);
+    r->trailers_out    = apr_table_make(r->pool, 5);
+    r->notes           = apr_table_make(r->pool, 5);
+
+    r->request_config  = ap_create_request_config(r->pool);
+    /* Must be set before we run create request hook */
+
+    r->proto_output_filters = conn->output_filters;
+    r->output_filters  = r->proto_output_filters;
+    r->proto_input_filters = conn->input_filters;
+    r->input_filters   = r->proto_input_filters;
+    ap_run_create_request(r);
+    r->per_dir_config  = r->server->lookup_defaults;
+
+    r->sent_bodyct     = 0;                      /* bytect isn't for body */
+
+    r->read_length     = 0;
+    r->read_body       = REQUEST_NO_BODY;
+
+    r->status          = HTTP_OK;  /* Until further notice */
+    r->the_request     = NULL;
+
+    /* Begin by presuming any module can make its own path_info assumptions,
+     * until some module interjects and changes the value.
+     */
+    r->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
+
+    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+
+    /* Get the request... */
+    if (!read_request_line(r, tmp_bb)) {
+        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: URI too long (longer than %d)", r->server->limit_req_line);
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            return r;
+        }
+        else if (r->status == HTTP_REQUEST_TIME_OUT) {
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            if (!r->connection->keepalives) {
+                ap_run_log_transaction(r);
+            }
+            apr_brigade_destroy(tmp_bb);
+            return r;
+        }
+
+        apr_brigade_destroy(tmp_bb);
+        return NULL;
     }
 
-    if (!ctx) {
-        const char *tenc, *lenp;
-        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
-        ctx->state = BODY_NONE;
-        ctx->pos = ctx->chunk_ln;
-        ctx->bb = apr_brigade_create(f->r->pool, f->c->bucket_alloc);
-        bb = ctx->bb;
+    /* We may have been in keep_alive_timeout mode, so toggle back
+     * to the normal timeout mode as we fetch the header lines,
+     * as necessary.
+     */
+    csd = ap_get_module_config(conn->conn_config, &core_module);
+    apr_socket_timeout_get(csd, &cur_timeout);
+    if (cur_timeout != conn->base_server->timeout) {
+        apr_socket_timeout_set(csd, conn->base_server->timeout);
+        cur_timeout = conn->base_server->timeout;
+    }
 
-        /* LimitRequestBody does not apply to proxied responses.
-         * Consider implementing this check in its own filter.
-         * Would adding a directive to limit the size of proxied
-         * responses be useful?
-         */
-        if (!f->r->proxyreq) {
-            ctx->limit = ap_get_limit_req_body(f->r);
+    if (!r->assbackwards) {
+        const char *tenc;
+
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            return r;
         }
-        else {
-            ctx->limit = 0;
-        }
 
-        tenc = apr_table_get(f->r->headers_in, "Transfer-Encoding");
-        lenp = apr_table_get(f->r->headers_in, "Content-Length");
-
+        tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
         if (tenc) {
-            if (!strcasecmp(tenc, "chunked")) {
-                ctx->state = BODY_CHUNK;
-            }
-            /* test lenp, because it gives another case we can handle */
-            else if (!lenp) {
-                /* Something that isn't in HTTP, unless some future
-                 * edition defines new transfer ecodings, is unsupported.
-                 */
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                              "Unknown Transfer-Encoding: %s", tenc);
-                return bail_out_on_error(ctx, f, HTTP_NOT_IMPLEMENTED);
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r,
-                  "Unknown Transfer-Encoding: %s; using Content-Length", tenc);
-                tenc = NULL;
-            }
-        }
-        if (lenp && !tenc) {
-            char *endstr;
-
-            ctx->state = BODY_LENGTH;
-
-            /* Protects against over/underflow, non-digit chars in the
-             * string (excluding leading space) (the endstr checks)
-             * and a negative number. */
-            if (apr_strtoff(&ctx->remaining, lenp, &endstr, 10)
-                || endstr == lenp || *endstr || ctx->remaining < 0) {
-
-                ctx->remaining = 0;
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                              "Invalid Content-Length");
-
-                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
-            }
-
-            /* If we have a limit in effect and we know the C-L ahead of
-             * time, stop it here if it is invalid.
+            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
+             * Section 3.3.3.3: "If a Transfer-Encoding header field is
+             * present in a request and the chunked transfer coding is not
+             * the final encoding ...; the server MUST respond with the 400
+             * (Bad Request) status code and then close the connection".
              */
-            if (ctx->limit && ctx->limit < ctx->remaining) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                          "Requested content-length of %" APR_OFF_T_FMT
-                          " is larger than the configured limit"
-                          " of %" APR_OFF_T_FMT, ctx->remaining, ctx->limit);
-                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
-            }
-        }
-
-        /* If we don't have a request entity indicated by the headers, EOS.
-         * (BODY_NONE is a valid intermediate state due to trailers,
-         *  but it isn't a valid starting state.)
-         *
-         * RFC 2616 Section 4.4 note 5 states that connection-close
-         * is invalid for a request entity - request bodies must be
-         * denoted by C-L or T-E: chunked.
-         *
-         * Note that since the proxy uses this filter to handle the
-         * proxied *response*, proxy responses MUST be exempt.
-         */
-        if (ctx->state == BODY_NONE && f->r->proxyreq != PROXYREQ_RESPONSE) {
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(b, e);
-            ctx->eos_sent = 1;
-            return APR_SUCCESS;
-        }
-
-        /* Since we're about to read data, send 100-Continue if needed.
-         * Only valid on chunked and C-L bodies where the C-L is > 0. */
-        if ((ctx->state == BODY_CHUNK ||
-            (ctx->state == BODY_LENGTH && ctx->remaining > 0)) &&
-            f->r->expecting_100 && f->r->proto_num >= HTTP_VERSION(1,1) &&
-            !(f->r->eos_sent || f->r->bytes_sent)) {
-            if (!ap_is_HTTP_SUCCESS(f->r->status)) {
-                ctx->state = BODY_NONE;
-                ctx->eos_sent = 1;
-            } else {
-                char *tmp;
-                int len;
-
-                /* if we send an interim response, we're no longer
-                 * in a state of expecting one.
-                 */
-                f->r->expecting_100 = 0;
-                tmp = apr_pstrcat(f->r->pool, AP_SERVER_PROTOCOL, " ",
-                                  ap_get_status_line(HTTP_CONTINUE), CRLF CRLF,
-                                  NULL);
-                len = strlen(tmp);
-                ap_xlate_proto_to_ascii(tmp, len);
-                apr_brigade_cleanup(bb);
-                e = apr_bucket_pool_create(tmp, len, f->r->pool,
-                                           f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_HEAD(bb, e);
-                e = apr_bucket_flush_create(f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(bb, e);
-
-                ap_pass_brigade(f->c->output_filters, bb);
-            }
-        }
-
-        /* We can't read the chunk until after sending 100 if required. */
-        if (ctx->state == BODY_CHUNK) {
-            apr_brigade_cleanup(bb);
-
-            rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
-                                block, 0);
-
-            /* for timeout */
-            if (block == APR_NONBLOCK_READ &&
-                ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
-                  (APR_STATUS_IS_EAGAIN(rv)) )) {
-                ctx->state = BODY_CHUNK_PART;
-                return APR_EAGAIN;
+            if (!(strcasecmp(tenc, "chunked") == 0 /* fast path */
+                    || ap_find_last_token(r->pool, tenc, "chunked"))) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "client sent unknown Transfer-Encoding "
+                              "(%s): %s", tenc, r->uri);
+                r->status = HTTP_BAD_REQUEST;
+                conn->keepalive = AP_CONN_CLOSE;
+                ap_send_error_response(r, 0);
+                ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+                ap_run_log_transaction(r);
+                apr_brigade_destroy(tmp_bb);
+                return r;
             }
 
-            if (rv == APR_SUCCESS) {
-                rv = get_chunk_line(ctx, bb, f->r->server->limit_req_line);
-                if (APR_STATUS_IS_EAGAIN(rv)) {
-                    apr_brigade_cleanup(bb);
-                    ctx->state = BODY_CHUNK_PART;
-                    return rv;
-                }
-                if (rv == APR_SUCCESS) {
-                    ctx->remaining = get_chunk_size(ctx->chunk_ln);
-                    if (ctx->remaining == INVALID_CHAR) {
-                        rv = APR_EGENERAL;
-                        http_error = HTTP_SERVICE_UNAVAILABLE;
-                    }
-                }
-            }
-            apr_brigade_cleanup(bb);
-
-            /* Detect chunksize error (such as overflow) */
-            if (rv != APR_SUCCESS || ctx->remaining < 0) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
-                              (ctx->remaining < 0) ? "(overflow)" : "");
-                ctx->remaining = 0; /* Reset it in case we have to
-                                     * come back here later */
-                if (APR_STATUS_IS_TIMEUP(rv)) { 
-                    http_error = HTTP_REQUEST_TIME_OUT;
-                }
-                return bail_out_on_error(ctx, f, http_error);
-            }
-
-            if (!ctx->remaining) {
-                /* Handle trailers by calling ap_get_mime_headers again! */
-                ctx->state = BODY_NONE;
-                ap_get_mime_headers(f->r);
-                e = apr_bucket_eos_create(f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(b, e);
-                ctx->eos_sent = 1;
-                return APR_SUCCESS;
-            }
+            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
+             * Section 3.3.3.3: "If a message is received with both a
+             * Transfer-Encoding and a Content-Length header field, the
+             * Transfer-Encoding overrides the Content-Length. ... A sender
+             * MUST remove the received Content-Length field".
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
         }
     }
     else {
-        bb = ctx->bb;
-    }
-
-    if (ctx->eos_sent) {
-        e = apr_bucket_eos_create(f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(b, e);
-        return APR_SUCCESS;
-    }
-
-    if (!ctx->remaining) {
-        switch (ctx->state) {
-        case BODY_NONE:
-            break;
-        case BODY_LENGTH:
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(b, e);
-            ctx->eos_sent = 1;
-            return APR_SUCCESS;
-        case BODY_CHUNK:
-        case BODY_CHUNK_PART:
-            {
-                apr_brigade_cleanup(bb);
-
-                /* We need to read the CRLF after the chunk.  */
-                if (ctx->state == BODY_CHUNK) {
-                    rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
-                                        block, 0);
-                    if (block == APR_NONBLOCK_READ &&
-                        ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
-                          (APR_STATUS_IS_EAGAIN(rv)) )) {
-                        return APR_EAGAIN;
-                    }
-                    /* If we get an error, then leave */
-                    if (rv != APR_SUCCESS) {
-                        return rv;
-                    }
-                    /*
-                     * We really don't care whats on this line. If it is RFC
-                     * compliant it should be only \r\n. If there is more
-                     * before we just ignore it as long as we do not get over
-                     * the limit for request lines.
-                     */
-                    rv = get_remaining_chunk_line(ctx, bb,
-                                                  f->r->server->limit_req_line);
-                    apr_brigade_cleanup(bb);
-                    if (APR_STATUS_IS_EAGAIN(rv)) {
-                        return rv;
-                    }
-                } else {
-                    rv = APR_SUCCESS;
-                }
-
-                if (rv == APR_SUCCESS) {
-                    /* Read the real chunk line. */
-                    rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
-                                        block, 0);
-                    /* Test timeout */
-                    if (block == APR_NONBLOCK_READ &&
-                        ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
-                          (APR_STATUS_IS_EAGAIN(rv)) )) {
-                        ctx->state = BODY_CHUNK_PART;
-                        return APR_EAGAIN;
-                    }
-                    ctx->state = BODY_CHUNK;
-                    if (rv == APR_SUCCESS) {
-                        rv = get_chunk_line(ctx, bb, f->r->server->limit_req_line);
-                        if (APR_STATUS_IS_EAGAIN(rv)) {
-                            ctx->state = BODY_CHUNK_PART;
-                            apr_brigade_cleanup(bb);
-                            return rv;
-                        }
-                        if (rv == APR_SUCCESS) {
-                            ctx->remaining = get_chunk_size(ctx->chunk_ln);
-                            if (ctx->remaining == INVALID_CHAR) {
-                                rv = APR_EGENERAL;
-                                http_error = HTTP_SERVICE_UNAVAILABLE;
-                            }
-                        }
-                    }
-                    apr_brigade_cleanup(bb);
-                }
-
-                /* Detect chunksize error (such as overflow) */
-                if (rv != APR_SUCCESS || ctx->remaining < 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading chunk %s ", 
-                                  (ctx->remaining < 0) ? "(overflow)" : "");
-                    ctx->remaining = 0; /* Reset it in case we have to
-                                         * come back here later */
-                    if (APR_STATUS_IS_TIMEUP(rv)) { 
-                        http_error = HTTP_REQUEST_TIME_OUT;
-                    }
-                    return bail_out_on_error(ctx, f, http_error);
-                }
-
-                if (!ctx->remaining) {
-                    /* Handle trailers by calling ap_get_mime_headers again! */
-                    ctx->state = BODY_NONE;
-                    ap_get_mime_headers(f->r);
-                    e = apr_bucket_eos_create(f->c->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(b, e);
-                    ctx->eos_sent = 1;
-                    return APR_SUCCESS;
-                }
-            }
-            break;
+        if (r->header_only) {
+            /*
+             * Client asked for headers only with HTTP/0.9, which doesn't send
+             * headers! Have to dink things just to make sure the error message
+             * comes through...
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "client sent invalid HTTP/0.9 request: HEAD %s",
+                          r->uri);
+            r->header_only = 0;
+            r->status = HTTP_BAD_REQUEST;
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            return r;
         }
     }
 
-    /* Ensure that the caller can not go over our boundary point. */
-    if (ctx->state == BODY_LENGTH || ctx->state == BODY_CHUNK) {
-        if (ctx->remaining < readbytes) {
-            readbytes = ctx->remaining;
-        }
-        AP_DEBUG_ASSERT(readbytes > 0);
-    }
+    apr_brigade_destroy(tmp_bb);
 
-    rv = ap_get_brigade(f->next, b, mode, block, readbytes);
-
-    if (rv != APR_SUCCESS) {
-        return rv;
-    }
-
-    /* How many bytes did we just read? */
-    apr_brigade_length(b, 0, &totalread);
-
-    /* If this happens, we have a bucket of unknown length.  Die because
-     * it means our assumptions have changed. */
-    AP_DEBUG_ASSERT(totalread >= 0);
-
-    if (ctx->state != BODY_NONE) {
-        ctx->remaining -= totalread;
-        if (ctx->remaining > 0) {
-            e = APR_BRIGADE_LAST(b);
-            if (APR_BUCKET_IS_EOS(e))
-                return APR_EOF;
-        }
-    }
-
-    /* If we have no more bytes remaining on a C-L request,
-     * save the callter a roundtrip to discover EOS.
+    /* update what we think the virtual host is based on the headers we've
+     * now read. may update status.
      */
-    if (ctx->state == BODY_LENGTH && ctx->remaining == 0) {
-        e = apr_bucket_eos_create(f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(b, e);
+    ap_update_vhost_from_headers(r);
+
+    /* Toggle to the Host:-based vhost's timeout mode to fetch the
+     * request body and send the response body, if needed.
+     */
+    if (cur_timeout != r->server->timeout) {
+        apr_socket_timeout_set(csd, r->server->timeout);
+        cur_timeout = r->server->timeout;
     }
 
-    /* We have a limit in effect. */
-    if (ctx->limit) {
-        /* FIXME: Note that we might get slightly confused on chunked inputs
-         * as we'd need to compensate for the chunk lengths which may not
-         * really count.  This seems to be up for interpretation.  */
-        ctx->limit_used += totalread;
-        if (ctx->limit < ctx->limit_used) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                          "Read content-length of %" APR_OFF_T_FMT
-                          " is larger than the configured limit"
-                          " of %" APR_OFF_T_FMT, ctx->limit_used, ctx->limit);
-            apr_brigade_cleanup(bb);
-            e = ap_bucket_error_create(HTTP_REQUEST_ENTITY_TOO_LARGE, NULL,
-                                       f->r->pool,
-                                       f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
-            ctx->eos_sent = 1;
-            return ap_pass_brigade(f->r->output_filters, bb);
+    /* we may have switched to another server */
+    r->per_dir_config = r->server->lookup_defaults;
+
+    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
+        || ((r->proto_num == HTTP_VERSION(1, 1))
+            && !apr_table_get(r->headers_in, "Host"))) {
+        /*
+         * Client sent us an HTTP/1.1 or later request without telling us the
+         * hostname, either with a full URL or a Host: header. We therefore
+         * need to (as per the 1.1 spec) send an error.  As a special case,
+         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
+         * a Host: header, and the server MUST respond with 400 if it doesn't.
+         */
+        r->status = HTTP_BAD_REQUEST;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "client sent HTTP/1.1 request without hostname "
+                      "(see RFC2616 section 14.23): %s", r->uri);
+    }
+
+    /*
+     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
+     * called by ap_die and by ap_send_error_response works correctly on
+     * status codes that do not cause the connection to be dropped and
+     * in situations where the connection should be kept alive.
+     */
+
+    ap_add_input_filter_handle(ap_http_input_filter_handle,
+                               NULL, r, r->connection);
+
+    if (r->status != HTTP_OK) {
+        ap_send_error_response(r, 0);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        return r;
+    }
+
+    if ((access_status = ap_run_post_read_request(r))) {
+        ap_die(access_status, r);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        return NULL;
+    }
+
+    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
+        && (expect[0] != '\0')) {
+        /*
+         * The Expect header field was added to HTTP/1.1 after RFC 2068
+         * as a means to signal when a 100 response is desired and,
+         * unfortunately, to signal a poor man's mandatory extension that
+         * the server must understand or return 417 Expectation Failed.
+         */
+        if (strcasecmp(expect, "100-continue") == 0) {
+            r->expecting_100 = 1;
+        }
+        else {
+            r->status = HTTP_EXPECTATION_FAILED;
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "client sent an unrecognized expectation value of "
+                          "Expect: %s", expect);
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            return r;
         }
     }
 
-    return APR_SUCCESS;
+    return r;
 }

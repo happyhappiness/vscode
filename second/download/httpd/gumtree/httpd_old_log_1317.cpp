@@ -1,2 +1,3 @@
-ap_rvputs(r, "<pre>(Default) <a href=\"", href, "\">", text,
-               "</a></pre>\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Performing full renegotiation: "
+                         "complete handshake protocol");

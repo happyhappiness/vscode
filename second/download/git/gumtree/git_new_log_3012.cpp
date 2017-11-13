@@ -1,1 +1,1 @@
-warning_errno(_("unable to access '%s'"), path);
+die(_("--chmod param '%s' must be either -x or +x"), chmod_arg);

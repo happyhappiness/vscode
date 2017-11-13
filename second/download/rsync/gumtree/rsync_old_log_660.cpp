@@ -1,1 +1,1 @@
-fprintf(f, "\n%s\n", D_(sub_transdom, opt->descrip));
+fprintf(stderr,"failed to create pid file %s\n", pid_file);

@@ -1,12 +1,11 @@
 fputs(
-"              cause  unintended  side-effects when curl doesn't change request\n"
-"              method according to the HTTP 30x response codes - and similar.\n"
+"              you'll instead get the whole document.\n"
 "\n"
-"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
-"              doing file lists with FTP.\n"
+"              FTP  and  SFTP  range  downloads only support the simple 'start-\n"
+"              stop' syntax (optionally with one of the numbers  omitted).  FTP\n"
+"              use depends on the extended FTP command SIZE.\n"
 "\n"
-"              (POP3) Specifies a custom POP3 command to use instead of LIST or\n"
-"              RETR. (Added in 7.26.0)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              (IMAP) Specifies a custom IMAP command to use instead  of  LIST.\n"
+"       --raw  (HTTP) When used, it disables all internal HTTP decoding of con-\n"
 , stdout);

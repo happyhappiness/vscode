@@ -1,1 +1,1 @@
-fprintf(FERROR,"stat %s : %s\n",fname,strerror(errno));
+fprintf(f,"-H, --hard-links         preserve hard links\n");

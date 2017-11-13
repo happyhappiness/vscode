@@ -1,56 +1,100 @@
-static int pp_collect_finished(struct parallel_processes *pp)
+int fetch_populated_submodules(const struct argv_array *options,
+			       const char *prefix, int command_line_option,
+			       int quiet)
 {
-	int i, code;
-	int n = pp->max_processes;
-	int result = 0;
+	int i, result = 0;
+	struct child_process cp = CHILD_PROCESS_INIT;
+	struct argv_array argv = ARGV_ARRAY_INIT;
+	const char *work_tree = get_git_work_tree();
+	if (!work_tree)
+		goto out;
 
-	while (pp->nr_processes > 0) {
-		for (i = 0; i < pp->max_processes; i++)
-			if (pp->children[i].state == GIT_CP_WAIT_CLEANUP)
-				break;
-		if (i == pp->max_processes)
-			break;
+	if (read_cache() < 0)
+		die("index file corrupt");
 
-		code = finish_command(&pp->children[i].process);
+	argv_array_push(&argv, "fetch");
+	for (i = 0; i < options->argc; i++)
+		argv_array_push(&argv, options->argv[i]);
+	argv_array_push(&argv, "--recurse-submodules-default");
+	/* default value, "--submodule-prefix" and its value are added later */
 
-		code = pp->task_finished(code,
-					 &pp->children[i].err, pp->data,
-					 &pp->children[i].data);
+	cp.env = local_repo_env;
+	cp.git_cmd = 1;
+	cp.no_stdin = 1;
 
-		if (code)
-			result = code;
-		if (code < 0)
-			break;
+	calculate_changed_submodule_paths();
 
-		pp->nr_processes--;
-		pp->children[i].state = GIT_CP_FREE;
-		pp->pfd[i].fd = -1;
-		child_process_init(&pp->children[i].process);
+	for (i = 0; i < active_nr; i++) {
+		struct strbuf submodule_path = STRBUF_INIT;
+		struct strbuf submodule_git_dir = STRBUF_INIT;
+		struct strbuf submodule_prefix = STRBUF_INIT;
+		const struct cache_entry *ce = active_cache[i];
+		const char *git_dir, *default_argv;
+		const struct submodule *submodule;
 
-		if (i != pp->output_owner) {
-			strbuf_addbuf(&pp->buffered_output, &pp->children[i].err);
-			strbuf_reset(&pp->children[i].err);
-		} else {
-			fputs(pp->children[i].err.buf, stderr);
-			strbuf_reset(&pp->children[i].err);
+		if (!S_ISGITLINK(ce->ce_mode))
+			continue;
 
-			/* Output all other finished child processes */
-			fputs(pp->buffered_output.buf, stderr);
-			strbuf_reset(&pp->buffered_output);
+		submodule = submodule_from_path(null_sha1, ce->name);
+		if (!submodule)
+			submodule = submodule_from_name(null_sha1, ce->name);
 
-			/*
-			 * Pick next process to output live.
-			 * NEEDSWORK:
-			 * For now we pick it randomly by doing a round
-			 * robin. Later we may want to pick the one with
-			 * the most output or the longest or shortest
-			 * running process time.
-			 */
-			for (i = 0; i < n; i++)
-				if (pp->children[(pp->output_owner + i) % n].state == GIT_CP_WORKING)
-					break;
-			pp->output_owner = (pp->output_owner + i) % n;
+		default_argv = "yes";
+		if (command_line_option == RECURSE_SUBMODULES_DEFAULT) {
+			if (submodule &&
+			    submodule->fetch_recurse !=
+						RECURSE_SUBMODULES_NONE) {
+				if (submodule->fetch_recurse ==
+						RECURSE_SUBMODULES_OFF)
+					continue;
+				if (submodule->fetch_recurse ==
+						RECURSE_SUBMODULES_ON_DEMAND) {
+					if (!unsorted_string_list_lookup(&changed_submodule_paths, ce->name))
+						continue;
+					default_argv = "on-demand";
+				}
+			} else {
+				if ((config_fetch_recurse_submodules == RECURSE_SUBMODULES_OFF) ||
+				    gitmodules_is_unmerged)
+					continue;
+				if (config_fetch_recurse_submodules == RECURSE_SUBMODULES_ON_DEMAND) {
+					if (!unsorted_string_list_lookup(&changed_submodule_paths, ce->name))
+						continue;
+					default_argv = "on-demand";
+				}
+			}
+		} else if (command_line_option == RECURSE_SUBMODULES_ON_DEMAND) {
+			if (!unsorted_string_list_lookup(&changed_submodule_paths, ce->name))
+				continue;
+			default_argv = "on-demand";
 		}
+
+		strbuf_addf(&submodule_path, "%s/%s", work_tree, ce->name);
+		strbuf_addf(&submodule_git_dir, "%s/.git", submodule_path.buf);
+		strbuf_addf(&submodule_prefix, "%s%s/", prefix, ce->name);
+		git_dir = read_gitfile(submodule_git_dir.buf);
+		if (!git_dir)
+			git_dir = submodule_git_dir.buf;
+		if (is_directory(git_dir)) {
+			if (!quiet)
+				printf("Fetching submodule %s%s\n", prefix, ce->name);
+			cp.dir = submodule_path.buf;
+			argv_array_push(&argv, default_argv);
+			argv_array_push(&argv, "--submodule-prefix");
+			argv_array_push(&argv, submodule_prefix.buf);
+			cp.argv = argv.argv;
+			if (run_command(&cp))
+				result = 1;
+			argv_array_pop(&argv);
+			argv_array_pop(&argv);
+			argv_array_pop(&argv);
+		}
+		strbuf_release(&submodule_path);
+		strbuf_release(&submodule_git_dir);
+		strbuf_release(&submodule_prefix);
 	}
+	argv_array_clear(&argv);
+out:
+	string_list_clear(&changed_submodule_paths, 1);
 	return result;
 }

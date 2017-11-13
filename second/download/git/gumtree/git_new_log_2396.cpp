@@ -1,1 +1,1 @@
-error_errno("%s process failed to wait", name);
+parse_push_recurse_submodules_arg(opt->long_name, arg);

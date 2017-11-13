@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
-                      "coalesce: passing on %" APR_SIZE_T_FMT " bytes", ctx->bytes);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00896)
+                          "failed to make connection to backend: %s",
+                          backend->hostname);

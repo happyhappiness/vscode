@@ -1,1 +1,1 @@
-strbuf_addf(err, str, updates[i]->refname);
+error("Tweaking file descriptors doesn't work with this MSVCRT.dll");

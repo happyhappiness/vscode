@@ -1,9 +1,11 @@
 fputs(
-"              hashes) to verify the peer. This can be a path to a  file  which\n"
-"              contains a single public key in PEM or DER format, or any number\n"
-"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
-"              rated by ';'\n"
+"              100-continue  response  when curl emits an Expects: 100-continue\n"
+"              header in its request. By default curl  will  wait  one  second.\n"
+"              This  option accepts decimal values! When curl stops waiting, it\n"
+"              will continue as if the response has been received.\n"
 "\n"
-"              When  negotiating  a  TLS  or SSL connection, the server sends a\n"
-"              certificate indicating its identity. A public key  is  extracted\n"
+"              (Added in 7.47.0)\n"
+"\n"
+"       --cert-type <type>\n"
+"              (SSL) Tells curl what certificate type the provided  certificate\n"
 , stdout);

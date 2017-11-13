@@ -1,1 +1,1 @@
-error("no remembered resolution for '%s'", path);
+die_errno(_("cannot stat '%s'"), path->buf);

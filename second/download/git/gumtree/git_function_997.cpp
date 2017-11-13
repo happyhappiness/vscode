@@ -1,12 +1,14 @@
-static void print_debug(const struct cache_entry *ce)
+static int fsck_handle_reflog_ent(unsigned char *osha1, unsigned char *nsha1,
+		const char *email, unsigned long timestamp, int tz,
+		const char *message, void *cb_data)
 {
-	if (debug_mode) {
-		const struct stat_data *sd = &ce->ce_stat_data;
+	const char *refname = cb_data;
 
-		printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);
-		printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);
-		printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
-		printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
-		printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
-	}
+	if (verbose)
+		fprintf(stderr, "Checking reflog %s->%s\n",
+			sha1_to_hex(osha1), sha1_to_hex(nsha1));
+
+	fsck_handle_reflog_sha1(refname, osha1, 0);
+	fsck_handle_reflog_sha1(refname, nsha1, timestamp);
+	return 0;
 }

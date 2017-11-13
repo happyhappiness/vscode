@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                     "%s: could not open error log file %s.",
-                     ap_server_argv0, fname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                   "proxy: NOT Closing connection to client"
+                                   " although reading from backend server %s:%d"
+                                   " failed.", backend->hostname,
+                                   backend->port);

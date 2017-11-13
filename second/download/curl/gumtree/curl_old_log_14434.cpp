@@ -1,10 +1,11 @@
 fputs(
-"              libcurl  to  be linked against a copy of libssh2 1.2.8 or higher\n"
-"              that is itself linked against OpenSSL.)\n"
+"              socks5:// or socks5h:// to request the specific SOCKS version to\n"
+"              be used. No protocol specified, http:// and all others  will  be\n"
+"              treated as HTTP proxies. (The protocol support was added in curl\n"
+"              7.21.7)\n"
 "\n"
-"       -Q, --quote\n"
-"              (FTP SFTP) Send an arbitrary command to the remote FTP  or  SFTP\n"
-"              server.  Quote commands are sent BEFORE the transfer takes place\n"
-"              (just after the initial PWD command in an FTP  transfer,  to  be\n"
-"              exact). To make commands take place after a successful transfer,\n"
+"              If the port number is not specified in the proxy string,  it  is\n"
+"              assumed to be 1080.\n"
+"\n"
+"              This  option  overrides  existing environment variables that set\n"
 , stdout);

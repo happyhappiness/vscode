@@ -1,12 +1,8 @@
 fputs(
-"              curl supports, and save  the  uncompressed  document.   If  this\n"
-"              option  is  used  and  the server sends an unsupported encoding,\n"
-"              curl will report an error.\n"
-"\n"
-"       -K, --config <file>\n"
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
-"              written which then will be used as if they were written  on  the\n"
-"              actual command line.\n"
-"\n"
+"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
+"              col. The certificate must be in PKCS#12 format if  using  Secure\n"
+"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
+"              optional password isn't specified, it will be queried for on the\n"
+"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
+"              that is the private key and the client certificate concatenated!\n"
 , stdout);

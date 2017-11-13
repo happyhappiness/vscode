@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02287)
-                     "Failed to read %d bytes from %s: (%d) %pm",
-                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(02281)
+                     "Failed to lookup provider 'shm' for '%s'. Maybe you "
+                     "need to load mod_slotmem_shm?",
+                     AP_SLOTMEM_PROVIDER_GROUP);

@@ -1,12 +1,9 @@
 fputs(
-"              rection.  This  option is meaningful only when using -L, --loca-\n"
-"              tion.\n"
+"              hashes)  to  verify the peer. This can be a path to a file which\n"
+"              contains a single public key in PEM or DER format, or any number\n"
+"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
+"              rated by ';'\n"
 "\n"
-"              See also --post302 and --post301 and -L,  --location.  Added  in\n"
-"              7.26.0.\n"
-"\n"
-"       --preproxy [protocol://]host[:port]\n"
-"              Use  the  specified  SOCKS proxy before connecting to an HTTP or\n"
-"              HTTPS -x, --proxy. In such a case curl  first  connects  to  the\n"
-"              SOCKS  proxy  and  then  connects (through SOCKS) to the HTTP or\n"
+"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
+"              certificate  indicating  its identity. A public key is extracted\n"
 , stdout);

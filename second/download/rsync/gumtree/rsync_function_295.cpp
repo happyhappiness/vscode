@@ -1,75 +1,30 @@
-static int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
+static void delete_files(struct file_list *flist)
 {
-  char *args[100];
-  int i,argc=0, ret;
-  char *tok,*p,*dir=NULL;
+  struct file_list *local_file_list;
+  int i, j;
+  char *last_name=NULL;
 
-  if (!local_server) {
-    if (!cmd)
-      cmd = getenv(RSYNC_RSH_ENV);
-    if (!cmd)
-      cmd = RSYNC_RSH;
-    cmd = strdup(cmd);
-    if (!cmd) 
-      goto oom;
+  if (cvs_exclude)
+    add_cvs_excludes();
 
-    for (tok=strtok(cmd," ");tok;tok=strtok(NULL," ")) {
-      args[argc++] = tok;
-    }
+  for (j=0;j<flist->count;j++) {
+	  if (!S_ISDIR(flist->files[j].mode)) continue;
+	  if (strcmp(flist->files[j].name,".")==0) continue;
+	  if (last_name &&
+	      flist->files[j].name[strlen(last_name)] == '/' &&
+	      strncmp(flist->files[j].name,last_name, strlen(last_name))==0)
+		  continue;
+	  last_name = flist->files[j].name;
+	  if (!(local_file_list = send_file_list(-1,1,&last_name)))
+		  continue;
+	  if (verbose > 1)
+		  fprintf(FINFO,"deleting in %s\n", last_name);
 
-#if HAVE_REMSH
-    /* remsh (on HPUX) takes the arguments the other way around */
-    args[argc++] = machine;
-    if (user) {
-      args[argc++] = "-l";
-      args[argc++] = user;
-    }
-#else
-    if (user) {
-      args[argc++] = "-l";
-      args[argc++] = user;
-    }
-    args[argc++] = machine;
-#endif
+	  for (i=local_file_list->count-1;i>=0;i--) {
+		  if (!local_file_list->files[i].name) continue;
+		  if (-1 == flist_find(flist,&local_file_list->files[i])) {
+			  delete_one(&local_file_list->files[i]);
+		  }    
+	  }
   }
-
-  args[argc++] = rsync_path;
-
-  server_options(args,&argc);
-
-  if (path && *path) {
-    dir = strdup(path);
-    p = strrchr(dir,'/');
-    if (p && !relative_paths) {
-      *p = 0;
-      if (!dir[0])
-	args[argc++] = "/";
-      else
-	args[argc++] = dir;
-      p++;
-    } else {
-      args[argc++] = ".";
-      p = dir;
-    }
-    if (p[0])
-      args[argc++] = path;
-  }
-
-  args[argc] = NULL;
-
-  if (verbose > 3) {
-    fprintf(FERROR,"cmd=");
-    for (i=0;i<argc;i++)
-      fprintf(FERROR,"%s ",args[i]);
-    fprintf(FERROR,"\n");
-  }
-
-  ret = piped_child(args,f_in,f_out);
-  if (dir) free(dir);
-
-  return ret;
-
-oom:
-  out_of_memory("do_cmd");
-  return 0; /* not reached */
 }

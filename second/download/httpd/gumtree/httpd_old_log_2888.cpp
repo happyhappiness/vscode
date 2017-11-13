@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "ISAPI: failed to load %s", isa->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "division_size = %u", header->division_size);

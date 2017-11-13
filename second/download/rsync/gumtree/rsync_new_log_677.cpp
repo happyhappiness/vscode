@@ -1,1 +1,1 @@
-io_printf(f_out, "@RSYNCD: %d\n", protocol_version);
+io_printf(fd, "@ERROR: setgroups failed\n");

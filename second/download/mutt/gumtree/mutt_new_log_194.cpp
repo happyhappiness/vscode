@@ -1,1 +1,1 @@
-state_puts (notation->name, s);
+state_puts(" ", s);

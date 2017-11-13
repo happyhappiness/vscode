@@ -1,36 +1,62 @@
-static void send_directory(int f,struct file_list *flist,char *dir)
+static void receive_file_entry(struct file_struct *file,
+			       unsigned char flags,int f)
 {
-  DIR *d;
-  struct dirent *di;
-  char fname[MAXPATHLEN];
-  int l;
-  char *p;
+  static mode_t last_mode=0;
+  static dev_t last_dev=0;
+  static uid_t last_uid=0;
+  static gid_t last_gid=0;
+  static char lastdir[MAXPATHLEN]="";
+  char *p=NULL;
+  int l1,l2;
 
-  d = opendir(dir);
-  if (!d) {
-    fprintf(stderr,"%s: %s\n",
-	    dir,strerror(errno));
-    return;
+  if (flags & SAME_DIR) {
+    l1 = read_byte(f);
+    l2 = strlen(lastdir);
+  } else {
+    l1 = read_int(f);
+    l2 = 0;
   }
 
-  strcpy(fname,dir);
-  l = strlen(fname);
-  if (fname[l-1] != '/')
-    strcat(fname,"/");
-  p = fname + strlen(fname);
+  file->name = (char *)malloc(l1+l2+1);
+  if (!file->name) out_of_memory("receive_file_entry");
 
-  if (cvs_exclude) {
-    strcpy(p,".cvsignore");
-    local_exclude_list = make_exclude_list(fname,NULL,0);
-  }  
+  strncpy(file->name,lastdir,l2);
+  read_buf(f,file->name+l2,l1);
+  file->name[l1+l2] = 0;
 
-  for (di=readdir(d); di; di=readdir(d)) {
-    if (strcmp(di->d_name,".")==0 ||
-	strcmp(di->d_name,"..")==0)
-      continue;
-    strcpy(p,di->d_name);
-    send_file_name(f,flist,1,fname);
+  file->modtime = (time_t)read_int(f);
+  file->length = (off_t)read_int(f);
+  file->mode = (flags & SAME_MODE) ? last_mode : (mode_t)read_int(f);
+  if (preserve_uid)
+    file->uid = (flags & SAME_UID) ? last_uid : (uid_t)read_int(f);
+  if (preserve_gid)
+    file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
+  if (preserve_devices && IS_DEVICE(file->mode))
+    file->dev = (flags & SAME_DEV) ? last_dev : (dev_t)read_int(f);
+
+#if SUPPORT_LINKS
+  if (preserve_links && S_ISLNK(file->mode)) {
+    int l = read_int(f);
+    file->link = (char *)malloc(l+1);
+    if (!file->link) out_of_memory("receive_file_entry");
+    read_buf(f,file->link,l);
+    file->link[l] = 0;
   }
-
-  closedir(d);
+#endif
+  
+  if (always_checksum)
+    read_buf(f,file->sum,SUM_LENGTH);
+  
+  last_mode = file->mode;
+  last_dev = file->dev;
+  last_uid = file->uid;
+  last_gid = file->gid;
+  p = strrchr(file->name,'/');
+  if (p) {
+    int l = (int)(p - file->name) + 1;
+    strncpy(lastdir,file->name,l);
+    lastdir[l] = 0;
+  } else {
+    strcpy(lastdir,"");
+  }
 }

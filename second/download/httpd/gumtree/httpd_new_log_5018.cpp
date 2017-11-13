@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02677)
-                          "ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
-                          " is not supported: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00457)
+                 "Accepting new connections again: "
+                 "%u active conns, %u idle workers",
+                 apr_atomic_read32(&connection_count),
+                 ap_queue_info_get_idlers(worker_queue_info));

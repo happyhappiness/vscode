@@ -1,2 +1,2 @@
-error(_("HEAD of working tree %s is not updated"),
-			      worktrees[i]->path);
+error("couldn't write %s",
+					get_lock_file_path(lock->lk));

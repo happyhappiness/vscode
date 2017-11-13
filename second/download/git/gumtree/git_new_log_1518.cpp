@@ -1,1 +1,1 @@
-die(_("local object %s is corrupt"), sha1_to_hex(d->sha1));
+die(_("Directory %s is in index and no submodule?"), src);

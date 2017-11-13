@@ -1,11 +1,11 @@
 fputs(
-"              appended to the URL with a HEAD request.\n"
+"              be encoded according to the URI standard.\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.  This is because undoing a GET doesn't make sense, but you\n"
-"              should then instead enforce the alternative method you prefer.\n"
+"       -G, --get\n"
+"              When used, this option will make all  data  specified  with  -d,\n"
+"              --data  or  --data-binary  to  be  used  in  an HTTP GET request\n"
+"              instead of the POST request that otherwise would  be  used.  The\n"
+"              data will be appended to the URL with a '?' separator.\n"
 "\n"
-"       -H, --header <header>\n"
-"              (HTTP) Extra header to use when getting  a  web  page.  You  may\n"
-"              specify any number of extra headers. Note that if you should add\n"
+"              If  used  in  combination with -I, the POST data will instead be\n"
 , stdout);

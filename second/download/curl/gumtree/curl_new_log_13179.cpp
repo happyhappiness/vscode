@@ -1,10 +1,9 @@
 fputs(
-"       --data-urlencode <data>\n"
-"              (HTTP) This posts data, similar to the other --data options with\n"
-"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
-"              To be CGI-compliant, the <data> part should begin  with  a  name\n"
-"              followed  by a separator and a content specification. The <data>\n"
-"              part can be passed to curl using one of the following syntaxes:\n"
+"              same but does not have a special interpretation of the @ charac-\n"
+"              ter. To post data purely binary,  you  should  instead  use  the\n"
+"              --data-binary  option.   To URL-encode the value of a form field\n"
+"              you may use --data-urlencode.\n"
 "\n"
-"              content\n"
+"              If any of these options is used more than once on the same  com-\n"
+"              mand  line,  the  data  pieces specified will be merged together\n"
 , stdout);

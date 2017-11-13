@@ -1,10 +1,11 @@
 fputs(
-"              with '>' means \"header data\" sent by  curl,  '<'  means  \"header\n"
-"              data\"  received  by  curl  that is hidden in normal cases, and a\n"
-"              line starting with '*' means additional info provided by curl.\n"
+"              will be used. Since 7.45.0 guessing can be disabled by setting a\n"
+"              default protocol, see --proto-default for details.\n"
 "\n"
-"              If you only want HTTP headers in the output, -i, --include might\n"
-"              be the option you're looking for.\n"
+"              This  option  may  be used any number of times. To control where\n"
+"              this URL is written, use the -o, --output or the  -O,  --remote-\n"
+"              name options.\n"
 "\n"
-"              If  you think this option still doesn't give you enough details,\n"
+"       -B, --use-ascii\n"
+"              (FTP  LDAP)  Enable  ASCII  transfer.  For FTP, this can also be\n"
 , stdout);

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, stream->session->c, 
-                      "h2_stream(%ld-%d): input drain returned", 
-                      stream->session->id, stream->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, stream->session->c, 
+                  "h2_stream(%ld-%d): destroy", 
+                  stream->session->id, stream->id);

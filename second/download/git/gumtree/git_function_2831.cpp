@@ -1,19 +1,25 @@
-static void display_error_msgs(struct unpack_trees_options *o)
+static struct child_process *git_proxy_connect(int fd[2], char *host)
 {
-	int e, i;
-	int something_displayed = 0;
-	for (e = 0; e < NB_UNPACK_TREES_ERROR_TYPES; e++) {
-		struct string_list *rejects = &o->unpack_rejects[e];
-		if (rejects->nr > 0) {
-			struct strbuf path = STRBUF_INIT;
-			something_displayed = 1;
-			for (i = 0; i < rejects->nr; i++)
-				strbuf_addf(&path, "\t%s\n", rejects->items[i].string);
-			error(ERRORMSG(o, e), path.buf);
-			strbuf_release(&path);
-		}
-		string_list_clear(rejects, 0);
-	}
-	if (something_displayed)
-		fprintf(stderr, "Aborting\n");
+	const char *port = STR(DEFAULT_GIT_PORT);
+	struct child_process *proxy;
+
+	get_host_and_port(&host, &port);
+
+	if (looks_like_command_line_option(host))
+		die("strange hostname '%s' blocked", host);
+	if (looks_like_command_line_option(port))
+		die("strange port '%s' blocked", port);
+
+	proxy = xmalloc(sizeof(*proxy));
+	child_process_init(proxy);
+	argv_array_push(&proxy->args, git_proxy_command);
+	argv_array_push(&proxy->args, host);
+	argv_array_push(&proxy->args, port);
+	proxy->in = -1;
+	proxy->out = -1;
+	if (start_command(proxy))
+		die("cannot start proxy %s", git_proxy_command);
+	fd[0] = proxy->out; /* read from proxy stdout */
+	fd[1] = proxy->in;  /* write to proxy stdin */
+	return proxy;
 }

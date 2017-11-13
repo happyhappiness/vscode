@@ -1,33 +1,28 @@
-static void usage(void)
+static void chdir_for_gprof(void)
 {
-    apr_file_printf(errfile, "Usage:\n");
-    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");
-    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password\n\n");
-    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
-    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
-    apr_file_printf(errfile, " -c  Create a new file.\n");
-    apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout.\n");
-    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-#if defined(WIN32) || defined(TPF) || defined(NETWARE)
-        " (default)"
-#endif
-        ".\n");
-    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-            " (default)"
-#endif
-            ".\n");
-    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");
-    apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
-    apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it.\n");
-    apr_file_printf(errfile, " -D  Delete the specified user.\n");
-    apr_file_printf(errfile,
-            "On Windows, NetWare and TPF systems the '-m' flag is used by "
-            "default.\n");
-    apr_file_printf(errfile,
-            "On all other systems, the '-p' flag will probably not work.\n");
-    exit(ERR_SYNTAX);
+    core_server_config *sconf = 
+	ap_get_module_config(ap_server_conf->module_config, &core_module);    
+    char *dir = sconf->gprof_dir;
+    const char *use_dir;
+
+    if(dir) {
+        apr_status_t res;
+	char buf[512];
+	int len = strlen(sconf->gprof_dir) - 1;
+	if(*(dir + len) == '%') {
+	    dir[len] = '\0';
+	    apr_snprintf(buf, sizeof(buf), "%sgprof.%d", dir, (int)getpid());
+	} 
+	use_dir = ap_server_root_relative(pconf, buf[0] ? buf : dir);
+	res = apr_dir_make(use_dir, 0755, pconf);
+	if(res != APR_SUCCESS && !APR_STATUS_IS_EEXIST(res)) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, errno, ap_server_conf,
+			 "gprof: error creating directory %s", dir);
+	}
+    }
+    else {
+	use_dir = ap_server_root_relative(pconf, DEFAULT_REL_RUNTIMEDIR);
+    }
+
+    chdir(use_dir);
 }

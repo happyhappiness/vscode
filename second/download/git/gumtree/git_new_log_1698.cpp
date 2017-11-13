@@ -1,2 +1,1 @@
-die(_("A notes merge into %s is already in-progress at %s"),
-			    default_notes_ref(), existing);
+error("Data too large to fit into virtual memory space.");

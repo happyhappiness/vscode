@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "%s: %s", cid->r->filename,
-                          (char*) buf_data);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "about to force-expire, subcache: idx_used=%d, "
+                     "data_used=%d", subcache->idx_used, subcache->data_used);

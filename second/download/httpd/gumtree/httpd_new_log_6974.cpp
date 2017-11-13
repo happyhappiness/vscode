@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, r->server, "%.*s",
-                     len, buffer);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server, APLOGNO(03300)
+                          "Error reading response body");

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03015) 
-                      "Websocket: Got PONG opcode: %x", opcode);
+ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, s,
+            "+-------------------------------------------------------------------------+");

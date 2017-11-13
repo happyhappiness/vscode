@@ -1,223 +1,193 @@
-int main(int argc, const char * const argv[])
+static unsigned int __stdcall winnt_accept(void *lr_)
 {
-    apr_file_t *fpw = NULL;
-    char record[MAX_STRING_LEN];
-    char line[MAX_STRING_LEN];
-    char *password = NULL;
-    char *pwfilename = NULL;
-    char *user = NULL;
-    char tn[] = "htpasswd.tmp.XXXXXX";
-    char *dirname;
-    char *scratch, cp[MAX_STRING_LEN];
-    int found = 0;
-    int i;
-    int alg = ALG_CRYPT;
-    int mask = 0;
-    apr_pool_t *pool;
-    int existing_file = 0;
-#if APR_CHARSET_EBCDIC
-    apr_status_t rv;
-    apr_xlate_t *to_ascii;
+    ap_listen_rec *lr = (ap_listen_rec *)lr_;
+    apr_os_sock_info_t sockinfo;
+    PCOMP_CONTEXT context = NULL;
+    DWORD BytesRead;
+    SOCKET nlsd;
+    int rv, err_count = 0;
+#if APR_HAVE_IPV6
+    SOCKADDR_STORAGE ss_listen;
+    int namelen = sizeof(ss_listen);
 #endif
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate);
-    apr_pool_create(&pool, NULL);
-    apr_file_open_stderr(&errfile, pool);
+    apr_os_sock_get(&nlsd, lr->sd);
 
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, pool);
-    if (rv) {
-        apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);
-        exit(1);
-    }
-    rv = apr_SHA1InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d\n", rv);
-        exit(1);
-    }
-    rv = apr_MD5InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d\n", rv);
-        exit(1);
-    }
-#endif /*APR_CHARSET_EBCDIC*/
-
-    check_args(pool, argc, argv, &alg, &mask, &user, &pwfilename, &password);
-
-
-#if defined(WIN32) || defined(NETWARE)
-    if (alg == ALG_CRYPT) {
-        alg = ALG_APMD5;
-        apr_file_printf(errfile, "Automatically using MD5 format.\n");
-    }
+#if APR_HAVE_IPV6
+    if (getsockname(nlsd, (struct sockaddr *)&ss_listen, &namelen) == SOCKET_ERROR) {
+        ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_netos_error(), ap_server_conf,
+                    "winnt_accept: getsockname error on listening socket, is IPv6 available?");
+        return 1;
+   }
 #endif
 
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-    if (alg == ALG_PLAIN) {
-        apr_file_printf(errfile,"Warning: storing passwords as plain text "
-                        "might just not work on this platform.\n");
-    }
-#endif
-
-    /*
-     * Only do the file checks if we're supposed to frob it.
-     */
-    if (!(mask & APHTP_NOFILE)) {
-        existing_file = exists(pwfilename, pool);
-        if (existing_file) {
-            /*
-             * Check that this existing file is readable and writable.
-             */
-            if (!accessible(pool, pwfilename, APR_READ | APR_APPEND)) {
-                apr_file_printf(errfile, "%s: cannot open file %s for "
-                                "read/write access\n", argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
-        }
-        else {
-            /*
-             * Error out if -c was omitted for this non-existant file.
-             */
-            if (!(mask & APHTP_NEWFILE)) {
-                apr_file_printf(errfile,
-                        "%s: cannot modify file %s; use '-c' to create it\n",
-                        argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
-            /*
-             * As it doesn't exist yet, verify that we can create it.
-             */
-            if (!accessible(pool, pwfilename, APR_CREATE | APR_WRITE)) {
-                apr_file_printf(errfile, "%s: cannot create file %s\n",
-                                argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
-        }
-    }
-
-    /*
-     * All the file access checks (if any) have been made.  Time to go to work;
-     * try to create the record for the username in question.  If that
-     * fails, there's no need to waste any time on file manipulations.
-     * Any error message text is returned in the record buffer, since
-     * the mkrecord() routine doesn't have access to argv[].
-     */
-    if (!(mask & APHTP_DELUSER)) {
-        i = mkrecord(user, record, sizeof(record) - 1,
-                     password, alg);
-        if (i != 0) {
-            apr_file_printf(errfile, "%s: %s\n", argv[0], record);
-            exit(i);
-        }
-        if (mask & APHTP_NOFILE) {
-            printf("%s\n", record);
-            exit(0);
-        }
-    }
-
-    /*
-     * We can access the files the right way, and we have a record
-     * to add or update.  Let's do it..
-     */
-    if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
-        exit(ERR_FILEPERM);
-    }
-    dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
-
-    if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
-                        argv[0], dirname);
-        exit(ERR_FILEPERM);
-    }
-
-    /*
-     * If we're not creating a new file, copy records from the existing
-     * one to the temporary file until we find the specified user.
-     */
-    if (existing_file && !(mask & APHTP_NEWFILE)) {
-        if (apr_file_open(&fpw, pwfilename, APR_READ | APR_BUFFERED,
-                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
-            apr_file_printf(errfile, "%s: unable to read file %s\n", 
-                            argv[0], pwfilename);
-            exit(ERR_FILEPERM);
-        }
-        while (apr_file_gets(line, sizeof(line), fpw) == APR_SUCCESS) {
-            char *colon;
-
-            strcpy(cp, line);
-            scratch = cp;
-            while (apr_isspace(*scratch)) {
-                ++scratch;
-            }
-
-            if (!*scratch || (*scratch == '#')) {
-                putline(ftemp, line);
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                 "Child %d: Starting thread to listen on port %d.", my_pid, lr->bind_addr->port);
+    while (!shutdown_in_progress) {
+        if (!context) {
+            context = mpm_get_completion_context();
+            if (!context) {
+                /* Temporary resource constraint? */
+                Sleep(0);
                 continue;
             }
-            /*
-             * See if this is our user.
-             */
-            colon = strchr(scratch, ':');
-            if (colon != NULL) {
-                *colon = '\0';
+        }
+
+        /* Create and initialize the accept socket */
+#if APR_HAVE_IPV6
+        if (context->accept_socket == INVALID_SOCKET) {
+            context->accept_socket = socket(ss_listen.ss_family, SOCK_STREAM, IPPROTO_TCP);
+            context->socket_family = ss_listen.ss_family;
+        }
+        else if (context->socket_family != ss_listen.ss_family) {
+            closesocket(context->accept_socket);
+            context->accept_socket = socket(ss_listen.ss_family, SOCK_STREAM, IPPROTO_TCP);
+            context->socket_family = ss_listen.ss_family;
+        }
+
+        if (context->accept_socket == INVALID_SOCKET) {
+            ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_netos_error(), ap_server_conf,
+                         "winnt_accept: Failed to allocate an accept socket. "
+                         "Temporary resource constraint? Try again.");
+            Sleep(100);
+            continue;
+        }
+#else
+        if (context->accept_socket == INVALID_SOCKET) {
+            context->accept_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+            if (context->accept_socket == INVALID_SOCKET) {
+                /* Another temporary condition? */
+                ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_netos_error(), ap_server_conf,
+                             "winnt_accept: Failed to allocate an accept socket. "
+                             "Temporary resource constraint? Try again.");
+                Sleep(100);
+                continue;
             }
-            else {
-                /*
-                 * If we've not got a colon on the line, this could well 
-                 * not be a valid htpasswd file.
-                 * We should bail at this point.
+        }
+#endif
+        /* AcceptEx on the completion context. The completion context will be
+         * signaled when a connection is accepted.
+         */
+        if (!AcceptEx(nlsd, context->accept_socket,
+                      context->buff,
+                      0,
+                      PADDED_ADDR_SIZE,
+                      PADDED_ADDR_SIZE,
+                      &BytesRead,
+                      &context->Overlapped)) {
+            rv = apr_get_netos_error();
+            if ((rv == APR_FROM_OS_ERROR(WSAEINVAL)) ||
+                (rv == APR_FROM_OS_ERROR(WSAENOTSOCK))) {
+                /* We can get here when:
+                 * 1) the client disconnects early
+                 * 2) TransmitFile does not properly recycle the accept socket (typically
+                 *    because the client disconnected)
+                 * 3) there is VPN or Firewall software installed with buggy AcceptEx implementation
+                 * 4) the webserver is using a dynamic address that has changed
                  */
-                apr_file_printf(errfile, "\n%s: The file %s does not appear "
-                                         "to be a valid htpasswd file.\n",
-                                argv[0], pwfilename);
-                apr_file_close(fpw);
-                exit(ERR_INVALID);
-            }
-            if (strcmp(user, scratch) != 0) {
-                putline(ftemp, line);
+                ++err_count;
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                 "Child %d: Encountered too many errors accepting client connections. "
+                                 "Possible causes: dynamic address renewal, or incompatible VPN or firewall software. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+                    err_count = 0;
+                }
                 continue;
             }
-            else {
-                if (!(mask & APHTP_DELUSER)) {
-                    /* We found the user we were looking for.
-                     * Add him to the file.
-                    */
-                    apr_file_printf(errfile, "Updating ");
-                    putline(ftemp, record);
-                    found++;
+            else if ((rv != APR_FROM_OS_ERROR(ERROR_IO_PENDING)) &&
+                     (rv != APR_FROM_OS_ERROR(WSA_IO_PENDING))) {
+                ++err_count;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                    ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                                 "Child %d: Encountered too many errors accepting client connections. "
+                                 "Possible causes: Unknown. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+                    err_count = 0;
                 }
-                else {
-                    /* We found the user we were looking for.
-                     * Delete them from the file.
-                     */
-                    apr_file_printf(errfile, "Deleting ");
-                    found++;
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+                continue;
+            }
+            err_count = 0;
+
+            /* Wait for pending i/o.
+             * Wake up once per second to check for shutdown .
+             * XXX: We should be waiting on exit_event instead of polling
+             */
+            while (1) {
+                rv = WaitForSingleObject(context->Overlapped.hEvent, 1000);
+                if (rv == WAIT_OBJECT_0) {
+                    if (context->accept_socket == INVALID_SOCKET) {
+                        /* socket already closed */
+                        break;
+                    }
+                    if (!GetOverlappedResult((HANDLE)context->accept_socket,
+                                             &context->Overlapped,
+                                             &BytesRead, FALSE)) {
+                        ap_log_error(APLOG_MARK, APLOG_WARNING,
+                                     apr_get_os_error(), ap_server_conf,
+                             "winnt_accept: Asynchronous AcceptEx failed.");
+                        closesocket(context->accept_socket);
+                        context->accept_socket = INVALID_SOCKET;
+                    }
+                    break;
+                }
+                /* WAIT_TIMEOUT */
+                if (shutdown_in_progress) {
+                    closesocket(context->accept_socket);
+                    context->accept_socket = INVALID_SOCKET;
+                    break;
                 }
             }
+            if (context->accept_socket == INVALID_SOCKET) {
+                continue;
+            }
         }
-        apr_file_close(fpw);
-    }
-    if (!found && !(mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "Adding ");
-        putline(ftemp, record);
-    }
-    else if (!found && (mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "User %s not found\n", user);
-        exit(0);
-    }
-    apr_file_printf(errfile, "password for user %s\n", user);
+        err_count = 0;
+        /* Inherit the listen socket settings. Required for
+         * shutdown() to work
+         */
+        if (setsockopt(context->accept_socket, SOL_SOCKET,
+                       SO_UPDATE_ACCEPT_CONTEXT, (char *)&nlsd,
+                       sizeof(nlsd))) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf,
+                         "setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed.");
+            /* Not a failure condition. Keep running. */
+        }
 
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
-        APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
-        exit(ERR_FILEPERM);
+        /* Get the local & remote address */
+        GetAcceptExSockaddrs(context->buff,
+                             0,
+                             PADDED_ADDR_SIZE,
+                             PADDED_ADDR_SIZE,
+                             &context->sa_server,
+                             &context->sa_server_len,
+                             &context->sa_client,
+                             &context->sa_client_len);
+
+        sockinfo.os_sock = &context->accept_socket;
+        sockinfo.local   = context->sa_server;
+        sockinfo.remote  = context->sa_client;
+        sockinfo.family  = context->sa_server->sa_family;
+        sockinfo.type    = SOCK_STREAM;
+        apr_os_sock_make(&context->sock, &sockinfo, context->ptrans);
+
+        /* When a connection is received, send an io completion notification to
+         * the ThreadDispatchIOCP. This function could be replaced by
+         * mpm_post_completion_context(), but why do an extra function call...
+         */
+        PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_CONNECTION_ACCEPTED,
+                                   &context->Overlapped);
+        context = NULL;
     }
-    apr_file_close(ftemp);
+    if (!shutdown_in_progress) {
+        /* Yow, hit an irrecoverable error! Tell the child to die. */
+        SetEvent(exit_event);
+    }
+    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Accept thread exiting.", my_pid);
     return 0;
 }

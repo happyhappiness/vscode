@@ -1,9 +1,11 @@
 fputs(
-"              authentication is used, curl only sends its credentials  to  the\n"
-"              initial  host.  If a redirect takes curl to a different host, it\n"
-"              won't be able to intercept the user+password. See  also  --loca-\n"
-"              tion-trusted  on how to change this. You can limit the amount of\n"
-"              redirects to follow by using the --max-redirs option.\n"
+"              This is not very common. Use -V, --version to see if  your  curl\n"
+"              supports it.\n"
 "\n"
-"              When curl follows a redirect and the request is not a plain  GET\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -l, --list-only\n"
+"              (FTP)  When listing an FTP directory, this switch forces a name-\n"
+"              only view. This is  especially  useful  if  the  user  wants  to\n"
+"              machine-parse  the contents of an FTP directory since the normal\n"
 , stdout);

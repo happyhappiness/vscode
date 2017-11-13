@@ -1,84 +1,66 @@
-static apr_status_t rfc1413_query(apr_socket_t *sock, conn_rec *conn,
-                                  server_rec *srv)
+static int hm_post_config(apr_pool_t *p, apr_pool_t *plog,
+                          apr_pool_t *ptemp, server_rec *s)
 {
-    apr_port_t rmt_port, our_port;
-    apr_port_t sav_rmt_port, sav_our_port;
-    apr_size_t i;
-    char *cp;
-    char buffer[RFC1413_MAXDATA + 1];
-    char user[RFC1413_USERLEN + 1];     /* XXX */
-    apr_size_t buflen;
+    apr_status_t rv;
+    const char *userdata_key = "mod_heartmonitor_init";
+    void *data;
+    hm_ctx_t *ctx = ap_get_module_config(s->module_config,
+                                         &heartmonitor_module);
+    APR_OPTIONAL_FN_TYPE(ap_watchdog_get_instance) *hm_watchdog_get_instance;
+    APR_OPTIONAL_FN_TYPE(ap_watchdog_register_callback) *hm_watchdog_register_callback;
 
-    sav_our_port = conn->local_addr->port;
-    sav_rmt_port = conn->remote_addr->port;
+    hm_watchdog_get_instance = APR_RETRIEVE_OPTIONAL_FN(ap_watchdog_get_instance);
+    hm_watchdog_register_callback = APR_RETRIEVE_OPTIONAL_FN(ap_watchdog_register_callback);
+    if (!hm_watchdog_get_instance || !hm_watchdog_register_callback) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
+                     "Heartmonitor: mod_watchdog is required");
+        return !OK;
+    }
 
-    /* send the data */
-    buflen = apr_snprintf(buffer, sizeof(buffer), "%hu,%hu\r\n", sav_rmt_port,
-                          sav_our_port);
-    ap_xlate_proto_to_ascii(buffer, buflen);
-
-    /* send query to server. Handle short write. */
-    i = 0;
-    while (i < buflen) {
-        apr_size_t j = strlen(buffer + i);
-        apr_status_t status;
-        status  = apr_socket_send(sock, buffer+i, &j);
-        if (status != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, status, srv,
-                         "write: rfc1413: error sending request");
-            return status;
-        }
-        else if (j > 0) {
-            i+=j;
+    /* Create the slotmem */
+    apr_pool_userdata_get(&data, userdata_key, s->process->pool);
+    if (!data) {
+        /* first call do nothing */
+        apr_pool_userdata_set((const void *)1, userdata_key, apr_pool_cleanup_null, s->process->pool);
+    } else {
+        if (maxworkers) {
+            storage = ap_lookup_provider(AP_SLOTMEM_PROVIDER_GROUP, "shared", "0");
+            if (!storage) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_EMERG, 0, s, "ap_lookup_provider %s failed", AP_SLOTMEM_PROVIDER_GROUP);
+                return !OK;
+            }
+            storage->create(&slotmem, "mod_heartmonitor", sizeof(hm_slot_server_t), maxworkers, AP_SLOTMEM_TYPE_PREGRAB, p);
+            if (!slotmem) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_EMERG, 0, s, "slotmem_create for status failed");
+                return !OK;
+            }
         }
     }
 
-    /*
-     * Read response from server. - the response should be newline
-     * terminated according to rfc - make sure it doesn't stomp its
-     * way out of the buffer.
-     */
-
-    i = 0;
-    memset(buffer, '\0', sizeof(buffer));
-    /*
-     * Note that the strchr function below checks for \012 instead of '\n'
-     * this allows it to work on both ASCII and EBCDIC machines.
-     */
-    while((cp = strchr(buffer, '\012')) == NULL && i < sizeof(buffer) - 1) {
-        apr_size_t j = sizeof(buffer) - 1 - i;
-        apr_status_t status;
-        status = apr_socket_recv(sock, buffer+i, &j);
-        if (status != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, status, srv,
-                         "read: rfc1413: error reading response");
-            return status;
-        }
-        else if (j > 0) {
-            i+=j;
-        }
-        else if (status == APR_SUCCESS && j == 0) {
-            /* Oops... we ran out of data before finding newline */
-            return APR_EINVAL;
-        }
+    if (!ctx->active) {
+        return OK;
     }
-
-/* RFC1413_USERLEN = 512 */
-    ap_xlate_proto_from_ascii(buffer, i);
-    if (sscanf(buffer, "%hu , %hu : USERID :%*[^:]:%512s", &rmt_port, &our_port,
-               user) != 3 || sav_rmt_port != rmt_port
-        || sav_our_port != our_port)
-        return APR_EINVAL;
-
-    /*
-     * Strip trailing carriage return. It is part of the
-     * protocol, not part of the data.
-     */
-
-    if ((cp = strchr(user, '\r')))
-        *cp = '\0';
-
-    conn->remote_logname = apr_pstrdup(conn->pool, user);
-
-    return APR_SUCCESS;
+    rv = hm_watchdog_get_instance(&ctx->watchdog,
+                                  HM_WATHCHDOG_NAME,
+                                  0, 1, p);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "Heartmonitor: Failed to create watchdog "
+                     "instance (%s)", HM_WATHCHDOG_NAME);
+        return !OK;
+    }
+    /* Register a callback with zero interval. */
+    rv = hm_watchdog_register_callback(ctx->watchdog,
+                                       0,
+                                       ctx,
+                                       hm_watchdog_callback);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "Heartmonitor: Failed to register watchdog "
+                     "callback (%s)", HM_WATHCHDOG_NAME);
+        return !OK;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Heartmonitor: wd callback %s", HM_WATHCHDOG_NAME);
+    return OK;
 }

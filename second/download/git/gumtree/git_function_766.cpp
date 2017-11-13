@@ -1,33 +1,25 @@
-struct attr_check *attr_check_initl(const char *one, ...)
+static struct child_process *git_proxy_connect(int fd[2], char *host)
 {
-	struct attr_check *check;
-	int cnt;
-	va_list params;
-	const char *param;
+	const char *port = STR(DEFAULT_GIT_PORT);
+	struct child_process *proxy;
 
-	va_start(params, one);
-	for (cnt = 1; (param = va_arg(params, const char *)) != NULL; cnt++)
-		;
-	va_end(params);
+	get_host_and_port(&host, &port);
 
-	check = attr_check_alloc();
-	check->nr = cnt;
-	check->alloc = cnt;
-	check->items = xcalloc(cnt, sizeof(struct attr_check_item));
+	if (looks_like_command_line_option(host))
+		die("strange hostname '%s' blocked", host);
+	if (looks_like_command_line_option(port))
+		die("strange port '%s' blocked", port);
 
-	check->items[0].attr = git_attr(one);
-	va_start(params, one);
-	for (cnt = 1; cnt < check->nr; cnt++) {
-		const struct git_attr *attr;
-		param = va_arg(params, const char *);
-		if (!param)
-			die("BUG: counted %d != ended at %d",
-			    check->nr, cnt);
-		attr = git_attr(param);
-		if (!attr)
-			die("BUG: %s: not a valid attribute name", param);
-		check->items[cnt].attr = attr;
-	}
-	va_end(params);
-	return check;
+	proxy = xmalloc(sizeof(*proxy));
+	child_process_init(proxy);
+	argv_array_push(&proxy->args, git_proxy_command);
+	argv_array_push(&proxy->args, host);
+	argv_array_push(&proxy->args, port);
+	proxy->in = -1;
+	proxy->out = -1;
+	if (start_command(proxy))
+		die("cannot start proxy %s", git_proxy_command);
+	fd[0] = proxy->out; /* read from proxy stdout */
+	fd[1] = proxy->in;  /* write to proxy stdin */
+	return proxy;
 }

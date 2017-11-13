@@ -1,69 +1,145 @@
-static int ap_session_load(request_rec * r, session_rec ** z)
+static int mcheck(request_rec *r, union VALUETYPE *p, struct magic *m)
 {
+    register unsigned long l = m->value.l;
+    register unsigned long v;
+    int matched;
 
-    session_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
-                                                   &session_module);
-    apr_time_t now;
-    session_rec *zz = NULL;
-    int rv = 0;
-
-    /* is the session enabled? */
-    if (!dconf || !dconf->enabled) {
-        return APR_SUCCESS;
+    if ((m->value.s[0] == 'x') && (m->value.s[1] == '\0')) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    MODNAME ": BOINK");
+        return 1;
     }
 
-    /* should the session be loaded at all? */
-    if (!session_included(r, dconf)) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, SESSION_PREFIX
-                      "excluded by configuration for: %s", r->uri);
-        return APR_SUCCESS;
-    }
+    switch (m->type) {
+    case BYTE:
+        v = p->b;
+        break;
 
-    /* load the session from the session hook */
-    rv = ap_run_session_load(r, &zz);
-    if (DECLINED == rv) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, SESSION_PREFIX
-                      "session is enabled but no session modules have been configured, "
-                      "session not loaded: %s", r->uri);
-        return APR_EGENERAL;
-    }
-    else if (OK != rv) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, SESSION_PREFIX
-                      "error while loading the session, "
-                      "session not loaded: %s", r->uri);
-        return rv;
-    }
+    case SHORT:
+    case BESHORT:
+    case LESHORT:
+        v = p->h;
+        break;
 
-    /* found a session that hasn't expired? */
-    now = apr_time_now();
-    if (!zz || (zz->expiry && zz->expiry < now)) {
+    case LONG:
+    case BELONG:
+    case LELONG:
+    case DATE:
+    case BEDATE:
+    case LEDATE:
+        v = p->l;
+        break;
 
-        /* no luck, create a blank session */
-        zz = (session_rec *) apr_pcalloc(r->pool, sizeof(session_rec));
-        zz->pool = r->pool;
-        zz->entries = apr_table_make(zz->pool, 10);
-        zz->uuid = (apr_uuid_t *) apr_pcalloc(zz->pool, sizeof(apr_uuid_t));
-        apr_uuid_get(zz->uuid);
+    case STRING:
+        l = 0;
+        /*
+         * What we want here is: v = strncmp(m->value.s, p->s, m->vallen);
+         * but ignoring any nulls.  bcmp doesn't give -/+/0 and isn't
+         * universally available anyway.
+         */
+        v = 0;
+        {
+            register unsigned char *a = (unsigned char *) m->value.s;
+            register unsigned char *b = (unsigned char *) p->s;
+            register int len = m->vallen;
 
-    }
-    else {
-        rv = ap_run_session_decode(r, zz);
-        if (OK != rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, SESSION_PREFIX
-                          "error while decoding the session, "
-                          "session not loaded: %s", r->uri);
-            return rv;
+            while (--len >= 0)
+                if ((v = *b++ - *a++) != 0)
+                    break;
         }
+        break;
+    default:
+        /*  bogosity, pretend that it just wasn't a match */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    MODNAME ": invalid type %d in mcheck().", m->type);
+        return 0;
     }
 
-    /* make sure the expiry is set, if present */
-    if (!zz->expiry && dconf->maxage) {
-        zz->expiry = now + dconf->maxage * APR_USEC_PER_SEC;
-        zz->maxage = dconf->maxage;
+    v = signextend(r->server, m, v) & m->mask;
+
+    switch (m->reln) {
+    case 'x':
+#if MIME_MAGIC_DEBUG
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    "%lu == *any* = 1", v);
+#endif
+        matched = 1;
+        break;
+
+    case '!':
+        matched = v != l;
+#if MIME_MAGIC_DEBUG
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    "%lu != %lu = %d", v, l, matched);
+#endif
+        break;
+
+    case '=':
+        matched = v == l;
+#if MIME_MAGIC_DEBUG
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    "%lu == %lu = %d", v, l, matched);
+#endif
+        break;
+
+    case '>':
+        if (m->flag & UNSIGNED) {
+            matched = v > l;
+#if MIME_MAGIC_DEBUG
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                        "%lu > %lu = %d", v, l, matched);
+#endif
+        }
+        else {
+            matched = (long) v > (long) l;
+#if MIME_MAGIC_DEBUG
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                        "%ld > %ld = %d", v, l, matched);
+#endif
+        }
+        break;
+
+    case '<':
+        if (m->flag & UNSIGNED) {
+            matched = v < l;
+#if MIME_MAGIC_DEBUG
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                        "%lu < %lu = %d", v, l, matched);
+#endif
+        }
+        else {
+            matched = (long) v < (long) l;
+#if MIME_MAGIC_DEBUG
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                        "%ld < %ld = %d", v, l, matched);
+#endif
+        }
+        break;
+
+    case '&':
+        matched = (v & l) == l;
+#if MIME_MAGIC_DEBUG
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    "((%lx & %lx) == %lx) = %d", v, l, l, matched);
+#endif
+        break;
+
+    case '^':
+        matched = (v & l) != l;
+#if MIME_MAGIC_DEBUG
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    "((%lx & %lx) != %lx) = %d", v, l, l, matched);
+#endif
+        break;
+
+    default:
+        /* bogosity, pretend it didn't match */
+        matched = 0;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    MODNAME ": mcheck: can't happen: invalid relation %d.",
+                    m->reln);
+        break;
     }
 
-    *z = zz;
-
-    return APR_SUCCESS;
-
+    return matched;
 }

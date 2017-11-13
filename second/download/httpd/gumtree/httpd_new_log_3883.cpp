@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01064)
-                          "HEADER: %s %s", asc_line, hex_line);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01592)
+                          "Unknown Transfer-Encoding %s", tenc);

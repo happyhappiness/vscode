@@ -1,11 +1,11 @@
 fputs(
-"              path  to  a  PKCS#12-encoded certificate and private key. If you\n"
-"              want to use a file from the current directory, please precede it\n"
-"              with \"./\" prefix, in order to avoid confusion with a nickname.\n"
+"              Set  the  list  of  DNS servers to be used instead of the system\n"
+"              default.  The list of IP addresses should be separated with com-\n"
+"              mas. Port numbers may also optionally be given as :<port-number>\n"
+"              after each IP address.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              This option requires that libcurl  was  built  with  a  resolver\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
+"              only such one.  (Added in 7.33.0)\n"
 "\n"
-"       --engine <name>\n"
-"              Select  the  OpenSSL crypto engine to use for cipher operations.\n"
-"              Use --engine list  to  print  a  list  of  build-time  supported\n"
 , stdout);

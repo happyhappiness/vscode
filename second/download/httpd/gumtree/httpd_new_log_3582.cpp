@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01528)
-                      MODNAME ": invalid file type %d.", r->finfo.filetype);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00633)
+                     "failed to initialise");

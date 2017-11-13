@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %d: Child process is running", my_pid);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "proxy: %s: found worker %s for %s",
+                          (*worker)->scheme, (*worker)->name, *url);

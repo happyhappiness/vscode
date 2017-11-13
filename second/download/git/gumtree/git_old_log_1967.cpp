@@ -1,2 +1,3 @@
-die("cannot read commit object %s",
-			    sha1_to_hex(commit->object.sha1));
+die(
+			_("Upstream branch '%s' not stored as a remote-tracking branch"),
+			upstream->merge[0]->src);

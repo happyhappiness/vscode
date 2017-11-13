@@ -1,56 +1,66 @@
-const char *fmt_ident(const char *name, const char *email,
-		      const char *date_str, int flag)
+static void builtin_diffstat(const char *name_a, const char *name_b,
+			     struct diff_filespec *one,
+			     struct diff_filespec *two,
+			     struct diffstat_t *diffstat,
+			     struct diff_options *o,
+			     struct diff_filepair *p)
 {
-	static struct strbuf ident = STRBUF_INIT;
-	int strict = (flag & IDENT_STRICT);
-	int want_date = !(flag & IDENT_NO_DATE);
-	int want_name = !(flag & IDENT_NO_NAME);
+	mmfile_t mf1, mf2;
+	struct diffstat_file *data;
+	int same_contents;
+	int complete_rewrite = 0;
 
-	if (want_name && !name)
-		name = ident_default_name();
-	if (!email)
-		email = ident_default_email();
+	if (!DIFF_PAIR_UNMERGED(p)) {
+		if (p->status == DIFF_STATUS_MODIFIED && p->score)
+			complete_rewrite = 1;
+	}
 
-	if (want_name && !*name) {
-		struct passwd *pw;
+	data = diffstat_add(diffstat, name_a, name_b);
+	data->is_interesting = p->status != DIFF_STATUS_UNKNOWN;
 
-		if (strict) {
-			if (name == git_default_name.buf)
-				fputs(env_hint, stderr);
-			die("empty ident name (for <%s>) not allowed", email);
+	if (!one || !two) {
+		data->is_unmerged = 1;
+		return;
+	}
+
+	same_contents = !hashcmp(one->sha1, two->sha1);
+
+	if (diff_filespec_is_binary(one) || diff_filespec_is_binary(two)) {
+		data->is_binary = 1;
+		if (same_contents) {
+			data->added = 0;
+			data->deleted = 0;
+		} else {
+			data->added = diff_filespec_size(two);
+			data->deleted = diff_filespec_size(one);
 		}
-		pw = xgetpwuid_self(NULL);
-		name = pw->pw_name;
 	}
 
-	if (want_name && strict &&
-	    name == git_default_name.buf && default_name_is_bogus) {
-		fputs(env_hint, stderr);
-		die("unable to auto-detect name (got '%s')", name);
+	else if (complete_rewrite) {
+		diff_populate_filespec(one, 0);
+		diff_populate_filespec(two, 0);
+		data->deleted = count_lines(one->data, one->size);
+		data->added = count_lines(two->data, two->size);
 	}
 
-	if (strict && email == git_default_email.buf && default_email_is_bogus) {
-		fputs(env_hint, stderr);
-		die("unable to auto-detect email address (got '%s')", email);
+	else if (!same_contents) {
+		/* Crazy xdl interfaces.. */
+		xpparam_t xpp;
+		xdemitconf_t xecfg;
+
+		if (fill_mmfile(&mf1, one) < 0 || fill_mmfile(&mf2, two) < 0)
+			die("unable to read files to diff");
+
+		memset(&xpp, 0, sizeof(xpp));
+		memset(&xecfg, 0, sizeof(xecfg));
+		xpp.flags = o->xdl_opts;
+		xecfg.ctxlen = o->context;
+		xecfg.interhunkctxlen = o->interhunkcontext;
+		if (xdi_diff_outf(&mf1, &mf2, diffstat_consume, diffstat,
+				  &xpp, &xecfg))
+			die("unable to generate diffstat for %s", one->path);
 	}
 
-	strbuf_reset(&ident);
-	if (want_name) {
-		strbuf_addstr_without_crud(&ident, name);
-		strbuf_addstr(&ident, " <");
-	}
-	strbuf_addstr_without_crud(&ident, email);
-	if (want_name)
-			strbuf_addch(&ident, '>');
-	if (want_date) {
-		strbuf_addch(&ident, ' ');
-		if (date_str && date_str[0]) {
-			if (parse_date(date_str, &ident) < 0)
-				die("invalid date format: %s", date_str);
-		}
-		else
-			strbuf_addstr(&ident, ident_default_date());
-	}
-
-	return ident.buf;
+	diff_free_filespec_data(one);
+	diff_free_filespec_data(two);
 }

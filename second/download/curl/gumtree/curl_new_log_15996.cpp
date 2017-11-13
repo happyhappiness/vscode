@@ -1,9 +1,10 @@
 fputs(
-"              in this list is matched as either a domain  which  contains  the\n"
-"              hostname,  or  the hostname itself. For example, local.com would\n"
-"              match  local.com,  local.com:80,  and  www.local.com,  but   not\n"
-"              www.notlocal.com.\n"
+"              user's home directory for login name and password. This is typi-\n"
+"              cally  used for FTP on Unix. If used with HTTP, curl will enable\n"
+"              user authentication. See netrc(5) ftp(1) for details on the file\n"
+"              format.  Curl  will  not  complain if that file doesn't have the\n"
+"              right permissions (it should not be either world- or group-read-\n"
+"              able).  The environment variable \"HOME\" is used to find the home\n"
+"              directory.\n"
 "\n"
-"              Since  7.53.0,  This  option overrides the environment variables\n"
-"              that disable the proxy. If there's an environment variable  dis-\n"
 , stdout);

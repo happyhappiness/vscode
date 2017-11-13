@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb: "
-               "Error appending the message begining");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be zero for UPDATE with a version");

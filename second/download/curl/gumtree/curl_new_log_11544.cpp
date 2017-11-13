@@ -1,11 +1,9 @@
 fputs(
-"              fails.\n"
+"              transfer, it will retry this number of times before  giving  up.\n"
+"              Setting  the  number to 0 makes curl do no retries (which is the\n"
+"              default). Transient error means either: a timeout,  an  FTP  4xx\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"       --ssl  (FTP, POP3, IMAP, SMTP) Try to use SSL/TLS for  the  connection.\n"
-"              Reverts to a non-secure connection if the server doesn't support\n"
-"              SSL/TLS.  See also --ftp-ssl-control and --ssl-reqd for  differ-\n"
-"              ent levels of encryption required. (Added in 7.20.0)\n"
-"\n"
-"              This  option  was formerly known as --ftp-ssl (Added in 7.11.0).\n"
-"              That option name can still be used but  will  be  removed  in  a\n"
+"              When  curl  is about to retry a transfer, it will first wait one\n"
+"              second and then for all forthcoming retries it will  double  the\n"
 , stdout);

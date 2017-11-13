@@ -1,76 +1,163 @@
-static const char *add_member(cmd_parms *cmd, void *dummy, const char *arg)
+static int master_main(server_rec *s, HANDLE shutdown_event, HANDLE restart_event)
 {
-    server_rec *s = cmd->server;
-    proxy_server_conf *conf =
-    ap_get_module_config(s->module_config, &proxy_module);
-    proxy_balancer *balancer;
-    proxy_worker *worker;
-    char *path = cmd->path;
-    char *name = NULL;
-    char *word;
-    apr_table_t *params = apr_table_make(cmd->pool, 5);
-    const apr_array_header_t *arr;
-    const apr_table_entry_t *elts;
-    int i;
+    int rv, cld;
+    int child_created;
+    int restart_pending;
+    int shutdown_pending;
+    HANDLE child_exit_event;
+    HANDLE event_handles[NUM_WAIT_HANDLES];
+    DWORD child_pid;
 
-    if (cmd->path)
-        path = apr_pstrdup(cmd->pool, cmd->path);
-    while (*arg) {
-        word = ap_getword_conf(cmd->pool, &arg);
-        if (!path)
-            path = word;
-        else if (!name)
-            name = word;
-        else {
-            char *val = strchr(word, '=');
-            if (!val)
-                if (cmd->path)
-                    return "BalancerMember can not have a balancer name when defined in a location";
-                else
-                    return "Invalid BalancerMember parameter. Parameter must "
-                           "be in the form 'key=value'";
-            else
-                *val++ = '\0';
-            apr_table_setn(params, word, val);
+    child_created = restart_pending = shutdown_pending = 0;
+
+    event_handles[SHUTDOWN_HANDLE] = shutdown_event;
+    event_handles[RESTART_HANDLE] = restart_event;
+
+    /* Create a single child process */
+    rv = create_process(pconf, &event_handles[CHILD_HANDLE],
+                        &child_exit_event, &child_pid);
+    if (rv < 0)
+    {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: create child process failed. Exiting.");
+        shutdown_pending = 1;
+        goto die_now;
+    }
+
+    child_created = 1;
+
+    if (!strcasecmp(signal_arg, "runservice")) {
+        mpm_service_started();
+    }
+
+    /* Update the scoreboard. Note that there is only a single active
+     * child at once.
+     */
+    ap_scoreboard_image->parent[0].quiescing = 0;
+    ap_scoreboard_image->parent[0].pid = child_pid;
+
+    /* Wait for shutdown or restart events or for child death */
+    winnt_mpm_state = AP_MPMQ_RUNNING;
+    rv = WaitForMultipleObjects(NUM_WAIT_HANDLES, (HANDLE *) event_handles, FALSE, INFINITE);
+    cld = rv - WAIT_OBJECT_0;
+    if (rv == WAIT_FAILED) {
+        /* Something serious is wrong */
+        ap_log_error(APLOG_MARK,APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: WaitForMultipeObjects WAIT_FAILED -- doing server shutdown");
+        shutdown_pending = 1;
+    }
+    else if (rv == WAIT_TIMEOUT) {
+        /* Hey, this cannot happen */
+        ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                     "master_main: WaitForMultipeObjects with INFINITE wait exited with WAIT_TIMEOUT");
+        shutdown_pending = 1;
+    }
+    else if (cld == SHUTDOWN_HANDLE) {
+        /* shutdown_event signalled */
+        shutdown_pending = 1;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s,
+                     "Parent: Received shutdown signal -- Shutting down the server.");
+        if (ResetEvent(shutdown_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "ResetEvent(shutdown_event)");
         }
     }
-    if (!path)
-        return "BalancerMember must define balancer name when outside <Proxy > section";
-    if (!name)
-        return "BalancerMember must define remote proxy server";
-
-    ap_str_tolower(path);   /* lowercase scheme://hostname */
-
-    /* Try to find existing worker */
-    worker = ap_proxy_get_worker(cmd->temp_pool, conf, name);
-    if (!worker) {
-        const char *err;
-        if ((err = ap_proxy_add_worker(&worker, cmd->pool, conf, name)) != NULL)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-    } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                         "worker %s already used by another worker", worker->name);
+    else if (cld == RESTART_HANDLE) {
+        /* Received a restart event. Prepare the restart_event to be reused
+         * then signal the child process to exit.
+         */
+        restart_pending = 1;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                     "Parent: Received restart signal -- Restarting the server.");
+        if (ResetEvent(restart_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: ResetEvent(restart_event) failed.");
+        }
+        if (SetEvent(child_exit_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: SetEvent for child process %pp failed.",
+                         event_handles[CHILD_HANDLE]);
+        }
+        /* Don't wait to verify that the child process really exits,
+         * just move on with the restart.
+         */
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;
     }
-    PROXY_COPY_CONF_PARAMS(worker, conf);
+    else {
+        /* The child process exited prematurely due to a fatal error. */
+        DWORD exitcode;
+        if (!GetExitCodeProcess(event_handles[CHILD_HANDLE], &exitcode)) {
+            /* HUH? We did exit, didn't we? */
+            exitcode = APEXIT_CHILDFATAL;
+        }
+        if (   exitcode == APEXIT_CHILDFATAL
+            || exitcode == APEXIT_CHILDINIT
+            || exitcode == APEXIT_INIT) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "Parent: child process exited with status %lu -- Aborting.", exitcode);
+            shutdown_pending = 1;
+        }
+        else {
+            int i;
+            restart_pending = 1;
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Parent: child process exited with status %lu -- Restarting.", exitcode);
+            for (i = 0; i < ap_threads_per_child; i++) {
+                ap_update_child_status_from_indexes(0, i, SERVER_DEAD, NULL);
+            }
+        }
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;
+    }
+    if (restart_pending) {
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
+    }
+die_now:
+    if (shutdown_pending)
+    {
+        int timeout = 30000;  /* Timeout is milliseconds */
+        winnt_mpm_state = AP_MPMQ_STOPPING;
 
-    arr = apr_table_elts(params);
-    elts = (const apr_table_entry_t *)arr->elts;
-    for (i = 0; i < arr->nelts; i++) {
-        const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
-                                           elts[i].val);
-        if (err)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+        if (!child_created) {
+            return 0;  /* Tell the caller we do not want to restart */
+        }
+
+        /* This shutdown is only marginally graceful. We will give the
+         * child a bit of time to exit gracefully. If the time expires,
+         * the child will be wacked.
+         */
+        if (!strcasecmp(signal_arg, "runservice")) {
+            mpm_service_stopping();
+        }
+        /* Signal the child processes to exit */
+        if (SetEvent(child_exit_event) == 0) {
+                ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
+                             "Parent: SetEvent for child process %pp failed",
+                             event_handles[CHILD_HANDLE]);
+        }
+        if (event_handles[CHILD_HANDLE]) {
+            rv = WaitForSingleObject(event_handles[CHILD_HANDLE], timeout);
+            if (rv == WAIT_OBJECT_0) {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Child process exited successfully.");
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
+            }
+            else {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %pp",
+                             event_handles[CHILD_HANDLE]);
+                TerminateProcess(event_handles[CHILD_HANDLE], 1);
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
+            }
+        }
+        CloseHandle(child_exit_event);
+        return 0;  /* Tell the caller we do not want to restart */
     }
-    /* Try to find the balancer */
-    balancer = ap_proxy_get_balancer(cmd->temp_pool, conf, path);
-    if (!balancer) {
-        const char *err = ap_proxy_add_balancer(&balancer,
-                                                cmd->pool,
-                                                conf, path);
-        if (err)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-    }
-    /* Add the worker to the load balancer */
-    ap_proxy_add_worker_to_balancer(cmd->pool, balancer, worker);
-    return NULL;
+    winnt_mpm_state = AP_MPMQ_STARTING;
+    CloseHandle(child_exit_event);
+    return 1;      /* Tell the caller we want a restart */
 }

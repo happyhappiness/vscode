@@ -1,2 +1,1 @@
-die("BUG: taking over transport requires non-NULL "
-		    "smart_options field.");
+die("Cannot use notes ref %s", notes_ref);

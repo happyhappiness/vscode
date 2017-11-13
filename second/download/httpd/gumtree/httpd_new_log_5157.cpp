@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                  "finished with poll() - cleaning up");
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00150) "sigaction(SIGXCPU)");

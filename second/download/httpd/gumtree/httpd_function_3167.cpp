@@ -1,67 +1,48 @@
-static int process_echo_connection(conn_rec *c)
+static authn_status check_password(request_rec *r, const char *user,
+                                   const char *password)
 {
-    apr_bucket_brigade *bb;
-    apr_bucket *b;
-    apr_socket_t *csd = NULL;
-    EchoConfig *pConfig = ap_get_module_config(c->base_server->module_config,
-                                               &echo_module);
+    authn_file_config_rec *conf = ap_get_module_config(r->per_dir_config,
+                                                       &authn_file_module);
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    apr_status_t status;
+    char *file_password = NULL;
 
-    if (!pConfig->bEnabled) {
-        return DECLINED;
+    status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
+
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Could not open password file: %s", conf->pwfile);
+        return AUTH_GENERAL_ERROR;
     }
-    
-    ap_time_process_request(c->sbh, START_PREQUEST);
-    update_echo_child_status(c->sbh, SERVER_BUSY_READ, c, NULL);
 
-    bb = apr_brigade_create(c->pool, c->bucket_alloc);
+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
+        const char *rpw, *w;
 
-    for ( ; ; ) {
-        apr_status_t rv;
+        /* Skip # or blank lines. */
+        if ((l[0] == '#') || (!l[0])) {
+            continue;
+        }
 
-        /* Get a single line of input from the client */
-        if (((rv = ap_get_brigade(c->input_filters, bb, AP_MODE_GETLINE,
-                                  APR_BLOCK_READ, 0)) != APR_SUCCESS)) {
-            apr_brigade_cleanup(bb);
-            if (!APR_STATUS_IS_EOF(rv) && ! APR_STATUS_IS_TIMEUP(rv))
-                ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                             "ProtocolEcho: Failure reading from %s",
-                             c->remote_ip);
+        rpw = l;
+        w = ap_getword(r->pool, &rpw, ':');
+
+        if (!strcmp(user, w)) {
+            file_password = ap_getword(r->pool, &rpw, ':');
             break;
         }
-
-        /* Something horribly wrong happened.  Someone didn't block! */
-        if (APR_BRIGADE_EMPTY(bb)) {
-            apr_brigade_cleanup(bb);
-            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                         "ProtocolEcho: Error - read empty brigade from %s!",
-                         c->remote_ip);
-            break;
-        }
-
-        if (!csd) {
-            csd = ap_get_module_config(c->conn_config, &core_module);
-            apr_socket_timeout_set(csd, c->base_server->keep_alive_timeout);
-        }
-
-        update_echo_child_status(c->sbh, SERVER_BUSY_WRITE, NULL, bb);
-
-        /* Make sure the data is flushed to the client */
-        b = apr_bucket_flush_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        rv = ap_pass_brigade(c->output_filters, bb);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                         "ProtocolEcho: Failure writing to %s",
-                         c->remote_ip);
-            break; 
-        }
-        apr_brigade_cleanup(bb);
-
-        /* Announce our intent to loop */
-        update_echo_child_status(c->sbh, SERVER_BUSY_KEEPALIVE, NULL, NULL);
     }
-    apr_brigade_destroy(bb);
-    ap_time_process_request(c->sbh, STOP_PREQUEST);
-    update_echo_child_status(c->sbh, SERVER_CLOSING, c, NULL);
-    return OK;
+    ap_cfg_closefile(f);
+
+    if (!file_password) {
+        return AUTH_USER_NOT_FOUND;
+    }
+    AUTHN_CACHE_STORE(r, user, NULL, file_password);
+
+    status = apr_password_validate(password, file_password);
+    if (status != APR_SUCCESS) {
+        return AUTH_DENIED;
+    }
+
+    return AUTH_GRANTED;
 }

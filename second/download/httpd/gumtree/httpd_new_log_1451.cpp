@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
-                     "Failed to create shared memory segment on file %s", 
-                     client_shm_filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Child %lu: setup_inherited_listeners(), WSASocket failed to open the inherited socket.", my_pid);

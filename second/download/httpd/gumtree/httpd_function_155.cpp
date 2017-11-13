@@ -1,82 +1,73 @@
-static int auth_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
+static void dav_send_multistatus(request_rec *r, int status,
+                                 dav_response *first,
+                                 apr_array_header_t *namespaces)
 {
-    ap_configfile_t *f;
-    char l[MAX_STRING_LEN];
-    const char *charset_confname = ap_get_module_config(s->module_config,
-                                                      &auth_ldap_module);
-    apr_status_t status;
-    
-    /*
-    mod_auth_ldap_config_t *sec = (mod_auth_ldap_config_t *)
-                                    ap_get_module_config(s->module_config, 
-                                                         &auth_ldap_module);
+    /* Set the correct status and Content-Type */
+    r->status = status;
+    ap_set_content_type(r, DAV_XML_CONTENT_TYPE);
 
-    if (sec->secure)
-    {
-        if (!util_ldap_ssl_supported(s))
-        {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                     "LDAP: SSL connections (ldaps://) not supported by utilLDAP");
-            return(!OK);
+    /* Send the headers and actual multistatus response now... */
+    ap_rputs(DAV_XML_HEADER DEBUG_CR
+             "<D:multistatus xmlns:D=\"DAV:\"", r);
+
+    if (namespaces != NULL) {
+       int i;
+
+       for (i = namespaces->nelts; i--; ) {
+           ap_rprintf(r, " xmlns:ns%d=\"%s\"", i,
+                      APR_XML_GET_URI_ITEM(namespaces, i));
+       }
+    }
+
+    /* ap_rputc('>', r); */
+    ap_rputs(">" DEBUG_CR, r);
+
+    for (; first != NULL; first = first->next) {
+        apr_text *t;
+
+        if (first->propresult.xmlns == NULL) {
+            ap_rputs("<D:response>", r);
         }
-    }
-    */
-
-    /* make sure that mod_ldap (util_ldap) is loaded */
-    if (ap_find_linked_module("util_ldap.c") == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,
-                     "Module mod_ldap missing. Mod_ldap (aka. util_ldap) "
-                     "must be loaded in order for mod_auth_ldap to function properly");
-        return HTTP_INTERNAL_SERVER_ERROR;
-
-    }
-
-    if (!charset_confname) {
-        return OK;
-    }
-
-    charset_confname = ap_server_root_relative(p, charset_confname);
-    if (!charset_confname) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                     "Invalid charset conversion config path %s", 
-                     (const char *)ap_get_module_config(s->module_config,
-                                                        &auth_ldap_module));
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    if ((status = ap_pcfg_openfile(&f, ptemp, charset_confname)) 
-                != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
-                     "could not open charset conversion config file %s.", 
-                     charset_confname);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    charset_conversions = apr_hash_make(p);
-
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-        const char *ll = l;
-        char *lang;
-
-        if (l[0] == '#') {
-            continue;
+        else {
+            ap_rputs("<D:response", r);
+            for (t = first->propresult.xmlns; t; t = t->next) {
+                ap_rputs(t->text, r);
+            }
+            ap_rputc('>', r);
         }
-        lang = ap_getword_conf(p, &ll);
-        ap_str_tolower(lang);
 
-        if (ll[0]) {
-            char *charset = ap_getword_conf(p, &ll);
-            apr_hash_set(charset_conversions, lang, APR_HASH_KEY_STRING, charset);
+        ap_rputs(DEBUG_CR "<D:href>", r);
+        ap_rputs(dav_xml_escape_uri(r->pool, first->href), r);
+        ap_rputs("</D:href>" DEBUG_CR, r);
+
+        if (first->propresult.propstats == NULL) {
+            /* use the Status-Line text from Apache.  Note, this will
+             * default to 500 Internal Server Error if first->status
+             * is not a known (or valid) status code.
+             */
+            ap_rprintf(r,
+                       "<D:status>HTTP/1.1 %s</D:status>" DEBUG_CR,
+                       ap_get_status_line(first->status));
         }
-    }
-    ap_cfg_closefile(f);
-    
-    to_charset = derive_codepage_from_lang (p, "utf-8");
-    if (to_charset == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
-                     "could not find the UTF-8 charset in the file %s.", 
-                     charset_confname);
-        return HTTP_INTERNAL_SERVER_ERROR;
+        else {
+            /* assume this includes <propstat> and is quoted properly */
+            for (t = first->propresult.propstats; t; t = t->next) {
+                ap_rputs(t->text, r);
+            }
+        }
+
+        if (first->desc != NULL) {
+            /*
+             * We supply the description, so we know it doesn't have to
+             * have any escaping/encoding applied to it.
+             */
+            ap_rputs("<D:responsedescription>", r);
+            ap_rputs(first->desc, r);
+            ap_rputs("</D:responsedescription>" DEBUG_CR, r);
+        }
+
+        ap_rputs("</D:response>" DEBUG_CR, r);
     }
 
-    return OK;
+    ap_rputs("</D:multistatus>" DEBUG_CR, r);
 }

@@ -1,5 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01714)
-                      "auth_ldap authorize: require group: testing for %s: "
-                      "%s (%s)",
-                      ent[i].name,
-                      sec->group_attrib_is_dn ? req->dn : req->user, t);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
+                             ap_server_conf,
+                             "Child %d: Waiting %d more seconds "
+                             "for %d worker threads to finish.", 
+                             my_pid, time_remains / 1000, threads_created);

@@ -1,57 +1,84 @@
-static void ssl_init_ctx_crl(server_rec *s,
-                             apr_pool_t *p,
-                             apr_pool_t *ptemp,
-                             modssl_ctx_t *mctx)
+apr_status_t ajp_handle_cping_cpong(apr_socket_t *sock,
+                                    request_rec *r,
+                                    apr_interval_time_t timeout)
 {
-    X509_STORE *store = SSL_CTX_get_cert_store(mctx->ssl_ctx);
-    unsigned long crlflags = 0;
-    char *cfgp = mctx->pkp ? "SSLProxy" : "SSL";
+    ajp_msg_t *msg;
+    apr_status_t rc, rv;
+    apr_interval_time_t org;
+    apr_byte_t result;
 
-    /*
-     * Configure Certificate Revocation List (CRL) Details
-     */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Into ajp_handle_cping_cpong");
 
-    if (!(mctx->crl_file || mctx->crl_path)) {
-        if (mctx->crl_check_mode == SSL_CRLCHECK_LEAF ||
-            mctx->crl_check_mode == SSL_CRLCHECK_CHAIN) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01899)
-                         "Host %s: CRL checking has been enabled, but "
-                         "neither %sCARevocationFile nor %sCARevocationPath "
-                         "is configured", mctx->sc->vhost_id, cfgp, cfgp);
-            ssl_die();
-        }
-        return;
+    rc = ajp_msg_create(r->pool, AJP_PING_PONG_SZ, &msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_msg_create failed");
+        return rc;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01900)
-                 "Configuring certificate revocation facility");
-
-    if (!store || !X509_STORE_load_locations(store, mctx->crl_file,
-                                             mctx->crl_path)) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01901)
-                     "Host %s: unable to configure X.509 CRL storage "
-                     "for certificate revocation", mctx->sc->vhost_id);
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-        ssl_die();
+    rc = ajp_msg_serialize_cping(msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_marshal_into_msgb failed");
+        return rc;
     }
 
-    switch (mctx->crl_check_mode) {
-       case SSL_CRLCHECK_LEAF:
-           crlflags = X509_V_FLAG_CRL_CHECK;
-           break;
-       case SSL_CRLCHECK_CHAIN:
-           crlflags = X509_V_FLAG_CRL_CHECK|X509_V_FLAG_CRL_CHECK_ALL;
-           break;
-       default:
-           crlflags = 0;
+    rc = ajp_ilink_send(sock, msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_ilink_send failed");
+        return rc;
     }
 
-    if (crlflags) {
-        X509_STORE_set_flags(store, crlflags);
-    } else {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(01902)
-                     "Host %s: X.509 CRL storage locations configured, "
-                     "but CRL checking (%sCARevocationCheck) is not "
-                     "enabled", mctx->sc->vhost_id, cfgp);
+    rc = apr_socket_timeout_get(sock, &org);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: apr_socket_timeout_get failed");
+        return rc;
     }
+
+    /* Set CPING/CPONG response timeout */
+    rc = apr_socket_timeout_set(sock, timeout);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: apr_socket_timeout_set failed");
+        return rc;
+    }
+    ajp_msg_reuse(msg);
+
+    /* Read CPONG reply */
+    rv = ajp_ilink_receive(sock, msg);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_ilink_receive failed");
+        goto cleanup;
+    }
+
+    rv = ajp_msg_get_uint8(msg, &result);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: invalid CPONG message");
+        goto cleanup;
+    }
+    if (result != CMD_AJP13_CPONG) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: awaited CPONG, received %d ",
+               result);
+        rv = APR_EGENERAL;
+        goto cleanup;
+    }
+
+cleanup:
+    /* Restore original socket timeout */
+    rc = apr_socket_timeout_set(sock, org);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: apr_socket_timeout_set failed");
+        return rc;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "ajp_handle_cping_cpong: Done");
+    return rv;
 }

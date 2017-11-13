@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, log_level, rv, c, APLOGNO(02968)
-                          "Can't check pipelined data");
+ap_log_error(APLOG_MARK, APLOG_EMERG, apr_get_os_error(), ap_server_conf, APLOGNO(00382)
+                     "OpenEvent on %s event", signal_name);

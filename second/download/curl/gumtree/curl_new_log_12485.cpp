@@ -1,12 +1,9 @@
 fputs(
-"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              name + password to all hosts that the site may redirect to. This\n"
+"              may or may not introduce a security breach if the site redirects\n"
+"              you  to  a  site  to  which you'll send your authentication info\n"
+"              (which is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"              This option overrides previous uses of -v, --verbose or --trace-\n"
-"              ascii.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --trace-ascii <file>\n"
+"       -m, --max-time <seconds>\n"
+"              Maximum time in seconds that you allow the  whole  operation  to\n"
 , stdout);

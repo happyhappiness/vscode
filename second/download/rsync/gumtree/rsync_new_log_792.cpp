@@ -1,1 +1,1 @@
-fprintf(F,"\nOptions:\n");
+out_of_memory("auth_server");

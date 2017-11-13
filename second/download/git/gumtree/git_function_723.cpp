@@ -1,43 +1,53 @@
-static int push_git(struct discovery *heads, int nr_spec, char **specs)
+static void wt_porcelain_v2_print_tracking(struct wt_status *s)
 {
-	struct rpc_state rpc;
-	int i, err;
-	struct argv_array args;
-	struct string_list_item *cas_option;
-	struct strbuf preamble = STRBUF_INIT;
+	struct branch *branch;
+	const char *base;
+	const char *branch_name;
+	struct wt_status_state state;
+	int ab_info, nr_ahead, nr_behind;
+	char eol = s->null_termination ? '\0' : '\n';
 
-	argv_array_init(&args);
-	argv_array_pushl(&args, "send-pack", "--stateless-rpc", "--helper-status",
-			 NULL);
+	memset(&state, 0, sizeof(state));
+	wt_status_get_state(&state, s->branch && !strcmp(s->branch, "HEAD"));
 
-	if (options.thin)
-		argv_array_push(&args, "--thin");
-	if (options.dry_run)
-		argv_array_push(&args, "--dry-run");
-	if (options.verbosity == 0)
-		argv_array_push(&args, "--quiet");
-	else if (options.verbosity > 1)
-		argv_array_push(&args, "--verbose");
-	argv_array_push(&args, options.progress ? "--progress" : "--no-progress");
-	for_each_string_list_item(cas_option, &cas_options)
-		argv_array_push(&args, cas_option->string);
-	argv_array_push(&args, url.buf);
+	fprintf(s->fp, "# branch.oid %s%c",
+			(s->is_initial ? "(initial)" : sha1_to_hex(s->sha1_commit)),
+			eol);
 
-	argv_array_push(&args, "--stdin");
-	for (i = 0; i < nr_spec; i++)
-		packet_buf_write(&preamble, "%s\n", specs[i]);
-	packet_buf_flush(&preamble);
+	if (!s->branch)
+		fprintf(s->fp, "# branch.head %s%c", "(unknown)", eol);
+	else {
+		if (!strcmp(s->branch, "HEAD")) {
+			fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);
 
-	memset(&rpc, 0, sizeof(rpc));
-	rpc.service_name = "git-receive-pack",
-	rpc.argv = args.argv;
-	rpc.stdin_preamble = &preamble;
+			if (state.rebase_in_progress || state.rebase_interactive_in_progress)
+				branch_name = state.onto;
+			else if (state.detached_from)
+				branch_name = state.detached_from;
+			else
+				branch_name = "";
+		} else {
+			branch_name = NULL;
+			skip_prefix(s->branch, "refs/heads/", &branch_name);
 
-	err = rpc_service(&rpc, heads);
-	if (rpc.result.len)
-		write_or_die(1, rpc.result.buf, rpc.result.len);
-	strbuf_release(&rpc.result);
-	strbuf_release(&preamble);
-	argv_array_clear(&args);
-	return err;
+			fprintf(s->fp, "# branch.head %s%c", branch_name, eol);
+		}
+
+		/* Lookup stats on the upstream tracking branch, if set. */
+		branch = branch_get(branch_name);
+		base = NULL;
+		ab_info = (stat_tracking_info(branch, &nr_ahead, &nr_behind, &base) == 0);
+		if (base) {
+			base = shorten_unambiguous_ref(base, 0);
+			fprintf(s->fp, "# branch.upstream %s%c", base, eol);
+			free((char *)base);
+
+			if (ab_info)
+				fprintf(s->fp, "# branch.ab +%d -%d%c", nr_ahead, nr_behind, eol);
+		}
+	}
+
+	free(state.branch);
+	free(state.onto);
+	free(state.detached_from);
 }

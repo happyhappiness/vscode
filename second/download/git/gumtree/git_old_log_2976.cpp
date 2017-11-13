@@ -1,1 +1,2 @@
-fputs(pp->buffered_output.buf, stderr);
+error(_("cannot open %s: %s"), git_path_head_file(),
+						strerror(errno));

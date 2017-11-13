@@ -1,106 +1,62 @@
-static int proxy_ajp_handler(request_rec *r, proxy_worker *worker,
-                             proxy_server_conf *conf,
-                             char *url, const char *proxyname,
-                             apr_port_t proxyport)
+static int parse_ap_expr(include_ctx_t *ctx, const char *expr, int *was_error)
 {
-    int status;
-    char server_portstr[32];
-    conn_rec *origin = NULL;
-    proxy_conn_rec *backend = NULL;
-    const char *scheme = "AJP";
-    int retry;
-    proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
-                                                 &proxy_module);
+    ap_expr_info_t expr_info;
+    const char *err;
+    int ret;
+    backref_t *re = ctx->intern->re;
+    ap_expr_eval_ctx_t *eval_ctx = ctx->intern->expr_eval_ctx;
 
-    /*
-     * Note: Memory pool allocation.
-     * A downstream keepalive connection is always connected to the existence
-     * (or not) of an upstream keepalive connection. If this is not done then
-     * load balancing against multiple backend servers breaks (one backend
-     * server ends up taking 100% of the load), and the risk is run of
-     * downstream keepalive connections being kept open unnecessarily. This
-     * keeps webservers busy and ties up resources.
-     *
-     * As a result, we allocate all sockets out of the upstream connection
-     * pool, and when we want to reuse a socket, we check first whether the
-     * connection ID of the current upstream connection is the same as that
-     * of the connection when the socket was opened.
-     */
-    apr_pool_t *p = r->connection->pool;
-    apr_uri_t *uri = apr_palloc(r->connection->pool, sizeof(*uri));
-
-
-    if (strncasecmp(url, "ajp:", 4) != 0) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: AJP: declining URL %s", url);
-        return DECLINED;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: AJP: serving URL %s", url);
-
-    /* create space for state information */
-    status = ap_proxy_acquire_connection(scheme, &backend, worker,
-                                         r->server);
-    if (status != OK) {
-        if (backend) {
-            backend->close = 1;
-            ap_proxy_release_connection(scheme, backend, r->server);
-        }
-        return status;
+    expr_info.filename = ctx->r->filename;
+    expr_info.line_number = 0;
+    expr_info.module_index = APLOG_MODULE_INDEX;
+    expr_info.flags = AP_EXPR_FLAG_RESTRICTED;
+    err = ap_expr_parse(ctx->r->pool, ctx->r->pool, &expr_info, expr,
+                        include_expr_lookup);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(01337)
+                      "Could not parse expr \"%s\" in %s: %s", expr,
+                      ctx->r->filename, err);
+        *was_error = 1;
+        return 0;
     }
 
-    backend->is_ssl = 0;
-    backend->close = 0;
-
-    retry = 0;
-    while (retry < 2) {
-        char *locurl = url;
-        /* Step One: Determine Who To Connect To */
-        status = ap_proxy_determine_connection(p, r, conf, worker, backend,
-                                               uri, &locurl, proxyname, proxyport,
-                                               server_portstr,
-                                               sizeof(server_portstr));
-
-        if (status != OK)
-            break;
-
-        /* Step Two: Make the Connection */
-        if (ap_proxy_connect_backend(scheme, backend, worker, r->server)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "proxy: AJP: failed to make connection to backend: %s",
-                         backend->hostname);
-            status = HTTP_SERVICE_UNAVAILABLE;
-            break;
-        }
-
-        /* Handle CPING/CPONG */
-        if (worker->ping_timeout_set) {
-            status = ajp_handle_cping_cpong(backend->sock, r,
-                                            worker->ping_timeout);
-            /*
-             * In case the CPING / CPONG failed for the first time we might be
-             * just out of luck and got a faulty backend connection, but the
-             * backend might be healthy nevertheless. So ensure that the backend
-             * TCP connection gets closed and try it once again.
-             */
-            if (status != APR_SUCCESS) {
-                backend->close++;
-                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                             "proxy: AJP: cping/cpong failed to %pI (%s)",
-                             worker->cp->addr,
-                             worker->hostname);
-                status = HTTP_SERVICE_UNAVAILABLE;
-                retry++;
-                continue;
-            }
-        }
-        /* Step Three: Process the Request */
-        status = ap_proxy_ajp_request(p, r, backend, origin, dconf, uri, locurl,
-                                      server_portstr);
-        break;
+    if (!re) {
+        ctx->intern->re = re = apr_pcalloc(ctx->pool, sizeof(*re));
+    }
+    else {
+        /* ap_expr_exec_ctx() does not care about re->have_match but only about
+         * re->source
+         */
+        if (!re->have_match)
+            re->source = NULL;
     }
 
-    /* Do not close the socket */
-    ap_proxy_release_connection(scheme, backend, r->server);
-    return status;
+    if (!eval_ctx) {
+        eval_ctx = apr_pcalloc(ctx->pool, sizeof(*eval_ctx));
+        ctx->intern->expr_eval_ctx = eval_ctx;
+        eval_ctx->r         = ctx->r;
+        eval_ctx->c         = ctx->r->connection;
+        eval_ctx->s         = ctx->r->server;
+        eval_ctx->p         = ctx->r->pool;
+        eval_ctx->data      = ctx;
+        eval_ctx->err       = &ctx->intern->expr_err;
+        eval_ctx->vary_this = &ctx->intern->expr_vary_this;
+        eval_ctx->re_nmatch = AP_MAX_REG_MATCH;
+        eval_ctx->re_pmatch = re->match;
+        eval_ctx->re_source = &re->source;
+    }
+
+    eval_ctx->info = &expr_info;
+    ret = ap_expr_exec_ctx(eval_ctx);
+    if (ret < 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(01338)
+                      "Could not evaluate expr \"%s\" in %s: %s", expr,
+                      ctx->r->filename, ctx->intern->expr_err);
+        *was_error = 1;
+        return 0;
+    }
+    *was_error = 0;
+    if (re->source)
+        re->have_match = 1;
+    return ret;
 }

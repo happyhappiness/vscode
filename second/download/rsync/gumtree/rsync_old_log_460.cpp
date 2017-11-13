@@ -1,1 +1,1 @@
-fprintf(f,"    --force              force deletion of directories even if not empty\n");
+fprintf(FINFO,"server_sender starting pid=%d\n",(int)getpid());

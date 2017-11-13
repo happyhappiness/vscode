@@ -1,49 +1,91 @@
-void do_server_recv(int argc,char *argv[])
+struct file_list *send_file_list(int f,int recurse,int argc,char *argv[])
 {
-  int pid,status;
-  char *dir = NULL;
+  int i,l;
+  struct stat st;
+  char *p,*dir;
+  char dbuf[MAXPATHLEN];
   struct file_list *flist;
-  char *local_name=NULL;
-  
-  if (verbose > 2)
-    fprintf(stderr,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
 
-  if (argc > 0) {
-    dir = argv[0];
-    argc--;
-    argv++;
-    if (chdir(dir) != 0) {
-      fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
-      exit_cleanup(1);
-    }    
+  if (verbose && recurse) {
+    fprintf(am_server?stderr:stdout,"building file list ... ");
+    fflush(am_server?stderr:stdout);
   }
 
-  if (delete_mode)
-    recv_exclude_list(STDIN_FILENO);
+  flist = (struct file_list *)malloc(sizeof(flist[0]));
+  if (!flist) out_of_memory("send_file_list");
 
-  flist = recv_file_list(STDIN_FILENO);
-  if (!flist || flist->count == 0) {
-    fprintf(stderr,"nothing to do\n");
-    exit_cleanup(1);
-  }
+  flist->count=0;
+  flist->malloced = 100;
+  flist->files = (struct file_struct *)malloc(sizeof(flist->files[0])*
+					      flist->malloced);
+  if (!flist->files) out_of_memory("send_file_list");
 
-  if (argc > 0) {    
-    if (strcmp(dir,".")) {
-      argv[0] += strlen(dir);
-      if (argv[0][0] == '/') argv[0]++;
+  for (i=0;i<argc;i++) {
+    char fname2[MAXPATHLEN];
+    char *fname = fname2;
+
+    strcpy(fname,argv[i]);
+
+    l = strlen(fname);
+    if (l != 1 && fname[l-1] == '/') {
+      strcat(fname,".");
     }
-    local_name = get_local_name(flist,argv[0]);
+
+    if (lstat(fname,&st) != 0) {
+      fprintf(stderr,"%s : %s\n",fname,strerror(errno));
+      continue;
+    }
+
+    if (S_ISDIR(st.st_mode) && !recurse) {
+      fprintf(stderr,"skipping directory %s\n",fname);
+      continue;
+    }
+
+    dir = NULL;
+    p = strrchr(fname,'/');
+    if (p) {
+      *p = 0;
+      dir = fname;
+      fname = p+1;      
+    }
+    if (!*fname)
+      fname = ".";
+
+    if (dir && *dir) {
+      if (getcwd(dbuf,MAXPATHLEN-1) == NULL) {
+	fprintf(stderr,"getwd : %s\n",strerror(errno));
+	exit_cleanup(1);
+      }
+      if (chdir(dir) != 0) {
+	fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+	continue;
+      }
+      flist_dir = dir;
+      if (one_file_system)
+	set_filesystem(fname);
+      send_file_name(f,flist,recurse,fname);
+      flist_dir = NULL;
+      if (chdir(dbuf) != 0) {
+	fprintf(stderr,"chdir %s : %s\n",dbuf,strerror(errno));
+	exit_cleanup(1);
+      }
+      continue;
+    }
+
+    if (one_file_system)
+      set_filesystem(fname);
+    send_file_name(f,flist,recurse,fname);
   }
 
-  if ((pid=fork()) == 0) {
-    recv_files(STDIN_FILENO,flist,local_name);
-    if (verbose > 2)
-      fprintf(stderr,"receiver read %d\n",read_total());
-    exit_cleanup(0);
+  if (f != -1) {
+    send_file_entry(NULL,f);
+    write_flush(f);
   }
 
-  generate_files(STDOUT_FILENO,flist,local_name);
+  clean_flist(flist);
 
-  waitpid(pid, &status, 0);
-  exit_cleanup(status);
+  if (verbose && recurse)
+    fprintf(am_server?stderr:stdout,"done\n");
+
+  return flist;
 }

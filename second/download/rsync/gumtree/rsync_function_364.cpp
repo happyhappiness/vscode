@@ -1,133 +1,183 @@
-struct file_list *send_file_list(int f,int argc,char *argv[])
-{
-	int i,l;
-	struct stat st;
-	char *p,*dir;
-	char dbuf[MAXPATHLEN];
-	char lastpath[MAXPATHLEN]="";
-	struct file_list *flist;
+void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
+{  
+  int fd;
+  struct stat st;
+  struct map_struct *buf;
+  struct sum_struct *s;
+  int statret;
+  struct file_struct *file = &flist->files[i];
 
-	if (verbose && recurse && !am_server && f != -1) {
-		fprintf(FINFO,"building file list ... ");
-		fflush(FINFO);
+  if (verbose > 2)
+    fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);
+
+  statret = link_stat(fname,&st);
+
+  if (S_ISDIR(file->mode)) {
+    if (dry_run) return;
+    if (statret == 0 && !S_ISDIR(st.st_mode)) {
+      if (unlink(fname) != 0) {
+	fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
+	return;
+      }
+      statret = -1;
+    }
+    if (statret != 0 && mkdir(fname,file->mode) != 0 && errno != EEXIST) {
+	    if (!(relative_paths && errno==ENOENT && 
+		  create_directory_path(fname)==0 && 
+		  mkdir(fname,file->mode)==0)) {
+		    fprintf(FERROR,"mkdir %s : %s (2)\n",
+			    fname,strerror(errno));
+	    }
+    }
+    if (set_perms(fname,file,NULL,0) && verbose) 
+      fprintf(FINFO,"%s/\n",fname);
+    return;
+  }
+
+  if (preserve_links && S_ISLNK(file->mode)) {
+#if SUPPORT_LINKS
+    char lnk[MAXPATHLEN];
+    int l;
+    if (statret == 0) {
+      l = readlink(fname,lnk,MAXPATHLEN-1);
+      if (l > 0) {
+	lnk[l] = 0;
+	if (strcmp(lnk,file->link) == 0) {
+	  set_perms(fname,file,&st,1);
+	  return;
 	}
+      }
+    }
+    if (!dry_run) unlink(fname);
+    if (!dry_run && symlink(file->link,fname) != 0) {
+      fprintf(FERROR,"link %s -> %s : %s\n",
+	      fname,file->link,strerror(errno));
+    } else {
+      set_perms(fname,file,NULL,0);
+      if (verbose) 
+	fprintf(FINFO,"%s -> %s\n",
+		fname,file->link);
+    }
+#endif
+    return;
+  }
 
-	flist = (struct file_list *)malloc(sizeof(flist[0]));
-	if (!flist) out_of_memory("send_file_list");
+#ifdef HAVE_MKNOD
+  if (am_root && preserve_devices && IS_DEVICE(file->mode)) {
+    if (statret != 0 || 
+	st.st_mode != file->mode ||
+	st.st_rdev != file->rdev) {	
+      if (!dry_run) unlink(fname);
+      if (verbose > 2)
+	fprintf(FERROR,"mknod(%s,0%o,0x%x)\n",
+		fname,(int)file->mode,(int)file->rdev);
+      if (!dry_run && 
+	  mknod(fname,file->mode,file->rdev) != 0) {
+	fprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));
+      } else {
+	set_perms(fname,file,NULL,0);
+	if (verbose)
+	  fprintf(FINFO,"%s\n",fname);
+      }
+    } else {
+      set_perms(fname,file,&st,1);
+    }
+    return;
+  }
+#endif
 
-	flist->count=0;
-	flist->malloced = 1000;
-	flist->files = (struct file_struct **)malloc(sizeof(flist->files[0])*
-						     flist->malloced);
-	if (!flist->files) out_of_memory("send_file_list");
+  if (preserve_hard_links && check_hard_link(file)) {
+    if (verbose > 1)
+      fprintf(FINFO,"%s is a hard link\n",file->name);
+    return;
+  }
 
-	for (i=0;i<argc;i++) {
-		char fname2[MAXPATHLEN];
-		char *fname = fname2;
+  if (!S_ISREG(file->mode)) {
+    fprintf(FERROR,"skipping non-regular file %s\n",fname);
+    return;
+  }
 
-		strncpy(fname,argv[i],MAXPATHLEN-1);
-		fname[MAXPATHLEN-1] = 0;
+  if (statret == -1) {
+    if (errno == ENOENT) {
+      write_int(f_out,i);
+      if (!dry_run) send_sums(NULL,f_out);
+    } else {
+      if (verbose > 1)
+	fprintf(FERROR,"recv_generator failed to open %s\n",fname);
+    }
+    return;
+  }
 
-		l = strlen(fname);
-		if (l != 1 && fname[l-1] == '/') {
-			strcat(fname,".");
-		}
+  if (!S_ISREG(st.st_mode)) {
+    /* its not a regular file on the receiving end, but it is on the
+       sending end. If its a directory then skip it (too dangerous to
+       do a recursive deletion??) otherwise try to unlink it */
+    if (S_ISDIR(st.st_mode)) {
+      fprintf(FERROR,"ERROR: %s is a directory\n",fname);
+      return;
+    }
+    if (unlink(fname) != 0) {
+      fprintf(FERROR,"%s : not a regular file (generator)\n",fname);
+      return;
+    }
 
-		if (link_stat(fname,&st) != 0) {
-			io_error=1;
-			fprintf(FERROR,"%s : %s\n",fname,strerror(errno));
-			continue;
-		}
+    /* now pretend the file didn't exist */
+    write_int(f_out,i);
+    if (!dry_run) send_sums(NULL,f_out);    
+    return;
+  }
 
-		if (S_ISDIR(st.st_mode) && !recurse) {
-			fprintf(FINFO,"skipping directory %s\n",fname);
-			continue;
-		}
+  if (update_only && st.st_mtime > file->modtime) {
+    if (verbose > 1)
+      fprintf(FERROR,"%s is newer\n",fname);
+    return;
+  }
 
-		dir = NULL;
+  if (skip_file(fname, file, &st)) {
+    set_perms(fname,file,&st,1);
+    return;
+  }
 
-		if (!relative_paths) {
-			p = strrchr(fname,'/');
-			if (p) {
-				*p = 0;
-				if (p == fname) 
-					dir = "/";
-				else
-					dir = fname;      
-				fname = p+1;      
-			}
-		} else if (f != -1 && (p=strrchr(fname,'/'))) {
-			/* this ensures we send the intermediate directories,
-			   thus getting their permissions right */
-			*p = 0;
-			if (strcmp(lastpath,fname)) {
-				strcpy(lastpath, fname);
-				*p = '/';
-				for (p=fname+1; (p=strchr(p,'/')); p++) {
-					*p = 0;
-					send_file_name(f, flist, fname, 0);
-					*p = '/';
-				}
-			} else {
-				*p = '/';
-			}
-		}
-		
-		if (!*fname)
-			fname = ".";
-		
-		if (dir && *dir) {
-			if (getcwd(dbuf,MAXPATHLEN-1) == NULL) {
-				fprintf(FERROR,"getwd : %s\n",strerror(errno));
-				exit_cleanup(1);
-			}
-			if (chdir(dir) != 0) {
-				io_error=1;
-				fprintf(FERROR,"chdir %s : %s\n",
-					dir,strerror(errno));
-				continue;
-			}
-			flist_dir = dir;
-			if (one_file_system)
-				set_filesystem(fname);
-			send_file_name(f,flist,fname,recurse);
-			flist_dir = NULL;
-			if (chdir(dbuf) != 0) {
-				fprintf(FERROR,"chdir %s : %s\n",
-					dbuf,strerror(errno));
-				exit_cleanup(1);
-			}
-			continue;
-		}
-		
-		if (one_file_system)
-			set_filesystem(fname);
-		send_file_name(f,flist,fname,recurse);
-	}
+  if (dry_run) {
+    write_int(f_out,i);
+    return;
+  }
 
-	if (f != -1) {
-		send_file_entry(NULL,f);
-		write_flush(f);
-	}
+  if (whole_file) {
+    write_int(f_out,i);
+    send_sums(NULL,f_out);    
+    return;
+  }
 
-	if (verbose && recurse && !am_server && f != -1)
-		fprintf(FINFO,"done\n");
-	
-	clean_flist(flist);
-	
-	/* now send the uid/gid list. This was introduced in protocol
-           version 15 */
-	if (f != -1 && remote_version >= 15) {
-		send_uid_list(f);
-	}
+  /* open the file */  
+  fd = open(fname,O_RDONLY);
 
-	/* if protocol version is >= 17 then send the io_error flag */
-	if (f != -1 && remote_version >= 17) {
-		write_int(f, io_error);
-	}
+  if (fd == -1) {
+    fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
+    fprintf(FERROR,"skipping %s\n",fname);
+    return;
+  }
 
-	if (verbose > 2)
-		fprintf(FINFO,"send_file_list done\n");
+  if (st.st_size > 0) {
+    buf = map_file(fd,st.st_size);
+  } else {
+    buf = NULL;
+  }
 
-	return flist;
+  if (verbose > 3)
+    fprintf(FERROR,"gen mapped %s of size %d\n",fname,(int)st.st_size);
+
+  s = generate_sums(buf,st.st_size,block_size);
+
+  if (verbose > 2)
+    fprintf(FERROR,"sending sums for %d\n",i);
+
+  write_int(f_out,i);
+  send_sums(s,f_out);
+  write_flush(f_out);
+
+  close(fd);
+  if (buf) unmap_file(buf);
+
+  free_sums(s);
 }

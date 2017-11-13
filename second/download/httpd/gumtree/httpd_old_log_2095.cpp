@@ -1,2 +1,3 @@
-printf("INFO: %s header == \n---\n%s\n---\n", 
-                (posting == 2) ? "PUT" : "POST", request);
+ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %lu %s",
+                         e, err);

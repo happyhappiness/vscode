@@ -1,1 +1,1 @@
-fprintf(stderr, "Falling back to three-way merge...\n");
+status_printf_ln(s, color(WT_STATUS_HEADER, s), "");

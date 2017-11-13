@@ -1,1 +1,2 @@
-out_of_memory("receive_file_entry");
+fprintf(FERROR,"mkdir %s : %s (2)\n",
+			    fname,strerror(errno));

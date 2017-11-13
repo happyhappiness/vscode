@@ -1,5 +1,6 @@
 static apr_status_t dispatch(proxy_conn_rec *conn, proxy_dir_conf *conf,
-                             request_rec *r, int request_id)
+                             request_rec *r, apr_pool_t *setaside_pool,
+                             apr_uint16_t request_id)
 {
     apr_bucket_brigade *ib, *ob;
     int seen_end_of_headers = 0, done = 0;
@@ -7,14 +8,11 @@ static apr_status_t dispatch(proxy_conn_rec *conn, proxy_dir_conf *conf,
     int script_error_status = HTTP_OK;
     conn_rec *c = r->connection;
     struct iovec vec[2];
-    fcgi_header header;
-    unsigned char farray[FCGI_HEADER_LEN];
+    ap_fcgi_header header;
+    unsigned char farray[AP_FCGI_HEADER_LEN];
     apr_pollfd_t pfd;
     int header_state = HDR_STATE_READING_HEADERS;
-    apr_pool_t *setaside_pool;
-
-    apr_pool_create(&setaside_pool, r->pool);
-
+ 
     pfd.desc_type = APR_POLL_SOCKET;
     pfd.desc.s = conn->sock;
     pfd.p = r->pool;
@@ -24,15 +22,13 @@ static apr_status_t dispatch(proxy_conn_rec *conn, proxy_dir_conf *conf,
     ob = apr_brigade_create(r->pool, c->bucket_alloc);
 
     while (! done) {
-        apr_interval_time_t timeout = conn->worker->s->timeout;
+        apr_interval_time_t timeout;
         apr_size_t len;
         int n;
 
         /* We need SOME kind of timeout here, or virtually anything will
          * cause timeout errors. */
-        if (! conn->worker->s->timeout_set) {
-            timeout = apr_time_from_sec(30);
-        }
+        apr_socket_timeout_get(conn->sock, &timeout);
 
         rv = apr_poll(&pfd, 1, &n, timeout);
         if (rv != APR_SUCCESS) {
@@ -69,9 +65,9 @@ static apr_status_t dispatch(proxy_conn_rec *conn, proxy_dir_conf *conf,
                 break;
             }
 
-            fill_in_header(&header, FCGI_STDIN, request_id,
-                           (apr_uint16_t) writebuflen, 0);
-            fcgi_header_to_array(&header, farray);
+            ap_fcgi_fill_in_header(&header, AP_FCGI_STDIN, request_id,
+                                   (apr_uint16_t) writebuflen, 0);
+            ap_fcgi_header_to_array(&header, farray);
 
             vec[nvec].iov_base = (void *)farray;
             vec[nvec].iov_len = sizeof(farray);
@@ -90,9 +86,10 @@ static apr_status_t dispatch(proxy_conn_rec *conn, proxy_dir_conf *conf,
             if (last_stdin) {
                 pfd.reqevents = APR_POLLIN; /* Done with input data */
 
-                if (writebuflen) { /* empty FCGI_STDIN not already sent? */
-                    fill_in_header(&header, FCGI_STDIN, request_id, 0, 0);
-                    fcgi_header_to_array(&header, farray);
+                if (writebuflen) { /* empty AP_FCGI_STDIN not already sent? */
+                    ap_fcgi_fill_in_header(&header, AP_FCGI_STDIN, request_id,
+                                           0, 0);
+                    ap_fcgi_header_to_array(&header, farray);
 
                     vec[0].iov_base = (void *)farray;
                     vec[0].iov_len = sizeof(farray);
@@ -108,46 +105,36 @@ static apr_status_t dispatch(proxy_conn_rec *conn, proxy_dir_conf *conf,
              * the headers, even if we fill the entire length in the recv. */
             char readbuf[AP_IOBUFSIZE + 1];
             apr_size_t readbuflen;
-            apr_size_t clen;
-            int rid, type;
+            apr_uint16_t clen, rid;
             apr_bucket *b;
-            char plen;
+            unsigned char plen;
+            unsigned char type, version;
 
             memset(readbuf, 0, sizeof(readbuf));
             memset(farray, 0, sizeof(farray));
 
             /* First, we grab the header... */
-            readbuflen = FCGI_HEADER_LEN;
-
-            rv = get_data(conn, (char *) farray, &readbuflen);
+            rv = get_data_full(conn, (char *) farray, AP_FCGI_HEADER_LEN);
             if (rv != APR_SUCCESS) {
-                break;
-            }
-
-            dump_header_to_log(r, farray, readbuflen);
-
-            if (readbuflen != FCGI_HEADER_LEN) {
                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01067)
-                              "Failed to read entire header "
-                              "got %" APR_SIZE_T_FMT " wanted %d",
-                              readbuflen, FCGI_HEADER_LEN);
-                rv = APR_EINVAL;
+                              "Failed to read FastCGI header");
                 break;
             }
 
-            fcgi_header_from_array(&header, farray);
+#ifdef FCGI_DUMP_HEADERS
+            ap_log_rdata(APLOG_MARK, APLOG_DEBUG, r, "FastCGI header",
+                         farray, AP_FCGI_HEADER_LEN, 0);
+#endif
 
-            if (header.version != FCGI_VERSION) {
+            ap_fcgi_header_fields_from_array(&version, &type, &rid,
+                                             &clen, &plen, farray);
+
+            if (version != AP_FCGI_VERSION_1) {
                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01068)
                               "Got bogus version %d", (int) header.version);
                 rv = APR_EINVAL;
                 break;
             }
-
-            type = header.type;
-
-            rid = header.requestIdB1 << 8;
-            rid |= header.requestIdB0;
 
             if (rid != request_id) {
                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01069)
@@ -156,11 +143,6 @@ static apr_status_t dispatch(proxy_conn_rec *conn, proxy_dir_conf *conf,
                 rv = APR_EINVAL;
                 break;
             }
-
-            clen = header.contentLengthB1 << 8;
-            clen |= header.contentLengthB0;
-
-            plen = header.paddingLength;
 
 recv_again:
             if (clen > sizeof(readbuf) - 1) {
@@ -181,7 +163,7 @@ recv_again:
             }
 
             switch (type) {
-            case FCGI_STDOUT:
+            case AP_FCGI_STDOUT:
                 if (clen != 0) {
                     b = apr_bucket_transient_create(readbuf,
                                                     readbuflen,
@@ -281,7 +263,7 @@ recv_again:
                 }
                 break;
 
-            case FCGI_STDERR:
+            case AP_FCGI_STDERR:
                 /* TODO: Should probably clean up this logging a bit... */
                 if (clen) {
                     ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
@@ -294,7 +276,7 @@ recv_again:
                 }
                 break;
 
-            case FCGI_END_REQUEST:
+            case AP_FCGI_END_REQUEST:
                 done = 1;
                 break;
 
@@ -305,10 +287,10 @@ recv_again:
             }
 
             if (plen) {
-                readbuflen = plen;
-
-                rv = get_data(conn, readbuf, &readbuflen);
+                rv = get_data_full(conn, readbuf, plen);
                 if (rv != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  APLOGNO(02537) "Error occurred reading padding");
                     break;
                 }
             }

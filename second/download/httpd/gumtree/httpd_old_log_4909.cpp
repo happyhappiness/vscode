@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "request failed: URI too long (longer than %d)", r->server->limit_req_line);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server,
+                         "Must be uid 0 to raise maximum %s", cmd->cmd->name);

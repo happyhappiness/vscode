@@ -1,10 +1,11 @@
 fputs(
-"              redirects to follow by using the --max-redirs option.\n"
+"              (SSL)  Private key file type. Specify which type your --key pro-\n"
+"              vided private key is. DER, PEM, and ENG are  supported.  If  not\n"
+"              specified, PEM is assumed.\n"
 "\n"
-"              When  curl follows a redirect and the request is not a plain GET\n"
-"              (for example POST or PUT), it will do the following request with\n"
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code was any other 3xx code, curl  will  re-send  the  following\n"
-"              request using the same unmodified method.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --krb <level>\n"
+"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
+"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
 , stdout);

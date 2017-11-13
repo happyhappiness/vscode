@@ -1,1 +1,1 @@
-die(_("Server does not support --shallow-since"));
+die(_("Negative depth in --deepen is not supported"));

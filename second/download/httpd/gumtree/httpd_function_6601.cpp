@@ -1,47 +1,44 @@
-static apr_status_t cache_invalidate_filter(ap_filter_t *f,
-                                            apr_bucket_brigade *in)
+void h2_ngn_shed_done_ngn(h2_ngn_shed *shed, struct h2_req_engine *ngn)
 {
-    request_rec *r = f->r;
-    cache_request_rec *cache;
-
-    /* Setup cache_request_rec */
-    cache = (cache_request_rec *) f->ctx;
-
-    if (!cache) {
-        /* user likely configured CACHE_INVALIDATE manually; they should really
-         * use mod_cache configuration to do that. So:
-         * 1. Remove ourselves
-         * 2. Do nothing and bail out
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02465)
-                "cache: CACHE_INVALIDATE enabled unexpectedly: %s", r->uri);
+    if (ngn->done) {
+        return;
+    }
+    
+    if (!shed->aborted && !H2_REQ_ENTRIES_EMPTY(&ngn->entries)) {
+        h2_ngn_entry *entry;
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
+                      "h2_ngn_shed(%ld): exit engine %s (%s), "
+                      "has still requests queued, shutdown=%d,"
+                      "assigned=%ld, live=%ld, finished=%ld", 
+                      shed->c->id, ngn->id, ngn->type,
+                      ngn->shutdown, 
+                      (long)ngn->no_assigned, (long)ngn->no_live,
+                      (long)ngn->no_finished);
+        for (entry = H2_REQ_ENTRIES_FIRST(&ngn->entries);
+             entry != H2_REQ_ENTRIES_SENTINEL(&ngn->entries);
+             entry = H2_NGN_ENTRY_NEXT(entry)) {
+            h2_task *task = entry->task;
+            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
+                          "h2_ngn_shed(%ld): engine %s has queued task %s, "
+                          "frozen=%d, aborting",
+                          shed->c->id, ngn->id, task->id, task->frozen);
+            ngn_done_task(shed, ngn, task, 0, 1);
+        }
+    }
+    if (!shed->aborted && (ngn->no_assigned > 1 || ngn->no_live > 1)) {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
+                      "h2_ngn_shed(%ld): exit engine %s (%s), "
+                      "assigned=%ld, live=%ld, finished=%ld", 
+                      shed->c->id, ngn->id, ngn->type,
+                      (long)ngn->no_assigned, (long)ngn->no_live,
+                      (long)ngn->no_finished);
     }
     else {
-
-        if (r->status > 299) {
-
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02466)
-                    "cache: response status to '%s' method is %d (>299), not invalidating cached entity: %s", r->method, r->status, r->uri);
-
-        }
-        else {
-
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(02467)
-                    "cache: Invalidating all cached entities in response to '%s' request for %s",
-                    r->method, r->uri);
-
-            cache_invalidate(cache, r);
-
-            /* we've got a cache invalidate! tell everyone who cares */
-            cache_run_cache_status(cache->handle, r, r->headers_out,
-                    AP_CACHE_INVALIDATE, apr_psprintf(r->pool,
-                            "cache invalidated by %s", r->method));
-
-        }
-
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
+                      "h2_ngn_shed(%ld): exit engine %s", 
+                      shed->c->id, ngn->id);
     }
-
-    /* remove ourselves */
-    ap_remove_output_filter(f);
-    return ap_pass_brigade(f->next, in);
+    
+    apr_hash_set(shed->ngns, ngn->type, APR_HASH_KEY_STRING, NULL);
+    ngn->done = 1;
 }

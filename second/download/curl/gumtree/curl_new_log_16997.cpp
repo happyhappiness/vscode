@@ -1,8 +1,15 @@
-puts(" -E/--cert <cert[:passwd]> Specifies your certificate file and password (HTTPS)\n"
-       "    --cacert <file> CA certifciate to verify peer against (SSL)\n"
-       "    --ciphers <list> What SSL ciphers to use (SSL)\n"
-       "    --connect-timeout <seconds> Maximum time allowed for connection\n"
-       " -f/--fail          Fail silently (no output at all) on errors (H)\n"
-       " -F/--form <name=content> Specify HTTP POST data (H)\n"
-       " -g/--globoff       Disable URL sequences and ranges using {} and []\n"
-       " -G/--get           Send the -d data with a HTTP GET (H)");
+puts(
+"          When used, this will make libcurl attempt to figure out\n"
+"          the timestamp of the remote file, and if that is avail�\n"
+"          able make the local file get that same timestamp.\n"
+"\n"
+"          If  this option is used twice, the second time disables\n"
+"          this again.\n"
+"\n"
+"     -s/--silent\n"
+"          Silent mode. Don't show progress meter  or  error  mes�\n"
+"          sages.  Makes Curl mute.\n"
+"          If  this  option  is  used twice, the second will again\n"
+"          disable mute.\n"
+"\n"
+);

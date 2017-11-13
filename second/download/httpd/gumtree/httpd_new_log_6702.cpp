@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02541)
-                     "ECDH curve %s for %s specified in %s",
-                     OBJ_nid2sn(nid), vhost_id, mctx->pks->cert_files[0]);
+ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, ap_server_conf,
+                                 "%u/%u workers shutdown",
+                                 apr_atomic_read32(&threads_shutdown),
+                                 threads_per_child);

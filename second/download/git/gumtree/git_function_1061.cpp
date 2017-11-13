@@ -1,43 +1,53 @@
-static int update_branch(struct branch *b)
+static int handle_range_dir(
+	struct index_state *istate,
+	int k_start,
+	int k_end,
+	struct dir_entry *parent,
+	struct strbuf *prefix,
+	struct lazy_entry *lazy_entries,
+	struct dir_entry **dir_new_out)
 {
-	static const char *msg = "fast-import";
-	struct ref_transaction *transaction;
-	unsigned char old_sha1[20];
-	struct strbuf err = STRBUF_INIT;
+	int rc, k;
+	int input_prefix_len = prefix->len;
+	struct dir_entry *dir_new;
 
-	if (is_null_sha1(b->sha1)) {
-		if (b->delete)
-			delete_ref(NULL, b->name, NULL, 0);
-		return 0;
-	}
-	if (read_ref(b->name, old_sha1))
-		hashclr(old_sha1);
-	if (!force_update && !is_null_sha1(old_sha1)) {
-		struct commit *old_cmit, *new_cmit;
+	dir_new = hash_dir_entry_with_parent_and_prefix(istate, parent, prefix);
 
-		old_cmit = lookup_commit_reference_gently(old_sha1, 0);
-		new_cmit = lookup_commit_reference_gently(b->sha1, 0);
-		if (!old_cmit || !new_cmit)
-			return error("Branch %s is missing commits.", b->name);
+	strbuf_addch(prefix, '/');
 
-		if (!in_merge_bases(old_cmit, new_cmit)) {
-			warning("Not updating %s"
-				" (new tip %s does not contain %s)",
-				b->name, sha1_to_hex(b->sha1), sha1_to_hex(old_sha1));
-			return -1;
+	/*
+	 * Scan forward in the index array for index entries having the same
+	 * path prefix (that are also in this directory).
+	 */
+	if (k_start + 1 >= k_end)
+		k = k_end;
+	else if (strncmp(istate->cache[k_start + 1]->name, prefix->buf, prefix->len) > 0)
+		k = k_start + 1;
+	else if (strncmp(istate->cache[k_end - 1]->name, prefix->buf, prefix->len) == 0)
+		k = k_end;
+	else {
+		int begin = k_start;
+		int end = k_end;
+		while (begin < end) {
+			int mid = (begin + end) >> 1;
+			int cmp = strncmp(istate->cache[mid]->name, prefix->buf, prefix->len);
+			if (cmp == 0) /* mid has same prefix; look in second part */
+				begin = mid + 1;
+			else if (cmp > 0) /* mid is past group; look in first part */
+				end = mid;
+			else
+				die("cache entry out of order");
 		}
+		k = begin;
 	}
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_update(transaction, b->name, b->sha1, old_sha1,
-				   0, msg, &err) ||
-	    ref_transaction_commit(transaction, &err)) {
-		ref_transaction_free(transaction);
-		error("%s", err.buf);
-		strbuf_release(&err);
-		return -1;
-	}
-	ref_transaction_free(transaction);
-	strbuf_release(&err);
-	return 0;
+
+	/*
+	 * Recurse and process what we can of this subset [k_start, k).
+	 */
+	rc = handle_range_1(istate, k_start, k, dir_new, prefix, lazy_entries);
+
+	strbuf_setlen(prefix, input_prefix_len);
+
+	*dir_new_out = dir_new;
+	return rc;
 }

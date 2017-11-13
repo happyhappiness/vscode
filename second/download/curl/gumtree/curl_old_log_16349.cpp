@@ -1,11 +1,11 @@
 fputs(
-"              may not introduce a security breach if the site redirects you to\n"
-"              a  site  to which you'll send your authentication info (which is\n"
-"              plaintext in the case of HTTP Basic authentication).\n"
+"              Typical browsers always discard  session  cookies  when  they're\n"
+"              closed down.\n"
 "\n"
-"              See also -u, --user.\n"
+"              See also -b, --cookie and -c, --cookie-jar.\n"
 "\n"
-"       -L, --location\n"
-"              (HTTP) If the server reports that the requested page  has  moved\n"
-"              to a different location (indicated with a Location: header and a\n"
+"       --keepalive-time <seconds>\n"
+"              This  option  sets  the  time  a connection needs to remain idle\n"
+"              before sending keepalive probes and the time between  individual\n"
+"              keepalive probes. It is currently effective on operating systems\n"
 , stdout);

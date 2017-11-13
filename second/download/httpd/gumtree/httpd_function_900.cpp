@@ -1,193 +1,325 @@
-static unsigned int __stdcall winnt_accept(void *lr_)
+int
+ssl_expr_yyparse (YYPARSE_PARAM_ARG)
+    YYPARSE_PARAM_DECL
 {
-    ap_listen_rec *lr = (ap_listen_rec *)lr_;
-    apr_os_sock_info_t sockinfo;
-    PCOMP_CONTEXT context = NULL;
-    DWORD BytesRead;
-    SOCKET nlsd;
-    int rv, err_count = 0;
-#if APR_HAVE_IPV6
-    SOCKADDR_STORAGE ss_listen;
-    int namelen = sizeof(ss_listen);
-#endif
+    register int ssl_expr_yym, ssl_expr_yyn, ssl_expr_yystate;
+#if YYDEBUG
+    register const char *ssl_expr_yys;
 
-    apr_os_sock_get(&nlsd, lr->sd);
-
-#if APR_HAVE_IPV6
-    if (getsockname(nlsd, (struct sockaddr *)&ss_listen, &namelen) == SOCKET_ERROR) {
-        ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_netos_error(), ap_server_conf,
-                    "winnt_accept: getsockname error on listening socket, is IPv6 available?");
-        return 1;
-   }
-#endif
-
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                 "Child %d: Starting thread to listen on port %d.", my_pid, lr->bind_addr->port);
-    while (!shutdown_in_progress) {
-        if (!context) {
-            context = mpm_get_completion_context();
-            if (!context) {
-                /* Temporary resource constraint? */
-                Sleep(0);
-                continue;
-            }
-        }
-
-        /* Create and initialize the accept socket */
-#if APR_HAVE_IPV6
-        if (context->accept_socket == INVALID_SOCKET) {
-            context->accept_socket = socket(ss_listen.ss_family, SOCK_STREAM, IPPROTO_TCP);
-            context->socket_family = ss_listen.ss_family;
-        }
-        else if (context->socket_family != ss_listen.ss_family) {
-            closesocket(context->accept_socket);
-            context->accept_socket = socket(ss_listen.ss_family, SOCK_STREAM, IPPROTO_TCP);
-            context->socket_family = ss_listen.ss_family;
-        }
-
-        if (context->accept_socket == INVALID_SOCKET) {
-            ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_netos_error(), ap_server_conf,
-                         "winnt_accept: Failed to allocate an accept socket. "
-                         "Temporary resource constraint? Try again.");
-            Sleep(100);
-            continue;
-        }
-#else
-        if (context->accept_socket == INVALID_SOCKET) {
-            context->accept_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-            if (context->accept_socket == INVALID_SOCKET) {
-                /* Another temporary condition? */
-                ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_netos_error(), ap_server_conf,
-                             "winnt_accept: Failed to allocate an accept socket. "
-                             "Temporary resource constraint? Try again.");
-                Sleep(100);
-                continue;
-            }
-        }
-#endif
-        /* AcceptEx on the completion context. The completion context will be
-         * signaled when a connection is accepted.
-         */
-        if (!AcceptEx(nlsd, context->accept_socket,
-                      context->buff,
-                      0,
-                      PADDED_ADDR_SIZE,
-                      PADDED_ADDR_SIZE,
-                      &BytesRead,
-                      &context->Overlapped)) {
-            rv = apr_get_netos_error();
-            if ((rv == APR_FROM_OS_ERROR(WSAEINVAL)) ||
-                (rv == APR_FROM_OS_ERROR(WSAENOTSOCK))) {
-                /* We can get here when:
-                 * 1) the client disconnects early
-                 * 2) TransmitFile does not properly recycle the accept socket (typically
-                 *    because the client disconnected)
-                 * 3) there is VPN or Firewall software installed with buggy AcceptEx implementation
-                 * 4) the webserver is using a dynamic address that has changed
-                 */
-                ++err_count;
-                closesocket(context->accept_socket);
-                context->accept_socket = INVALID_SOCKET;
-                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                                 "Child %d: Encountered too many errors accepting client connections. "
-                                 "Possible causes: dynamic address renewal, or incompatible VPN or firewall software. "
-                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
-                    err_count = 0;
-                }
-                continue;
-            }
-            else if ((rv != APR_FROM_OS_ERROR(ERROR_IO_PENDING)) &&
-                     (rv != APR_FROM_OS_ERROR(WSA_IO_PENDING))) {
-                ++err_count;
-                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
-                    ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
-                                 "Child %d: Encountered too many errors accepting client connections. "
-                                 "Possible causes: Unknown. "
-                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
-                    err_count = 0;
-                }
-                closesocket(context->accept_socket);
-                context->accept_socket = INVALID_SOCKET;
-                continue;
-            }
-            err_count = 0;
-
-            /* Wait for pending i/o.
-             * Wake up once per second to check for shutdown .
-             * XXX: We should be waiting on exit_event instead of polling
-             */
-            while (1) {
-                rv = WaitForSingleObject(context->Overlapped.hEvent, 1000);
-                if (rv == WAIT_OBJECT_0) {
-                    if (context->accept_socket == INVALID_SOCKET) {
-                        /* socket already closed */
-                        break;
-                    }
-                    if (!GetOverlappedResult((HANDLE)context->accept_socket,
-                                             &context->Overlapped,
-                                             &BytesRead, FALSE)) {
-                        ap_log_error(APLOG_MARK, APLOG_WARNING,
-                                     apr_get_os_error(), ap_server_conf,
-                             "winnt_accept: Asynchronous AcceptEx failed.");
-                        closesocket(context->accept_socket);
-                        context->accept_socket = INVALID_SOCKET;
-                    }
-                    break;
-                }
-                /* WAIT_TIMEOUT */
-                if (shutdown_in_progress) {
-                    closesocket(context->accept_socket);
-                    context->accept_socket = INVALID_SOCKET;
-                    break;
-                }
-            }
-            if (context->accept_socket == INVALID_SOCKET) {
-                continue;
-            }
-        }
-        err_count = 0;
-        /* Inherit the listen socket settings. Required for
-         * shutdown() to work
-         */
-        if (setsockopt(context->accept_socket, SOL_SOCKET,
-                       SO_UPDATE_ACCEPT_CONTEXT, (char *)&nlsd,
-                       sizeof(nlsd))) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf,
-                         "setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed.");
-            /* Not a failure condition. Keep running. */
-        }
-
-        /* Get the local & remote address */
-        GetAcceptExSockaddrs(context->buff,
-                             0,
-                             PADDED_ADDR_SIZE,
-                             PADDED_ADDR_SIZE,
-                             &context->sa_server,
-                             &context->sa_server_len,
-                             &context->sa_client,
-                             &context->sa_client_len);
-
-        sockinfo.os_sock = &context->accept_socket;
-        sockinfo.local   = context->sa_server;
-        sockinfo.remote  = context->sa_client;
-        sockinfo.family  = context->sa_server->sa_family;
-        sockinfo.type    = SOCK_STREAM;
-        apr_os_sock_make(&context->sock, &sockinfo, context->ptrans);
-
-        /* When a connection is received, send an io completion notification to
-         * the ThreadDispatchIOCP. This function could be replaced by
-         * mpm_post_completion_context(), but why do an extra function call...
-         */
-        PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_CONNECTION_ACCEPTED,
-                                   &context->Overlapped);
-        context = NULL;
+    if ((ssl_expr_yys = getenv("YYDEBUG")))
+    {
+        ssl_expr_yyn = *ssl_expr_yys;
+        if (ssl_expr_yyn >= '0' && ssl_expr_yyn <= '9')
+            ssl_expr_yydebug = ssl_expr_yyn - '0';
     }
-    if (!shutdown_in_progress) {
-        /* Yow, hit an irrecoverable error! Tell the child to die. */
-        SetEvent(exit_event);
+#endif
+
+    ssl_expr_yynerrs = 0;
+    ssl_expr_yyerrflag = 0;
+    ssl_expr_yychar = (-1);
+
+    if (ssl_expr_yyss == NULL && ssl_expr_yygrowstack()) goto ssl_expr_yyoverflow;
+    ssl_expr_yyssp = ssl_expr_yyss;
+    ssl_expr_yyvsp = ssl_expr_yyvs;
+    *ssl_expr_yyssp = ssl_expr_yystate = 0;
+
+ssl_expr_yyloop:
+    if ((ssl_expr_yyn = ssl_expr_yydefred[ssl_expr_yystate])) goto ssl_expr_yyreduce;
+    if (ssl_expr_yychar < 0)
+    {
+        if ((ssl_expr_yychar = ssl_expr_yylex()) < 0) ssl_expr_yychar = 0;
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+        {
+            ssl_expr_yys = 0;
+            if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
+            if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
+            printf("%sdebug: state %d, reading %d (%s)\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);
+        }
+#endif
     }
-    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Accept thread exiting.", my_pid);
-    return 0;
+    if ((ssl_expr_yyn = ssl_expr_yysindex[ssl_expr_yystate]) && (ssl_expr_yyn += ssl_expr_yychar) >= 0 &&
+            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yychar)
+    {
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+            printf("%sdebug: state %d, shifting to state %d\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yytable[ssl_expr_yyn]);
+#endif
+        if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
+        {
+            goto ssl_expr_yyoverflow;
+        }
+        *++ssl_expr_yyssp = ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
+        *++ssl_expr_yyvsp = ssl_expr_yylval;
+        ssl_expr_yychar = (-1);
+        if (ssl_expr_yyerrflag > 0)  --ssl_expr_yyerrflag;
+        goto ssl_expr_yyloop;
+    }
+    if ((ssl_expr_yyn = ssl_expr_yyrindex[ssl_expr_yystate]) && (ssl_expr_yyn += ssl_expr_yychar) >= 0 &&
+            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yychar)
+    {
+        ssl_expr_yyn = ssl_expr_yytable[ssl_expr_yyn];
+        goto ssl_expr_yyreduce;
+    }
+    if (ssl_expr_yyerrflag) goto ssl_expr_yyinrecovery;
+#if defined(lint) || defined(__GNUC__)
+    goto ssl_expr_yynewerror;
+#endif
+ssl_expr_yynewerror:
+    ssl_expr_yyerror("syntax error");
+#if defined(lint) || defined(__GNUC__)
+    goto ssl_expr_yyerrlab;
+#endif
+ssl_expr_yyerrlab:
+    ++ssl_expr_yynerrs;
+ssl_expr_yyinrecovery:
+    if (ssl_expr_yyerrflag < 3)
+    {
+        ssl_expr_yyerrflag = 3;
+        for (;;)
+        {
+            if ((ssl_expr_yyn = ssl_expr_yysindex[*ssl_expr_yyssp]) && (ssl_expr_yyn += YYERRCODE) >= 0 &&
+                    ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == YYERRCODE)
+            {
+#if YYDEBUG
+                if (ssl_expr_yydebug)
+                    printf("%sdebug: state %d, error recovery shifting\
+ to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yytable[ssl_expr_yyn]);
+#endif
+                if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
+                {
+                    goto ssl_expr_yyoverflow;
+                }
+                *++ssl_expr_yyssp = ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
+                *++ssl_expr_yyvsp = ssl_expr_yylval;
+                goto ssl_expr_yyloop;
+            }
+            else
+            {
+#if YYDEBUG
+                if (ssl_expr_yydebug)
+                    printf("%sdebug: error recovery discarding state %d\n",
+                            YYPREFIX, *ssl_expr_yyssp);
+#endif
+                if (ssl_expr_yyssp <= ssl_expr_yyss) goto ssl_expr_yyabort;
+                --ssl_expr_yyssp;
+                --ssl_expr_yyvsp;
+            }
+        }
+    }
+    else
+    {
+        if (ssl_expr_yychar == 0) goto ssl_expr_yyabort;
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+        {
+            ssl_expr_yys = 0;
+            if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
+            if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
+            printf("%sdebug: state %d, error recovery discards token %d (%s)\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);
+        }
+#endif
+        ssl_expr_yychar = (-1);
+        goto ssl_expr_yyloop;
+    }
+ssl_expr_yyreduce:
+#if YYDEBUG
+    if (ssl_expr_yydebug)
+        printf("%sdebug: state %d, reducing by rule %d (%s)\n",
+                YYPREFIX, ssl_expr_yystate, ssl_expr_yyn, ssl_expr_yyrule[ssl_expr_yyn]);
+#endif
+    ssl_expr_yym = ssl_expr_yylen[ssl_expr_yyn];
+    ssl_expr_yyval = ssl_expr_yyvsp[1-ssl_expr_yym];
+    switch (ssl_expr_yyn)
+    {
+case 1:
+#line 84 "ssl_expr_parse.y"
+{ ssl_expr_info.expr = ssl_expr_yyvsp[0].exVal; }
+break;
+case 2:
+#line 87 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_True,  NULL, NULL); }
+break;
+case 3:
+#line 88 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_False, NULL, NULL); }
+break;
+case 4:
+#line 89 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Not,   ssl_expr_yyvsp[0].exVal,   NULL); }
+break;
+case 5:
+#line 90 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Or,    ssl_expr_yyvsp[-2].exVal,   ssl_expr_yyvsp[0].exVal);   }
+break;
+case 6:
+#line 91 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_And,   ssl_expr_yyvsp[-2].exVal,   ssl_expr_yyvsp[0].exVal);   }
+break;
+case 7:
+#line 92 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Comp,  ssl_expr_yyvsp[0].exVal,   NULL); }
+break;
+case 8:
+#line 93 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[-1].exVal; }
+break;
+case 9:
+#line 96 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_EQ,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 10:
+#line 97 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_NE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 11:
+#line 98 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_LT,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 12:
+#line 99 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_LE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 13:
+#line 100 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_GT,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 14:
+#line 101 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_GE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 15:
+#line 102 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_IN,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 16:
+#line 103 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_REG, ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 17:
+#line 104 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_NRE, ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
+break;
+case 18:
+#line 107 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_OidListElement, ssl_expr_yyvsp[-1].exVal, NULL); }
+break;
+case 19:
+#line 108 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[-1].exVal ; }
+break;
+case 20:
+#line 111 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[0].exVal, NULL); }
+break;
+case 21:
+#line 112 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[0].exVal, ssl_expr_yyvsp[-2].exVal);   }
+break;
+case 22:
+#line 115 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Digit,  ssl_expr_yyvsp[0].cpVal, NULL); }
+break;
+case 23:
+#line 116 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_String, ssl_expr_yyvsp[0].cpVal, NULL); }
+break;
+case 24:
+#line 117 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_make(op_Var,    ssl_expr_yyvsp[-1].cpVal, NULL); }
+break;
+case 25:
+#line 118 "ssl_expr_parse.y"
+{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[0].exVal; }
+break;
+case 26:
+#line 121 "ssl_expr_parse.y"
+{
+                ap_regex_t *regex;
+                if ((regex = ap_pregcomp(ssl_expr_info.pool, ssl_expr_yyvsp[0].cpVal,
+                                         AP_REG_EXTENDED|AP_REG_NOSUB)) == NULL) {
+                    ssl_expr_error = "Failed to compile regular expression";
+                    YYERROR;
+                }
+                ssl_expr_yyval.exVal = ssl_expr_make(op_Regex, regex, NULL);
+            }
+break;
+case 27:
+#line 130 "ssl_expr_parse.y"
+{
+                ap_regex_t *regex;
+                if ((regex = ap_pregcomp(ssl_expr_info.pool, ssl_expr_yyvsp[0].cpVal,
+                                         AP_REG_EXTENDED|AP_REG_NOSUB|AP_REG_ICASE)) == NULL) {
+                    ssl_expr_error = "Failed to compile regular expression";
+                    YYERROR;
+                }
+                ssl_expr_yyval.exVal = ssl_expr_make(op_Regex, regex, NULL);
+            }
+break;
+case 28:
+#line 141 "ssl_expr_parse.y"
+{
+               ssl_expr *args = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[-1].cpVal, NULL);
+               ssl_expr_yyval.exVal = ssl_expr_make(op_Func, "file", args);
+            }
+break;
+#line 563 "y.tab.c"
+    }
+    ssl_expr_yyssp -= ssl_expr_yym;
+    ssl_expr_yystate = *ssl_expr_yyssp;
+    ssl_expr_yyvsp -= ssl_expr_yym;
+    ssl_expr_yym = ssl_expr_yylhs[ssl_expr_yyn];
+    if (ssl_expr_yystate == 0 && ssl_expr_yym == 0)
+    {
+#if YYDEBUG
+        if (ssl_expr_yydebug)
+            printf("%sdebug: after reduction, shifting from state 0 to\
+ state %d\n", YYPREFIX, YYFINAL);
+#endif
+        ssl_expr_yystate = YYFINAL;
+        *++ssl_expr_yyssp = YYFINAL;
+        *++ssl_expr_yyvsp = ssl_expr_yyval;
+        if (ssl_expr_yychar < 0)
+        {
+            if ((ssl_expr_yychar = ssl_expr_yylex()) < 0) ssl_expr_yychar = 0;
+#if YYDEBUG
+            if (ssl_expr_yydebug)
+            {
+                ssl_expr_yys = 0;
+                if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
+                if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
+                printf("%sdebug: state %d, reading %d (%s)\n",
+                        YYPREFIX, YYFINAL, ssl_expr_yychar, ssl_expr_yys);
+            }
+#endif
+        }
+        if (ssl_expr_yychar == 0) goto ssl_expr_yyaccept;
+        goto ssl_expr_yyloop;
+    }
+    if ((ssl_expr_yyn = ssl_expr_yygindex[ssl_expr_yym]) && (ssl_expr_yyn += ssl_expr_yystate) >= 0 &&
+            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yystate)
+        ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
+    else
+        ssl_expr_yystate = ssl_expr_yydgoto[ssl_expr_yym];
+#if YYDEBUG
+    if (ssl_expr_yydebug)
+        printf("%sdebug: after reduction, shifting from state %d \
+to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yystate);
+#endif
+    if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
+    {
+        goto ssl_expr_yyoverflow;
+    }
+    *++ssl_expr_yyssp = ssl_expr_yystate;
+    *++ssl_expr_yyvsp = ssl_expr_yyval;
+    goto ssl_expr_yyloop;
+ssl_expr_yyoverflow:
+    ssl_expr_yyerror("yacc stack overflow");
+ssl_expr_yyabort:
+    return (1);
+ssl_expr_yyaccept:
+    return (0);
 }

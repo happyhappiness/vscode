@@ -1,21 +1,8 @@
-static void create_pid_file(void)
+void io_start_buffering_in(void)
 {
-	char *pid_file = lp_pid_file();
-	char pidbuf[16];
-	pid_t pid = getpid();
-	int fd;
-
-	if (!pid_file || !*pid_file)
+	if (iobuf_in)
 		return;
-
-	cleanup_set_pid(pid);
-	if ((fd = do_open(pid_file, O_WRONLY|O_CREAT|O_EXCL, 0666 & ~orig_umask)) == -1) {
-		cleanup_set_pid(0);
-		fprintf(stderr, "failed to create pid file %s: %s\n", pid_file, strerror(errno));
-		rsyserr(FLOG, errno, "failed to create pid file %s", pid_file);
-		exit_cleanup(RERR_FILEIO);
-	}
-	snprintf(pidbuf, sizeof pidbuf, "%ld\n", (long)pid);
-	write(fd, pidbuf, strlen(pidbuf));
-	close(fd);
+	iobuf_in_siz = 2 * IO_BUFFER_SIZE;
+	if (!(iobuf_in = new_array(char, iobuf_in_siz)))
+		out_of_memory("io_start_buffering_in");
 }

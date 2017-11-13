@@ -1,1 +1,1 @@
-fprintf(stderr, "Checking %s\n", sha1_to_hex(obj->sha1));
+die_errno("unable to read object %s", sha1_to_hex(sha1));

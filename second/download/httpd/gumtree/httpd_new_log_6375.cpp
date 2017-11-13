@@ -1,6 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01718)
-                          "auth_ldap authorise: require group "
-                          "(sub-group) \"%s\": didn't match with attr %s "
-                          "[%s][%d - %s]",
-                          t, ldc->reason, ent[i].name, result, 
-                          ldap_err2string(result));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 2. release_join with %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));

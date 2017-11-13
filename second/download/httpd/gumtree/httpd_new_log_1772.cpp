@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, loglevel, rv, r,
-                          "proxy: %s: error creating fam %d socket for target %s",
-                          proxy_function,
-                          backend_addr->family,
-                          backend_name);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                 "disk_cache: Cannot open info header file %s",  dobj->datafile);

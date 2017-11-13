@@ -1,1 +1,2 @@
-fprintf(FERROR,"got file_sum\n");
+fprintf(FERROR,"send_files failed to open %s: %s\n",
+		fname,strerror(errno));

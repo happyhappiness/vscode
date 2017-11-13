@@ -1,19 +1,30 @@
-static apr_status_t on_stream_resume(void *ctx, int stream_id)
+static int stream_print(void *ctx, h2_io *io)
 {
-    h2_session *session = ctx;
-    h2_stream *stream = get_stream(session, stream_id);
-    apr_status_t status = APR_SUCCESS;
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                  "h2_stream(%ld-%d): on_resume", session->id, stream_id);
-    if (stream) {
-        int rv = nghttp2_session_resume_data(session->ngh2, stream_id);
-        session->have_written = 1;
-        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
-                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
-                      APLOGNO(02936) 
-                      "h2_stream(%ld-%d): resuming %s",
-                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
+    h2_mplx *m = ctx;
+    if (io && io->request) {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-%d): %s %s %s -> %s %d"
+                      "[orph=%d/started=%d/done=%d/eos_in=%d/eos_out=%d]", 
+                      m->id, io->id, 
+                      io->request->method, io->request->authority, io->request->path,
+                      io->response? "http" : (io->rst_error? "reset" : "?"),
+                      io->response? io->response->http_status : io->rst_error,
+                      io->orphaned, io->worker_started, io->worker_done,
+                      io->eos_in, io->eos_out);
     }
-    return status;
+    else if (io) {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-%d): NULL -> %s %d"
+                      "[orph=%d/started=%d/done=%d/eos_in=%d/eos_out=%d]", 
+                      m->id, io->id, 
+                      io->response? "http" : (io->rst_error? "reset" : "?"),
+                      io->response? io->response->http_status : io->rst_error,
+                      io->orphaned, io->worker_started, io->worker_done,
+                      io->eos_in, io->eos_out);
+    }
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-NULL): NULL", m->id);
+    }
+    return 1;
 }

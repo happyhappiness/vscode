@@ -1,99 +1,156 @@
-int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */,
-                 apr_pool_t *ptemp, server_rec *s_main)
+static void *APR_THREAD_FUNC start_threads(apr_thread_t * thd, void *dummy)
 {
-    apr_pool_t *stderr_p;
-    server_rec *virt, *q;
-    int replace_stderr;
+    thread_starter *ts = dummy;
+    apr_thread_t **threads = ts->threads;
+    apr_threadattr_t *thread_attr = ts->threadattr;
+    int child_num_arg = ts->child_num_arg;
+    int my_child_num = child_num_arg;
+    proc_info *my_info;
+    apr_status_t rv;
+    int i;
+    int threads_created = 0;
+    int listener_started = 0;
+    int loops;
+    int prev_threads_created;
+    int max_recycled_pools = -1;
+    int good_methods[] = {APR_POLLSET_KQUEUE, APR_POLLSET_PORT, APR_POLLSET_EPOLL};
 
-
-    /* Register to throw away the read_handles list when we
-     * cleanup plog.  Upon fork() for the apache children,
-     * this read_handles list is closed so only the parent
-     * can relaunch a lost log child.  These read handles
-     * are always closed on exec.
-     * We won't care what happens to our stderr log child
-     * between log phases, so we don't mind losing stderr's
-     * read_handle a little bit early.
-     */
-    apr_pool_cleanup_register(p, &read_handles, ap_pool_cleanup_set_null,
-                              apr_pool_cleanup_null);
-
-    /* HERE we need a stdout log that outlives plog.
-     * We *presume* the parent of plog is a process
-     * or global pool which spans server restarts.
-     * Create our stderr_pool as a child of the plog's
-     * parent pool.
-     */
-    apr_pool_create(&stderr_p, apr_pool_parent_get(p));
-    apr_pool_tag(stderr_p, "stderr_pool");
-
-    if (open_error_log(s_main, 1, stderr_p) != OK) {
-        return DONE;
+    /* We must create the fd queues before we start up the listener
+     * and worker threads. */
+    worker_queue = apr_pcalloc(pchild, sizeof(*worker_queue));
+    rv = ap_queue_init(worker_queue, threads_per_child, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "ap_queue_init() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
 
-    replace_stderr = 1;
-    if (s_main->error_log) {
-        apr_status_t rv;
+    if (ap_max_mem_free != APR_ALLOCATOR_MAX_FREE_UNLIMITED) {
+        /* If we want to conserve memory, let's not keep an unlimited number of
+         * pools & allocators.
+         * XXX: This should probably be a separate config directive
+         */
+        max_recycled_pools = threads_per_child * 3 / 4 ;
+    }
+    rv = ap_queue_info_create(&worker_queue_info, pchild,
+                              threads_per_child, max_recycled_pools);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "ap_queue_info_create() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
 
-        /* Replace existing stderr with new log. */
-        apr_file_flush(s_main->error_log);
-        rv = apr_file_dup2(stderr_log, s_main->error_log, stderr_p);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main, APLOGNO(00092)
-                         "unable to replace stderr with error_log");
+    /* Create the timeout mutex and main pollset before the listener
+     * thread starts.
+     */
+    rv = apr_thread_mutex_create(&timeout_mutex, APR_THREAD_MUTEX_DEFAULT,
+                                 pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "creation of the timeout mutex failed.");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
+
+    /* Create the main pollset */
+    for (i = 0; i < sizeof(good_methods) / sizeof(void*); i++) {
+        rv = apr_pollset_create_ex(&event_pollset,
+                            threads_per_child*2, /* XXX don't we need more, to handle
+                                                * connections in K-A or lingering
+                                                * close?
+                                                */
+                            pchild, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY | APR_POLLSET_NODEFAULT,
+                            good_methods[i]);
+        if (rv == APR_SUCCESS) {
+            break;
         }
-        else {
-            /* We are done with stderr_pool, close it, killing
-             * the previous generation's stderr logger
+    }
+    if (rv != APR_SUCCESS) {
+        rv = apr_pollset_create(&event_pollset,
+                               threads_per_child*2, /* XXX don't we need more, to handle
+                                                     * connections in K-A or lingering
+                                                     * close?
+                                                     */
+                               pchild, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
+    }
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "apr_pollset_create with Thread Safety failed.");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02471)
+                 "start_threads: Using %s", apr_pollset_method_name(event_pollset));
+    worker_sockets = apr_pcalloc(pchild, threads_per_child
+                                 * sizeof(apr_socket_t *));
+
+    loops = prev_threads_created = 0;
+    while (1) {
+        /* threads_per_child does not include the listener thread */
+        for (i = 0; i < threads_per_child; i++) {
+            int status =
+                ap_scoreboard_image->servers[child_num_arg][i].status;
+
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
+            }
+
+            my_info = (proc_info *) ap_malloc(sizeof(proc_info));
+            my_info->pid = my_child_num;
+            my_info->tid = i;
+            my_info->sd = 0;
+
+            /* We are creating threads right now */
+            ap_update_child_status_from_indexes(my_child_num, i,
+                                                SERVER_STARTING, NULL);
+            /* We let each thread update its own scoreboard entry.  This is
+             * done because it lets us deal with tid better.
              */
-            if (stderr_pool)
-                apr_pool_destroy(stderr_pool);
-            stderr_pool = stderr_p;
-            replace_stderr = 0;
-            /*
-             * Now that we have dup'ed s_main->error_log to stderr_log
-             * close it and set s_main->error_log to stderr_log. This avoids
-             * this fd being inherited by the next piped logger who would
-             * keep open the writing end of the pipe that this one uses
-             * as stdin. This in turn would prevent the piped logger from
-             * exiting.
-             */
-             apr_file_close(s_main->error_log);
-             s_main->error_log = stderr_log;
+            rv = apr_thread_create(&threads[i], thread_attr,
+                                   worker_thread, my_info, pchild);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                             "apr_thread_create: unable to create worker thread");
+                /* let the parent decide how bad this really is */
+                clean_child_exit(APEXIT_CHILDSICK);
+            }
+            threads_created++;
+        }
+
+        /* Start the listener only when there are workers available */
+        if (!listener_started && threads_created) {
+            create_listener_thread(ts);
+            listener_started = 1;
+        }
+
+
+        if (start_thread_may_exit || threads_created == threads_per_child) {
+            break;
+        }
+        /* wait for previous generation to clean up an entry */
+        apr_sleep(apr_time_from_sec(1));
+        ++loops;
+        if (loops % 120 == 0) { /* every couple of minutes */
+            if (prev_threads_created == threads_created) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                             "child %" APR_PID_T_FMT " isn't taking over "
+                             "slots very quickly (%d of %d)",
+                             ap_my_pid, threads_created,
+                             threads_per_child);
+            }
+            prev_threads_created = threads_created;
         }
     }
-    /* note that stderr may still need to be replaced with something
-     * because it points to the old error log, or back to the tty
-     * of the submitter.
-     * XXX: This is BS - /dev/null is non-portable
-     *      errno-as-apr_status_t is also non-portable
+
+    /* What state should this child_main process be listed as in the
+     * scoreboard...?
+     *  ap_update_child_status_from_indexes(my_child_num, i, SERVER_STARTING,
+     *                                      (request_rec *) NULL);
+     *
+     *  This state should be listed separately in the scoreboard, in some kind
+     *  of process_status, not mixed in with the worker threads' status.
+     *  "life_status" is almost right, but it's in the worker's structure, and
+     *  the name could be clearer.   gla
      */
-    if (replace_stderr && freopen("/dev/null", "w", stderr) == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main, APLOGNO(00093)
-                     "unable to replace stderr with /dev/null");
-    }
-
-    for (virt = s_main->next; virt; virt = virt->next) {
-        if (virt->error_fname) {
-            for (q=s_main; q != virt; q = q->next) {
-                if (q->error_fname != NULL
-                    && strcmp(q->error_fname, virt->error_fname) == 0) {
-                    break;
-                }
-            }
-
-            if (q == virt) {
-                if (open_error_log(virt, 0, p) != OK) {
-                    return DONE;
-                }
-            }
-            else {
-                virt->error_log = q->error_log;
-            }
-        }
-        else {
-            virt->error_log = s_main->error_log;
-        }
-    }
-    return OK;
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
 }

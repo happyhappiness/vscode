@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(03356)
-                          "No sockaddr info for \"%s\"", w);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00299)
+                             "apr_proc_detach failed");

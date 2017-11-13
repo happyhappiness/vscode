@@ -1,1 +1,1 @@
-error("invalid key pattern: %s", key_);
+die(_("unrecognized argument: %s"), argv[1]);

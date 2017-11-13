@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "proxy: BALANCER: (%s). Forcing recovery for worker (%s)",
-                         balancer->name, (*worker)->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);

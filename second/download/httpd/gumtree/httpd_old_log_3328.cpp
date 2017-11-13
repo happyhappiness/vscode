@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno,
-                             (server_rec *)data,
-                             "Error accepting on cgid socket");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "parent: child %s",
+                          (rv == APR_CHILD_DONE) ? "done" : "notdone");

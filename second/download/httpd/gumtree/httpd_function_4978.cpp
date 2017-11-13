@@ -1,29 +1,35 @@
-static int add_name_vhost_config(apr_pool_t *p, server_rec *main_s,
-                                 server_rec *s, server_addr_rec *sar,
-                                 ipaddr_chain *ic)
+static void ap_apply_accept_filter(apr_pool_t *p, ap_listen_rec *lis,
+                                           server_rec *server)
 {
-    /* the first time we encounter a NameVirtualHost address
-     * ic->server will be NULL, on subsequent encounters
-     * ic->names will be non-NULL.
-     */
-    if (ic->names || ic->server == NULL) {
-        name_chain *nc = new_name_chain(p, s, sar);
-        nc->next = ic->names;
-        ic->names = nc;
-        ic->server = s;
-        if (sar->host_port != ic->sar->host_port) {
-            /* one of the two is a * port, the other isn't */
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_s,
-                         "VirtualHost %s:%u -- mixing * "
-                         "ports and non-* ports with "
-                         "a NameVirtualHost address is not supported,"
-                         " proceeding with undefined results",
-                         sar->virthost, sar->host_port);
-        }
-        return 1;
+    apr_socket_t *s = lis->sd;
+    const char *accf;
+    apr_status_t rv;
+    const char *proto;
+
+    proto = lis->protocol;
+
+    if (!proto) {
+        proto = ap_get_server_protocol(server);
     }
-    else {
-        /* IP-based vhosts are handled by the caller */
-        return 0;
+
+
+    accf = find_accf_name(server, proto);
+
+    if (accf) {
+#if APR_HAS_SO_ACCEPTFILTER
+        rv = apr_socket_accept_filter(s, apr_pstrdup(p, accf),
+                                      apr_pstrdup(p,""));
+        if (rv != APR_SUCCESS && !APR_STATUS_IS_ENOTIMPL(rv)) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, rv, p,
+                          "Failed to enable the '%s' Accept Filter",
+                          accf);
+        }
+#else
+        rv = apr_socket_opt_set(s, APR_TCP_DEFER_ACCEPT, 30);
+        if (rv != APR_SUCCESS && !APR_STATUS_IS_ENOTIMPL(rv)) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, rv, p,
+                              "Failed to enable APR_TCP_DEFER_ACCEPT");
+        }
+#endif
     }
 }

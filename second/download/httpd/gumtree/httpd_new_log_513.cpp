@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "copy_brigade_range() failed [%" APR_OFF_T_FMT
-                          "-%" APR_OFF_T_FMT ",%" APR_OFF_T_FMT "]",
-                          range_start, range_end, clength);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_ENOTIMPL, r->server,
+                     "proxy: client %s (%s) requested Transfer-Encoding body"
+                     " with Content-Length (C-L ignored)",
+                     c->remote_ip, c->remote_host ? c->remote_host: "");

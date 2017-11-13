@@ -1,34 +1,14 @@
-static int log_scripterror(request_rec *r, cgi_server_conf * conf, int ret,
-                           apr_status_t rv, char *error)
+static void join_start_thread(apr_thread_t * start_thread_id)
 {
-    apr_file_t *f = NULL;
-    apr_finfo_t finfo;
-    char time_str[APR_CTIME_LEN];
-    int log_flags = rv ? APLOG_ERR : APLOG_ERR;
+    apr_status_t rv, thread_rv;
 
-    ap_log_rerror(APLOG_MARK, log_flags, rv, r,
-                  "%s: %s", error, r->filename);
-
-    /* XXX Very expensive mainline case! Open, then getfileinfo! */
-    if (!conf->logname ||
-        ((apr_stat(&finfo, conf->logname,
-                   APR_FINFO_SIZE, r->pool) == APR_SUCCESS) &&
-         (finfo.size > conf->logbytes)) ||
-        (apr_file_open(&f, conf->logname,
-                       APR_APPEND|APR_WRITE|APR_CREATE, APR_OS_DEFAULT,
-                       r->pool) != APR_SUCCESS)) {
-        return ret;
+    start_thread_may_exit = 1;  /* tell it to give up in case it is still
+                                 * trying to take over slots from a
+                                 * previous generation
+                                 */
+    rv = apr_thread_join(&thread_rv, start_thread_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "apr_thread_join: unable to join the start " "thread");
     }
-
-    /* "%% [Wed Jun 19 10:53:21 1996] GET /cgi-bin/printenv HTTP/1.0" */
-    apr_ctime(time_str, apr_time_now());
-    apr_file_printf(f, "%%%% [%s] %s %s%s%s %s\n", time_str, r->method, r->uri,
-                    r->args ? "?" : "", r->args ? r->args : "", r->protocol);
-    /* "%% 500 /usr/local/apache/cgi-bin */
-    apr_file_printf(f, "%%%% %d %s\n", ret, r->filename);
-
-    apr_file_printf(f, "%%error\n%s\n", error);
-
-    apr_file_close(f);
-    return ret;
 }

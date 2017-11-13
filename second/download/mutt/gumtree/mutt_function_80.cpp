@@ -1,34 +1,77 @@
-static int print_val (FILE *fp, const char *pfx, const char *value,
-		      int flags, size_t col)
+static void pgpring_dump_keyblock (pgp_key_t p)
 {
-  while (value && *value)
+  pgp_uid_t *uid;
+  short first;
+  struct tm *tp;
+  time_t t;
+  
+  for (; p; p = p->next)
   {
-    if (fputc (*value, fp) == EOF)
-      return -1;
-    /* corner-case: break words longer than 998 chars by force,
-     * mandated by RfC5322 */
-    if (!(flags & CH_DISPLAY) && ++col >= 998)
+    first = 1;
+
+    if (p->flags & KEYFLAG_SECRET)
     {
-      if (fputs ("\n ", fp) < 0)
-	return -1;
-      col = 1;
+      if (p->flags & KEYFLAG_SUBKEY)
+	printf ("ssb:");
+      else
+	printf ("sec:");
     }
-    if (*value == '\n')
+    else 
     {
-      if (*(value + 1) && pfx && *pfx && fputs (pfx, fp) == EOF)
-	return -1;
-      /* for display, turn folding spaces into folding tabs */
-      if ((flags & CH_DISPLAY) && (*(value + 1) == ' ' || *(value + 1) == '\t'))
+      if (p->flags & KEYFLAG_SUBKEY)
+	printf ("sub:");
+      else
+	printf ("pub:");
+    }
+    
+    if (p->flags & KEYFLAG_REVOKED)
+      putchar ('r');
+    if (p->flags & KEYFLAG_EXPIRED)
+      putchar ('e');
+    if (p->flags & KEYFLAG_DISABLED)
+      putchar ('d');
+
+    for (uid = p->address; uid; uid = uid->next, first = 0)
+    {
+      if (!first)
       {
-	value++;
-	while (*value && (*value == ' ' || *value == '\t'))
-	  value++;
-	if (fputc ('\t', fp) == EOF)
-	  return -1;
-	continue;
+	printf ("uid:%c::::::::", gnupg_trustletter (uid->trust));
+	print_userid (uid->addr);
+	printf (":\n");
+      }
+      else
+      {
+	if (p->flags & KEYFLAG_SECRET)
+	  putchar ('u');
+	else
+	  putchar (gnupg_trustletter (uid->trust));
+
+	t = p->gen_time;
+	tp = gmtime (&t);
+
+	printf (":%d:%d:%s:%04d-%02d-%02d::::", p->keylen, p->numalg, p->keyid,
+		1900 + tp->tm_year, tp->tm_mon + 1, tp->tm_mday);
+	
+	print_userid (uid->addr);
+	printf ("::");
+
+	if(pgp_canencrypt(p->numalg))
+	  putchar ('e');
+	if(pgp_cansign(p->numalg))
+	  putchar ('s');
+	if (p->flags & KEYFLAG_DISABLED)
+	  putchar ('D');
+	printf (":\n");
+
+	if (dump_fingerprints) 
+          print_fingerprint (p);
+      }
+      
+      if (dump_signatures)
+      {
+	if (first) pgpring_dump_signatures (p->sigs);
+	pgpring_dump_signatures (uid->sigs);
       }
     }
-    value++;
   }
-  return 0;
 }

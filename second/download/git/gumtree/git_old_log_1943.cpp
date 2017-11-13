@@ -1,1 +1,1 @@
-printf("-%s\n", sha1_to_hex(commit->object.sha1));
+error("Can't verify ref %s", lock->ref_name);

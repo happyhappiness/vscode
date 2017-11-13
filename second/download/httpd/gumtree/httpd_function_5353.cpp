@@ -1,125 +1,164 @@
-apr_status_t h2_task_input_read(h2_task_input *input,
-                                ap_filter_t* f,
-                                apr_bucket_brigade* bb,
-                                ap_input_mode_t mode,
-                                apr_read_type_e block,
-                                apr_off_t readbytes)
+static void child_main(int child_num_arg)
 {
-    apr_status_t status = APR_SUCCESS;
-    apr_off_t bblen = 0;
-    
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                  "h2_task_input(%s): read, block=%d, mode=%d, readbytes=%ld", 
-                  input->env->id, block, mode, (long)readbytes);
-    
-    if (is_aborted(f)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task_input(%s): is aborted", 
-                      input->env->id);
-        return APR_ECONNABORTED;
+    apr_thread_t **threads;
+    apr_status_t rv;
+    thread_starter *ts;
+    apr_threadattr_t *thread_attr;
+    apr_thread_t *start_thread_id;
+
+    mpm_state = AP_MPMQ_STARTING; /* for benefit of any hooks that run as this
+                                   * child initializes
+                                   */
+    ap_my_pid = getpid();
+    ap_fatal_signal_child_setup(ap_server_conf);
+    apr_pool_create(&pchild, pconf);
+
+    /*stuff to do before we switch id's, so we have permissions.*/
+    ap_reopen_scoreboard(pchild, NULL, 0);
+
+    rv = SAFE_ACCEPT(apr_proc_mutex_child_init(&accept_mutex,
+                                               apr_proc_mutex_lockfile(accept_mutex),
+                                               pchild));
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                     "Couldn't initialize cross-process lock in child");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-    
-    if (mode == AP_MODE_INIT) {
-        return APR_SUCCESS;
+
+    if (ap_run_drop_privileges(pchild, ap_server_conf)) {
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-    
-    if (input->bb) {
-        status = apr_brigade_length(input->bb, 1, &bblen);
-        if (status != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, f->c,
-                          APLOGNO(02958) "h2_task_input(%s): brigade length fail", 
-                          input->env->id);
-            return status;
-        }
+
+    ap_run_child_init(pchild, ap_server_conf);
+
+    /* done with init critical section */
+
+    /* Just use the standard apr_setup_signal_thread to block all signals
+     * from being received.  The child processes no longer use signals for
+     * any communication with the parent process.
+     */
+    rv = apr_setup_signal_thread();
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                     "Couldn't initialize signal thread");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-    
-    if ((bblen == 0) && input->env->input_eos) {
-        return APR_EOF;
+
+    if (ap_max_requests_per_child) {
+        requests_this_child = ap_max_requests_per_child;
     }
-    
-    while ((bblen == 0) || (mode == AP_MODE_READBYTES && bblen < readbytes)) {
-        /* Get more data for our stream from mplx.
+    else {
+        /* coding a value of zero means infinity */
+        requests_this_child = INT_MAX;
+    }
+
+    /* Setup worker threads */
+
+    /* clear the storage; we may not create all our threads immediately,
+     * and we want a 0 entry to indicate a thread which was not created
+     */
+    threads = (apr_thread_t **)calloc(1,
+                                sizeof(apr_thread_t *) * threads_per_child);
+    if (threads == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
+                     "malloc: out of memory");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
+
+    ts = (thread_starter *)apr_palloc(pchild, sizeof(*ts));
+
+    apr_threadattr_create(&thread_attr, pchild);
+    /* 0 means PTHREAD_CREATE_JOINABLE */
+    apr_threadattr_detach_set(thread_attr, 0);
+
+    if (ap_thread_stacksize != 0) {
+        apr_threadattr_stacksize_set(thread_attr, ap_thread_stacksize);
+    }
+
+    ts->threads = threads;
+    ts->listener = NULL;
+    ts->child_num_arg = child_num_arg;
+    ts->threadattr = thread_attr;
+
+    rv = apr_thread_create(&start_thread_id, thread_attr, start_threads,
+                           ts, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "apr_thread_create: unable to create worker thread");
+        /* let the parent decide how bad this really is */
+        clean_child_exit(APEXIT_CHILDSICK);
+    }
+
+    mpm_state = AP_MPMQ_RUNNING;
+
+    /* If we are only running in one_process mode, we will want to
+     * still handle signals. */
+    if (one_process) {
+        /* Block until we get a terminating signal. */
+        apr_signal_thread(check_signal);
+        /* make sure the start thread has finished; signal_threads()
+         * and join_workers() depend on that
          */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      input->env->id, block, 
-                      (long)readbytes, (long)bblen);
-        
-        /* Although we sometimes get called with APR_NONBLOCK_READs, 
-         we seem to  fill our buffer blocking. Otherwise we get EAGAIN,
-         return that to our caller and everyone throws up their hands,
-         never calling us again. */
-        status = h2_mplx_in_read(input->env->mplx, APR_BLOCK_READ,
-                                 input->env->stream_id, input->bb, 
-                                 input->env->io);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): mplx in read returned",
-                      input->env->id);
-        if (status != APR_SUCCESS) {
-            return status;
-        }
-        status = apr_brigade_length(input->bb, 1, &bblen);
-        if (status != APR_SUCCESS) {
-            return status;
-        }
-        if ((bblen == 0) && (block == APR_NONBLOCK_READ)) {
-            return h2_util_has_eos(input->bb, 0)? APR_EOF : APR_EAGAIN;
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): mplx in read, %ld bytes in brigade",
-                      input->env->id, (long)bblen);
+        /* XXX join_start_thread() won't be awakened if one of our
+         *     threads encounters a critical error and attempts to
+         *     shutdown this child
+         */
+        join_start_thread(start_thread_id);
+        signal_threads(ST_UNGRACEFUL); /* helps us terminate a little more
+                           * quickly than the dispatch of the signal thread
+                           * beats the Pipe of Death and the browsers
+                           */
+        /* A terminating signal was received. Now join each of the
+         * workers to clean them up.
+         *   If the worker already exited, then the join frees
+         *   their resources and returns.
+         *   If the worker hasn't exited, then this blocks until
+         *   they have (then cleans up).
+         */
+        join_workers(ts->listener, threads);
     }
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                  "h2_task_input(%s): read, mode=%d, block=%d, "
-                  "readbytes=%ld, queued=%ld",
-                  input->env->id, mode, block, 
-                  (long)readbytes, (long)bblen);
-           
-    if (!APR_BRIGADE_EMPTY(input->bb)) {
-        if (mode == AP_MODE_EXHAUSTIVE) {
-            /* return all we have */
-            return h2_util_move(bb, input->bb, readbytes, 0, 
-                                "task_input_read(exhaustive)");
-        }
-        else if (mode == AP_MODE_READBYTES) {
-            return h2_util_move(bb, input->bb, readbytes, 0, 
-                                "task_input_read(readbytes)");
-        }
-        else if (mode == AP_MODE_SPECULATIVE) {
-            /* return not more than was asked for */
-            return h2_util_copy(bb, input->bb, readbytes,  
-                                "task_input_read(speculative)");
-        }
-        else if (mode == AP_MODE_GETLINE) {
-            /* we are reading a single LF line, e.g. the HTTP headers */
-            status = apr_brigade_split_line(bb, input->bb, block, 
-                                            HUGE_STRING_LEN);
-            if (APLOGctrace1(f->c)) {
-                char buffer[1024];
-                apr_size_t len = sizeof(buffer)-1;
-                apr_brigade_flatten(bb, buffer, &len);
-                buffer[len] = 0;
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                              "h2_task_input(%s): getline: %s",
-                              input->env->id, buffer);
+    else { /* !one_process */
+        /* remove SIGTERM from the set of blocked signals...  if one of
+         * the other threads in the process needs to take us down
+         * (e.g., for MaxRequestsPerChild) it will send us SIGTERM
+         */
+        unblock_signal(SIGTERM);
+        apr_signal(SIGTERM, dummy_signal_handler);
+        /* Watch for any messages from the parent over the POD */
+        while (1) {
+            rv = ap_worker_pod_check(pod);
+            if (rv == AP_NORESTART) {
+                /* see if termination was triggered while we slept */
+                switch(terminate_mode) {
+                case ST_GRACEFUL:
+                    rv = AP_GRACEFUL;
+                    break;
+                case ST_UNGRACEFUL:
+                    rv = AP_RESTART;
+                    break;
+                }
             }
-            return status;
+            if (rv == AP_GRACEFUL || rv == AP_RESTART) {
+                /* make sure the start thread has finished;
+                 * signal_threads() and join_workers depend on that
+                 */
+                join_start_thread(start_thread_id);
+                signal_threads(rv == AP_GRACEFUL ? ST_GRACEFUL : ST_UNGRACEFUL);
+                break;
+            }
         }
-        else {
-            /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
-             * to support it. Seems to work. */
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                          APLOGNO(02942) 
-                          "h2_task_input, unsupported READ mode %d", mode);
-            return APR_ENOTIMPL;
-        }
+
+        /* A terminating signal was received. Now join each of the
+         * workers to clean them up.
+         *   If the worker already exited, then the join frees
+         *   their resources and returns.
+         *   If the worker hasn't exited, then this blocks until
+         *   they have (then cleans up).
+         */
+        join_workers(ts->listener, threads);
     }
-    
-    if (is_aborted(f)) {
-        return APR_ECONNABORTED;
-    }
-    
-    return (block == APR_NONBLOCK_READ)? APR_EAGAIN : APR_EOF;
+
+    free(threads);
+
+    clean_child_exit(resource_shortage ? APEXIT_CHILDSICK : 0);
 }

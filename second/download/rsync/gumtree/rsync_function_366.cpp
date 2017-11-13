@@ -1,338 +1,183 @@
-int main(int argc,char *argv[])
-{
-    int pid, status = 0, status2 = 0;
-    int opt;
-    int option_index;
-    char *shell_cmd = NULL;
-    char *shell_machine = NULL;
-    char *shell_path = NULL;
-    char *shell_user = NULL;
-    char *p;
-    int f_in,f_out;
-    struct file_list *flist;
-    char *local_name = NULL;
+void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
+{  
+  int fd;
+  struct stat st;
+  struct map_struct *buf;
+  struct sum_struct *s;
+  int statret;
+  struct file_struct *file = &flist->files[i];
 
-    signal(SIGUSR1, sigusr1_handler);
+  if (verbose > 2)
+    fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);
 
-    starttime = time(NULL);
-    am_root = (getuid() == 0);
+  statret = link_stat(fname,&st);
 
-    /* we set a 0 umask so that correct file permissions can be
-       carried across */
-    orig_umask = (int)umask(0);
+  if (S_ISDIR(file->mode)) {
+    if (dry_run) return;
+    if (statret == 0 && !S_ISDIR(st.st_mode)) {
+      if (unlink(fname) != 0) {
+	fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
+	return;
+      }
+      statret = -1;
+    }
+    if (statret != 0 && mkdir(fname,file->mode) != 0 && errno != EEXIST) {
+	    if (!(relative_paths && errno==ENOENT && 
+		  create_directory_path(fname)==0 && 
+		  mkdir(fname,file->mode)==0)) {
+		    fprintf(FERROR,"mkdir %s : %s (2)\n",
+			    fname,strerror(errno));
+	    }
+    }
+    if (set_perms(fname,file,NULL,0) && verbose) 
+      fprintf(FINFO,"%s/\n",fname);
+    return;
+  }
 
-    while ((opt = getopt_long(argc, argv, 
-			      short_options, long_options, &option_index)) 
-	   != -1) {
-      switch (opt) 
-	{
-	case OPT_VERSION:
-	  printf("rsync version %s  protocol version %d\n",
-		 VERSION,PROTOCOL_VERSION);
-	  exit_cleanup(0);
-
-	case OPT_SUFFIX:
-	  backup_suffix = optarg;
-	  break;
-
-	case OPT_RSYNC_PATH:
-	  rsync_path = optarg;
-	  break;
-
-	case 'I':
-	  ignore_times = 1;
-	  break;
-
-	case 'x':
-	  one_file_system=1;
-	  break;
-
-	case OPT_DELETE:
-	  delete_mode = 1;
-	  break;
-
-	case OPT_FORCE:
-	  force_delete = 1;
-	  break;
-
-	case OPT_NUMERIC_IDS:
-	  numeric_ids = 1;
-	  break;
-
-	case OPT_EXCLUDE:
-	  add_exclude(optarg);
-	  break;
-
-	case OPT_EXCLUDE_FROM:
-	  add_exclude_file(optarg,1);
-	  break;
-
-	case 'h':
-	  usage(FINFO);
-	  exit_cleanup(0);
-
-	case 'b':
-	  make_backups=1;
-	  break;
-
-	case 'n':
-	  dry_run=1;
-	  break;
-
-	case 'S':
-	  sparse_files=1;
-	  break;
-
-	case 'C':
-	  cvs_exclude=1;
-	  break;
-
-	case 'u':
-	  update_only=1;
-	  break;
-
-	case 'l':
-	  preserve_links=1;
-	  break;
-
-	case 'L':
-	  copy_links=1;
-	  break;
-
-	case 'W':
-	  whole_file=1;
-	  break;
-
-	case 'H':
-#if SUPPORT_HARD_LINKS
-	  preserve_hard_links=1;
-#else 
-	  fprintf(FERROR,"ERROR: hard links not supported on this platform\n");
-	  exit_cleanup(1);
-#endif
-	  break;
-
-	case 'p':
-	  preserve_perms=1;
-	  break;
-
-	case 'o':
-	  preserve_uid=1;
-	  break;
-
-	case 'g':
-	  preserve_gid=1;
-	  break;
-
-	case 'D':
-	  preserve_devices=1;
-	  break;
-
-	case 't':
-	  preserve_times=1;
-	  break;
-
-	case 'c':
-	  always_checksum=1;
-	  break;
-
-	case 'v':
-	  verbose++;
-	  break;
-
-	case 'a':
-	  recurse=1;
+  if (preserve_links && S_ISLNK(file->mode)) {
 #if SUPPORT_LINKS
-	  preserve_links=1;
-#endif
-	  preserve_perms=1;
-	  preserve_times=1;
-	  preserve_gid=1;
-	  if (am_root) {
-	    preserve_devices=1;
-	    preserve_uid=1;
-	  }
-	  break;
-
-	case OPT_SERVER:
-	  am_server = 1;
-	  break;
-
-	case OPT_SENDER:
-	  if (!am_server) {
-	    usage(FERROR);
-	    exit_cleanup(1);
-	  }
-	  sender = 1;
-	  break;
-
-	case 'r':
-	  recurse = 1;
-	  break;
-
-	case 'R':
-	  relative_paths = 1;
-	  break;
-
-	case 'e':
-	  shell_cmd = optarg;
-	  break;
-
-	case 'B':
-	  block_size = atoi(optarg);
-	  break;
-
-	case OPT_TIMEOUT:
-	  io_timeout = atoi(optarg);
-	  break;
-
-	case 'T':
-		tmpdir = optarg;
-		break;
-
-        case 'z':
-	  do_compression = 1;
-	  break;
-
-	default:
-	  /* fprintf(FERROR,"bad option -%c\n",opt); */
-	  exit_cleanup(1);
+    char lnk[MAXPATHLEN];
+    int l;
+    if (statret == 0) {
+      l = readlink(fname,lnk,MAXPATHLEN-1);
+      if (l > 0) {
+	lnk[l] = 0;
+	if (strcmp(lnk,file->link) == 0) {
+	  set_perms(fname,file,&st,1);
+	  return;
 	}
-    }
-
-    while (optind--) {
-      argc--;
-      argv++;
-    }
-
-    signal(SIGCHLD,SIG_IGN);
-    signal(SIGINT,SIGNAL_CAST sig_int);
-    signal(SIGPIPE,SIGNAL_CAST sig_int);
-    signal(SIGHUP,SIGNAL_CAST sig_int);
-
-    if (dry_run)
-      verbose = MAX(verbose,1);
-
-#ifndef SUPPORT_LINKS
-    if (!am_server && preserve_links) {
-	    fprintf(FERROR,"ERROR: symbolic links not supported\n");
-	    exit_cleanup(1);
-    }
-#endif
-
-    if (am_server) {
-      setup_protocol(STDOUT_FILENO,STDIN_FILENO);
-	
-      if (sender) {
-	recv_exclude_list(STDIN_FILENO);
-	if (cvs_exclude)
-	  add_cvs_excludes();
-	do_server_sender(argc,argv);
-      } else {
-	do_server_recv(argc,argv);
       }
-      exit_cleanup(0);
     }
-
-    if (argc < 2) {
-      usage(FERROR);
-      exit_cleanup(1);
-    }
-
-    p = strchr(argv[0],':');
-
-    if (p) {
-      sender = 0;
-      *p = 0;
-      shell_machine = argv[0];
-      shell_path = p+1;
-      argc--;
-      argv++;
+    if (!dry_run) unlink(fname);
+    if (!dry_run && symlink(file->link,fname) != 0) {
+      fprintf(FERROR,"link %s -> %s : %s\n",
+	      fname,file->link,strerror(errno));
     } else {
-      sender = 1;
+      set_perms(fname,file,NULL,0);
+      if (verbose) 
+	fprintf(FINFO,"%s -> %s\n",
+		fname,file->link);
+    }
+#endif
+    return;
+  }
 
-      p = strchr(argv[argc-1],':');
-      if (!p) {
-	local_server = 1;
-      }
-
-      if (local_server) {
-	shell_machine = NULL;
-	shell_path = argv[argc-1];
+#ifdef HAVE_MKNOD
+  if (am_root && preserve_devices && IS_DEVICE(file->mode)) {
+    if (statret != 0 || 
+	st.st_mode != file->mode ||
+	st.st_rdev != file->rdev) {	
+      if (!dry_run) unlink(fname);
+      if (verbose > 2)
+	fprintf(FERROR,"mknod(%s,0%o,0x%x)\n",
+		fname,(int)file->mode,(int)file->rdev);
+      if (!dry_run && 
+	  mknod(fname,file->mode,file->rdev) != 0) {
+	fprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));
       } else {
-	*p = 0;
-	shell_machine = argv[argc-1];
-	shell_path = p+1;
+	set_perms(fname,file,NULL,0);
+	if (verbose)
+	  fprintf(FINFO,"%s\n",fname);
       }
-      argc--;
+    } else {
+      set_perms(fname,file,&st,1);
     }
-
-    if (shell_machine) {
-      p = strchr(shell_machine,'@');
-      if (p) {
-	*p = 0;
-	shell_user = shell_machine;
-	shell_machine = p+1;
-      }
-    }
-
-    if (verbose > 3) {
-      fprintf(FINFO,"cmd=%s machine=%s user=%s path=%s\n",
-	      shell_cmd?shell_cmd:"",
-	      shell_machine?shell_machine:"",
-	      shell_user?shell_user:"",
-	      shell_path?shell_path:"");
-    }
-    
-    if (!sender && argc != 1) {
-      usage(FERROR);
-      exit_cleanup(1);
-    }
-
-    pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
-
-    setup_protocol(f_out,f_in);
-
-#if HAVE_SETLINEBUF
-    setlinebuf(FINFO);
-    setlinebuf(FERROR);
+    return;
+  }
 #endif
 
-    if (verbose > 3) 
-      fprintf(FINFO,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,sender,recurse);
+  if (preserve_hard_links && check_hard_link(file)) {
+    if (verbose > 1)
+      fprintf(FINFO,"%s is a hard link\n",file->name);
+    return;
+  }
 
-    if (sender) {
-      if (cvs_exclude)
-	add_cvs_excludes();
-      if (delete_mode) 
-	send_exclude_list(f_out);
-      flist = send_file_list(f_out,argc,argv);
-      if (verbose > 3) 
-	fprintf(FINFO,"file list sent\n");
-      send_files(flist,f_out,f_in);
-      if (verbose > 3)
-	fprintf(FINFO,"waiting on %d\n",pid);
-      waitpid(pid, &status, 0);
-      report(-1);
-      exit_cleanup(status);
+  if (!S_ISREG(file->mode)) {
+    fprintf(FERROR,"skipping non-regular file %s\n",fname);
+    return;
+  }
+
+  if (statret == -1) {
+    if (errno == ENOENT) {
+      write_int(f_out,i);
+      if (!dry_run) send_sums(NULL,f_out);
+    } else {
+      if (verbose > 1)
+	fprintf(FERROR,"recv_generator failed to open %s\n",fname);
+    }
+    return;
+  }
+
+  if (!S_ISREG(st.st_mode)) {
+    /* its not a regular file on the receiving end, but it is on the
+       sending end. If its a directory then skip it (too dangerous to
+       do a recursive deletion??) otherwise try to unlink it */
+    if (S_ISDIR(st.st_mode)) {
+      fprintf(FERROR,"ERROR: %s is a directory\n",fname);
+      return;
+    }
+    if (unlink(fname) != 0) {
+      fprintf(FERROR,"%s : not a regular file (generator)\n",fname);
+      return;
     }
 
-    send_exclude_list(f_out);
+    /* now pretend the file didn't exist */
+    write_int(f_out,i);
+    if (!dry_run) send_sums(NULL,f_out);    
+    return;
+  }
 
-    flist = recv_file_list(f_in);
-    if (!flist || flist->count == 0) {
-      fprintf(FINFO,"nothing to do\n");
-      exit_cleanup(0);
-    }
+  if (update_only && st.st_mtime > file->modtime) {
+    if (verbose > 1)
+      fprintf(FERROR,"%s is newer\n",fname);
+    return;
+  }
 
-    local_name = get_local_name(flist,argv[0]);
+  if (skip_file(fname, file, &st)) {
+    set_perms(fname,file,&st,1);
+    return;
+  }
 
-    status2 = do_recv(f_in,f_out,flist,local_name);
+  if (dry_run) {
+    write_int(f_out,i);
+    return;
+  }
 
-    report(f_in);
+  if (whole_file) {
+    write_int(f_out,i);
+    send_sums(NULL,f_out);    
+    return;
+  }
 
-    waitpid(pid, &status, 0);
+  /* open the file */  
+  fd = open(fname,O_RDONLY);
 
-    return status | status2;
+  if (fd == -1) {
+    fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
+    fprintf(FERROR,"skipping %s\n",fname);
+    return;
+  }
+
+  if (st.st_size > 0) {
+    buf = map_file(fd,st.st_size);
+  } else {
+    buf = NULL;
+  }
+
+  if (verbose > 3)
+    fprintf(FERROR,"gen mapped %s of size %d\n",fname,(int)st.st_size);
+
+  s = generate_sums(buf,st.st_size,block_size);
+
+  if (verbose > 2)
+    fprintf(FERROR,"sending sums for %d\n",i);
+
+  write_int(f_out,i);
+  send_sums(s,f_out);
+  write_flush(f_out);
+
+  close(fd);
+  if (buf) unmap_file(buf);
+
+  free_sums(s);
 }

@@ -1,2 +1,1 @@
-error("unable to mmap '%s': %s",
-			      config_filename, strerror(errno));
+error("duplicate parent %s ignored", sha1_to_hex(sha1));

@@ -1,10 +1,9 @@
 fputs(
-"              ing  for  hours due to slow networks or links going down.  Since\n"
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
-"              out will decrease in accuracy as the specified timeout increases\n"
-"              in decimal precision.  See also the --connect-timeout option.\n"
+"              The given speed is measured in bytes/second, unless a suffix  is\n"
+"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
+"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --login-options <options>\n"
+"              The  given  rate  is the average speed counted during the entire\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
 , stdout);

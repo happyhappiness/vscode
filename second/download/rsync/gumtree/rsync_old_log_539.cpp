@@ -1,1 +1,2 @@
-fprintf(FINFO,"recv_files phase=%d\n",phase);
+fprintf(FERROR,"failed to set times on %s : %s\n",
+	      fname,strerror(errno));

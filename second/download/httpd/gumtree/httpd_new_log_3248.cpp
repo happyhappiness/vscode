@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(01337)
-                      "Could not parse expr \"%s\" in %s: %s", expr,
-                      ctx->r->filename, err);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01747)
+                              "auth_ldap authorize: require ldap-filter: "
+                              "authorization failed [%s][%s]",
+                              ldc->reason, ldap_err2string(result));

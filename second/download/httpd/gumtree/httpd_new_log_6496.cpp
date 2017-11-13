@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02337)
-                 "%s shm[%d] (0x%pp) for %s", action, i, (void *)shm,
-                 balancer->s->name);
+ap_rputs("<th>HC Method</th><th>HC Interval</th><th>Passes</th><th>Fails</th><th>HC uri</th><th>HC Expr</th>", r);

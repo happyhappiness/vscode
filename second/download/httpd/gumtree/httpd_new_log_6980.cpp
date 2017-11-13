@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE5, 0, s,
-                         "Run of %s watchdog.",
-                         HCHECK_WATHCHDOG_NAME);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                                         "Checking %s worker: %s  [%d] (%pp)", balancer->s->name,
+                                         worker->s->name, worker->s->method, worker);

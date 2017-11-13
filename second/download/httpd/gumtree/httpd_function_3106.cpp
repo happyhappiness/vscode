@@ -1,8 +1,25 @@
-static void dbd_child_init(apr_pool_t *p, server_rec *s)
+static apr_status_t initialize_secret(server_rec *s)
 {
-  apr_status_t rv = dbd_setup_init(p, s);
-  if (rv) {
-    ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                 "DBD: child init failed!");
-  }
+    apr_status_t status;
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                 "Digest: generating secret for digest authentication ...");
+
+#if APR_HAS_RANDOM
+    status = apr_generate_random_bytes(secret, sizeof(secret));
+#else
+#error APR random number support is missing; you probably need to install the truerand library.
+#endif
+
+    if (status != APR_SUCCESS) {
+        char buf[120];
+        ap_log_error(APLOG_MARK, APLOG_CRIT, status, s,
+                     "Digest: error generating secret: %s",
+                     apr_strerror(status, buf, sizeof(buf)));
+        return status;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "Digest: done");
+
+    return APR_SUCCESS;
 }

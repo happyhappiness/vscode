@@ -1,9 +1,11 @@
 fputs(
-"              The file will be saved in the current working directory. If  you\n"
-"              want  the  file  saved  in  a different directory, make sure you\n"
-"              change the current working directory before invoking  curl  with\n"
-"              this option.\n"
+"              you'll instead get the whole document.\n"
 "\n"
-"              The  remote  file  name  to use for saving is extracted from the\n"
-"              given URL, nothing else, and if it already  exists  it  will  be\n"
+"              FTP and SFTP range downloads only  support  the  simple  'start-\n"
+"              stop'  syntax  (optionally with one of the numbers omitted). FTP\n"
+"              use depends on the extended FTP command SIZE.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --raw  (HTTP) When used, it disables all internal HTTP decoding of con-\n"
 , stdout);

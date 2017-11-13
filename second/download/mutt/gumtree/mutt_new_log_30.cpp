@@ -1,1 +1,1 @@
-fprintf (stderr, "%s\n", err.data);
+printf("\nCurrent attachments settings:\n\n");

@@ -1,122 +1,142 @@
-static int check_user_access(request_rec *r)
+static void ssl_init_proxy_certs(server_rec *s,
+                                 apr_pool_t *p,
+                                 apr_pool_t *ptemp,
+                                 modssl_ctx_t *mctx)
 {
-    authz_groupfile_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                      &authz_groupfile_module);
-    char *user = r->user;
-    int m = r->method_number;
-    int required_group = 0;
-    register int x;
-    const char *t, *w;
-    apr_table_t *grpstatus = NULL;
-    const apr_array_header_t *reqs_arr = ap_requires(r);
-    require_line *reqs;
-    const char *filegroup = NULL;
-    char *reason = NULL;
+    int n, ncerts = 0;
+    STACK_OF(X509_INFO) *sk;
+    STACK_OF(X509) *chain;
+    X509_STORE_CTX *sctx;
+    X509_STORE *store = SSL_CTX_get_cert_store(mctx->ssl_ctx);
+    modssl_pk_proxy_t *pkp = mctx->pkp;
 
-    /* If there is no group file - then we are not
-     * configured. So decline.
-     */
-    if (!(conf->groupfile)) {
-        return DECLINED;
+    SSL_CTX_set_client_cert_cb(mctx->ssl_ctx,
+                               ssl_callback_proxy_cert);
+
+    if (!(pkp->cert_file || pkp->cert_path)) {
+        return;
     }
 
-    if (!reqs_arr) {
-        return DECLINED; /* XXX change from legacy */
+    sk = sk_X509_INFO_new_null();
+
+    if (pkp->cert_file) {
+        SSL_X509_INFO_load_file(ptemp, sk, pkp->cert_file);
     }
 
-    /* If there's no user, it's a misconfiguration */
-    if (!user) {
-        return HTTP_INTERNAL_SERVER_ERROR;
+    if (pkp->cert_path) {
+        SSL_X509_INFO_load_path(ptemp, sk, pkp->cert_path);
     }
 
-    reqs = (require_line *)reqs_arr->elts;
+    if ((ncerts = sk_X509_INFO_num(sk)) <= 0) {
+        sk_X509_INFO_free(sk);
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "no client certs found for SSL proxy");
+        return;
+    }
 
-    for (x = 0; x < reqs_arr->nelts; x++) {
+    /* Check that all client certs have got certificates and private
+     * keys. */
+    for (n = 0; n < ncerts; n++) {
+        X509_INFO *inf = sk_X509_INFO_value(sk, n);
 
-        if (!(reqs[x].method_mask & (AP_METHOD_BIT << m))) {
-            continue;
+        if (!inf->x509 || !inf->x_pkey || !inf->x_pkey->dec_pkey ||
+            inf->enc_data) {
+            sk_X509_INFO_free(sk);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
+                         "incomplete client cert configured for SSL proxy "
+                         "(missing or encrypted private key?)");
+            ssl_die();
+            return;
+        }
+        
+        if (X509_check_private_key(inf->x509, inf->x_pkey->dec_pkey) != 1) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
+                           "proxy client certificate and "
+                           "private key do not match");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+            ssl_die();
+            return;
+        }
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "loaded %d client certs for SSL proxy",
+                 ncerts);
+    pkp->certs = sk;
+
+    if (!pkp->ca_cert_file || !store) {
+        return;
+    }
+
+    /* If SSLProxyMachineCertificateChainFile is configured, load all
+     * the CA certs and have OpenSSL attempt to construct a full chain
+     * from each configured end-entity cert up to a root.  This will
+     * allow selection of the correct cert given a list of root CA
+     * names in the certificate request from the server.  */
+    pkp->ca_certs = (STACK_OF(X509) **) apr_pcalloc(p, ncerts * sizeof(sk));
+    sctx = X509_STORE_CTX_new();
+
+    if (!sctx) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
+                     "SSL proxy client cert initialization failed");
+        ssl_log_ssl_error(APLOG_MARK, APLOG_EMERG, s);
+        ssl_die();
+    }
+
+    X509_STORE_load_locations(store, pkp->ca_cert_file, NULL);
+
+    for (n = 0; n < ncerts; n++) {
+        int i;
+
+        X509_INFO *inf = sk_X509_INFO_value(pkp->certs, n);
+        X509_NAME *name = X509_get_subject_name(inf->x509);
+        char *cert_dn = SSL_X509_NAME_to_string(ptemp, name, 0);
+        X509_STORE_CTX_init(sctx, store, inf->x509, NULL);
+
+        /* Attempt to verify the client cert */
+        if (X509_verify_cert(sctx) != 1) {
+            int err = X509_STORE_CTX_get_error(sctx);
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "SSL proxy client cert chain verification failed for %s: %s",
+                         cert_dn, X509_verify_cert_error_string(err));
         }
 
-        t = reqs[x].requirement;
-        w = ap_getword_white(r->pool, &t);
+        /* Clear X509_verify_cert errors */
+        ERR_clear_error();
 
-        /* needs mod_authz_owner to be present */
-        if (!strcasecmp(w, "file-group")) {
-            filegroup = apr_table_get(r->notes, AUTHZ_GROUP_NOTE);
+        /* Obtain a copy of the verified chain */
+        chain = X509_STORE_CTX_get1_chain(sctx);
 
-            if (!filegroup) {
-                /* mod_authz_owner is not present or not
-                 * authoritative. We are just a helper module for testing
-                 * group membership, so we don't care and decline.
-                 */
-                continue;
-            }
-        }
+        if (chain != NULL) {
+            /* Discard end entity cert from the chain */
+            X509_free(sk_X509_shift(chain));
 
-        if (!strcasecmp(w, "group") || filegroup) {
-            required_group = 1; /* remember the requirement */
-
-            /* create group table only if actually needed. */
-            if (!grpstatus) {
-                apr_status_t status;
-
-                status = groups_for_user(r->pool, user, conf->groupfile,
-                                         &grpstatus);
-
-                if (status != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                                  "Could not open group file: %s",
-                                  conf->groupfile);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-
-                if (apr_table_elts(grpstatus)->nelts == 0) {
-                    /* no groups available, so exit immediately */
-                    reason = apr_psprintf(r->pool,
-                                          "user doesn't appear in group file "
-                                          "(%s).", conf->groupfile);
-                    break;
-                }
-            }
-
-            if (filegroup) {
-                if (apr_table_get(grpstatus, filegroup)) {
-                    return OK;
-                }
-
-                if (conf->authoritative) {
-                    reason = apr_psprintf(r->pool,
-                                          "file group '%s' does not match.",
-                                          filegroup);
-                    break;
-                }
-
-                /* now forget the filegroup, thus alternatively require'd
-                   groups get a real chance */
-                filegroup = NULL;
+            if ((i = sk_X509_num(chain)) > 0) {
+                /* Store the chain for later use */
+                pkp->ca_certs[n] = chain;
             }
             else {
-                while (t[0]) {
-                    w = ap_getword_conf(r->pool, &t);
-                    if (apr_table_get(grpstatus, w)) {
-                        return OK;
-                    }
+                /* Discard empty chain */
+                sk_X509_pop_free(chain, X509_free);
+                pkp->ca_certs[n] = NULL;
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "loaded %i intermediate CA%s for cert %i (%s)",
+                         i, i == 1 ? "" : "s", n, cert_dn);
+            if (i > 0) {
+                int j;
+                for (j = 0; j < i; j++) {
+                    X509_NAME *ca_name = X509_get_subject_name(sk_X509_value(chain, j));
+                    char *ca_dn = SSL_X509_NAME_to_string(ptemp, ca_name, 0);
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "%i: %s", j, ca_dn);
                 }
             }
         }
+
+        /* get ready for next X509_STORE_CTX_init */
+        X509_STORE_CTX_cleanup(sctx);
     }
 
-    /* No applicable "require group" for this method seen */
-    if (!required_group || !conf->authoritative) {
-        return DECLINED;
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Authorization of user %s to access %s failed, reason: %s",
-                  r->user, r->uri,
-                  reason ? reason : "user is not part of the "
-                                    "'require'ed group(s).");
-
-    ap_note_auth_failure(r);
-    return HTTP_UNAUTHORIZED;
+    X509_STORE_CTX_free(sctx);
 }

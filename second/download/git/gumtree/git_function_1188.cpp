@@ -1,161 +1,100 @@
-static const char *prepare_index(int argc, const char **argv, const char *prefix,
-				 const struct commit *current_head, int is_status)
+const char *help_unknown_cmd(const char *cmd)
 {
-	struct string_list partial;
-	struct pathspec pathspec;
-	int refresh_flags = REFRESH_QUIET;
+	int i, n, best_similarity = 0;
+	struct cmdnames main_cmds, other_cmds;
 
-	if (is_status)
-		refresh_flags |= REFRESH_UNMERGED;
-	parse_pathspec(&pathspec, 0,
-		       PATHSPEC_PREFER_FULL,
-		       prefix, argv);
+	memset(&main_cmds, 0, sizeof(main_cmds));
+	memset(&other_cmds, 0, sizeof(other_cmds));
+	memset(&aliases, 0, sizeof(aliases));
 
-	if (read_cache_preload(&pathspec) < 0)
-		die(_("index file corrupt"));
+	git_config(git_unknown_cmd_config, NULL);
 
-	if (interactive) {
-		char *old_index_env = NULL;
-		hold_locked_index(&index_lock, 1);
+	load_command_list("git-", &main_cmds, &other_cmds);
 
-		refresh_cache_or_die(refresh_flags);
+	add_cmd_list(&main_cmds, &aliases);
+	add_cmd_list(&main_cmds, &other_cmds);
+	QSORT(main_cmds.names, main_cmds.cnt, cmdname_compare);
+	uniq(&main_cmds);
 
-		if (write_locked_index(&the_index, &index_lock, CLOSE_LOCK))
-			die(_("unable to create temporary index"));
+	/* This abuses cmdname->len for levenshtein distance */
+	for (i = 0, n = 0; i < main_cmds.cnt; i++) {
+		int cmp = 0; /* avoid compiler stupidity */
+		const char *candidate = main_cmds.names[i]->name;
 
-		old_index_env = getenv(INDEX_ENVIRONMENT);
-		setenv(INDEX_ENVIRONMENT, index_lock.filename.buf, 1);
+		/*
+		 * An exact match means we have the command, but
+		 * for some reason exec'ing it gave us ENOENT; probably
+		 * it's a bad interpreter in the #! line.
+		 */
+		if (!strcmp(candidate, cmd))
+			die(_(bad_interpreter_advice), cmd, cmd);
 
-		if (interactive_add(argc, argv, prefix, patch_interactive) != 0)
-			die(_("interactive add failed"));
-
-		if (old_index_env && *old_index_env)
-			setenv(INDEX_ENVIRONMENT, old_index_env, 1);
-		else
-			unsetenv(INDEX_ENVIRONMENT);
-
-		discard_cache();
-		read_cache_from(index_lock.filename.buf);
-		if (update_main_cache_tree(WRITE_TREE_SILENT) == 0) {
-			if (reopen_lock_file(&index_lock) < 0)
-				die(_("unable to write index file"));
-			if (write_locked_index(&the_index, &index_lock, CLOSE_LOCK))
-				die(_("unable to update temporary index"));
-		} else
-			warning(_("Failed to update main cache tree"));
-
-		commit_style = COMMIT_NORMAL;
-		return index_lock.filename.buf;
-	}
-
-	/*
-	 * Non partial, non as-is commit.
-	 *
-	 * (1) get the real index;
-	 * (2) update the_index as necessary;
-	 * (3) write the_index out to the real index (still locked);
-	 * (4) return the name of the locked index file.
-	 *
-	 * The caller should run hooks on the locked real index, and
-	 * (A) if all goes well, commit the real index;
-	 * (B) on failure, rollback the real index.
-	 */
-	if (all || (also && pathspec.nr)) {
-		hold_locked_index(&index_lock, 1);
-		add_files_to_cache(also ? prefix : NULL, &pathspec, 0);
-		refresh_cache_or_die(refresh_flags);
-		update_main_cache_tree(WRITE_TREE_SILENT);
-		if (write_locked_index(&the_index, &index_lock, CLOSE_LOCK))
-			die(_("unable to write new_index file"));
-		commit_style = COMMIT_NORMAL;
-		return index_lock.filename.buf;
-	}
-
-	/*
-	 * As-is commit.
-	 *
-	 * (1) return the name of the real index file.
-	 *
-	 * The caller should run hooks on the real index,
-	 * and create commit from the_index.
-	 * We still need to refresh the index here.
-	 */
-	if (!only && !pathspec.nr) {
-		hold_locked_index(&index_lock, 1);
-		refresh_cache_or_die(refresh_flags);
-		if (active_cache_changed
-		    || !cache_tree_fully_valid(active_cache_tree)) {
-			update_main_cache_tree(WRITE_TREE_SILENT);
-			active_cache_changed = 1;
+		/* Does the candidate appear in common_cmds list? */
+		while (n < ARRAY_SIZE(common_cmds) &&
+		       (cmp = strcmp(common_cmds[n].name, candidate)) < 0)
+			n++;
+		if ((n < ARRAY_SIZE(common_cmds)) && !cmp) {
+			/* Yes, this is one of the common commands */
+			n++; /* use the entry from common_cmds[] */
+			if (starts_with(candidate, cmd)) {
+				/* Give prefix match a very good score */
+				main_cmds.names[i]->len = 0;
+				continue;
+			}
 		}
-		if (active_cache_changed) {
-			if (write_locked_index(&the_index, &index_lock,
-					       COMMIT_LOCK))
-				die(_("unable to write new_index file"));
-		} else {
-			rollback_lock_file(&index_lock);
+
+		main_cmds.names[i]->len =
+			levenshtein(cmd, candidate, 0, 2, 1, 3) + 1;
+	}
+
+	QSORT(main_cmds.names, main_cmds.cnt, levenshtein_compare);
+
+	if (!main_cmds.cnt)
+		die(_("Uh oh. Your system reports no Git commands at all."));
+
+	/* skip and count prefix matches */
+	for (n = 0; n < main_cmds.cnt && !main_cmds.names[n]->len; n++)
+		; /* still counting */
+
+	if (main_cmds.cnt <= n) {
+		/* prefix matches with everything? that is too ambiguous */
+		best_similarity = SIMILARITY_FLOOR + 1;
+	} else {
+		/* count all the most similar ones */
+		for (best_similarity = main_cmds.names[n++]->len;
+		     (n < main_cmds.cnt &&
+		      best_similarity == main_cmds.names[n]->len);
+		     n++)
+			; /* still counting */
+	}
+	if (autocorrect && n == 1 && SIMILAR_ENOUGH(best_similarity)) {
+		const char *assumed = main_cmds.names[0]->name;
+		main_cmds.names[0] = NULL;
+		clean_cmdnames(&main_cmds);
+		fprintf_ln(stderr,
+			   _("WARNING: You called a Git command named '%s', "
+			     "which does not exist.\n"
+			     "Continuing under the assumption that you meant '%s'"),
+			cmd, assumed);
+		if (autocorrect > 0) {
+			fprintf_ln(stderr, _("in %0.1f seconds automatically..."),
+				(float)autocorrect/10.0);
+			sleep_millisec(autocorrect * 100);
 		}
-		commit_style = COMMIT_AS_IS;
-		return get_index_file();
+		return assumed;
 	}
 
-	/*
-	 * A partial commit.
-	 *
-	 * (0) find the set of affected paths;
-	 * (1) get lock on the real index file;
-	 * (2) update the_index with the given paths;
-	 * (3) write the_index out to the real index (still locked);
-	 * (4) get lock on the false index file;
-	 * (5) reset the_index from HEAD;
-	 * (6) update the_index the same way as (2);
-	 * (7) write the_index out to the false index file;
-	 * (8) return the name of the false index file (still locked);
-	 *
-	 * The caller should run hooks on the locked false index, and
-	 * create commit from it.  Then
-	 * (A) if all goes well, commit the real index;
-	 * (B) on failure, rollback the real index;
-	 * In either case, rollback the false index.
-	 */
-	commit_style = COMMIT_PARTIAL;
+	fprintf_ln(stderr, _("git: '%s' is not a git command. See 'git --help'."), cmd);
 
-	if (whence != FROM_COMMIT) {
-		if (whence == FROM_MERGE)
-			die(_("cannot do a partial commit during a merge."));
-		else if (whence == FROM_CHERRY_PICK)
-			die(_("cannot do a partial commit during a cherry-pick."));
+	if (SIMILAR_ENOUGH(best_similarity)) {
+		fprintf_ln(stderr,
+			   Q_("\nThe most similar command is",
+			      "\nThe most similar commands are",
+			   n));
+
+		for (i = 0; i < n; i++)
+			fprintf(stderr, "\t%s\n", main_cmds.names[i]->name);
 	}
 
-	string_list_init(&partial, 1);
-	if (list_paths(&partial, !current_head ? NULL : "HEAD", prefix, &pathspec))
-		exit(1);
-
-	discard_cache();
-	if (read_cache() < 0)
-		die(_("cannot read the index"));
-
-	hold_locked_index(&index_lock, 1);
-	add_remove_files(&partial);
-	refresh_cache(REFRESH_QUIET);
-	update_main_cache_tree(WRITE_TREE_SILENT);
-	if (write_locked_index(&the_index, &index_lock, CLOSE_LOCK))
-		die(_("unable to write new_index file"));
-
-	hold_lock_file_for_update(&false_lock,
-				  git_path("next-index-%"PRIuMAX,
-					   (uintmax_t) getpid()),
-				  LOCK_DIE_ON_ERROR);
-
-	create_base_index(current_head);
-	add_remove_files(&partial);
-	refresh_cache(REFRESH_QUIET);
-
-	if (write_locked_index(&the_index, &false_lock, CLOSE_LOCK))
-		die(_("unable to write temporary index file"));
-
-	discard_cache();
-	read_cache_from(false_lock.filename.buf);
-
-	return false_lock.filename.buf;
+	exit(1);
 }

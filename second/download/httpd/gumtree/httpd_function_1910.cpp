@@ -1,82 +1,43 @@
-static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static void do_rewritelog(request_rec *r, int level, char *perdir,
+                          const char *fmt, ...)
 {
-    static int restart_num = 0;
-    int startup = 0;
+    char *logline, *text;
+    const char *rhost, *rname;
+    int redir;
+    request_rec *req;
+    va_list ap;
 
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
+    rhost = ap_get_remote_host(r->connection, r->per_dir_config,
+                               REMOTE_NOLOOKUP, NULL);
+    rname = ap_get_remote_logname(r);
+
+    for (redir=0, req=r; req->prev; req = req->prev) {
+        ++redir;
     }
 
-    if (ap_threads_limit > HARD_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxThreads of %d exceeds compile-time "
-                         "limit of", ap_threads_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the HARD_THREAD_LIMIT"
-                         "define in");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxThreads of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         ap_threads_limit, HARD_THREAD_LIMIT);
-        }
-        ap_threads_limit = HARD_THREAD_LIMIT;
-    }
-    else if (ap_threads_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxThreads of %d not allowed, increasing to 1",
-                         ap_threads_limit);
-        }
-        ap_threads_limit = 1;
-    }
+    va_start(ap, fmt);
+    text = apr_pvsprintf(r->pool, fmt, ap);
+    va_end(ap);
 
-    /* ap_threads_to_start > ap_threads_limit effectively checked in
-     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
-     */
-    if (ap_threads_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartThreads of %d not allowed, increasing to 1",
-                         ap_threads_to_start);
-        }
-        ap_threads_to_start = 1;
-    }
+    logline = apr_psprintf(r->pool, "%s %s %s [%s/sid#%pp][rid#%pp/%s%s%s] "
+                                    "%s%s%s%s" APR_EOL_STR,
+                           rhost ? rhost : "UNKNOWN-HOST",
+                           rname ? rname : "-",
+                           r->user ? (*r->user ? r->user : "\"\"") : "-",
+                           ap_get_server_name(r),
+                           (void *)(r->server),
+                           (void *)r,
+                           r->main ? "subreq" : "initial",
+                           redir ? "/redir#" : "",
+                           redir ? apr_itoa(r->pool, redir) : "",
+                           perdir ? "[perdir " : "",
+                           perdir ? perdir : "",
+                           perdir ? "] ": "",
+                           text);
 
-    if (ap_threads_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_threads_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_threads_min_free);
-        }
-        ap_threads_min_free = 1;
-    }
+    AP_REWRITE_LOG((uintptr_t)r, level, r->main ? 0 : 1, (char *)ap_get_server_name(r), logline);
 
-    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG + level, 0, r, logline);
 
-    return OK;
+    return;
 }

@@ -1,1 +1,1 @@
-error_errno("cannot open fd %d", in_fd);
+warning_errno("unable to %s %s", op, file);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                      "status_handler(%s): checking for incoming trailers", 
-                      task->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02974)
+                "Watchdog: found parent providers.");

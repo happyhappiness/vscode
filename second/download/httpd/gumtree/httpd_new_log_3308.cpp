@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, data->r, APLOGNO(01221)
-                          "poll failed waiting for CGI child");
+ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf, APLOGNO(02120)
+                     "make_secure_socket: failed to get a socket for %s",
+                     addr);

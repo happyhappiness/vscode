@@ -1,18 +1,40 @@
-apr_status_t h2_mplx_do_task(h2_mplx *m, struct h2_task *task)
+static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
+                                   apr_file_t *child_in)
 {
-    apr_status_t status;
-    AP_DEBUG_ASSERT(m);
-    if (m->aborted) {
-        return APR_ECONNABORTED;
+    apr_status_t rv;
+    int lcnt = 0;
+    ap_listen_rec *lr;
+    LPWSAPROTOCOL_INFO  lpWSAProtocolInfo;
+    apr_size_t BytesWritten;
+
+    /* Run the chain of open sockets. For each socket, duplicate it
+     * for the target process then send the WSAPROTOCOL_INFO
+     * (returned by dup socket) to the child.
+     */
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        apr_os_sock_t nsd;
+        lpWSAProtocolInfo = apr_pcalloc(p, sizeof(WSAPROTOCOL_INFO));
+        apr_os_sock_get(&nsd,lr->sd);
+        ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                     "Parent: Duplicating socket %d and sending it to child process %d",
+                     nsd, dwProcessId);
+        if (WSADuplicateSocket(nsd, dwProcessId,
+                               lpWSAProtocolInfo) == SOCKET_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", lr->sd );
+            return -1;
+        }
+
+        if ((rv = apr_file_write_full(child_in, lpWSAProtocolInfo,
+                                      sizeof(WSAPROTOCOL_INFO), &BytesWritten))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                         "Parent: Unable to write duplicated socket %d to the child.", lr->sd );
+            return -1;
+        }
     }
-    status = apr_thread_mutex_lock(m->lock);
-    if (APR_SUCCESS == status) {
-        /* TODO: needs to sort queue by priority */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                      "h2_mplx: do task(%s)", task->id);
-        h2_tq_append(m->q, task);
-        apr_thread_mutex_unlock(m->lock);
-    }
-    workers_register(m);
-    return status;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Parent: Sent %d listeners to child %d", lcnt, dwProcessId);
+    return 0;
 }

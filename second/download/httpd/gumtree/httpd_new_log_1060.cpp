@@ -1,2 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: failed to initialise prepared SQL statements");
+ap_log_perror(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0, a,
+                 "%s: Could not reliably determine the server's fully qualified "
+                 "domain name, using %s for ServerName",
+                 ap_server_argv0, server_hostname);

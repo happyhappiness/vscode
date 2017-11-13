@@ -1,0 +1,1 @@
+die("unable to parse command-line config");

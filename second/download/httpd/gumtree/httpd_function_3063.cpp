@@ -1,52 +1,80 @@
-static apr_status_t hm_listen(hm_ctx_t *ctx)
+static const char *add_member(cmd_parms *cmd, void *dummy, const char *arg)
 {
-    apr_status_t rv;
+    server_rec *s = cmd->server;
+    proxy_server_conf *conf =
+    ap_get_module_config(s->module_config, &proxy_module);
+    proxy_balancer *balancer;
+    proxy_worker *worker;
+    char *path = cmd->path;
+    char *name = NULL;
+    char *word;
+    apr_table_t *params = apr_table_make(cmd->pool, 5);
+    const apr_array_header_t *arr;
+    const apr_table_entry_t *elts;
+    int i;
 
-    rv = apr_socket_create(&ctx->sock, ctx->mcast_addr->family,
-                           SOCK_DGRAM, APR_PROTO_UDP, ctx->p);
+    if (cmd->path)
+        path = apr_pstrdup(cmd->pool, cmd->path);
 
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to create listening socket.");
-        return rv;
+    while (*arg) {
+        char *val;
+        word = ap_getword_conf(cmd->pool, &arg);
+        val = strchr(word, '=');
+
+        if (!val) {
+            if (!path)
+                path = word;
+            else if (!name)
+                name = word;
+            else {
+                if (cmd->path)
+                    return "BalancerMember can not have a balancer name when defined in a location";
+                else
+                    return "Invalid BalancerMember parameter. Parameter must "
+                           "be in the form 'key=value'";
+            }
+        } else {
+            *val++ = '\0';
+            apr_table_setn(params, word, val);
+        }
     }
+    if (!path)
+        return "BalancerMember must define balancer name when outside <Proxy > section";
+    if (!name)
+        return "BalancerMember must define remote proxy server";
 
-    rv = apr_socket_opt_set(ctx->sock, APR_SO_REUSEADDR, 1);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to set APR_SO_REUSEADDR to 1 on socket.");
-        return rv;
+    ap_str_tolower(path);   /* lowercase scheme://hostname */
+
+    /* Try to find existing worker */
+    worker = ap_proxy_get_worker(cmd->temp_pool, conf, name);
+    if (!worker) {
+        const char *err;
+        if ((err = ap_proxy_add_worker(&worker, cmd->pool, conf, name)) != NULL)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+    } else {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
+                     "worker %s already used by another worker", worker->name);
     }
+    PROXY_COPY_CONF_PARAMS(worker, conf);
 
-
-    rv = apr_socket_opt_set(ctx->sock, APR_SO_NONBLOCK, 1);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to set APR_SO_NONBLOCK to 1 on socket.");
-        return rv;
+    arr = apr_table_elts(params);
+    elts = (const apr_table_entry_t *)arr->elts;
+    for (i = 0; i < arr->nelts; i++) {
+        const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
+                                           elts[i].val);
+        if (err)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
     }
-
-    rv = apr_socket_bind(ctx->sock, ctx->mcast_addr);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to bind on socket.");
-        return rv;
+    /* Try to find the balancer */
+    balancer = ap_proxy_get_balancer(cmd->temp_pool, conf, path);
+    if (!balancer) {
+        const char *err = ap_proxy_add_balancer(&balancer,
+                                                cmd->pool,
+                                                conf, path);
+        if (err)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
     }
-
-    rv = apr_mcast_join(ctx->sock, ctx->mcast_addr, NULL, NULL);
-
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to join multicast group");
-        return rv;
-    }
-
-    rv = apr_mcast_loopback(ctx->sock, 1);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to accept localhost mulitcast on socket.");
-        return rv;
-    }
-
-    return APR_SUCCESS;
+    /* Add the worker to the load balancer */
+    ap_proxy_add_worker_to_balancer(cmd->pool, balancer, worker);
+    return NULL;
 }

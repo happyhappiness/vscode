@@ -1,1 +1,1 @@
-out_of_memory("add_nocompress_suffixes");
+fprintf(stderr, "adding `%s'\n", buf);

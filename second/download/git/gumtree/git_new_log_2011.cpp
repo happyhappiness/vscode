@@ -1,1 +1,1 @@
-die("BUG: pack_name does not end in .pack");
+warning("ignoring broken ref %s", refname);

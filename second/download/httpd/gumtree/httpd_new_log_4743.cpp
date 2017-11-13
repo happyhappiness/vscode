@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00411)
-                 "Parent: Sent %d listeners to child %lu", lcnt, dwProcessId);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02257)
+                          "could not buffer message body to allow "
+                          "SSL renegotiation to proceed");

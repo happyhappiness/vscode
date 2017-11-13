@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+add_recent_object(sha1, st.st_mtime, data);

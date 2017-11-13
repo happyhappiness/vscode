@@ -1,1 +1,2 @@
-error("Data too large to fit into virtual memory space.");
+printf("Multiple merge bases found. Using the first "
+				"(%.7s)\n", oid_to_hex(base_oid));

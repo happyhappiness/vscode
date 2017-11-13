@@ -1,1 +1,1 @@
-fprintf(FINFO,"nothing to do\n");
+fprintf(FINFO,"clearing exclude list\n");

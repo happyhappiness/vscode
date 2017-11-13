@@ -1,1 +1,1 @@
-out_of_memory("bitbag_set_bit");
+out_of_memory(msg);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00116)
-                             "Discarding unrecognized directive `%s' in AllowOverrideList.",
-                             argv[i]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01042)
+                                  "apr_socket_opt_set(APR_TCP_NODELAY): "
+                                  "Failed to set");

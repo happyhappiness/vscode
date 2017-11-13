@@ -1,95 +1,139 @@
-static int show_one_sig_status (gpgme_ctx_t ctx, int idx, STATE *s)
+int mutt_write_rfc822_header (FILE *fp, ENVELOPE *env, BODY *attach,
+			      int mode, int privacy)
 {
-  const char *fpr;
-  gpgme_key_t key = NULL;
-  int i, anybad = 0, anywarn = 0;
-  unsigned int sum;
-  gpgme_verify_result_t result;
-  gpgme_signature_t sig;
-  gpgme_error_t err = GPG_ERR_NO_ERROR;
+  char buffer[LONG_STRING];
+  char *p, *q;
+  LIST *tmp = env->userhdrs;
+  int has_agent = 0; /* user defined user-agent header field exists */
 
-  result = gpgme_op_verify_result (ctx);
-  if (result)
+  if (mode == 0 && !privacy)
+    fputs (mutt_make_date (buffer, sizeof(buffer)), fp);
+
+  /* OPTUSEFROM is not consulted here so that we can still write a From:
+   * field if the user sets it with the `my_hdr' command
+   */
+  if (env->from && !privacy)
+  {
+    buffer[0] = 0;
+    rfc822_write_address (buffer, sizeof (buffer), env->from, 0);
+    fprintf (fp, "From: %s\n", buffer);
+  }
+
+  if (env->sender && !privacy)
+  {
+    buffer[0] = 0;
+    rfc822_write_address (buffer, sizeof (buffer), env->sender, 0);
+    fprintf (fp, "Sender: %s\n", buffer);
+  }
+
+  if (env->to)
+  {
+    fputs ("To: ", fp);
+    mutt_write_address_list (env->to, fp, 4, 0);
+  }
+  else if (mode > 0)
+    fputs ("To: \n", fp);
+
+  if (env->cc)
+  {
+    fputs ("Cc: ", fp);
+    mutt_write_address_list (env->cc, fp, 4, 0);
+  }
+  else if (mode > 0)
+    fputs ("Cc: \n", fp);
+
+  if (env->bcc)
+  {
+    if(mode != 0 || option(OPTWRITEBCC))
     {
-      /* FIXME: this code should use a static variable and remember
-	 the current position in the list of signatures, IMHO.
-	 -moritz.  */
+      fputs ("Bcc: ", fp);
+      mutt_write_address_list (env->bcc, fp, 5, 0);
+    }
+  }
+  else if (mode > 0)
+    fputs ("Bcc: \n", fp);
 
-      for (i = 0, sig = result->signatures; sig && (i < idx);
-           i++, sig = sig->next)
-        ;
-      if (! sig)
-	return -1;		/* Signature not found.  */
+  if (env->subject)
+    mutt_write_one_header (fp, "Subject", env->subject, NULL, 0, 0);
+  else if (mode == 1)
+    fputs ("Subject: \n", fp);
 
-      if (signature_key)
-	{
-	  gpgme_key_release (signature_key);
-	  signature_key = NULL;
-	}
-      
-      fpr = sig->fpr;
-      sum = sig->summary;
+  /* save message id if the user has set it */
+  if (env->message_id && !privacy)
+    fprintf (fp, "Message-ID: %s\n", env->message_id);
 
-      if (gpg_err_code (sig->status) != GPG_ERR_NO_ERROR)
-	anybad = 1;
+  if (env->reply_to)
+  {
+    fputs ("Reply-To: ", fp);
+    mutt_write_address_list (env->reply_to, fp, 10, 0);
+  }
+  else if (mode > 0)
+    fputs ("Reply-To: \n", fp);
 
-      err = gpgme_get_key (ctx, fpr, &key, 0); /* secret key?  */
-      if (! err)
-	{
-	  if (! signature_key)
-	    signature_key = key;
-	}
-      else
-       {
-          key = NULL; /* Old gpgme versions did not set KEY to NULL on
-                         error.   Do it here to avoid a double free. */
-       }
+  if (env->mail_followup_to)
+  {
+    fputs ("Mail-Followup-To: ", fp);
+    mutt_write_address_list (env->mail_followup_to, fp, 18, 0);
+  }
 
-      if (!s || !s->fpout || !(s->flags & M_DISPLAY))
-	; /* No state information so no way to print anything. */
-      else if (err)
-	{
-          state_attach_puts (_("Error getting key information: "), s);
-          state_attach_puts ( gpgme_strerror (err), s );
-          state_attach_puts ("\n", s);
-          anybad = 1;
-	}
-      else if ((sum & GPGME_SIGSUM_GREEN))
-      {
-        print_smime_keyinfo (_("Good signature from:"), sig, key, s);
-	if (show_sig_summary (sum, ctx, key, idx, s, sig))
-	  anywarn = 1;
-	show_one_sig_validity (ctx, idx, s);
-      }
-      else if ((sum & GPGME_SIGSUM_RED))
-      {
-        print_smime_keyinfo (_("*BAD* signature from:"), sig, key, s);
-        show_sig_summary (sum, ctx, key, idx, s, sig);
-      }
-      else if (!anybad && key && (key->protocol == GPGME_PROTOCOL_OpenPGP))
-      { /* We can't decide (yellow) but this is a PGP key with a good
-           signature, so we display what a PGP user expects: The name,
-	   fingerprint and the key validity (which is neither fully or
-	   ultimate). */
-        print_smime_keyinfo (_("Good signature from:"), sig, key, s);
-	show_one_sig_validity (ctx, idx, s);
-	show_fingerprint (key,s);
-	if (show_sig_summary (sum, ctx, key, idx, s, sig))
-	  anywarn = 1;
-      }
-      else /* can't decide (yellow) */
-      {
-        print_smime_keyinfo (_("Problem signature from:"), sig, key, s);
-        state_attach_puts (_("               expires: "), s);
-        print_time (sig->exp_timestamp, s);
-        state_attach_puts ("\n", s);
-	show_sig_summary (sum, ctx, key, idx, s, sig);
-        anywarn = 1;
-      }
-
-      if (key != signature_key)
-	gpgme_key_release (key);
+  if (mode <= 0)
+  {
+    if (env->references)
+    {
+      fputs ("References:", fp);
+      mutt_write_references (env->references, fp, 10);
+      fputc('\n', fp);
     }
 
-  return anybad ? 1 : anywarn ? 2 : 0;
+    /* Add the MIME headers */
+    fputs ("MIME-Version: 1.0\n", fp);
+    mutt_write_mime_header (attach, fp);
+  }
+
+  if (env->in_reply_to)
+  {
+    fputs ("In-Reply-To:", fp);
+    mutt_write_references (env->in_reply_to, fp, 0);
+    fputc ('\n', fp);
+  }
+
+  /* Add any user defined headers */
+  for (; tmp; tmp = tmp->next)
+  {
+    if ((p = strchr (tmp->data, ':')))
+    {
+      q = p;
+
+      *p = '\0';
+
+      p = skip_email_wsp(p + 1);
+      if (!*p)
+      {
+	*q = ':';
+	continue;  /* don't emit empty fields. */
+      }
+
+      /* check to see if the user has overridden the user-agent field */
+      if (!ascii_strncasecmp ("user-agent", tmp->data, 10))
+      {
+	has_agent = 1;
+	if (privacy)
+	{
+	  *q = ':';
+	  continue;
+	}
+      }
+
+      mutt_write_one_header (fp, tmp->data, p, NULL, 0, 0);
+      *q = ':';
+    }
+  }
+
+  if (mode == 0 && !privacy && option (OPTXMAILER) && !has_agent)
+  {
+    /* Add a vanity header */
+    fprintf (fp, "User-Agent: Mutt/%s (%s)\n", MUTT_VERSION, ReleaseDate);
+  }
+
+  return (ferror (fp) == 0 ? 0 : -1);
 }

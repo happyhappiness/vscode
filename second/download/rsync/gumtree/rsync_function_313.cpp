@@ -1,48 +1,48 @@
-void match_sums(int f,struct sum_struct *s,struct map_struct *buf,off_t len)
+static void send_directory(int f,struct file_list *flist,char *dir)
 {
-  char file_sum[MD4_SUM_LENGTH];
+  DIR *d;
+  struct dirent *di;
+  char fname[MAXPATHLEN];
+  int l;
+  char *p;
 
-  last_match = 0;
-  false_alarms = 0;
-  tag_hits = 0;
-  matches=0;
-  data_transfer=0;
-
-  sum_init();
-
-  if (len > 0 && s->count>0) {
-    build_hash_table(s);
-
-    if (verbose > 2) 
-      fprintf(FERROR,"built hash table\n");
-
-    hash_search(f,s,buf,len);
-
-    if (verbose > 2) 
-      fprintf(FERROR,"done hash search\n");
-  } else {
-    matched(f,s,buf,len,-1);
+  d = opendir(dir);
+  if (!d) {
+    fprintf(FERROR,"%s: %s\n",
+	    dir,strerror(errno));
+    return;
   }
 
-  sum_end(file_sum);
+  strncpy(fname,dir,MAXPATHLEN-1);
+  fname[MAXPATHLEN-1]=0;
+  l = strlen(fname);
+  if (fname[l-1] != '/') {
+        if (l == MAXPATHLEN-1) {
+              fprintf(FERROR,"skipping long-named directory %s\n",fname);
+              closedir(d);
+              return;
+        }
+	  strcat(fname,"/");
+	  l++;
+  }
+  p = fname + strlen(fname);
 
-  if (remote_version >= 14) {
-    if (verbose > 2)
-      fprintf(FERROR,"sending file_sum\n");
-    write_buf(f,file_sum,MD4_SUM_LENGTH);
+  if (cvs_exclude) {
+    if (strlen(fname) + strlen(".cvsignore") <= MAXPATHLEN-1) {
+      strcpy(p,".cvsignore");
+      local_exclude_list = make_exclude_list(fname,NULL,0);
+    } else {
+      fprintf(FERROR,"cannot cvs-exclude in long-named directory %s\n",fname);
+    }
+  }  
+
+  for (di=readdir(d); di; di=readdir(d)) {
+    if (strcmp(di->d_name,".")==0 ||
+	strcmp(di->d_name,"..")==0)
+      continue;
+    strncpy(p,di->d_name,MAXPATHLEN-(l+1));
+    send_file_name(f,flist,fname);
   }
 
-  if (targets) {
-    free(targets);
-    targets=NULL;
-  }
-
-  if (verbose > 2)
-    fprintf(FERROR, "false_alarms=%d tag_hits=%d matches=%d\n",
-	    false_alarms, tag_hits, matches);
-
-  total_tag_hits += tag_hits;
-  total_false_alarms += false_alarms;
-  total_matches += matches;
-  total_data_transfer += data_transfer;
+  closedir(d);
 }

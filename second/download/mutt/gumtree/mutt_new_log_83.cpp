@@ -1,1 +1,1 @@
-(fputs (pfx, fp);
+fprintf (f, "Content-Disposition: %s", dispstr[a->disposition]);

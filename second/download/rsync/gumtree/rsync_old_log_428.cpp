@@ -1,1 +1,1 @@
-fprintf(FINFO,"receiver read %ld\n",(long)read_total());
+fprintf(FINFO,"skipping directory %s\n",fname);

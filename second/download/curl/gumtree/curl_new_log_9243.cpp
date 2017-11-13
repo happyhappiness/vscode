@@ -1,11 +1,11 @@
 fputs(
-"              You  can  use  the  login  options  to specify protocol specific\n"
-"              options that may be used during authentication. At present  only\n"
-"              IMAP,  POP3 and SMTP support login options. For more information\n"
-"              about the login options please see RFC 2384, RFC 5092  and  IETF\n"
-"              draft draft-earhart-url-smtp-00.txt (Added in 7.34.0).\n"
+"              If you also use the -Y, --speed-limit option, that  option  will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --mail-auth <address>\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the  connection(s).   Note  that  port  numbers  by nature are a\n"
 , stdout);

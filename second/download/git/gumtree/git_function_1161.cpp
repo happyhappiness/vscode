@@ -1,77 +1,100 @@
-int finish_delayed_checkout(struct checkout *state)
+const char *help_unknown_cmd(const char *cmd)
 {
-	int errs = 0;
-	struct string_list_item *filter, *path;
-	struct delayed_checkout *dco = state->delayed_checkout;
+	int i, n, best_similarity = 0;
+	struct cmdnames main_cmds, other_cmds;
 
-	if (!state->delayed_checkout)
-		return errs;
+	memset(&main_cmds, 0, sizeof(main_cmds));
+	memset(&other_cmds, 0, sizeof(other_cmds));
+	memset(&aliases, 0, sizeof(aliases));
 
-	dco->state = CE_RETRY;
-	while (dco->filters.nr > 0) {
-		for_each_string_list_item(filter, &dco->filters) {
-			struct string_list available_paths = STRING_LIST_INIT_NODUP;
+	git_config(git_unknown_cmd_config, NULL);
 
-			if (!async_query_available_blobs(filter->string, &available_paths)) {
-				/* Filter reported an error */
-				errs = 1;
-				filter->string = "";
+	load_command_list("git-", &main_cmds, &other_cmds);
+
+	add_cmd_list(&main_cmds, &aliases);
+	add_cmd_list(&main_cmds, &other_cmds);
+	QSORT(main_cmds.names, main_cmds.cnt, cmdname_compare);
+	uniq(&main_cmds);
+
+	/* This abuses cmdname->len for levenshtein distance */
+	for (i = 0, n = 0; i < main_cmds.cnt; i++) {
+		int cmp = 0; /* avoid compiler stupidity */
+		const char *candidate = main_cmds.names[i]->name;
+
+		/*
+		 * An exact match means we have the command, but
+		 * for some reason exec'ing it gave us ENOENT; probably
+		 * it's a bad interpreter in the #! line.
+		 */
+		if (!strcmp(candidate, cmd))
+			die(_(bad_interpreter_advice), cmd, cmd);
+
+		/* Does the candidate appear in common_cmds list? */
+		while (n < ARRAY_SIZE(common_cmds) &&
+		       (cmp = strcmp(common_cmds[n].name, candidate)) < 0)
+			n++;
+		if ((n < ARRAY_SIZE(common_cmds)) && !cmp) {
+			/* Yes, this is one of the common commands */
+			n++; /* use the entry from common_cmds[] */
+			if (starts_with(candidate, cmd)) {
+				/* Give prefix match a very good score */
+				main_cmds.names[i]->len = 0;
 				continue;
-			}
-			if (available_paths.nr <= 0) {
-				/*
-				 * Filter responded with no entries. That means
-				 * the filter is done and we can remove the
-				 * filter from the list (see
-				 * "string_list_remove_empty_items" call below).
-				 */
-				filter->string = "";
-				continue;
-			}
-
-			/*
-			 * In dco->paths we store a list of all delayed paths.
-			 * The filter just send us a list of available paths.
-			 * Remove them from the list.
-			 */
-			filter_string_list(&dco->paths, 0,
-				&remove_available_paths, &available_paths);
-
-			for_each_string_list_item(path, &available_paths) {
-				struct cache_entry* ce;
-
-				if (!path->util) {
-					error("external filter '%s' signaled that '%s' "
-					      "is now available although it has not been "
-					      "delayed earlier",
-					      filter->string, path->string);
-					errs |= 1;
-
-					/*
-					 * Do not ask the filter for available blobs,
-					 * again, as the filter is likely buggy.
-					 */
-					filter->string = "";
-					continue;
-				}
-				ce = index_file_exists(state->istate, path->string,
-						       strlen(path->string), 0);
-				errs |= (ce ? checkout_entry(ce, state, NULL) : 1);
 			}
 		}
-		string_list_remove_empty_items(&dco->filters, 0);
+
+		main_cmds.names[i]->len =
+			levenshtein(cmd, candidate, 0, 2, 1, 3) + 1;
 	}
-	string_list_clear(&dco->filters, 0);
 
-	/* At this point we should not have any delayed paths anymore. */
-	errs |= dco->paths.nr;
-	for_each_string_list_item(path, &dco->paths) {
-		error("'%s' was not filtered properly", path->string);
+	QSORT(main_cmds.names, main_cmds.cnt, levenshtein_compare);
+
+	if (!main_cmds.cnt)
+		die(_("Uh oh. Your system reports no Git commands at all."));
+
+	/* skip and count prefix matches */
+	for (n = 0; n < main_cmds.cnt && !main_cmds.names[n]->len; n++)
+		; /* still counting */
+
+	if (main_cmds.cnt <= n) {
+		/* prefix matches with everything? that is too ambiguous */
+		best_similarity = SIMILARITY_FLOOR + 1;
+	} else {
+		/* count all the most similar ones */
+		for (best_similarity = main_cmds.names[n++]->len;
+		     (n < main_cmds.cnt &&
+		      best_similarity == main_cmds.names[n]->len);
+		     n++)
+			; /* still counting */
 	}
-	string_list_clear(&dco->paths, 0);
+	if (autocorrect && n == 1 && SIMILAR_ENOUGH(best_similarity)) {
+		const char *assumed = main_cmds.names[0]->name;
+		main_cmds.names[0] = NULL;
+		clean_cmdnames(&main_cmds);
+		fprintf_ln(stderr,
+			   _("WARNING: You called a Git command named '%s', "
+			     "which does not exist.\n"
+			     "Continuing under the assumption that you meant '%s'"),
+			cmd, assumed);
+		if (autocorrect > 0) {
+			fprintf_ln(stderr, _("in %0.1f seconds automatically..."),
+				(float)autocorrect/10.0);
+			sleep_millisec(autocorrect * 100);
+		}
+		return assumed;
+	}
 
-	free(dco);
-	state->delayed_checkout = NULL;
+	fprintf_ln(stderr, _("git: '%s' is not a git command. See 'git --help'."), cmd);
 
-	return errs;
+	if (SIMILAR_ENOUGH(best_similarity)) {
+		fprintf_ln(stderr,
+			   Q_("\nDid you mean this?",
+			      "\nDid you mean one of these?",
+			   n));
+
+		for (i = 0; i < n; i++)
+			fprintf(stderr, "\t%s\n", main_cmds.names[i]->name);
+	}
+
+	exit(1);
 }

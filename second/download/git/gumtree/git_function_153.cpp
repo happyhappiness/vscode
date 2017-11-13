@@ -1,48 +1,33 @@
-static void wt_status_print_other(struct wt_status *s,
-				  struct string_list *l,
-				  const char *what,
-				  const char *how)
+int read_index_from(struct index_state *istate, const char *path)
 {
-	int i;
-	struct strbuf buf = STRBUF_INIT;
-	static struct string_list output = STRING_LIST_INIT_DUP;
-	struct column_options copts;
+	struct split_index *split_index;
+	int ret;
 
-	if (!l->nr)
-		return;
+	/* istate->initialized covers both .git/index and .git/sharedindex.xxx */
+	if (istate->initialized)
+		return istate->cache_nr;
 
-	wt_status_print_other_header(s, what, how);
+	ret = do_read_index(istate, path, 0);
+	split_index = istate->split_index;
+	if (!split_index)
+		return ret;
 
-	for (i = 0; i < l->nr; i++) {
-		struct string_list_item *it;
-		const char *path;
-		it = &(l->items[i]);
-		path = quote_path(it->string, s->prefix, &buf);
-		if (column_active(s->colopts)) {
-			string_list_append(&output, path);
-			continue;
-		}
-		status_printf(s, color(WT_STATUS_HEADER, s), "\t");
-		status_printf_more(s, color(WT_STATUS_UNTRACKED, s),
-				   "%s\n", path);
-	}
+	if (is_null_sha1(split_index->base_sha1))
+		return ret;
 
-	strbuf_release(&buf);
-	if (!column_active(s->colopts))
-		goto conclude;
-
-	strbuf_addf(&buf, "%s%s\t%s",
-		    color(WT_STATUS_HEADER, s),
-		    s->display_comment_prefix ? "#" : "",
-		    color(WT_STATUS_UNTRACKED, s));
-	memset(&copts, 0, sizeof(copts));
-	copts.padding = 1;
-	copts.indent = buf.buf;
-	if (want_color(s->use_color))
-		copts.nl = GIT_COLOR_RESET "\n";
-	print_columns(&output, s->colopts, &copts);
-	string_list_clear(&output, 0);
-	strbuf_release(&buf);
-conclude:
-	status_printf_ln(s, GIT_COLOR_NORMAL, "");
+	if (split_index->base)
+		discard_index(split_index->base);
+	else
+		split_index->base = xcalloc(1, sizeof(*split_index->base));
+	ret = do_read_index(split_index->base,
+			    git_path("sharedindex.%s",
+				     sha1_to_hex(split_index->base_sha1)), 1);
+	if (hashcmp(split_index->base_sha1, split_index->base->sha1))
+		die("broken index, expect %s in %s, got %s",
+		    sha1_to_hex(split_index->base_sha1),
+		    git_path("sharedindex.%s",
+				     sha1_to_hex(split_index->base_sha1)),
+		    sha1_to_hex(split_index->base->sha1));
+	merge_base_index(istate);
+	return ret;
 }

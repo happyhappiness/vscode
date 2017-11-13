@@ -1,1 +1,4 @@
-fprintf(stderr, "Post-rotation prog: %21s\n", config->postrotate_prog);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, p, APLOGNO(00098)
+                      "pid file %s overwritten -- Unclean "
+                      "shutdown of previous Apache run?",
+                      fname);

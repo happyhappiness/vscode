@@ -1,31 +1,18 @@
-int sock_exec(const char *prog)
+static void msg_list_add(int code, char *buf, int len)
 {
-	pid_t pid;
-	int fd[2];
+	struct msg_list_item *ml;
 
-	if (socketpair_tcp(fd) != 0) {
-		rsyserr(FERROR, errno, "socketpair_tcp failed");
-		return -1;
-	}
-	if (verbose >= 2)
-		rprintf(FINFO, "Running socket program: \"%s\"\n", prog);
-
-	pid = fork();
-	if (pid < 0) {
-		rsyserr(FERROR, errno, "fork");
-		exit_cleanup(RERR_IPC);
-	}
-
-	if (pid == 0) {
-		close(fd[0]);
-		if (dup2(fd[1], STDIN_FILENO) < 0
-		 || dup2(fd[1], STDOUT_FILENO) < 0) {
-			fprintf(stderr, "Failed to run \"%s\"\n", prog);
-			exit(1);
-		}
-		exit(system(prog));
-	}
-
-	close(fd[1]);
-	return fd[0];
+	if (!(ml = new(struct msg_list_item)))
+		out_of_memory("msg_list_add");
+	ml->next = NULL;
+	if (!(ml->buf = new_array(char, len+4)))
+		out_of_memory("msg_list_add");
+	SIVAL(ml->buf, 0, ((code+MPLEX_BASE)<<24) | len);
+	memcpy(ml->buf+4, buf, len);
+	ml->len = len+4;
+	if (msg_list.tail)
+		msg_list.tail->next = ml;
+	else
+		msg_list.head = ml;
+	msg_list.tail = ml;
 }

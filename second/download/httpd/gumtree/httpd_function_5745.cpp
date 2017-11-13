@@ -1,188 +1,58 @@
-static int remoteip_modify_request(request_rec *r)
+int ssl_callback_alpn_select(SSL *ssl,
+                             const unsigned char **out, unsigned char *outlen,
+                             const unsigned char *in, unsigned int inlen,
+                             void *arg)
 {
-    conn_rec *c = r->connection;
-    remoteip_config_t *config = (remoteip_config_t *)
-        ap_get_module_config(r->server->module_config, &remoteip_module);
-    remoteip_req_t *req = NULL;
+    conn_rec *c = (conn_rec*)SSL_get_app_data(ssl);
+    SSLConnRec *sslconn = myConnConfig(c);
+    apr_array_header_t *client_protos;
+    const char *proposed;
+    size_t len;
+    int i;
 
-    apr_sockaddr_t *temp_sa;
-
-    apr_status_t rv;
-    char *remote;
-    char *proxy_ips = NULL;
-    char *parse_remote;
-    char *eos;
-    unsigned char *addrbyte;
-    void *internal = NULL;
-
-    if (!config->header_name) {
-        return DECLINED;
+    /* If the connection object is not available,
+     * then there's nothing for us to do. */
+    if (c == NULL) {
+        return SSL_TLSEXT_ERR_OK;
     }
 
-    remote = (char *) apr_table_get(r->headers_in, config->header_name);
-    if (!remote) {
-        return OK;
-    }
-    remote = apr_pstrdup(r->pool, remote);
-
-    temp_sa = c->client_addr;
-
-    while (remote) {
-
-        /* verify c->client_addr is trusted if there is a trusted proxy list
-         */
-        if (config->proxymatch_ip) {
-            int i;
-            remoteip_proxymatch_t *match;
-            match = (remoteip_proxymatch_t *)config->proxymatch_ip->elts;
-            for (i = 0; i < config->proxymatch_ip->nelts; ++i) {
-                if (apr_ipsubnet_test(match[i].ip, c->client_addr)) {
-                    internal = match[i].internal;
-                    break;
-                }
-            }
-            if (i && i >= config->proxymatch_ip->nelts) {
-                break;
-            }
-        }
-
-        if ((parse_remote = strrchr(remote, ',')) == NULL) {
-            parse_remote = remote;
-            remote = NULL;
-        }
-        else {
-            *(parse_remote++) = '\0';
-        }
-
-        while (*parse_remote == ' ') {
-            ++parse_remote;
-        }
-
-        eos = parse_remote + strlen(parse_remote) - 1;
-        while (eos >= parse_remote && *eos == ' ') {
-            *(eos--) = '\0';
-        }
-
-        if (eos < parse_remote) {
-            if (remote) {
-                *(remote + strlen(remote)) = ',';
-            }
-            else {
-                remote = parse_remote;
-            }
-            break;
-        }
-
-        /* We map as IPv4 rather than IPv6 for equivilant host names
-         * or IPV4OVERIPV6
-         */
-        rv = apr_sockaddr_info_get(&temp_sa,  parse_remote,
-                                   APR_UNSPEC, temp_sa->port,
-                                   APR_IPV4_ADDR_OK, r->pool);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG,  rv, r, APLOGNO(01568)
-                          "RemoteIP: Header %s value of %s cannot be parsed "
-                          "as a client IP",
-                          config->header_name, parse_remote);
-
-            if (remote) {
-                *(remote + strlen(remote)) = ',';
-            }
-            else {
-                remote = parse_remote;
-            }
-            break;
-
-        }
-
-        addrbyte = (unsigned char *) &temp_sa->sa.sin.sin_addr;
-
-        /* For intranet (Internal proxies) ignore all restrictions below */
-        if (!internal
-              && ((temp_sa->family == APR_INET
-                   /* For internet (non-Internal proxies) deny all
-                    * RFC3330 designated local/private subnets:
-                    * 10.0.0.0/8   169.254.0.0/16  192.168.0.0/16
-                    * 127.0.0.0/8  172.16.0.0/12
-                    */
-                      && (addrbyte[0] == 10
-                       || addrbyte[0] == 127
-                       || (addrbyte[0] == 169 && addrbyte[1] == 254)
-                       || (addrbyte[0] == 172 && (addrbyte[1] & 0xf0) == 16)
-                       || (addrbyte[0] == 192 && addrbyte[1] == 168)))
-#if APR_HAVE_IPV6
-               || (temp_sa->family == APR_INET6
-                   /* For internet (non-Internal proxies) we translated
-                    * IPv4-over-IPv6-mapped addresses as IPv4, above.
-                    * Accept only Global Unicast 2000::/3 defined by RFC4291
-                    */
-                      && ((temp_sa->sa.sin6.sin6_addr.s6_addr[0] & 0xe0) != 0x20))
-#endif
-        )) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG,  rv, r, APLOGNO(01569)
-                          "RemoteIP: Header %s value of %s appears to be "
-                          "a private IP or nonsensical.  Ignored",
-                          config->header_name, parse_remote);
-            if (remote) {
-                *(remote + strlen(remote)) = ',';
-            }
-            else {
-                remote = parse_remote;
-            }
-
-            break;
-        }
-
-        /* save away our results */
-        if (!req) {
-            req = (remoteip_req_t *) apr_palloc(r->pool, sizeof(remoteip_req_t));
-        }
-
-        /* Set useragent_ip string */
-        if (!internal) {
-            if (proxy_ips) {
-                proxy_ips = apr_pstrcat(r->pool, proxy_ips, ", ",
-                                        c->client_ip, NULL);
-            }
-            else {
-                proxy_ips = c->client_ip;
-            }
-        }
-
-        req->useragent_addr = temp_sa;
-        apr_sockaddr_ip_get(&req->useragent_ip, req->useragent_addr);
+    if (inlen == 0) {
+        /* someone tries to trick us? */
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02837)
+                      "ALPN client protocol list empty");
+        return SSL_TLSEXT_ERR_ALERT_FATAL;
     }
 
-    /* Nothing happened? */
-    if (!req) {
-        return OK;
-    }
-
-    req->proxied_remote = remote;
-    req->proxy_ips = proxy_ips;
-
-    if (req->proxied_remote) {
-        apr_table_setn(r->headers_in, config->header_name,
-                       req->proxied_remote);
-    }
-    else {
-        apr_table_unset(r->headers_in, config->header_name);
-    }
-    if (req->proxy_ips) {
-        apr_table_setn(r->notes, "remoteip-proxy-ip-list", req->proxy_ips);
-        if (config->proxies_header_name) {
-            apr_table_setn(r->headers_in, config->proxies_header_name,
-                           req->proxy_ips);
+    client_protos = apr_array_make(c->pool, 0, sizeof(char *));
+    for (i = 0; i < inlen; /**/) {
+        unsigned int plen = in[i++];
+        if (plen + i > inlen) {
+            /* someone tries to trick us? */
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02838)
+                          "ALPN protocol identifier too long");
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
         }
+        APR_ARRAY_PUSH(client_protos, char *) =
+            apr_pstrndup(c->pool, (const char *)in+i, plen);
+        i += plen;
     }
 
-    r->useragent_addr = req->useragent_addr;
-    r->useragent_ip = req->useragent_ip;
+    /* The order the callbacks are invoked from TLS extensions is, unfortunately
+     * not defined and older openssl versions do call ALPN selection before
+     * they callback the SNI. We need to make sure that we know which vhost
+     * we are dealing with so we respect the correct protocols.
+     */
+    init_vhost(c, ssl);
+    
+    proposed = ap_select_protocol(c, NULL, sslconn->server, client_protos);
+    *out = (const unsigned char *)(proposed? proposed : ap_get_protocol(c));
+    len = strlen((const char*)*out);
+    if (len > 255) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02840)
+                      "ALPN negotiated protocol name too long");
+        return SSL_TLSEXT_ERR_ALERT_FATAL;
+    }
+    *outlen = (unsigned char)len;
 
-    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                  req->proxy_ips
-                      ? "Using %s as client's IP by proxies %s"
-                      : "Using %s as client's IP by internal proxies",
-                  req->useragent_ip, req->proxy_ips);
-    return OK;
+    return SSL_TLSEXT_ERR_OK;
 }

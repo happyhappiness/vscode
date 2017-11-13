@@ -1,1 +1,2 @@
-die(_("Could not find exact merge base."));
+die("unable to generate combined diff for %s",
+		    oid_to_hex(parent));

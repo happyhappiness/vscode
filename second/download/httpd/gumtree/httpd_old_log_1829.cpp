@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "%s", buff);
+ap_rvputs(r, "</td><td align=\"right\">",
+                          apr_strfsize(ar[x]->size, buf), NULL);

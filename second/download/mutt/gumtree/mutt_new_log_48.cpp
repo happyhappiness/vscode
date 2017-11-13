@@ -1,1 +1,1 @@
-puts (_(Obtaining));
+puts (_(Licence));

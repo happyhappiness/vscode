@@ -1,1 +1,1 @@
-fprintf(FINFO,"file list sent\n");
+fprintf(f,"-b, --backup             make backups (default ~ extension)\n");

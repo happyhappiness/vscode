@@ -1,60 +1,121 @@
-apr_status_t h2_stream_add_header(h2_stream *stream,
-                                  const char *name, size_t nlen,
-                                  const char *value, size_t vlen)
+static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    int error = 0;
-    ap_assert(stream);
-    
-    if (stream->has_response) {
-        return APR_EINVAL;    
+    int startup = 0;
+
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->module_loads == 1) {
+        startup = 1;
     }
-    ++stream->request_headers_added;
-    if (name[0] == ':') {
-        if ((vlen) > stream->session->s->limit_req_line) {
-            /* pseudo header: approximation of request line size check */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                          "h2_stream(%ld-%d): pseudo header %s too long", 
-                          stream->session->id, stream->id, name);
-            error = HTTP_REQUEST_URI_TOO_LARGE;
+
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00175)
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00176)
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
         }
+        server_limit = MAX_SERVER_LIMIT;
     }
-    else if ((nlen + 2 + vlen) > stream->session->s->limit_req_fieldsize) {
-        /* header too long */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): header %s too long", 
-                      stream->session->id, stream->id, name);
-        error = HTTP_REQUEST_HEADER_FIELDS_TOO_LARGE;
-    }
-    
-    if (stream->request_headers_added 
-        > stream->session->s->limit_req_fields + 4) {
-        /* too many header lines, include 4 pseudo headers */
-        if (stream->request_headers_added 
-            > stream->session->s->limit_req_fields + 4 + 100) {
-            /* yeah, right */
-            return APR_ECONNRESET;
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00177)
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00178)
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
         }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): too many header lines", 
-                      stream->session->id, stream->id);
-        error = HTTP_REQUEST_HEADER_FIELDS_TOO_LARGE;
+        server_limit = 1;
     }
-    
-    if (h2_stream_is_scheduled(stream)) {
-        return add_trailer(stream, name, nlen, value, vlen);
+
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
+     */
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
     }
-    else if (error) {
-        return h2_stream_set_error(stream, error); 
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00179)
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
     }
-    else {
-        if (!stream->rtmp) {
-            stream->rtmp = h2_req_create(stream->id, stream->pool, 
-                                         NULL, NULL, NULL, NULL, NULL, 0);
+
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00180)
+                         "WARNING: MaxRequestWorkers of %d exceeds ServerLimit "
+                         "value of", ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing MaxRequestWorkers to %d.",
+                         server_limit, server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00181)
+                         "MaxRequestWorkers of %d exceeds ServerLimit value "
+                         "of %d, decreasing to match",
+                         ap_daemons_limit, server_limit);
         }
-        if (stream->state != H2_STREAM_ST_OPEN) {
-            return APR_ECONNRESET;
-        }
-        return h2_request_add_header(stream->rtmp, stream->pool,
-                                     name, nlen, value, vlen);
+        ap_daemons_limit = server_limit;
     }
+    else if (ap_daemons_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00182)
+                         "WARNING: MaxRequestWorkers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00183)
+                         "MaxRequestWorkers of %d not allowed, increasing to 1",
+                         ap_daemons_limit);
+        }
+        ap_daemons_limit = 1;
+    }
+
+    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
+    if (ap_daemons_to_start < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00184)
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00185)
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
+
+    if (ap_daemons_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00186)
+                         "WARNING: MinSpareServers of %d not allowed, "
+                         "increasing to 1", ap_daemons_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00187)
+                         "MinSpareServers of %d not allowed, increasing to 1",
+                         ap_daemons_min_free);
+        }
+        ap_daemons_min_free = 1;
+    }
+
+    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
+
+    return OK;
 }

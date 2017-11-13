@@ -1,10 +1,10 @@
 fputs(
-" Most FTP proxy servers are set up to appear as a normal FTP server from the\n"
-" client's perspective, with special commands to select the remote FTP server.\n"
-" curl supports the -u, -Q and --ftp-account options that can be used to\n"
-" set up transfers through many FTP proxies. For example, a file can be\n"
-" uploaded to a remote FTP server using a Blue Coat FTP proxy with the\n"
-" options:\n"
+" SFTP / SCP\n"
 "\n"
-"   curl -u \"Remote-FTP-Username@remote.ftp.server Proxy-Username:Remote-Pass\" \\\n"
+"   This is similar to FTP, but you can use the --key option to specify a\n"
+"   private key to use instead of a password. Note that the private key may\n"
+"   itself be protected by a password that is unrelated to the login password\n"
+"   of the remote system; this password is specified using the --pass option.\n"
+"   Typically, curl will automatically extract the public key from the private\n"
+"   key file, but in cases where curl does not have the proper library support,\n"
 , stdout);

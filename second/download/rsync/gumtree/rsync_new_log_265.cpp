@@ -1,1 +1,1 @@
-fprintf(FERROR,"out of memory in delete_already_done");
+fprintf(FERROR,"%s : not a regular file (recv_files)\n",fname);

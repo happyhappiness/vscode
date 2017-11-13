@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                  "handing out temporary %d bit DH key", keylen);
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check user.  No user file?"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

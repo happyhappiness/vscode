@@ -1,13 +1,12 @@
-static int git_config_get_notes_strategy(const char *key,
-					 enum notes_merge_strategy *strategy)
+static void rollback_packed_refs(void)
 {
-	char *value;
+	struct packed_ref_cache *packed_ref_cache =
+		get_packed_ref_cache(&ref_cache);
 
-	if (git_config_get_string(key, &value))
-		return 1;
-	if (parse_notes_merge_strategy(value, strategy))
-		git_die_config(key, "unknown notes merge strategy %s", value);
-
-	free(value);
-	return 0;
+	if (!packed_ref_cache->lock)
+		die("internal error: packed-refs not locked");
+	rollback_lock_file(packed_ref_cache->lock);
+	packed_ref_cache->lock = NULL;
+	release_packed_ref_cache(packed_ref_cache);
+	clear_packed_ref_cache(&ref_cache);
 }

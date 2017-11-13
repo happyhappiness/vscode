@@ -1,2 +1,2 @@
-error("unable to generate patch-id diff for %s",
-				     p->one->path);
+error("unable to stat %s: %s",
+			     sha1_to_hex(sha1), strerror(errno));

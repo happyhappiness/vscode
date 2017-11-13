@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+warning(_("redirecting to %s"), url.buf);

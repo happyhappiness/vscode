@@ -1,22 +1,30 @@
-void write_longint(int f, int64 x)
+void add_exclude_list(char *pattern,char ***list)
 {
-	extern int remote_version;
-	char b[8];
-	int ret;
+  int len=0;
+  if (list && *list)
+    for (; (*list)[len]; len++) ;
 
-	if (remote_version < 16 || x <= 0x7FFFFFFF) {
-		write_int(f, (int)x);
-		return;
-	}
+  if (strcmp(pattern,"!") == 0) {
+    if (verbose > 2)
+      fprintf(FINFO,"clearing exclude list\n");
+    while ((len)--) 
+      free((*list)[len]);
+    free((*list));
+    *list = NULL;
+    return;
+  }
 
-	write_int(f, -1);
-	SIVAL(b,0,(x&0xFFFFFFFF));
-	SIVAL(b,4,((x>>32)&0xFFFFFFFF));
+  if (!*list) {
+    *list = (char **)malloc(sizeof(char *)*2);
+  } else {
+    *list = (char **)realloc(*list,sizeof(char *)*(len+2));
+  }
 
-	if ((ret=writefd(f,b,8)) != 8) {
-		fprintf(FERROR,"write_longint failed : %s\n",
-			ret==-1?strerror(errno):"EOF");
-		exit_cleanup(1);
-	}
-	total_written += 8;
+  if (!*list || !((*list)[len] = strdup(pattern)))
+    out_of_memory("add_exclude");
+
+  if (verbose > 2)
+    fprintf(FINFO,"add_exclude(%s)\n",pattern);
+  
+  (*list)[len+1] = NULL;
 }

@@ -1,12 +1,10 @@
 fputs(
-"                             a redirect would take you to. (Added in 7.18.2)\n"
+"              num_connects   Number of new connects made in the recent  trans-\n"
+"                             fer. (Added in 7.12.3)\n"
 "\n"
-"              ftp_entry_path The initial path libcurl ended up in when logging\n"
-"                             on to the remote FTP server. (Added in 7.15.4)\n"
+"              num_redirects  Number  of  redirects  that  were followed in the\n"
+"                             request. (Added in 7.12.3)\n"
 "\n"
-"              ssl_verify_result\n"
-"                             The  result of the SSL peer certificate verifica-\n"
-"                             tion that was requested. 0 means the verification\n"
-"                             was successful. (Added in 7.19.0)\n"
-"\n"
+"              redirect_url   When a HTTP request was made without -L to follow\n"
+"                             redirects, this variable will show the actual URL\n"
 , stdout);

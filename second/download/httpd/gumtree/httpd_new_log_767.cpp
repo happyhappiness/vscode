@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "%s", buff);
+ap_log_error(APLOG_MARK, APLOG_ERR, err, NULL, "%s", desc);

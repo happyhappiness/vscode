@@ -1,9 +1,9 @@
 fputs(
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it uses getpwuid() on Unix-like systems (which returns the  home\n"
-"              dir  given the current user in your system). On Windows, it then\n"
-"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
-"              PROFILE%\\Application Data'.\n"
+"              written  which  then will be used as if they were written on the\n"
+"              actual command line.\n"
 "\n"
+"              Options and their parameters must be specified on the same  con-\n"
+"              fig  file  line,  separated  by whitespace, colon, or the equals\n"
+"              sign. Long option names can optionally be given  in  the  config\n"
+"              file  without  the initial double dashes and if so, the colon or\n"
 , stdout);

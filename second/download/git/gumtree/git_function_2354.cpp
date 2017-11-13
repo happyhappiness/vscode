@@ -1,40 +1,28 @@
-static int handle_file(const char *path, unsigned char *sha1, const char *output)
+static void fsck_dir(int i, char *path)
 {
-	int hunk_no = 0;
-	struct rerere_io_file io;
-	int marker_size = ll_merge_marker_size(path);
+	DIR *dir = opendir(path);
+	struct dirent *de;
+	char name[100];
 
-	memset(&io, 0, sizeof(io));
-	io.io.getline = rerere_file_getline;
-	io.input = fopen(path, "r");
-	io.io.wrerror = 0;
-	if (!io.input)
-		return error("Could not open %s", path);
+	if (!dir)
+		return;
 
-	if (output) {
-		io.io.output = fopen(output, "w");
-		if (!io.io.output) {
-			fclose(io.input);
-			return error("Could not write %s", output);
+	if (verbose)
+		fprintf(stderr, "Checking directory %s\n", path);
+
+	sprintf(name, "%02x", i);
+	while ((de = readdir(dir)) != NULL) {
+		unsigned char sha1[20];
+
+		if (is_dot_or_dotdot(de->d_name))
+			continue;
+		if (is_loose_object_file(de, name, sha1)) {
+			add_sha1_list(sha1, DIRENT_SORT_HINT(de));
+			continue;
 		}
+		if (starts_with(de->d_name, "tmp_obj_"))
+			continue;
+		fprintf(stderr, "bad sha1 file: %s/%s\n", path, de->d_name);
 	}
-
-	hunk_no = handle_path(sha1, (struct rerere_io *)&io, marker_size);
-
-	fclose(io.input);
-	if (io.io.wrerror)
-		error("There were errors while writing %s (%s)",
-		      path, strerror(io.io.wrerror));
-	if (io.io.output && fclose(io.io.output))
-		io.io.wrerror = error("Failed to flush %s: %s",
-				      path, strerror(errno));
-
-	if (hunk_no < 0) {
-		if (output)
-			unlink_or_warn(output);
-		return error("Could not parse conflict hunks in %s", path);
-	}
-	if (io.io.wrerror)
-		return -1;
-	return hunk_no;
+	closedir(dir);
 }

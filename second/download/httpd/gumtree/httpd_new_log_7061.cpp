@@ -1,6 +1,3 @@
-ap_rputs("<a href=\"#modules\">Loaded Modules</a>, "
-                     "<a href=\"#server\">Server Settings</a>, "
-                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
-                     "<a href=\"#request_hooks\">Request Hooks</a>, "
-                     "<a href=\"#other_hooks\">Other Hooks</a>, "
-                     "<a href=\"#providers\">Providers</a>", r);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01298)
+                 "LDAP cache: Setting shared memory cache file to %s.",
+                 st->cache_file);

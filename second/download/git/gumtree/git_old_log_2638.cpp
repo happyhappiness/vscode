@@ -1,1 +1,1 @@
-die("Bug in merge-recursive.c");
+error(_("Could not set '%s'"), buf.buf);

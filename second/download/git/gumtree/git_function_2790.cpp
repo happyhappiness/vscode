@@ -1,129 +1,98 @@
-static void write_pack_file(void)
+static int module_clone(int argc, const char **argv, const char *prefix)
 {
-	uint32_t i = 0, j;
-	struct sha1file *f;
-	off_t offset;
-	uint32_t nr_remaining = nr_result;
-	time_t last_mtime = 0;
-	struct object_entry **write_order;
+	const char *name = NULL, *url = NULL;
+	const char *reference = NULL, *depth = NULL;
+	int quiet = 0;
+	FILE *submodule_dot_git;
+	char *p, *path = NULL, *sm_gitdir;
+	struct strbuf rel_path = STRBUF_INIT;
+	struct strbuf sb = STRBUF_INIT;
 
-	if (progress > pack_to_stdout)
-		progress_state = start_progress(_("Writing objects"), nr_result);
-	ALLOC_ARRAY(written_list, to_pack.nr_objects);
-	write_order = compute_write_order();
+	struct option module_clone_options[] = {
+		OPT_STRING(0, "prefix", &prefix,
+			   N_("path"),
+			   N_("alternative anchor for relative paths")),
+		OPT_STRING(0, "path", &path,
+			   N_("path"),
+			   N_("where the new submodule will be cloned to")),
+		OPT_STRING(0, "name", &name,
+			   N_("string"),
+			   N_("name of the new submodule")),
+		OPT_STRING(0, "url", &url,
+			   N_("string"),
+			   N_("url where to clone the submodule from")),
+		OPT_STRING(0, "reference", &reference,
+			   N_("string"),
+			   N_("reference repository")),
+		OPT_STRING(0, "depth", &depth,
+			   N_("string"),
+			   N_("depth for shallow clones")),
+		OPT__QUIET(&quiet, "Suppress output for cloning a submodule"),
+		OPT_END()
+	};
 
-	do {
-		unsigned char sha1[20];
-		char *pack_tmp_name = NULL;
+	const char *const git_submodule_helper_usage[] = {
+		N_("git submodule--helper clone [--prefix=<path>] [--quiet] "
+		   "[--reference <repository>] [--name <name>] [--url <url>]"
+		   "[--depth <depth>] [--] [<path>...]"),
+		NULL
+	};
 
-		if (pack_to_stdout)
-			f = sha1fd_throughput(1, "<stdout>", progress_state);
-		else
-			f = create_tmp_packfile(&pack_tmp_name);
+	argc = parse_options(argc, argv, prefix, module_clone_options,
+			     git_submodule_helper_usage, 0);
 
-		offset = write_pack_header(f, nr_remaining);
+	if (!path || !*path)
+		die(_("submodule--helper: unspecified or empty --path"));
 
-		if (reuse_packfile) {
-			off_t packfile_size;
-			assert(pack_to_stdout);
+	strbuf_addf(&sb, "%s/modules/%s", get_git_dir(), name);
+	sm_gitdir = xstrdup(absolute_path(sb.buf));
+	strbuf_reset(&sb);
 
-			packfile_size = write_reused_pack(f);
-			offset += packfile_size;
-		}
+	if (!is_absolute_path(path)) {
+		strbuf_addf(&sb, "%s/%s", get_git_work_tree(), path);
+		path = strbuf_detach(&sb, NULL);
+	} else
+		path = xstrdup(path);
 
-		nr_written = 0;
-		for (; i < to_pack.nr_objects; i++) {
-			struct object_entry *e = write_order[i];
-			if (write_one(f, e, &offset) == WRITE_ONE_BREAK)
-				break;
-			display_progress(progress_state, written);
-		}
+	if (!file_exists(sm_gitdir)) {
+		if (safe_create_leading_directories_const(sm_gitdir) < 0)
+			die(_("could not create directory '%s'"), sm_gitdir);
+		if (clone_submodule(path, sm_gitdir, url, depth, reference, quiet))
+			die(_("clone of '%s' into submodule path '%s' failed"),
+			    url, path);
+	} else {
+		if (safe_create_leading_directories_const(path) < 0)
+			die(_("could not create directory '%s'"), path);
+		strbuf_addf(&sb, "%s/index", sm_gitdir);
+		unlink_or_warn(sb.buf);
+		strbuf_reset(&sb);
+	}
 
-		/*
-		 * Did we write the wrong # entries in the header?
-		 * If so, rewrite it like in fast-import
-		 */
-		if (pack_to_stdout) {
-			sha1close(f, sha1, CSUM_CLOSE);
-		} else if (nr_written == nr_remaining) {
-			sha1close(f, sha1, CSUM_FSYNC);
-		} else {
-			int fd = sha1close(f, sha1, 0);
-			fixup_pack_header_footer(fd, sha1, pack_tmp_name,
-						 nr_written, sha1, offset);
-			close(fd);
-			if (write_bitmap_index) {
-				warning(_(no_split_warning));
-				write_bitmap_index = 0;
-			}
-		}
+	/* Write a .git file in the submodule to redirect to the superproject. */
+	strbuf_addf(&sb, "%s/.git", path);
+	if (safe_create_leading_directories_const(sb.buf) < 0)
+		die(_("could not create leading directories of '%s'"), sb.buf);
+	submodule_dot_git = fopen(sb.buf, "w");
+	if (!submodule_dot_git)
+		die_errno(_("cannot open file '%s'"), sb.buf);
 
-		if (!pack_to_stdout) {
-			struct stat st;
-			struct strbuf tmpname = STRBUF_INIT;
+	fprintf_or_die(submodule_dot_git, "gitdir: %s\n",
+		       relative_path(sm_gitdir, path, &rel_path));
+	if (fclose(submodule_dot_git))
+		die(_("could not close file %s"), sb.buf);
+	strbuf_reset(&sb);
+	strbuf_reset(&rel_path);
 
-			/*
-			 * Packs are runtime accessed in their mtime
-			 * order since newer packs are more likely to contain
-			 * younger objects.  So if we are creating multiple
-			 * packs then we should modify the mtime of later ones
-			 * to preserve this property.
-			 */
-			if (stat(pack_tmp_name, &st) < 0) {
-				warning("failed to stat %s: %s",
-					pack_tmp_name, strerror(errno));
-			} else if (!last_mtime) {
-				last_mtime = st.st_mtime;
-			} else {
-				struct utimbuf utb;
-				utb.actime = st.st_atime;
-				utb.modtime = --last_mtime;
-				if (utime(pack_tmp_name, &utb) < 0)
-					warning("failed utime() on %s: %s",
-						pack_tmp_name, strerror(errno));
-			}
-
-			strbuf_addf(&tmpname, "%s-", base_name);
-
-			if (write_bitmap_index) {
-				bitmap_writer_set_checksum(sha1);
-				bitmap_writer_build_type_index(written_list, nr_written);
-			}
-
-			finish_tmp_packfile(&tmpname, pack_tmp_name,
-					    written_list, nr_written,
-					    &pack_idx_opts, sha1);
-
-			if (write_bitmap_index) {
-				strbuf_addf(&tmpname, "%s.bitmap", sha1_to_hex(sha1));
-
-				stop_progress(&progress_state);
-
-				bitmap_writer_show_progress(progress);
-				bitmap_writer_reuse_bitmaps(&to_pack);
-				bitmap_writer_select_commits(indexed_commits, indexed_commits_nr, -1);
-				bitmap_writer_build(&to_pack);
-				bitmap_writer_finish(written_list, nr_written,
-						     tmpname.buf, write_bitmap_options);
-				write_bitmap_index = 0;
-			}
-
-			strbuf_release(&tmpname);
-			free(pack_tmp_name);
-			puts(sha1_to_hex(sha1));
-		}
-
-		/* mark written objects as written to previous pack */
-		for (j = 0; j < nr_written; j++) {
-			written_list[j]->offset = (off_t)-1;
-		}
-		nr_remaining -= nr_written;
-	} while (nr_remaining && i < to_pack.nr_objects);
-
-	free(written_list);
-	free(write_order);
-	stop_progress(&progress_state);
-	if (written != nr_result)
-		die("wrote %"PRIu32" objects while expecting %"PRIu32,
-			written, nr_result);
+	/* Redirect the worktree of the submodule in the superproject's config */
+	p = git_pathdup_submodule(path, "config");
+	if (!p)
+		die(_("could not get submodule directory for '%s'"), path);
+	git_config_set_in_file(p, "core.worktree",
+			       relative_path(path, sm_gitdir, &rel_path));
+	strbuf_release(&sb);
+	strbuf_release(&rel_path);
+	free(sm_gitdir);
+	free(path);
+	free(p);
+	return 0;
 }

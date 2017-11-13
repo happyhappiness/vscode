@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "proxy: client %s given Content-Length did not match"
-                     " number of body bytes read", r->connection->remote_ip);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "LDAP: SSL support unavailable%s%s",
+                     result_err ? ": " : "",
+                     result_err ? result_err->reason : "");

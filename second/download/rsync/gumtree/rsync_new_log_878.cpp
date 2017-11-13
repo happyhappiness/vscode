@@ -1,1 +1,1 @@
-out_of_memory("recv_user_name");
+out_of_memory("recv_group_name");

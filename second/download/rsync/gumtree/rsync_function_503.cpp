@@ -1,61 +1,46 @@
-static int set_perms(char *fname,struct file_struct *file,struct stat *st,
-		     int report)
+static void usage(FILE *f)
 {
-  int updated = 0;
-  struct stat st2;
+  fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
+	  VERSION);
+  fprintf(f,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
+  fprintf(f,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
+  fprintf(f,"Options:\n");
+  fprintf(f,"-v, --verbose            increase verbosity\n");
+  fprintf(f,"-c, --checksum           always checksum\n");
+  fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");
+  fprintf(f,"-r, --recursive          recurse into directories\n");
+  fprintf(f,"-R, --relative           use relative path names\n");
+  fprintf(f,"-b, --backup             make backups (default ~ extension)\n");
+  fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
+  fprintf(f,"-l, --links              preserve soft links\n");
+  fprintf(f,"-L, --copy-links         treat soft links like regular files\n");
+  fprintf(f,"-H, --hard-links         preserve hard links\n");
+  fprintf(f,"-p, --perms              preserve permissions\n");
+  fprintf(f,"-o, --owner              preserve owner (root only)\n");
+  fprintf(f,"-g, --group              preserve group\n");
+  fprintf(f,"-D, --devices            preserve devices (root only)\n");
+  fprintf(f,"-t, --times              preserve times\n");  
+  fprintf(f,"-S, --sparse             handle sparse files efficiently\n");
+  fprintf(f,"-n, --dry-run            show what would have been transferred\n");
+  fprintf(f,"-W, --whole-file         copy whole files, no incremental checks\n");
+  fprintf(f,"-x, --one-file-system    don't cross filesystem boundaries\n");
+  fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");  
+  fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
+  fprintf(f,"    --rsync-path PATH    specify path to rsync on the remote machine\n");
+  fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
+  fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
+  fprintf(f,"    --force              force deletion of directories even if not empty\n");
+  fprintf(f,"    --numeric-ids        don't map uid/gid values by user/group name\n");
+  fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");
+  fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");
+  fprintf(f,"-T  --temp-dir DIR       create temporary files in directory DIR\n");
+  fprintf(f,"-z, --compress           compress file data\n");
+  fprintf(f,"    --exclude FILE       exclude file FILE\n");
+  fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
+  fprintf(f,"    --suffix SUFFIX      override backup suffix\n");  
+  fprintf(f,"    --version            print version number\n");  
 
-  if (dry_run) return 0;
-
-  if (!st) {
-    if (link_stat(fname,&st2) != 0) {
-      fprintf(FERROR,"stat %s : %s\n",fname,strerror(errno));
-      return 0;
-    }
-    st = &st2;
-  }
-
-  if (preserve_times && !S_ISLNK(st->st_mode) &&
-      st->st_mtime != file->modtime) {
-    updated = 1;
-    if (set_modtime(fname,file->modtime) != 0) {
-      fprintf(FERROR,"failed to set times on %s : %s\n",
-	      fname,strerror(errno));
-      return 0;
-    }
-  }
-
-#ifdef HAVE_CHMOD
-  if (preserve_perms && !S_ISLNK(st->st_mode) &&
-      st->st_mode != file->mode) {
-    updated = 1;
-    if (do_chmod(fname,file->mode) != 0) {
-      fprintf(FERROR,"failed to set permissions on %s : %s\n",
-	      fname,strerror(errno));
-      return 0;
-    }
-  }
-#endif
-
-  if ((am_root && preserve_uid && st->st_uid != file->uid) || 
-      (preserve_gid && st->st_gid != file->gid)) {
-	  if (do_lchown(fname,
-			(am_root&&preserve_uid)?file->uid:-1,
-			preserve_gid?file->gid:-1) != 0) {
-		  if (preserve_uid && st->st_uid != file->uid)
-			  updated = 1;
-		  if (verbose>1 || preserve_uid)
-			  fprintf(FERROR,"chown %s : %s\n",
-				  fname,strerror(errno));
-		  return updated;
-	  }
-	  updated = 1;
-  }
-    
-  if (verbose > 1 && report) {
-	  if (updated)
-		  fprintf(FINFO,"%s\n",fname);
-	  else
-		  fprintf(FINFO,"%s is uptodate\n",fname);
-  }
-  return updated;
+  fprintf(f,"\n");
+  fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+  fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
 }

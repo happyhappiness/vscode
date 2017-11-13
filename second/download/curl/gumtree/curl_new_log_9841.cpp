@@ -1,11 +1,11 @@
 fputs(
-"              If this option is set, the default capath value will be ignored,\n"
-"              and if it is used several times, the last one will be used.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --pinnedpubkey <pinned public key>\n"
-"              (SSL) Tells curl to use the specified public key file to  verify\n"
-"              the  peer.  The  file must contain a single public key in PEM or\n"
-"              DER format.\n"
+"       --cacert <CA certificate>\n"
+"              (SSL) Tells curl to use the specified certificate file to verify\n"
+"              the peer. The file may contain  multiple  CA  certificates.  The\n"
+"              certificate(s)  must be in PEM format. Normally curl is built to\n"
+"              use a default file for this, so this option is typically used to\n"
+"              alter that default file.\n"
 "\n"
-"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
 , stdout);

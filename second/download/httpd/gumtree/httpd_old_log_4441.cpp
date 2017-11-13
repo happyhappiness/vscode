@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, server,
-                     "apr_socket_addr_get(APR_REMOTE)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: FTP: data connection closed");

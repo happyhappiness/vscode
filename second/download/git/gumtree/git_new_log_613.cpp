@@ -1,2 +1,2 @@
-usage_msg_opt(_("--abort expects no arguments"),
-			      builtin_merge_usage, builtin_merge_options);
+error(_(staged_changes_advice),
+				     gpg_opt, gpg_opt);

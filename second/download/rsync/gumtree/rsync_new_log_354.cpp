@@ -1,1 +1,1 @@
-fprintf(FINFO,"send_files phase=%d\n",phase);
+fprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));

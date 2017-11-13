@@ -1,30 +1,29 @@
-static void usage(void)
+static apr_status_t pass_response(h2_task *task, ap_filter_t *f, 
+                                  h2_response_parser *parser) 
 {
-    apr_file_printf(errfile, "Usage:" NL);
-    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username" NL);
-    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password" NL NL);
-    apr_file_printf(errfile, "\thtpasswd -n[mdps] username" NL);
-    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
-    apr_file_printf(errfile, " -c  Create a new file." NL);
-    apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout." NL);
-    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-        " (default)"
-        "." NL);
-    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-            " (8 chars max, insecure)." NL);
-    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
-    apr_file_printf(errfile, " -s  Force SHA encryption of the password"
-            " (insecure)." NL);
-    apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it." NL);
-    apr_file_printf(errfile, " -D  Delete the specified user." NL);
-    apr_file_printf(errfile,
-            "On other systems than Windows and NetWare the '-p' flag will "
-            "probably not work." NL);
-    apr_file_printf(errfile,
-            "The SHA algorithm does not use a salt and is less secure than "
-            "the MD5 algorithm." NL);
-    exit(ERR_SYNTAX);
+    apr_bucket *b;
+    apr_status_t status;
+    
+    h2_headers *response = h2_headers_create(parser->http_status, 
+                                             make_table(parser),
+                                             NULL, task->pool);
+    apr_brigade_cleanup(parser->tmp);
+    b = h2_bucket_headers_create(task->c->bucket_alloc, response);
+    APR_BRIGADE_INSERT_TAIL(parser->tmp, b);
+    b = apr_bucket_flush_create(task->c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(parser->tmp, b);                      
+    status = ap_pass_brigade(f->next, parser->tmp);
+    apr_brigade_cleanup(parser->tmp);
+    
+    /* reset parser for possible next response */
+    parser->state = H2_RP_STATUS_LINE;
+    apr_array_clear(parser->hlines);
+
+    if (response->status >= 200) {
+        task->output.sent_response = 1;
+    }
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, 
+                  APLOGNO(03197) "h2_task(%s): passed response %d", 
+                  task->id, response->status);
+    return status;
 }

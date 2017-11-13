@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02070)
-                     "Failed to set APR_SO_NONBLOCK to 1 on socket.");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "proxy: BALANCER: (%s).  Forcing recovery for worker (%s), failonstatus %d",
+                             balancer->name, worker->name, val);

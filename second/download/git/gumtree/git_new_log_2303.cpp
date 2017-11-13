@@ -1,2 +1,1 @@
-die(_("submodule--helper subcommand must be "
-		      "called with a subcommand"));
+printf("previous %s ", oid_to_hex(&prev->commit->object.oid));

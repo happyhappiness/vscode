@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGINT)");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "%s", inet_ntoa(This->mask));

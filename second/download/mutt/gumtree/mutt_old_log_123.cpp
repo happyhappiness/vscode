@@ -1,1 +1,1 @@
-printw ("%s%s", _(" sign as: "), PgpSignAs ? PgpSignAs : _("<default>"));
+state_attach_puts (_(": "), s);

@@ -1,140 +1,149 @@
-static int open_entity(cache_handle_t *h, request_rec *r, const char *key)
+static void ap_die_r(int type, request_rec *r, int recursive_error)
 {
-    apr_uint32_t format;
-    apr_size_t len;
-    const char *nkey;
-    apr_status_t rc;
-    static int error_logged = 0;
-    disk_cache_conf *conf = ap_get_module_config(r->server->module_config,
-                                                 &disk_cache_module);
-#ifdef APR_SENDFILE_ENABLED
-    core_dir_config *coreconf = ap_get_module_config(r->per_dir_config,
-                                                     &core_module);
-#endif
-    apr_finfo_t finfo;
-    cache_object_t *obj;
-    cache_info *info;
-    disk_cache_object_t *dobj;
-    int flags;
+    char *custom_response;
+    request_rec *r_1st_err = r;
 
-    h->cache_obj = NULL;
-
-    /* Look up entity keyed to 'url' */
-    if (conf->cache_root == NULL) {
-        if (!error_logged) {
-            error_logged = 1;
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "disk_cache: Cannot cache files to disk without a CacheRoot specified.");
-        }
-        return DECLINED;
+    if (type == OK || type == DONE) {
+        ap_finalize_request_protocol(r);
+        return;
     }
 
-    /* Create and init the cache object */
-    h->cache_obj = obj = apr_pcalloc(r->pool, sizeof(cache_object_t));
-    obj->vobj = dobj = apr_pcalloc(r->pool, sizeof(disk_cache_object_t));
+    if (!ap_is_HTTP_VALID_RESPONSE(type)) {
+        ap_filter_t *next;
 
-    info = &(obj->info);
-
-    /* Open the headers file */
-    dobj->prefix = NULL;
-
-    /* Save the cache root */
-    dobj->root = apr_pstrndup(r->pool, conf->cache_root, conf->cache_root_len);
-    dobj->root_len = conf->cache_root_len;
-
-    dobj->hdrsfile = header_file(r->pool, conf, dobj, key);
-    flags = APR_READ|APR_BINARY|APR_BUFFERED;
-    rc = apr_file_open(&dobj->hfd, dobj->hdrsfile, flags, 0, r->pool);
-    if (rc != APR_SUCCESS) {
-        return DECLINED;
-    }
-
-    /* read the format from the cache file */
-    len = sizeof(format);
-    apr_file_read_full(dobj->hfd, &format, len, &len);
-
-    if (format == VARY_FORMAT_VERSION) {
-        apr_array_header_t* varray;
-        apr_time_t expire;
-
-        len = sizeof(expire);
-        apr_file_read_full(dobj->hfd, &expire, len, &len);
-
-        varray = apr_array_make(r->pool, 5, sizeof(char*));
-        rc = read_array(r, varray, dobj->hfd);
-        if (rc != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                         "disk_cache: Cannot parse vary header file: %s",
-                         dobj->hdrsfile);
-            return DECLINED;
+        /*
+         * Check if we still have the ap_http_header_filter in place. If
+         * this is the case we should not ignore the error here because
+         * it means that we have not sent any response at all and never
+         * will. This is bad. Sent an internal server error instead.
+         */
+        next = r->output_filters;
+        while (next && (next->frec != ap_http_header_filter_handle)) {
+               next = next->next;
         }
-        apr_file_close(dobj->hfd);
 
-        nkey = regen_key(r->pool, r->headers_in, varray, key);
-
-        dobj->hashfile = NULL;
-        dobj->prefix = dobj->hdrsfile;
-        dobj->hdrsfile = header_file(r->pool, conf, dobj, nkey);
-
-        flags = APR_READ|APR_BINARY|APR_BUFFERED;
-        rc = apr_file_open(&dobj->hfd, dobj->hdrsfile, flags, 0, r->pool);
-        if (rc != APR_SUCCESS) {
-            return DECLINED;
+        /*
+         * If next != NULL then we left the while above because of
+         * next->frec == ap_http_header_filter
+         */
+        if (next) {
+            if (type != AP_FILTER_ERROR) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Invalid response status %i", type);
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "Response from AP_FILTER_ERROR");
+            }
+            type = HTTP_INTERNAL_SERVER_ERROR;
+        }
+        else {
+            return;
         }
     }
-    else if (format != DISK_FORMAT_VERSION) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "disk_cache: File '%s' has a version mismatch. File had version: %d.",
-                     dobj->hdrsfile, format);
-        return DECLINED;
+
+    /*
+     * The following takes care of Apache redirects to custom response URLs
+     * Note that if we are already dealing with the response to some other
+     * error condition, we just report on the original error, and give up on
+     * any attempt to handle the other thing "intelligently"...
+     */
+    if (recursive_error != HTTP_OK) {
+        while (r_1st_err->prev && (r_1st_err->prev->status != HTTP_OK))
+            r_1st_err = r_1st_err->prev;  /* Get back to original error */
+
+        if (r_1st_err != r) {
+            /* The recursive error was caused by an ErrorDocument specifying
+             * an internal redirect to a bad URI.  ap_internal_redirect has
+             * changed the filter chains to point to the ErrorDocument's
+             * request_rec.  Back out those changes so we can safely use the
+             * original failing request_rec to send the canned error message.
+             *
+             * ap_send_error_response gets rid of existing resource filters
+             * on the output side, so we can skip those.
+             */
+            update_r_in_filters(r_1st_err->proto_output_filters, r, r_1st_err);
+            update_r_in_filters(r_1st_err->input_filters, r, r_1st_err);
+        }
+
+        custom_response = NULL; /* Do NOT retry the custom thing! */
     }
     else {
-        apr_off_t offset = 0;
-        /* This wasn't a Vary Format file, so we must seek to the
-         * start of the file again, so that later reads work.
-         */
-        apr_file_seek(dobj->hfd, APR_SET, &offset);
-        nkey = key;
+        int error_index = ap_index_of_response(type);
+        custom_response = ap_response_code_string(r, error_index);
+        recursive_error = 0;
     }
 
-    obj->key = nkey;
-    dobj->key = nkey;
-    dobj->name = key;
-    dobj->datafile = data_file(r->pool, conf, dobj, nkey);
-    dobj->tempfile = apr_pstrcat(r->pool, conf->cache_root, AP_TEMPFILE, NULL);
+    r->status = type;
 
-    /* Open the data file */
-    flags = APR_READ|APR_BINARY;
-#ifdef APR_SENDFILE_ENABLED
-    /* When we are in the quick handler we don't have the per-directory
-     * configuration, so this check only takes the globel setting of
-     * the EnableSendFile directive into account.
+    /*
+     * This test is done here so that none of the auth modules needs to know
+     * about proxy authentication.  They treat it like normal auth, and then
+     * we tweak the status.
      */
-    flags |= ((coreconf->enable_sendfile == ENABLE_SENDFILE_OFF)
-              ? 0 : APR_SENDFILE_ENABLED);
-#endif
-    rc = apr_file_open(&dobj->fd, dobj->datafile, flags, 0, r->pool);
-    if (rc != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                 "disk_cache: Cannot open info header file %s",  dobj->datafile);
-        return DECLINED;
+    if (HTTP_UNAUTHORIZED == r->status && PROXYREQ_PROXY == r->proxyreq) {
+        r->status = HTTP_PROXY_AUTHENTICATION_REQUIRED;
     }
 
-    rc = apr_file_info_get(&finfo, APR_FINFO_SIZE, dobj->fd);
-    if (rc == APR_SUCCESS) {
-        dobj->file_size = finfo.size;
+    /* If we don't want to keep the connection, make sure we mark that the
+     * connection is not eligible for keepalive.  If we want to keep the
+     * connection, be sure that the request body (if any) has been read.
+     */
+    if (ap_status_drops_connection(r->status)) {
+        r->connection->keepalive = AP_CONN_CLOSE;
     }
 
-    /* Read the bytes to setup the cache_info fields */
-    rc = file_cache_recall_mydata(dobj->hfd, info, dobj, r);
-    if (rc != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                 "disk_cache: Cannot read header file %s",  dobj->hdrsfile);
-        return DECLINED;
-    }
+    /*
+     * Two types of custom redirects --- plain text, and URLs. Plain text has
+     * a leading '"', so the URL code, here, is triggered on its absence
+     */
 
-    /* Initialize the cache_handle callback functions */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "disk_cache: Recalled cached URL info header %s",  dobj->name);
-    return OK;
+    if (custom_response && custom_response[0] != '"') {
+
+        if (ap_is_url(custom_response)) {
+            /*
+             * The URL isn't local, so lets drop through the rest of this
+             * apache code, and continue with the usual REDIRECT handler.
+             * But note that the client will ultimately see the wrong
+             * status...
+             */
+            r->status = HTTP_MOVED_TEMPORARILY;
+            apr_table_setn(r->headers_out, "Location", custom_response);
+        }
+        else if (custom_response[0] == '/') {
+            const char *error_notes;
+            r->no_local_copy = 1;       /* Do NOT send HTTP_NOT_MODIFIED for
+                                         * error documents! */
+            /*
+             * This redirect needs to be a GET no matter what the original
+             * method was.
+             */
+            apr_table_setn(r->subprocess_env, "REQUEST_METHOD", r->method);
+
+            /*
+             * Provide a special method for modules to communicate
+             * more informative (than the plain canned) messages to us.
+             * Propagate them to ErrorDocuments via the ERROR_NOTES variable:
+             */
+            if ((error_notes = apr_table_get(r->notes,
+                                             "error-notes")) != NULL) {
+                apr_table_setn(r->subprocess_env, "ERROR_NOTES", error_notes);
+            }
+            r->method = apr_pstrdup(r->pool, "GET");
+            r->method_number = M_GET;
+            ap_internal_redirect(custom_response, r);
+            return;
+        }
+        else {
+            /*
+             * Dumb user has given us a bad url to redirect to --- fake up
+             * dying with a recursive server error...
+             */
+            recursive_error = HTTP_INTERNAL_SERVER_ERROR;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "Invalid error redirection directive: %s",
+                        custom_response);
+        }
+    }
+    ap_send_error_response(r_1st_err, recursive_error);
 }

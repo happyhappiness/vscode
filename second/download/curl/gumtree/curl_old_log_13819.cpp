@@ -1,12 +1,8 @@
 fputs(
-"              See  also  the --create-dirs option to create the local directo-\n"
-"              ries dynamically. Specifying the output as '-' (a  single  dash)\n"
-"              will force the output to be done to stdout.\n"
-"\n"
-"       -O, --remote-name\n"
-"              Write  output to a local file named like the remote file we get.\n"
-"              (Only the file part of the remote file is used, the path is  cut\n"
-"              off.)\n"
-"\n"
-"              The  file will be saved in the current working directory. If you\n"
+"              cluster  node in a cluster of servers.  This option is only used\n"
+"              to establish the network connection.  It  does  NOT  affect  the\n"
+"              hostname/port  that  is  used for TLS/SSL (e.g. SNI, certificate\n"
+"              verification) or for  the  application  protocols.   \"host\"  and\n"
+"              \"port\"  may be the empty string, meaning \"any host/port\".  \"con-\n"
+"              nect-to-host\"  and  \"connect-to-port\"  may  also  be  the  empty\n"
 , stdout);

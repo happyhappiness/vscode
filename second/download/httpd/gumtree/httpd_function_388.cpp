@@ -1,289 +1,251 @@
-void child_main(apr_pool_t *pconf)
+static int cache_url_handler(request_rec *r, int lookup)
 {
-    apr_status_t status;
-    apr_hash_t *ht;
-    ap_listen_rec *lr;
-    HANDLE child_events[2];
-    int threads_created = 0;
-    int listener_started = 0;
-    int tid;
-    HANDLE *child_handles;
-    int rv;
-    time_t end_time;
-    int i;
-    int cld;
+    apr_status_t rv;
+    const char *cc_in, *pragma, *auth;
+    apr_uri_t uri = r->parsed_uri;
+    char *url = r->unparsed_uri;
+    apr_size_t urllen;
+    char *path = uri.path;
+    const char *types;
+    cache_info *info = NULL;
+    cache_request_rec *cache;
+    cache_server_conf *conf;
 
-    apr_pool_create(&pchild, pconf);
-    apr_pool_tag(pchild, "pchild");
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                                      &cache_module);
 
-    ap_run_child_init(pchild, ap_server_conf);
-    ht = apr_hash_make(pchild);
-
-    /* Initialize the child_events */
-    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!max_requests_per_child_event) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Failed to create a max_requests event.", my_pid);
-        exit(APEXIT_CHILDINIT);
+    /* we don't handle anything but GET */
+    if (r->method_number != M_GET) {
+        return DECLINED;
     }
-    child_events[0] = exit_event;
-    child_events[1] = max_requests_per_child_event;
-
-    allowed_globals.jobsemaphore = CreateSemaphore(NULL, 0, 1000000, NULL);
-    apr_thread_mutex_create(&allowed_globals.jobmutex, 
-                            APR_THREAD_MUTEX_DEFAULT, pchild);
 
     /*
-     * Wait until we have permission to start accepting connections.
-     * start_mutex is used to ensure that only one child ever
-     * goes into the listen/accept loop at once.
+     * Which cache module (if any) should handle this request?
      */
-    status = apr_proc_mutex_lock(start_mutex);
-    if (status != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK,APLOG_ERR, status, ap_server_conf,
-                     "Child %d: Failed to acquire the start_mutex. Process will exit.", my_pid);
-        exit(APEXIT_CHILDINIT);
+    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
+        return DECLINED;
     }
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: Acquired the start mutex.", my_pid);
+
+    urllen = strlen(url);
+    if (urllen > MAX_URL_LENGTH) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: URL exceeds length threshold: %s", url);
+        return DECLINED;
+    }
+    /* DECLINE urls ending in / ??? EGP: why? */
+    if (url[urllen-1] == '/') {
+        return DECLINED;
+    }
+
+    /* make space for the per request config */
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config, 
+                                                       &cache_module);
+    if (!cache) {
+        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
+        ap_set_module_config(r->request_config, &cache_module, cache);
+    }
+
+    /* save away the type */
+    cache->types = types;
 
     /*
-     * Create the worker thread dispatch IOCompletionPort
-     * on Windows NT/2000
+     * Are we allowed to serve cached info at all?
      */
-    if (use_acceptex) {
-        /* Create the worker thread dispatch IOCP */
-        ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
-                                                    NULL,
-                                                    0,
-                                                    0); /* CONCURRENT ACTIVE THREADS */
-        apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
-        qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-        if (!qwait_event) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: Failed to create a qwait event.", my_pid);
-            exit(APEXIT_CHILDINIT);
-        }
-    }
 
-    /* 
-     * Create the pool of worker threads
-     */
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: Starting %d worker threads.", my_pid, ap_threads_per_child);
-    child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child * sizeof(int));
-    while (1) {
-        for (i = 0; i < ap_threads_per_child; i++) {
-            int *score_idx;
-            int status = ap_scoreboard_image->servers[0][i].status;
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
-            }
-            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
-            child_handles[i] = (HANDLE) _beginthreadex(NULL, 0, (LPTHREAD_START_ROUTINE) worker_main,
-                                                       (void *) i, 0, &tid);
-            if (child_handles[i] == 0) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
-                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.", 
-                             my_pid, threads_created, ap_threads_per_child);
-                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
-                goto shutdown;
-            }
-            threads_created++;
-            /* Save the score board index in ht keyed to the thread handle. We need this 
-             * when cleaning up threads down below...
-             */
-            score_idx = apr_pcalloc(pchild, sizeof(int));
-            *score_idx = i;
-            apr_hash_set(ht, &child_handles[i], sizeof(HANDLE), score_idx);
-        }
-        /* Start the listener only when workers are available */
-        if (!listener_started && threads_created) {
-            create_listener_thread();
-            listener_started = 1;
-            winnt_mpm_state = AP_MPMQ_RUNNING;
-        }
-        if (threads_created == ap_threads_per_child) {
-            break;
-        }
-        /* Check to see if the child has been told to exit */
-        if (WaitForSingleObject(exit_event, 0) != WAIT_TIMEOUT) {
-            break;
-        }
-        /* wait for previous generation to clean up an entry in the scoreboard */
-        apr_sleep(1 * APR_USEC_PER_SEC);
-    }
+    /* find certain cache controlling headers */
+    cc_in = apr_table_get(r->headers_in, "Cache-Control");
+    pragma = apr_table_get(r->headers_in, "Pragma");
+    auth = apr_table_get(r->headers_in, "Authorization");
 
-    /* Wait for one of three events:
-     * exit_event: 
-     *    The exit_event is signaled by the parent process to notify 
-     *    the child that it is time to exit.
+    /* first things first - does the request allow us to return
+     * cached information at all? If not, just decline the request.
      *
-     * max_requests_per_child_event: 
-     *    This event is signaled by the worker threads to indicate that
-     *    the process has handled MaxRequestsPerChild connections.
+     * Note that there is a big difference between not being allowed
+     * to cache a request (no-store) and not being allowed to return
+     * a cached request without revalidation (max-age=0).
      *
-     * TIMEOUT:
-     *    To do periodic maintenance on the server (check for thread exits,
-     *    number of completion contexts, etc.)
+     * Caching is forbidden under the following circumstances:
      *
-     * XXX: thread exits *aren't* being checked.
-     *
-     * XXX: other_child - we need the process handles to the other children
-     *      in order to map them to apr_proc_other_child_read (which is not
-     *      named well, it's more like a_p_o_c_died.)
-     *
-     * XXX: however - if we get a_p_o_c handle inheritance working, and
-     *      the parent process creates other children and passes the pipes 
-     *      to our worker processes, then we have no business doing such 
-     *      things in the child_main loop, but should happen in master_main.
+     * - RFC2616 14.9.2 Cache-Control: no-store
+     * - Pragma: no-cache
+     * - Any requests requiring authorization.
      */
-    while (1) {
-#if !APR_HAS_OTHER_CHILD
-        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, INFINITE);
-        cld = rv - WAIT_OBJECT_0;
-#else
-        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, 1000);
-        cld = rv - WAIT_OBJECT_0;
-        if (rv == WAIT_TIMEOUT) {
-            apr_proc_other_child_check();
-        }
-        else 
-#endif
-            if (rv == WAIT_FAILED) {
-            /* Something serious is wrong */
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: WAIT_FAILED -- shutting down server", my_pid);
-            break;
-        }
-        else if (cld == 0) {
-            /* Exit event was signaled */
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %d: Exit event signaled. Child process is ending.", my_pid);
-            break;
-        }
-        else {
-            /* MaxRequestsPerChild event set by the worker threads.
-             * Signal the parent to restart
-             */
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %d: Process exiting because it reached "
-                         "MaxRequestsPerChild. Signaling the parent to "
-                         "restart a new child process.", my_pid);
-            ap_signal_parent(SIGNAL_PARENT_RESTART);
-            break;
-        }
-    }
-
-    /* 
-     * Time to shutdown the child process 
-     */
-
- shutdown:
-
-    winnt_mpm_state = AP_MPMQ_STOPPING;
-    /* Setting is_graceful will cause threads handling keep-alive connections 
-     * to close the connection after handling the current request.
-     */
-    is_graceful = 1;
-
-    /* Close the listening sockets. Note, we must close the listeners
-     * before closing any accept sockets pending in AcceptEx to prevent
-     * memory leaks in the kernel.
-     */
-    for (lr = ap_listeners; lr ; lr = lr->next) {
-        apr_socket_close(lr->sd);
-    }
-
-    /* Shutdown listener threads and pending AcceptEx socksts 
-     * but allow the worker threads to continue consuming from
-     * the queue of accepted connections.
-     */
-    shutdown_in_progress = 1;
-
-    Sleep(1000);
-
-    /* Tell the worker threads to exit */
-    workers_may_exit = 1;
-
-    /* Release the start_mutex to let the new process (in the restart
-     * scenario) a chance to begin accepting and servicing requests 
-     */
-    rv = apr_proc_mutex_unlock(start_mutex);
-    if (rv == APR_SUCCESS) {
-        ap_log_error(APLOG_MARK,APLOG_NOTICE, rv, ap_server_conf, 
-                     "Child %d: Released the start mutex", my_pid);
+    if (conf->ignorecachecontrol == 1 && auth == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it", url);
     }
     else {
-        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf, 
-                     "Child %d: Failure releasing the start mutex", my_pid);
-    }
+        if (ap_cache_liststr(NULL, cc_in, "no-store", NULL) ||
+            ap_cache_liststr(NULL, pragma, "no-cache", NULL) || (auth != NULL)) {
+            /* delete the previously cached file */
+            cache_remove_url(r, cache->types, url);
 
-    /* Shutdown the worker threads */
-    if (!use_acceptex) {
-        for (i = 0; i < threads_created; i++) {
-            add_job(INVALID_SOCKET);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no-store forbids caching of %s", url);
+            return DECLINED;
         }
     }
-    else { /* Windows NT/2000 */
-        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */
-        while (g_blocked_threads > 0) {
-            ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf, 
-                         "Child %d: %d threads blocked on the completion port", my_pid, g_blocked_threads);
-            for (i=g_blocked_threads; i > 0; i--) {
-                PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_SHUTDOWN, NULL);
+
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file
+     *   add cache_in filter
+     * If stale cache file
+     *   If conditional request
+     *     add cache_in filter
+     *   If non-conditional request
+     *     fudge response into a conditional
+     *     add cache_conditional filter
+     * If fresh cache file
+     *   clear filter stack
+     *   add cache_out filter
+     */
+
+    rv = cache_select_url(r, cache->types, url);
+    if (DECLINED == rv) {
+        if (!lookup) {
+            /* no existing cache file */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no cache - add cache_in filter and DECLINE");
+            /* add cache_in filter to cache this request */
+            ap_add_output_filter_handle(cache_in_filter_handle, NULL, r,
+                                        r->connection);
+        }
+        return DECLINED;
+    }
+    else if (OK == rv) {
+        /* RFC2616 13.2 - Check cache object expiration */
+        cache->fresh = ap_cache_check_freshness(cache, r);
+        if (cache->fresh) {
+            /* fresh data available */
+            apr_bucket_brigade *out;
+            conn_rec *c = r->connection;
+
+            if (lookup) {
+                return OK;
             }
-            Sleep(1000);
+            rv = ap_meets_conditions(r);
+            if (rv != OK) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "cache: fresh cache - returning status %d", rv);
+                return rv;
+            }
+
+            /*
+             * Not a conditionl request. Serve up the content 
+             */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: fresh cache - add cache_out filter and "
+                         "handle request");
+
+            /* We are in the quick handler hook, which means that no output
+             * filters have been set. So lets run the insert_filter hook.
+             */
+            ap_run_insert_filter(r);
+            ap_add_output_filter_handle(cache_out_filter_handle, NULL,
+                                        r, r->connection);
+
+            /* kick off the filter stack */
+            out = apr_brigade_create(r->pool, c->bucket_alloc);
+            if (APR_SUCCESS
+                != (rv = ap_pass_brigade(r->output_filters, out))) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "cache: error returned while trying to return %s "
+                             "cached data", 
+                             cache->type);
+                return rv;
+            }
+            return OK;
         }
-        /* Empty the accept queue of completion contexts */
-        apr_thread_mutex_lock(qlock);
-        while (qhead) {
-            CloseHandle(qhead->Overlapped.hEvent);
-            closesocket(qhead->accept_socket);
-            qhead = qhead->next;
+        else {
+            if (!r->err_headers_out) {
+                r->err_headers_out = apr_table_make(r->pool, 3);
+            }
+            /* stale data available */
+            if (lookup) {
+                return DECLINED;
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: stale cache - test conditional");
+            /* if conditional request */
+            if (ap_cache_request_is_conditional(r)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: conditional - add cache_in filter and "
+                             "DECLINE");
+                /* Why not add CACHE_CONDITIONAL? */
+                ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                            r, r->connection);
+
+                return DECLINED;
+            }
+            /* else if non-conditional request */
+            else {
+                /* Temporarily hack this to work the way it had been. Its broken,
+                 * but its broken the way it was before. I'm working on figuring
+                 * out why the filter add in the conditional filter doesn't work. pjr
+                 *
+                 * info = &(cache->handle->cache_obj->info);
+                 *
+                 * Uncomment the above when the code in cache_conditional_filter_handle
+                 * is properly fixed...  pjr
+                 */
+                
+                /* fudge response into a conditional */
+                if (info && info->etag) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by etag");
+                    /* if we have a cached etag */
+                    apr_table_set(r->headers_in, "If-None-Match", info->etag);
+                }
+                else if (info && info->lastmods) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by lastmod");
+                    /* if we have a cached IMS */
+                    apr_table_set(r->headers_in, 
+                                  "If-Modified-Since", 
+                                  info->lastmods);
+                }
+                else {
+                    /* something else - pretend there was no cache */
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - no cached "
+                                 "etag/lastmods - add cache_in and DECLINE");
+
+                    ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                                r, r->connection);
+
+                    return DECLINED;
+                }
+                /* add cache_conditional filter */
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: nonconditional - add cache_conditional "
+                             "and DECLINE");
+                ap_add_output_filter_handle(cache_conditional_filter_handle,
+                                            NULL, 
+                                            r, 
+                                            r->connection);
+
+                return DECLINED;
+            }
         }
-        apr_thread_mutex_unlock(qlock);
     }
-
-    /* Give busy worker threads a chance to service their connections */
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: Waiting for %d worker threads to exit.", my_pid, threads_created);
-    end_time = time(NULL) + 180;
-    while (threads_created) {
-        rv = wait_for_many_objects(threads_created, child_handles, end_time - time(NULL));
-        if (rv != WAIT_TIMEOUT) {
-            rv = rv - WAIT_OBJECT_0;
-            ap_assert((rv >= 0) && (rv < threads_created));
-            cleanup_thread(child_handles, &threads_created, rv);
-            continue;
-        }
-        break;
+    else {
+        /* error */
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, 
+                     r->server,
+                     "cache: error returned while checking for cached file by "
+                     "%s cache", 
+                     cache->type);
+        return DECLINED;
     }
-
-    /* Kill remaining threads off the hard way */
-    if (threads_created) {
-        ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                     "Child %d: Terminating %d threads that failed to exit.", my_pid);
-    }
-    for (i = 0; i < threads_created; i++) {
-        int *score_idx;
-        TerminateThread(child_handles[i], 1);
-        CloseHandle(child_handles[i]);
-        /* Reset the scoreboard entry for the thread we just whacked */
-        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
-        ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);        
-    }
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: All worker threads have exited.", my_pid);
-
-    CloseHandle(allowed_globals.jobsemaphore);
-    apr_thread_mutex_destroy(allowed_globals.jobmutex);
-    if (use_acceptex) {
-        apr_thread_mutex_destroy(qlock);
-        CloseHandle(qwait_event);
-    }
-
-    apr_pool_destroy(pchild);
-    CloseHandle(exit_event);
 }

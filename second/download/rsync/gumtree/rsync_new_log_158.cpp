@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s\n",fname);
+fprintf(FERROR,"nothing to do\n");

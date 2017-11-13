@@ -1,2 +1,1 @@
-error("Could not open %s: %s", path,
-			     strerror(errno));
+error("Could not write %s: %s", path, strerror(errno));

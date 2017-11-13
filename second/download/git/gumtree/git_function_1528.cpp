@@ -1,27 +1,46 @@
-static int show_reference(const char *refname, const unsigned char *sha1,
-			  int flag, void *cb_data)
+static int prune_dir(int i, struct strbuf *path)
 {
-	struct show_data *data = cb_data;
+	size_t baselen = path->len;
+	DIR *dir = opendir(path->buf);
+	struct dirent *de;
 
-	if (!wildmatch(data->pattern, refname, 0, NULL)) {
-		if (data->format == REPLACE_FORMAT_SHORT)
-			printf("%s\n", refname);
-		else if (data->format == REPLACE_FORMAT_MEDIUM)
-			printf("%s -> %s\n", refname, sha1_to_hex(sha1));
-		else { /* data->format == REPLACE_FORMAT_LONG */
-			unsigned char object[20];
-			enum object_type obj_type, repl_type;
+	if (!dir)
+		return 0;
 
-			if (get_sha1(refname, object))
-				return error("Failed to resolve '%s' as a valid ref.", refname);
+	while ((de = readdir(dir)) != NULL) {
+		char name[100];
+		unsigned char sha1[20];
 
-			obj_type = sha1_object_info(object, NULL);
-			repl_type = sha1_object_info(sha1, NULL);
+		if (is_dot_or_dotdot(de->d_name))
+			continue;
+		if (strlen(de->d_name) == 38) {
+			sprintf(name, "%02x", i);
+			memcpy(name+2, de->d_name, 39);
+			if (get_sha1_hex(name, sha1) < 0)
+				break;
 
-			printf("%s (%s) -> %s (%s)\n", refname, typename(obj_type),
-			       sha1_to_hex(sha1), typename(repl_type));
+			/*
+			 * Do we know about this object?
+			 * It must have been reachable
+			 */
+			if (lookup_object(sha1))
+				continue;
+
+			strbuf_addf(path, "/%s", de->d_name);
+			prune_object(path->buf, sha1);
+			strbuf_setlen(path, baselen);
+			continue;
 		}
+		if (starts_with(de->d_name, "tmp_obj_")) {
+			strbuf_addf(path, "/%s", de->d_name);
+			prune_tmp_file(path->buf);
+			strbuf_setlen(path, baselen);
+			continue;
+		}
+		fprintf(stderr, "bad sha1 file: %s/%s\n", path->buf, de->d_name);
 	}
-
+	closedir(dir);
+	if (!show_only)
+		rmdir(path->buf);
 	return 0;
 }

@@ -1,28 +1,17 @@
-static char *gitdiff_verify_name(const char *line, int isnull, char *orig_name, int side)
+static int is_rerere_enabled(void)
 {
-	if (!orig_name && !isnull)
-		return find_name(line, NULL, p_value, TERM_TAB);
+	const char *rr_cache;
+	int rr_cache_exists;
 
-	if (orig_name) {
-		int len;
-		const char *name;
-		char *another;
-		name = orig_name;
-		len = strlen(name);
-		if (isnull)
-			die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"), name, linenr);
-		another = find_name(line, NULL, p_value, TERM_TAB);
-		if (!another || memcmp(another, name, len + 1))
-			die((side == DIFF_NEW_NAME) ?
-			    _("git apply: bad git-diff - inconsistent new filename on line %d") :
-			    _("git apply: bad git-diff - inconsistent old filename on line %d"), linenr);
-		free(another);
-		return orig_name;
-	}
-	else {
-		/* expect "/dev/null" */
-		if (memcmp("/dev/null", line, 9) || line[9] != '\n')
-			die(_("git apply: bad git-diff - expected /dev/null on line %d"), linenr);
-		return NULL;
-	}
+	if (!rerere_enabled)
+		return 0;
+
+	rr_cache = git_path("rr-cache");
+	rr_cache_exists = is_directory(rr_cache);
+	if (rerere_enabled < 0)
+		return rr_cache_exists;
+
+	if (!rr_cache_exists && mkdir_in_gitdir(rr_cache))
+		die("Could not create directory %s", rr_cache);
+	return 1;
 }

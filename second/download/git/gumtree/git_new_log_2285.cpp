@@ -1,1 +1,2 @@
-warning_errno("failed utime() on %s", pack_tmp_name);
+error("could not write config file %s: %s", config_filename,
+		      strerror(errno));

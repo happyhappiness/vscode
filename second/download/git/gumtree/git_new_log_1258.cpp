@@ -1,1 +1,1 @@
-die(_("failed to expand user dir in: '%s'"), value);
+die(_("invalid blob object %s"), oid_to_hex(oid));

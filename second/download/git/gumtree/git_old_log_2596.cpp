@@ -1,1 +1,2 @@
-not_found("Not a git repository: '%s'", dir);
+error(_("Could not parse parent commit %s\n"),
+				sha1_to_hex(parent->object.sha1));

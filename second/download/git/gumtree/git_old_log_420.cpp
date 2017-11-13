@@ -1,2 +1,1 @@
-printf("CONFLICT (%s): Merge conflict in notes for "
-				"object %s\n", reason, sha1_to_hex(p->obj));
+die(_("Failed to resolve '%s' as a valid ref."), arg);

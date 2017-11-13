@@ -1,234 +1,138 @@
-static int worker_check_config(apr_pool_t *p, apr_pool_t *plog,
-                               apr_pool_t *ptemp, server_rec *s)
+int ssl_hook_ReadReq(request_rec *r)
 {
-    int startup = 0;
+    SSLSrvConfigRec *sc = mySrvConfig(r->server);
+    SSLConnRec *sslconn;
+    const char *upgrade;
+#ifdef HAVE_TLSEXT
+    const char *servername;
+#endif
+    SSL *ssl;
 
-    /* the reverse of pre_config, we want this only the first time around */
-    if (retained->module_loads == 1) {
-        startup = 1;
-    }
-
-    if (server_limit > MAX_SERVER_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00300)
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00301)
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
+    /* Perform TLS upgrade here if "SSLEngine optional" is configured,
+     * SSL is not already set up for this connection, and the client
+     * has sent a suitable Upgrade header. */
+    if (sc->enabled == SSL_ENABLED_OPTIONAL && !myConnConfig(r->connection)
+        && (upgrade = apr_table_get(r->headers_in, "Upgrade")) != NULL
+        && ap_find_token(r->pool, upgrade, "TLS/1.0")) {
+        if (upgrade_connection(r)) {
+            return AP_FILTER_ERROR;
         }
-        server_limit = MAX_SERVER_LIMIT;
-    }
-    else if (server_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00302)
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00303)
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
-        }
-        server_limit = 1;
     }
 
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
+    sslconn = myConnConfig(r->connection);
+    if (!sslconn) {
+        return DECLINED;
+    }
+
+    if (sslconn->non_ssl_request == NON_SSL_SET_ERROR_MSG) {
+        apr_table_setn(r->notes, "error-notes",
+                       "Reason: You're speaking plain HTTP to an SSL-enabled "
+                       "server port.<br />\n Instead use the HTTPS scheme to "
+                       "access this URL, please.<br />\n");
+
+        /* Now that we have caught this error, forget it. we are done
+         * with using SSL on this request.
+         */
+        sslconn->non_ssl_request = NON_SSL_OK;
+
+        return HTTP_BAD_REQUEST;
+    }
+
+    /*
+     * Get the SSL connection structure and perform the
+     * delayed interlinking from SSL back to request_rec
      */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
+    ssl = sslconn->ssl;
+    if (!ssl) {
+        return DECLINED;
     }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00304)
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
-    }
-
-    if (thread_limit > MAX_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00305)
-                         "WARNING: ThreadLimit of %d exceeds compile-time "
-                         "limit of", thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00306)
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
-        }
-        thread_limit = MAX_THREAD_LIMIT;
-    }
-    else if (thread_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00307)
-                         "WARNING: ThreadLimit of %d not allowed, "
-                         "increasing to 1.", thread_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00308)
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
-        }
-        thread_limit = 1;
-    }
-
-    /* you cannot change ThreadLimit across a restart; ignore
-     * any such attempts
+#ifdef HAVE_TLSEXT
+    /*
+     * Perform SNI checks only on the initial request.  In particular,
+     * if these checks detect a problem, the checks shouldn't return an
+     * error again when processing an ErrorDocument redirect for the
+     * original problem.
      */
-    if (!retained->first_thread_limit) {
-        retained->first_thread_limit = thread_limit;
-    }
-    else if (thread_limit != retained->first_thread_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00309)
-                     "changing ThreadLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     thread_limit, retained->first_thread_limit);
-        thread_limit = retained->first_thread_limit;
-    }
+    if (r->proxyreq != PROXYREQ_PROXY && ap_is_initial_req(r)) {
+        if ((servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name))) {
+            char *host, *scope_id;
+            apr_port_t port;
+            apr_status_t rv;
 
-    if (threads_per_child > thread_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00310)
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         thread_limit, thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ThreadLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00311)
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         threads_per_child, thread_limit);
+            /*
+             * The SNI extension supplied a hostname. So don't accept requests
+             * with either no hostname or a different hostname as this could
+             * cause us to end up in a different virtual host as the one that
+             * was used for the handshake causing different SSL parameters to
+             * be applied as SSLProtocol, SSLCACertificateFile/Path and
+             * SSLCADNRequestFile/Path cannot be renegotiated (SSLCA* due
+             * to current limitations in OpenSSL, see
+             * http://mail-archives.apache.org/mod_mbox/httpd-dev/200806.mbox/%3C48592955.2090303@velox.ch%3E
+             * and
+             * http://mail-archives.apache.org/mod_mbox/httpd-dev/201312.mbox/%3CCAKQ1sVNpOrdiBm-UPw1hEdSN7YQXRRjeaT-MCWbW_7mN%3DuFiOw%40mail.gmail.com%3E
+             * )
+             */
+            if (!r->hostname) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02031)
+                            "Hostname %s provided via SNI, but no hostname"
+                            " provided in HTTP request", servername);
+                return HTTP_BAD_REQUEST;
+            }
+            rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
+            if (rv != APR_SUCCESS || scope_id) {
+                return HTTP_BAD_REQUEST;
+            }
+            if (strcasecmp(host, servername)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02032)
+                            "Hostname %s provided via SNI and hostname %s provided"
+                            " via HTTP are different", servername, host);
+                return HTTP_BAD_REQUEST;
+            }
         }
-        threads_per_child = thread_limit;
-    }
-    else if (threads_per_child < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00312)
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", threads_per_child);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00313)
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         threads_per_child);
+        else if (((sc->strict_sni_vhost_check == SSL_ENABLED_TRUE)
+                 || (mySrvConfig(sslconn->server))->strict_sni_vhost_check
+                    == SSL_ENABLED_TRUE)
+                 && r->connection->vhost_lookup_data) {
+            /*
+             * We are using a name based configuration here, but no hostname was
+             * provided via SNI. Don't allow that if are requested to do strict
+             * checking. Check whether this strict checking was set up either in the
+             * server config we used for handshaking or in our current server.
+             * This should avoid insecure configuration by accident.
+             */
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02033)
+                         "No hostname was provided via SNI for a name based"
+                         " virtual host");
+            apr_table_setn(r->notes, "error-notes",
+                           "Reason: The client software did not provide a "
+                           "hostname using Server Name Indication (SNI), "
+                           "which is required to access this server.<br />\n");
+            return HTTP_FORBIDDEN;
         }
-        threads_per_child = 1;
     }
+#endif
+    SSL_set_app_data2(ssl, r);
 
-    if (max_workers < threads_per_child) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00314)
-                         "WARNING: MaxRequestWorkers of %d is less than "
-                         "ThreadsPerChild of", max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d, increasing to %d.  MaxRequestWorkers must be at "
-                         "least as large",
-                         threads_per_child, threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " as the number of threads in a single server.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00315)
-                         "MaxRequestWorkers of %d is less than ThreadsPerChild "
-                         "of %d, increasing to match",
-                         max_workers, threads_per_child);
-        }
-        max_workers = threads_per_child;
-    }
-
-    ap_daemons_limit = max_workers / threads_per_child;
-
-    if (max_workers % threads_per_child) {
-        int tmp_max_workers = ap_daemons_limit * threads_per_child;
-
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00316)
-                         "WARNING: MaxRequestWorkers of %d is not an integer "
-                         "multiple of", max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d,", threads_per_child,
-                         tmp_max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " for a maximum of %d servers.",
-                         ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00317)
-                         "MaxRequestWorkers of %d is not an integer multiple of "
-                         "ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d", max_workers, threads_per_child,
-                         tmp_max_workers);
-        }
-        max_workers = tmp_max_workers;
-    }
-
-    if (ap_daemons_limit > server_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00318)
-                         "WARNING: MaxRequestWorkers of %d would require %d "
-                         "servers and ", max_workers, ap_daemons_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " would exceed ServerLimit of %d, decreasing to %d.",
-                         server_limit, server_limit * threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ServerLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00319)
-                         "MaxRequestWorkers of %d would require %d servers and "
-                         "exceed ServerLimit of %d, decreasing to %d",
-                         max_workers, ap_daemons_limit, server_limit,
-                         server_limit * threads_per_child);
-        }
-        ap_daemons_limit = server_limit;
-    }
-
-    /* ap_daemons_to_start > ap_daemons_limit checked in worker_run() */
-    if (ap_daemons_to_start < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00320)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00321)
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
-    }
-
-    if (min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00322)
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", min_spare_threads);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00323)
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         min_spare_threads);
-        }
-        min_spare_threads = 1;
-    }
-
-    /* max_spare_threads < min_spare_threads + threads_per_child
-     * checked in worker_run()
+    /*
+     * Log information about incoming HTTPS requests
      */
+    if (APLOGrinfo(r) && ap_is_initial_req(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02034)
+                     "%s HTTPS request received for child %ld (server %s)",
+                     (r->connection->keepalives <= 0 ?
+                     "Initial (No.1)" :
+                     apr_psprintf(r->pool, "Subsequent (No.%d)",
+                                  r->connection->keepalives+1)),
+                     r->connection->id,
+                     ssl_util_vhostid(r->pool, r->server));
+    }
 
-    return OK;
+    /* SetEnvIf ssl-*-shutdown flags can only be per-server,
+     * so they won't change across keepalive requests
+     */
+    if (sslconn->shutdown_type == SSL_SHUTDOWN_TYPE_UNSET) {
+        ssl_configure_env(r, sslconn);
+    }
+
+    return DECLINED;
 }

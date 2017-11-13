@@ -1,1 +1,1 @@
-die("transport '%s' not allowed", type);
+die_errno("unable to open /dev/null");

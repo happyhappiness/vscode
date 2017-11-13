@@ -1,53 +1,111 @@
-int daemon_main(void)
+static int
+recv_deflated_token(int f, char **data)
 {
-	extern char *config_file;
-	char *pid_file;
+    int n, r, flag;
+    static int init_done;
+    static int saved_flag;
 
-	/* this ensures that we don't call getcwd after the chroot,
-           which doesn't work on platforms that use popen("pwd","r")
-           for getcwd */
-	push_dir("/", 0);
-
-	if (is_a_socket(STDIN_FILENO)) {
-		int i;
-
-		/* we are running via inetd - close off stdout and
-		   stderr so that library functions (and getopt) don't
-		   try to use them. Redirect them to /dev/null */
-		for (i=1;i<3;i++) {
-			close(i); 
-			open("/dev/null", O_RDWR);
+    for (;;) {
+	switch (recv_state) {
+	case r_init:
+	    if (!init_done) {
+		rx_strm.next_out = NULL;
+		rx_strm.zalloc = z_alloc;
+		rx_strm.zfree = z_free;
+		if (inflateInit2(&rx_strm, -15) != Z_OK) {
+		    fprintf(FERROR, "inflate init failed\n");
+		    exit_cleanup(1);
 		}
-
-		set_nonblocking(STDIN_FILENO);
-
-		return start_daemon(STDIN_FILENO);
-	}
-
-	become_daemon();
-
-	if (!lp_load(config_file, 1)) {
-		fprintf(stderr,"failed to load config file %s\n", config_file);
-		exit_cleanup(RERR_SYNTAX);
-	}
-
-	log_open();
-
-	rprintf(FINFO,"rsyncd version %s starting\n",VERSION);
-
-	if (((pid_file = lp_pid_file()) != NULL) && (*pid_file != '\0')) {
-		FILE *f;
-		int pid = (int) getpid();
-		cleanup_set_pid(pid);
-		if ((f = fopen(lp_pid_file(), "w")) == NULL) {
-		    cleanup_set_pid(0);
-		    fprintf(stderr,"failed to create pid file %s\n", pid_file);
-		    exit_cleanup(RERR_FILEIO);
+		if ((cbuf = malloc(MAX_DATA_COUNT)) == NULL
+		    || (dbuf = malloc(CHUNK_SIZE)) == NULL)
+		    out_of_memory("recv_deflated_token");
+		init_done = 1;
+	    } else {
+		inflateReset(&rx_strm);
+	    }
+	    recv_state = r_idle;
+	    rx_token = 0;
+	    break;
+	    
+	case r_idle:
+	case r_inflated:
+	    if (saved_flag) {
+		flag = saved_flag & 0xff;
+		saved_flag = 0;
+	    } else
+		flag = read_byte(f);
+	    if ((flag & 0xC0) == DEFLATED_DATA) {
+		n = ((flag & 0x3f) << 8) + read_byte(f);
+		read_buf(f, cbuf, n);
+		rx_strm.next_in = (Bytef *)cbuf;
+		rx_strm.avail_in = n;
+		recv_state = r_inflating;
+		break;
+	    }
+	    if (recv_state == r_inflated) {
+		/* check previous inflated stuff ended correctly */
+		rx_strm.avail_in = 0;
+		rx_strm.next_out = (Bytef *)dbuf;
+		rx_strm.avail_out = CHUNK_SIZE;
+		r = inflate(&rx_strm, Z_PACKET_FLUSH);
+		n = CHUNK_SIZE - rx_strm.avail_out;
+		if (r != Z_OK) {
+		    fprintf(FERROR, "inflate flush returned %d (%d bytes)\n",
+			    r, n);
+		    exit_cleanup(1);
 		}
-		fprintf(f, "%d\n", pid);
-		fclose(f);
-	}
+		if (n != 0) {
+		    /* have to return some more data and
+		       save the flag for later. */
+		    saved_flag = flag + 0x10000;
+		    if (rx_strm.avail_out != 0)
+			recv_state = r_idle;
+		    *data = dbuf;
+		    return n;
+		}
+		recv_state = r_idle;
+	    }
+	    if (flag == END_FLAG) {
+		/* that's all folks */
+		recv_state = r_init;
+		return 0;
+	    }
 
-	start_accept_loop(rsync_port, start_daemon);
-	return -1;
+	    /* here we have a token of some kind */
+	    if (flag & TOKEN_REL) {
+		rx_token += flag & 0x3f;
+		flag >>= 6;
+	    } else
+		rx_token = read_int(f);
+	    if (flag & 1) {
+		rx_run = read_byte(f);
+		rx_run += read_byte(f) << 8;
+		recv_state = r_running;
+	    }
+	    return -1 - rx_token;
+
+	case r_inflating:
+	    rx_strm.next_out = (Bytef *)dbuf;
+	    rx_strm.avail_out = CHUNK_SIZE;
+	    r = inflate(&rx_strm, Z_NO_FLUSH);
+	    n = CHUNK_SIZE - rx_strm.avail_out;
+	    if (r != Z_OK) {
+		fprintf(FERROR, "inflate returned %d (%d bytes)\n", r, n);
+		exit_cleanup(1);
+	    }
+	    if (rx_strm.avail_in == 0)
+		recv_state = r_inflated;
+	    if (n != 0) {
+		*data = dbuf;
+		return n;
+	    }
+	    break;
+
+	case r_running:
+	    ++rx_token;
+	    if (--rx_run == 0)
+		recv_state = r_idle;
+	    return -1 - rx_token;
+	}
+    }
 }

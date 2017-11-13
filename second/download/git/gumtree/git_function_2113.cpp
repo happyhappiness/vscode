@@ -1,16 +1,19 @@
-static void write_eolinfo(const struct cache_entry *ce, const char *path)
+static int remove_branches(struct string_list *branches)
 {
-	if (!show_eol)
-		return;
-	else {
-		struct stat st;
-		const char *i_txt = "";
-		const char *w_txt = "";
-		const char *a_txt = get_convert_attr_ascii(path);
-		if (ce && S_ISREG(ce->ce_mode))
-			i_txt = get_cached_convert_stats_ascii(ce->name);
-		if (!lstat(path, &st) && S_ISREG(st.st_mode))
-			w_txt = get_wt_convert_stats_ascii(path);
-		printf("i/%-5s w/%-5s attr/%-17s\t", i_txt, w_txt, a_txt);
+	struct strbuf err = STRBUF_INIT;
+	int i, result = 0;
+
+	if (repack_without_refs(branches, &err))
+		result |= error("%s", err.buf);
+	strbuf_release(&err);
+
+	for (i = 0; i < branches->nr; i++) {
+		struct string_list_item *item = branches->items + i;
+		const char *refname = item->string;
+
+		if (delete_ref(refname, NULL, 0))
+			result |= error(_("Could not remove branch %s"), refname);
 	}
+
+	return result;
 }

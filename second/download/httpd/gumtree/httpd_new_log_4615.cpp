@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00224)
-            "%s configured -- resuming normal operations",
-            ap_get_server_description());
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, s, APLOGNO(01849)
+                "The crypto library '%s' was loaded successfully",
+                conf->library);

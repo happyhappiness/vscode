@@ -1,5 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "xlate output filter not added implicitly because %s",
-                      !reqinfo->output_ctx ?
-                      "no output configuration available" :
-                      "another module added the filter");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01676) "%s", errmsg);

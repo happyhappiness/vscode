@@ -1,1 +1,2 @@
-fprintf(stderr, "flushed.\n");
+fprintf(stderr, "%s: write error (%s)\n",
+			msg, strerror(errno));

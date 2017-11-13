@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no password specified", getpid());
+printf("INFO: %s header == \n---\n%s\n---\n", 
+                (posting == 2) ? "PUT" : "POST", request);

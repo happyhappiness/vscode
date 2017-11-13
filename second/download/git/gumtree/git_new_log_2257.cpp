@@ -1,1 +1,1 @@
-warning_errno(_("failed to exec '%s'"), path);
+status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);

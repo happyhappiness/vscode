@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
+apr_file_printf(errfile, " -c  Create a new file." NL);

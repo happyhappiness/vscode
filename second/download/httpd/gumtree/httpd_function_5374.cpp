@@ -1,64 +1,62 @@
-static authz_status
-forward_dns_check_authorization(request_rec *r,
-                                const char *require_line,
-                                const void *parsed_require_line)
+static int worker_pre_config(apr_pool_t *pconf, apr_pool_t *plog,
+                             apr_pool_t *ptemp)
 {
-    const char *err = NULL;
-    const ap_expr_info_t *expr = parsed_require_line;
-    const char *require, *t;
-    char *w;
+    int no_detach, debug, foreground;
+    apr_status_t rv;
+    const char *userdata_key = "mpm_worker_module";
 
-    /* the require line is an expression, which is evaluated now. */
-    require = ap_expr_str_exec(r, expr, &err);
-    if (err) {
-      ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03354)
-                    "Can't evaluate require expression: %s", err);
-      return AUTHZ_DENIED;
+    mpm_state = AP_MPMQ_STARTING;
+
+    debug = ap_exists_config_define("DEBUG");
+
+    if (debug) {
+        foreground = one_process = 1;
+        no_detach = 0;
+    }
+    else {
+        one_process = ap_exists_config_define("ONE_PROCESS");
+        no_detach = ap_exists_config_define("NO_DETACH");
+        foreground = ap_exists_config_define("FOREGROUND");
     }
 
-    /* tokenize expected list of names */
-    t = require;
-    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+    ap_mutex_register(pconf, AP_ACCEPT_MUTEX_TYPE, NULL, APR_LOCK_DEFAULT, 0);
 
-        apr_sockaddr_t *sa;
-        apr_status_t rv;
-        char *hash_ptr;
+    /* sigh, want this only the second time around */
+    retained = ap_retained_data_get(userdata_key);
+    if (!retained) {
+        retained = ap_retained_data_create(userdata_key, sizeof(*retained));
+    }
+    ++retained->module_loads;
+    if (retained->module_loads == 2) {
+        is_graceful = 0;
 
-        /* stop on apache configuration file comments */
-        if ((hash_ptr = ap_strchr(w, '#'))) {
-            if (hash_ptr == w) {
-                break;
-            }
-            *hash_ptr = '\0';
-        }
-
-        /* does the client ip match one of the names? */
-        rv = apr_sockaddr_info_get(&sa, w, APR_UNSPEC, 0, 0, r->pool);
-        if (rv == APR_SUCCESS) {
-
-            while (sa) {
-                int match = apr_sockaddr_equal(sa, r->useragent_addr);
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03355)
-                              "access check for %s as '%s': %s",
-                              r->useragent_ip, w, match? "yes": "no");
-                if (match) {
-                    return AUTHZ_GRANTED;
-                }
-
-                sa = sa->next;
+        if (!one_process && !foreground) {
+            rv = apr_proc_detach(no_detach ? APR_PROC_DETACH_FOREGROUND
+                                           : APR_PROC_DETACH_DAEMONIZE);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                             "apr_proc_detach failed");
+                return HTTP_INTERNAL_SERVER_ERROR;
             }
         }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(03356)
-                          "No sockaddr info for \"%s\"", w);
-        }
-
-        /* stop processing, we are in a comment */
-        if (hash_ptr) {
-            break;
-        }
+        parent_pid = ap_my_pid = getpid();
     }
 
-    return AUTHZ_DENIED;
+    ap_listen_pre_config();
+    ap_daemons_to_start = DEFAULT_START_DAEMON;
+    min_spare_threads = DEFAULT_MIN_FREE_DAEMON * DEFAULT_THREADS_PER_CHILD;
+    max_spare_threads = DEFAULT_MAX_FREE_DAEMON * DEFAULT_THREADS_PER_CHILD;
+    server_limit = DEFAULT_SERVER_LIMIT;
+    thread_limit = DEFAULT_THREAD_LIMIT;
+    ap_daemons_limit = server_limit;
+    threads_per_child = DEFAULT_THREADS_PER_CHILD;
+    max_clients = ap_daemons_limit * threads_per_child;
+    ap_pid_fname = DEFAULT_PIDLOG;
+    ap_max_requests_per_child = DEFAULT_MAX_REQUESTS_PER_CHILD;
+    ap_extended_status = 0;
+    ap_max_mem_free = APR_ALLOCATOR_MAX_FREE_UNLIMITED;
+
+    apr_cpystrn(ap_coredump_dir, ap_server_root, sizeof(ap_coredump_dir));
+
+    return OK;
 }

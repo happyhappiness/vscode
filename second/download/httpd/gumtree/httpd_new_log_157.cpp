@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
-                     "could not find the UTF-8 charset in the file %s.", 
-                     charset_confname);
+ap_fputstrs(output, bb,
+                DEBUG_CR "<D:href>",
+                dav_xml_escape_uri(pool, response->href),
+                "</D:href>" DEBUG_CR,
+                NULL);

@@ -1,101 +1,107 @@
-static int ef_unified_filter(ap_filter_t *f, apr_bucket_brigade *bb)
+static authz_status ldapdn_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    request_rec *r = f->r;
-    conn_rec *c = r->connection;
-    ef_ctx_t *ctx = f->ctx;
-    apr_bucket *b;
-    ef_dir_t *dc;
-    apr_size_t len;
-    const char *data;
-    apr_status_t rv;
-    char buf[4096];
-    apr_bucket *eos = NULL;
-    apr_bucket_brigade *bb_tmp;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    dc = ctx->dc;
-    bb_tmp = apr_brigade_create(r->pool, c->bucket_alloc);
+    util_ldap_connection_t *ldc = NULL;
 
-    for (b = APR_BRIGADE_FIRST(bb);
-         b != APR_BRIGADE_SENTINEL(bb);
-         b = APR_BUCKET_NEXT(b))
-    {
-        if (APR_BUCKET_IS_EOS(b)) {
-            eos = b;
-            break;
+    const char *t;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
+    }
+
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
+    }
+
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_SEARCH); /* _comparedn is a searche */
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "auth_ldap authorize: no sec->host - weird...?");
+        return AUTHZ_DENIED;
+    }
+
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
+
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
+
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
         }
 
-        rv = apr_bucket_read(b, &data, &len, APR_BLOCK_READ);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "apr_bucket_read()");
-            return rv;
-        }
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
 
-        /* Good cast, we just tested len isn't negative */
-        if (len > 0 &&
-            (rv = pass_data_to_filter(f, data, (apr_size_t)len, bb_tmp))
-                != APR_SUCCESS) {
-            return rv;
+    t = require_args;
+
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: require dn: user's DN has not "
+                      "been defined; failing authorization");
+        return AUTHZ_DENIED;
+    }
+
+    result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, t, sec->compare_dn_on_server);
+    switch(result) {
+        case LDAP_COMPARE_TRUE: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: "
+                          "require dn: authorization successful");
+            set_request_vars(r, LDAP_AUTHZ);
+            return AUTHZ_GRANTED;
+        }
+        default: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: "
+                          "require dn \"%s\": LDAP error [%s][%s]",
+                          t, ldc->reason, ldap_err2string(result));
         }
     }
 
-    apr_brigade_cleanup(bb);
-    APR_BRIGADE_CONCAT(bb, bb_tmp);
-    apr_brigade_destroy(bb_tmp);
 
-    if (eos) {
-        /* close the child's stdin to signal that no more data is coming;
-         * that will cause the child to finish generating output
-         */
-        if ((rv = apr_file_close(ctx->proc->in)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "apr_file_close(child input)");
-            return rv;
-        }
-        /* since we've seen eos and closed the child's stdin, set the proper pipe
-         * timeout; we don't care if we don't return from apr_file_read() for a while...
-         */
-        rv = apr_file_pipe_timeout_set(ctx->proc->out,
-                                       r->server->timeout);
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "apr_file_pipe_timeout_set(child output)");
-            return rv;
-        }
-    }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "auth_ldap authorize dn: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);
 
-    do {
-        len = sizeof(buf);
-        rv = apr_file_read(ctx->proc->out,
-                      buf,
-                      &len);
-        if ((rv && !APR_STATUS_IS_EOF(rv) && !APR_STATUS_IS_EAGAIN(rv)) ||
-            dc->debug >= DBGLVL_GORY) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "apr_file_read(child output), len %" APR_SIZE_T_FMT,
-                          !rv ? len : -1);
-        }
-        if (APR_STATUS_IS_EAGAIN(rv)) {
-            if (eos) {
-                /* should not occur, because we have an APR timeout in place */
-                AP_DEBUG_ASSERT(1 != 1);
-            }
-            return APR_SUCCESS;
-        }
-
-        if (rv == APR_SUCCESS) {
-            b = apr_bucket_heap_create(buf, len, NULL, c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, b);
-        }
-    } while (rv == APR_SUCCESS);
-
-    if (!APR_STATUS_IS_EOF(rv)) {
-        return rv;
-    }
-
-    if (eos) {
-        b = apr_bucket_eos_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-    }
-
-    return APR_SUCCESS;
+    return AUTHZ_DENIED;
 }

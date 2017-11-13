@@ -1,65 +1,36 @@
-static authz_status filegroup_check_authorization(request_rec *r,
-                                              const char *require_args)
+static void ssl_init_server_certs(server_rec *s,
+                                  apr_pool_t *p,
+                                  apr_pool_t *ptemp,
+                                  modssl_ctx_t *mctx)
 {
-    authz_groupfile_config_rec *conf = ap_get_module_config(r->per_dir_config,
-            &authz_groupfile_module);
-    char *user = r->user;
-    apr_table_t *grpstatus = NULL;
-    apr_status_t status;
-    const char *filegroup = NULL;
+    const char *rsa_id, *dsa_id;
+    const char *vhost_id = mctx->sc->vhost_id;
+    int i;
+    int have_rsa, have_dsa;
 
-    if (!user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
+    rsa_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_RSA);
+    dsa_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_DSA);
+
+    have_rsa = ssl_server_import_cert(s, mctx, rsa_id, SSL_AIDX_RSA);
+    have_dsa = ssl_server_import_cert(s, mctx, dsa_id, SSL_AIDX_DSA);
+
+    if (!(have_rsa || have_dsa)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Oops, no RSA or DSA server certificate found "
+                "for '%s:%d'?!", s->server_hostname, s->port);
+        ssl_die();
     }
 
-    /* If there is no group file - then we are not
-     * configured. So decline.
-     */
-    if (!(conf->groupfile)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "No group file was specified in the configuration");
-        return AUTHZ_DENIED;
+    for (i = 0; i < SSL_AIDX_MAX; i++) {
+        ssl_check_public_cert(s, ptemp, mctx->pks->certs[i], i);
     }
 
-    status = groups_for_user(r->pool, user, conf->groupfile,
-                             &grpstatus);
-    if (status != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Could not open group file: %s",
-                      conf->groupfile);
-        return AUTHZ_DENIED;
+    have_rsa = ssl_server_import_key(s, mctx, rsa_id, SSL_AIDX_RSA);
+    have_dsa = ssl_server_import_key(s, mctx, dsa_id, SSL_AIDX_DSA);
+
+    if (!(have_rsa || have_dsa)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Oops, no RSA or DSA server private key found?!");
+        ssl_die();
     }
-
-    if (apr_table_elts(grpstatus)->nelts == 0) {
-        /* no groups available, so exit immediately */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "Authorization of user %s to access %s failed, reason: "
-                        "user doesn't appear in group file (%s).",
-                        r->user, r->uri, conf->groupfile);
-        return AUTHZ_DENIED;
-    }
-
-    filegroup = authz_owner_get_file_group(r);
-
-    if (filegroup) {
-        if (apr_table_get(grpstatus, filegroup)) {
-            return AUTHZ_GRANTED;
-        }
-    }
-    else {
-        /* No need to emit a error log entry because the call
-        to authz_owner_get_file_group already did it
-        for us.
-        */
-        return AUTHZ_DENIED;
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Authorization of user %s to access %s failed, reason: "
-                  "user is not part of the 'require'ed file group.",
-                  r->user, r->uri);
-
-    return AUTHZ_DENIED;
 }

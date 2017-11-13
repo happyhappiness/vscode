@@ -1165,8 +1165,6 @@ puts (
 "      - Frederic Lepied <flepied@mandrakesoft.com>\n"
 "      - Georg Horn <horn@koblenz-net.de>\n"
 "      - Cris Bailiff <c.bailiff@awayweb.com>\n"
-"      - Sterling Hughes <sterling@designmultimedia.com>\n"
-"      - S. Moonesamy\n"
 "\n"
 "WWW\n"
 "     http://curl.haxx.se\n"
@@ -1184,12 +1182,12 @@ puts (
 "\n"
 "        http://curl.haxx.se\n"
 "\n"
-);
- puts(
 "SIMPLE USAGE\n"
 "\n"
 "  Get the main page from netscape's web-server:\n"
 "\n"
+);
+ puts(
 "        curl http://www.netscape.com/\n"
 "\n"
 "  Get the root README file from funet's ftp-server:\n"
@@ -1208,12 +1206,12 @@ puts (
 "\n"
 "        curl gopher://gopher.funet.fi\n"
 "\n"
-);
- puts(
 "  Get the definition of curl from a dictionary:\n"
 "\n"
 "        curl dict://dict.org/m:curl\n"
 "\n"
+);
+ puts(
 "  Fetch two documents at once:\n"
 "\n"
 "        curl ftp://cool.haxx.se/ http://www.weirdserver.com:8000/\n"
@@ -1228,12 +1226,12 @@ puts (
 "  of the remote document (if no file name part is specified in the URL, this\n"
 "  will fail):\n"
 "\n"
-);
- puts(
 "        curl -O http://www.netscape.com/index.html\n"
 "\n"
 "  Fetch two files and store them with their remote names:\n"
 "\n"
+);
+ puts(
 "        curl -O www.haxx.se/index.html -O curl.haxx.se/download.html\n"
 "\n"
 "USING PASSWORDS\n"
@@ -1250,9 +1248,9 @@ puts (
 "\n"
 " HTTP\n"
 "\n"
+"   The HTTP URL doesn't support user and password in the URL string. Curl\n"
 );
  puts(
-"   The HTTP URL doesn't support user and password in the URL string. Curl\n"
 "   does support that anyway to provide a ftp-style interface and thus you can\n"
 "   pick a file like:\n"
 "\n"
@@ -1263,13 +1261,13 @@ puts (
 "        curl -u name:passwd http://machine.domain/full/path/to/file\n"
 "\n"
 "   NOTE! Since HTTP URLs don't support user and password, you can't use that\n"
-);
- puts(
 "   style when using Curl via a proxy. You _must_ use the -u style fetch\n"
 "   during such circumstances.\n"
 "\n"
 " HTTPS\n"
 "\n"
+);
+ puts(
 "   Probably most commonly used with private certificates, as explained below.\n"
 "\n"
 " GOPHER\n"
@@ -1285,10 +1283,10 @@ puts (
 " Get a file from a HTTP server that requires user and password, using the\n"
 " same proxy as above:\n"
 "\n"
-);
- puts(
 "        curl -u user:passwd -x my-proxy:888 http://www.get.this/\n"
 "\n"
+);
+ puts(
 " Some proxies require special authentication. Specify by using -U as above:\n"
 "\n"
 "        curl -U user:passwd -x my-proxy:888 http://www.get.this/\n"
@@ -1302,12 +1300,12 @@ puts (
 "  to get only one or more subparts of a specified document. Curl supports\n"
 "  this with the -r flag.\n"
 "\n"
-);
- puts(
 "  Get the first 100 bytes of a document:\n"
 "\n"
 "        curl -r 0-99 http://www.get.this/\n"
 "\n"
+);
+ puts(
 "  Get the last 500 bytes of a document:\n"
 "\n"
 "        curl -r -500 http://www.get.this/\n"
@@ -1327,10 +1325,10 @@ puts (
 "\n"
 "        curl -t ftp://ftp.upload.com/myfile\n"
 "\n"
-);
- puts(
 "  Upload data from a specified file, login with user and password:\n"
 "\n"
+);
+ puts(
 "        curl -T uploadfile -u user:passwd ftp://ftp.upload.com/myfile\n"
 "\n"
 "  Upload a local file to the remote site, and use the local file name remote\n"

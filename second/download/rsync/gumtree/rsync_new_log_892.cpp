@@ -1,1 +1,1 @@
-fprintf(F," -L, --link-owner            display the owner+group on a symlink\n");
+overflow_exit("recv_xattr_request");

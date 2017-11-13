@@ -1,1 +1,1 @@
-ap_rputs("OK", r);
+ap_rputs("Uninitialized", r);

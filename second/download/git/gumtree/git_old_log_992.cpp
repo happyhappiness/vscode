@@ -1,1 +1,4 @@
-printf(" %u %s", obj_stat[i].delta_depth, sha1_to_hex(bobj->idx.sha1));
+printf("M %06o %s ", spec->mode,
+				       sha1_to_hex(anonymize ?
+						   anonymize_sha1(spec->oid.hash) :
+						   spec->oid.hash));

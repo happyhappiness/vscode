@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01932)
-                     "stapling_get_cached_response: response parse error??");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01020)
+                      "error apr_pollset_create()");

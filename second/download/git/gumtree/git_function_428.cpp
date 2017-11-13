@@ -1,17 +1,36 @@
-static int packet_write_fmt_1(int fd, int gently,
-			      const char *fmt, va_list args)
+static int list(int argc, const char **argv, const char *prefix)
 {
-	struct strbuf buf = STRBUF_INIT;
-	ssize_t count;
+	struct notes_tree *t;
+	unsigned char object[20];
+	const unsigned char *note;
+	int retval = -1;
+	struct option options[] = {
+		OPT_END()
+	};
 
-	format_packet(&buf, fmt, args);
-	count = write_in_full(fd, buf.buf, buf.len);
-	if (count == buf.len)
-		return 0;
+	if (argc)
+		argc = parse_options(argc, argv, prefix, options,
+				     git_notes_list_usage, 0);
 
-	if (!gently) {
-		check_pipe(errno);
-		die_errno("packet write with format failed");
+	if (1 < argc) {
+		error(_("too many parameters"));
+		usage_with_options(git_notes_list_usage, options);
 	}
-	return error("packet write with format failed");
+
+	t = init_notes_check("list", 0);
+	if (argc) {
+		if (get_sha1(argv[0], object))
+			die(_("Failed to resolve '%s' as a valid ref."), argv[0]);
+		note = get_note(t, object);
+		if (note) {
+			puts(sha1_to_hex(note));
+			retval = 0;
+		} else
+			retval = error(_("No note found for object %s."),
+				       sha1_to_hex(object));
+	} else
+		retval = for_each_note(t, 0, list_each_note, NULL);
+
+	free_notes(t);
+	return retval;
 }

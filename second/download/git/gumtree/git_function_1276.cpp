@@ -1,21 +1,30 @@
-static void serve_cache(const char *socket_path, int debug)
+static void write_commented_object(int fd, const unsigned char *object)
 {
-	int fd;
+	const char *show_args[5] =
+		{"show", "--stat", "--no-notes", sha1_to_hex(object), NULL};
+	struct child_process show = CHILD_PROCESS_INIT;
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf cbuf = STRBUF_INIT;
 
-	fd = unix_stream_listen(socket_path);
-	if (fd < 0)
-		die_errno("unable to bind to '%s'", socket_path);
+	/* Invoke "git show --stat --no-notes $object" */
+	show.argv = show_args;
+	show.no_stdin = 1;
+	show.out = -1;
+	show.err = 0;
+	show.git_cmd = 1;
+	if (start_command(&show))
+		die(_("unable to start 'show' for object '%s'"),
+		    sha1_to_hex(object));
 
-	printf("ok\n");
-	fclose(stdout);
-	if (!debug) {
-		if (!freopen("/dev/null", "w", stderr))
-			die_errno("unable to point stderr to /dev/null");
-	}
+	if (strbuf_read(&buf, show.out, 0) < 0)
+		die_errno(_("could not read 'show' output"));
+	strbuf_add_commented_lines(&cbuf, buf.buf, buf.len);
+	write_or_die(fd, cbuf.buf, cbuf.len);
 
-	while (serve_cache_loop(fd))
-		; /* nothing */
+	strbuf_release(&cbuf);
+	strbuf_release(&buf);
 
-	close(fd);
-	unlink(socket_path);
+	if (finish_command(&show))
+		die(_("failed to finish 'show' for object '%s'"),
+		    sha1_to_hex(object));
 }

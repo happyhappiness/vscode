@@ -1,66 +1,173 @@
-int cmd_main(int argc, const char **argv)
+static int do_pick_commit(struct commit *commit, struct replay_opts *opts)
 {
-	char *method = getenv("REQUEST_METHOD");
-	char *dir;
-	struct service_cmd *cmd = NULL;
-	char *cmd_arg = NULL;
-	int i;
+	unsigned char head[20];
+	struct commit *base, *next, *parent;
+	const char *base_label, *next_label;
+	struct commit_message msg = { NULL, NULL, NULL, NULL };
+	struct strbuf msgbuf = STRBUF_INIT;
+	int res, unborn = 0, allow;
 
-	set_die_routine(die_webcgi);
-	set_die_is_recursing_routine(die_webcgi_recursing);
+	if (opts->no_commit) {
+		/*
+		 * We do not intend to commit immediately.  We just want to
+		 * merge the differences in, so let's compute the tree
+		 * that represents the "current" state for merge-recursive
+		 * to work on.
+		 */
+		if (write_cache_as_tree(head, 0, NULL))
+			die (_("Your index file is unmerged."));
+	} else {
+		unborn = get_sha1("HEAD", head);
+		if (unborn)
+			hashcpy(head, EMPTY_TREE_SHA1_BIN);
+		if (index_differs_from(unborn ? EMPTY_TREE_SHA1_HEX : "HEAD", 0))
+			return error_dirty_index(opts);
+	}
+	discard_cache();
 
-	if (!method)
-		die("No REQUEST_METHOD from server");
-	if (!strcmp(method, "HEAD"))
-		method = "GET";
-	dir = getdir();
+	if (!commit->parents) {
+		parent = NULL;
+	}
+	else if (commit->parents->next) {
+		/* Reverting or cherry-picking a merge commit */
+		int cnt;
+		struct commit_list *p;
 
-	for (i = 0; i < ARRAY_SIZE(services); i++) {
-		struct service_cmd *c = &services[i];
-		regex_t re;
-		regmatch_t out[1];
+		if (!opts->mainline)
+			return error(_("Commit %s is a merge but no -m option was given."),
+				sha1_to_hex(commit->object.sha1));
 
-		if (regcomp(&re, c->pattern, REG_EXTENDED))
-			die("Bogus regex in service table: %s", c->pattern);
-		if (!regexec(&re, dir, 1, out, 0)) {
-			size_t n;
+		for (cnt = 1, p = commit->parents;
+		     cnt != opts->mainline && p;
+		     cnt++)
+			p = p->next;
+		if (cnt != opts->mainline || !p)
+			return error(_("Commit %s does not have parent %d"),
+				sha1_to_hex(commit->object.sha1), opts->mainline);
+		parent = p->item;
+	} else if (0 < opts->mainline)
+		return error(_("Mainline was specified but commit %s is not a merge."),
+			sha1_to_hex(commit->object.sha1));
+	else
+		parent = commit->parents->item;
 
-			if (strcmp(method, c->method)) {
-				const char *proto = getenv("SERVER_PROTOCOL");
-				if (proto && !strcmp(proto, "HTTP/1.1")) {
-					http_status(405, "Method Not Allowed");
-					hdr_str("Allow", !strcmp(c->method, "GET") ?
-						"GET, HEAD" : c->method);
-				} else
-					http_status(400, "Bad Request");
-				hdr_nocache();
-				end_headers();
-				return 0;
-			}
+	if (opts->allow_ff &&
+	    ((parent && !hashcmp(parent->object.sha1, head)) ||
+	     (!parent && unborn)))
+		return fast_forward_to(commit->object.sha1, head, unborn, opts);
 
-			cmd = c;
-			n = out[0].rm_eo - out[0].rm_so;
-			cmd_arg = xmemdupz(dir + out[0].rm_so + 1, n - 1);
-			dir[out[0].rm_so] = 0;
-			break;
+	if (parent && parse_commit(parent) < 0)
+		/* TRANSLATORS: The first %s will be "revert" or
+		   "cherry-pick", the second %s a SHA1 */
+		return error(_("%s: cannot parse parent commit %s"),
+			action_name(opts), sha1_to_hex(parent->object.sha1));
+
+	if (get_message(commit, &msg) != 0)
+		return error(_("Cannot get commit message for %s"),
+			sha1_to_hex(commit->object.sha1));
+
+	/*
+	 * "commit" is an existing commit.  We would want to apply
+	 * the difference it introduces since its first parent "prev"
+	 * on top of the current HEAD if we are cherry-pick.  Or the
+	 * reverse of it if we are revert.
+	 */
+
+	if (opts->action == REPLAY_REVERT) {
+		base = commit;
+		base_label = msg.label;
+		next = parent;
+		next_label = msg.parent_label;
+		strbuf_addstr(&msgbuf, "Revert \"");
+		strbuf_addstr(&msgbuf, msg.subject);
+		strbuf_addstr(&msgbuf, "\"\n\nThis reverts commit ");
+		strbuf_addstr(&msgbuf, sha1_to_hex(commit->object.sha1));
+
+		if (commit->parents && commit->parents->next) {
+			strbuf_addstr(&msgbuf, ", reversing\nchanges made to ");
+			strbuf_addstr(&msgbuf, sha1_to_hex(parent->object.sha1));
 		}
-		regfree(&re);
+		strbuf_addstr(&msgbuf, ".\n");
+	} else {
+		const char *p;
+
+		base = parent;
+		base_label = msg.parent_label;
+		next = commit;
+		next_label = msg.label;
+
+		/*
+		 * Append the commit log message to msgbuf; it starts
+		 * after the tree, parent, author, committer
+		 * information followed by "\n\n".
+		 */
+		p = strstr(msg.message, "\n\n");
+		if (p) {
+			p += 2;
+			strbuf_addstr(&msgbuf, p);
+		}
+
+		if (opts->record_origin) {
+			if (!has_conforming_footer(&msgbuf, NULL, 0))
+				strbuf_addch(&msgbuf, '\n');
+			strbuf_addstr(&msgbuf, cherry_picked_prefix);
+			strbuf_addstr(&msgbuf, sha1_to_hex(commit->object.sha1));
+			strbuf_addstr(&msgbuf, ")\n");
+		}
 	}
 
-	if (!cmd)
-		not_found("Request not supported: '%s'", dir);
+	if (!opts->strategy || !strcmp(opts->strategy, "recursive") || opts->action == REPLAY_REVERT) {
+		res = do_recursive_merge(base, next, base_label, next_label,
+					 head, &msgbuf, opts);
+		write_message(&msgbuf, git_path_merge_msg());
+	} else {
+		struct commit_list *common = NULL;
+		struct commit_list *remotes = NULL;
 
-	setup_path();
-	if (!enter_repo(dir, 0))
-		not_found("Not a git repository: '%s'", dir);
-	if (!getenv("GIT_HTTP_EXPORT_ALL") &&
-	    access("git-daemon-export-ok", F_OK) )
-		not_found("Repository not exported: '%s'", dir);
+		write_message(&msgbuf, git_path_merge_msg());
 
-	http_config();
-	max_request_buffer = git_env_ulong("GIT_HTTP_MAX_REQUEST_BUFFER",
-					   max_request_buffer);
+		commit_list_insert(base, &common);
+		commit_list_insert(next, &remotes);
+		res = try_merge_command(opts->strategy, opts->xopts_nr, opts->xopts,
+					common, sha1_to_hex(head), remotes);
+		free_commit_list(common);
+		free_commit_list(remotes);
+	}
 
-	cmd->imp(cmd_arg);
-	return 0;
+	/*
+	 * If the merge was clean or if it failed due to conflict, we write
+	 * CHERRY_PICK_HEAD for the subsequent invocation of commit to use.
+	 * However, if the merge did not even start, then we don't want to
+	 * write it at all.
+	 */
+	if (opts->action == REPLAY_PICK && !opts->no_commit && (res == 0 || res == 1))
+		update_ref(NULL, "CHERRY_PICK_HEAD", commit->object.sha1, NULL,
+			   REF_NODEREF, UPDATE_REFS_DIE_ON_ERR);
+	if (opts->action == REPLAY_REVERT && ((opts->no_commit && res == 0) || res == 1))
+		update_ref(NULL, "REVERT_HEAD", commit->object.sha1, NULL,
+			   REF_NODEREF, UPDATE_REFS_DIE_ON_ERR);
+
+	if (res) {
+		error(opts->action == REPLAY_REVERT
+		      ? _("could not revert %s... %s")
+		      : _("could not apply %s... %s"),
+		      find_unique_abbrev(commit->object.sha1, DEFAULT_ABBREV),
+		      msg.subject);
+		print_advice(res == 1, opts);
+		rerere(opts->allow_rerere_auto);
+		goto leave;
+	}
+
+	allow = allow_empty(opts, commit);
+	if (allow < 0) {
+		res = allow;
+		goto leave;
+	}
+	if (!opts->no_commit)
+		res = run_git_commit(git_path_merge_msg(), opts, allow);
+
+leave:
+	free_message(commit, &msg);
+
+	return res;
 }

@@ -1,1 +1,0 @@
-fprintf(FERROR,"excluding file %s\n",fname);

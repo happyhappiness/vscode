@@ -1,1 +1,1 @@
-error("copy-fd: write returned %s", strerror(errno));
+(format(printf, 2, 3);

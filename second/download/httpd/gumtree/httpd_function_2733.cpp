@@ -1,135 +1,100 @@
-static authz_status ldapuser_check_authorization(request_rec *r,
-                                             const char *require_args)
+static int proxy_trans(request_rec *r)
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    void *sconf = r->server->module_config;
+    proxy_server_conf *conf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    int i, len;
+    struct proxy_alias *ent = (struct proxy_alias *) conf->aliases->elts;
+    ap_regmatch_t regm[AP_MAX_REG_MATCH];
+    ap_regmatch_t reg1[AP_MAX_REG_MATCH];
+    char *found = NULL;
+    int mismatch = 0;
 
-    util_ldap_connection_t *ldc = NULL;
-
-    const char *t;
-    char *w;
-
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
-
-    if (!r->user) {
-        return AUTHZ_DENIED_NO_USER;
+    if (r->proxyreq) {
+        /* someone has already set up the proxy, it was possibly ourselves
+         * in proxy_detect
+         */
+        return OK;
     }
 
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
-    }
-
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_COMPARE);
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "auth_ldap authorize: no sec->host - weird...?");
-        return AUTHZ_DENIED;
-    }
-
-    /*
-     * If we have been authenticated by some other module than mod_authnz_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
+    /* XXX: since r->uri has been manipulated already we're not really
+     * compliant with RFC1945 at this point.  But this probably isn't
+     * an issue because this is a hybrid proxy/origin server.
      */
 
-
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
-
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
-
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
-        }
-
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-
-    }
-
-    if (req->dn == NULL || strlen(req->dn) == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authorize: require user: user's DN has not "
-                      "been defined; failing authorization");
-        return AUTHZ_DENIED;
-    }
-
-    /*
-     * First do a whole-line compare, in case it's something like
-     *   require user Babs Jensen
-     */
-    result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, require_args);
-    switch(result) {
-        case LDAP_COMPARE_TRUE: {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: require user: authorization "
-                          "successful");
-            set_request_vars(r, LDAP_AUTHZ);
-            return AUTHZ_GRANTED;
-        }
-        default: {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: require user: "
-                          "authorization failed [%s][%s]",
-                          ldc->reason, ldap_err2string(result));
-        }
-    }
-
-    /*
-     * Now break apart the line and compare each word on it
-     */
-    t = require_args;
-    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
-        result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, w);
-        switch(result) {
-            case LDAP_COMPARE_TRUE: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: "
-                              "require user: authorization successful");
-                set_request_vars(r, LDAP_AUTHZ);
-                return AUTHZ_GRANTED;
-            }
-            default: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: "
-                              "require user: authorization failed [%s][%s]",
-                              ldc->reason, ldap_err2string(result));
+    for (i = 0; i < conf->aliases->nelts; i++) {
+        unsigned int nocanon = ent[i].flags & PROXYPASS_NOCANON;
+        const char *use_uri = nocanon ? r->unparsed_uri : r->uri;
+        if (ent[i].regex) {
+            if (!ap_regexec(ent[i].regex, r->uri, AP_MAX_REG_MATCH, regm, 0)) {
+                if ((ent[i].real[0] == '!') && (ent[i].real[1] == '\0')) {
+                    return DECLINED;
+                }
+                /* test that we haven't reduced the URI */
+                if (nocanon && ap_regexec(ent[i].regex, r->unparsed_uri,
+                                          AP_MAX_REG_MATCH, reg1, 0)) {
+                    mismatch = 1;
+                    use_uri = r->uri;
+                }
+                found = ap_pregsub(r->pool, ent[i].real, use_uri,
+                                   AP_MAX_REG_MATCH,
+                                   (use_uri == r->uri) ? regm : reg1);
+                /* Note: The strcmp() below catches cases where there
+                 * was no regex substitution. This is so cases like:
+                 *
+                 *    ProxyPassMatch \.gif balancer://foo
+                 *
+                 * will work "as expected". The upshot is that the 2
+                 * directives below act the exact same way (ie: $1 is implied):
+                 *
+                 *    ProxyPassMatch ^(/.*\.gif)$ balancer://foo
+                 *    ProxyPassMatch ^(/.*\.gif)$ balancer://foo$1
+                 *
+                 * which may be confusing.
+                 */
+                if (found && strcmp(found, ent[i].real)) {
+                    found = apr_pstrcat(r->pool, "proxy:", found, NULL);
+                }
+                else {
+                    found = apr_pstrcat(r->pool, "proxy:", ent[i].real,
+                                        use_uri, NULL);
+                }
             }
         }
+        else {
+            len = alias_match(r->uri, ent[i].fake);
+
+            if (len > 0) {
+                if ((ent[i].real[0] == '!') && (ent[i].real[1] == '\0')) {
+                    return DECLINED;
+                }
+                if (nocanon
+                    && len != alias_match(r->unparsed_uri, ent[i].fake)) {
+                    mismatch = 1;
+                    use_uri = r->uri;
+                }
+                found = apr_pstrcat(r->pool, "proxy:", ent[i].real,
+                                    use_uri + len, NULL);
+            }
+        }
+        if (mismatch) {
+            /* We made a reducing transformation, so we can't safely use
+             * unparsed_uri.  Safe fallback is to ignore nocanon.
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unescaped URL path matched ProxyPass; ignoring unsafe nocanon");
+        }
+
+        if (found) {
+            r->filename = found;
+            r->handler = "proxy-server";
+            r->proxyreq = PROXYREQ_REVERSE;
+            if (nocanon && !mismatch) {
+                /* mod_proxy_http needs to be told.  Different module. */
+                apr_table_setn(r->notes, "proxy-nocanon", "1");
+            }
+            return OK;
+        }
     }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize user: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
-
-    return AUTHZ_DENIED;
+    return DECLINED;
 }

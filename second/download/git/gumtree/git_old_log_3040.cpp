@@ -1,1 +1,1 @@
-die("cannot run browser");
+printf("Launching default browser to display HTML ...\n");

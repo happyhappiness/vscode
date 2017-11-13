@@ -1,1 +1,1 @@
-fprintf(FERROR,"renaming %s to %s\n",fnametmp,fname);
+fprintf(FERROR,"sending file_sum\n");

@@ -1,31 +1,17 @@
-static int show_local_info_item(struct string_list_item *item, void *cb_data)
+static int run_gpg_verify(const unsigned char *sha1, const char *buf, unsigned long size, int verbose)
 {
-	struct show_info *show_info = cb_data;
-	struct branch_info *branch_info = item->util;
-	struct string_list *merge = &branch_info->merge;
-	const char *also;
-	int i;
+	struct signature_check signature_check;
 
-	if (branch_info->rebase && branch_info->merge.nr > 1) {
-		error(_("invalid branch.%s.merge; cannot rebase onto > 1 branch"),
-			item->string);
-		return 0;
-	}
+	memset(&signature_check, 0, sizeof(signature_check));
 
-	printf("    %-*s ", show_info->width, item->string);
-	if (branch_info->rebase) {
-		printf_ln(_("rebases onto remote %s"), merge->items[0].string);
-		return 0;
-	} else if (show_info->any_rebase) {
-		printf_ln(_(" merges with remote %s"), merge->items[0].string);
-		also = _("    and with remote");
-	} else {
-		printf_ln(_("merges with remote %s"), merge->items[0].string);
-		also = _("   and with remote");
-	}
-	for (i = 1; i < merge->nr; i++)
-		printf("    %-*s %s %s\n", show_info->width, "", also,
-		       merge->items[i].string);
+	check_commit_signature(lookup_commit(sha1), &signature_check);
 
-	return 0;
+	if (verbose && signature_check.payload)
+		fputs(signature_check.payload, stdout);
+
+	if (signature_check.gpg_output)
+		fputs(signature_check.gpg_output, stderr);
+
+	signature_check_clear(&signature_check);
+	return signature_check.result != 'G';
 }

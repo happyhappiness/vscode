@@ -1,73 +1,92 @@
-static void socache_shmcb_status(ap_socache_instance_t *ctx, 
-                                 request_rec *r, int flags)
+static int uldap_connection_open(request_rec *r,
+                                 util_ldap_connection_t *ldc)
 {
-    server_rec *s = r->server;
-    SHMCBHeader *header = ctx->header;
-    unsigned int loop, total = 0, cache_total = 0, non_empty_subcaches = 0;
-    apr_time_t idx_expiry, min_expiry = 0, max_expiry = 0, average_expiry = 0;
-    apr_time_t now = apr_time_now();
-    double expiry_total = 0;
-    int index_pct, cache_pct;
+    int rc = 0;
+    int failures = 0;
+    int new_connection = 0;
+    util_ldap_state_t *st;
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "inside shmcb_status");
-    /* Perform the iteration inside the mutex to avoid corruption or invalid
-     * pointer arithmetic. The rest of our logic uses read-only header data so
-     * doesn't need the lock. */
-    /* Iterate over the subcaches */
-    for (loop = 0; loop < header->subcache_num; loop++) {
-        SHMCBSubcache *subcache = SHMCB_SUBCACHE(header, loop);
-        shmcb_subcache_expire(s, header, subcache, now);
-        total += subcache->idx_used;
-        cache_total += subcache->data_used;
-        if (subcache->idx_used) {
-            SHMCBIndex *idx = SHMCB_INDEX(subcache, subcache->idx_pos);
-            non_empty_subcaches++;
-            idx_expiry = idx->expires;
-            expiry_total += (double)idx_expiry;
-            max_expiry = ((idx_expiry > max_expiry) ? idx_expiry : max_expiry);
-            if (!min_expiry)
-                min_expiry = idx_expiry;
-            else
-                min_expiry = ((idx_expiry < min_expiry) ? idx_expiry : min_expiry);
+    /* sanity check for NULL */
+    if (!ldc) {
+        return -1;
+    }
+
+    /* If the connection is already bound, return
+    */
+    if (ldc->bound)
+    {
+        ldc->reason = "LDAP: connection open successful (already bound)";
+        return LDAP_SUCCESS;
+    }
+
+    /* create the ldap session handle
+    */
+    if (NULL == ldc->ldap)
+    {
+       new_connection = 1;
+       rc = uldap_connection_init( r, ldc );
+       if (LDAP_SUCCESS != rc)
+       {
+           return rc;
+       }
+    }
+
+
+    st = (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
+                                                   &ldap_module);
+
+    /* loop trying to bind up to 10 times if LDAP_SERVER_DOWN error is
+     * returned. If LDAP_TIMEOUT is returned on the first try, maybe the
+     * connection was idle for a long time and has been dropped by a firewall.
+     * In this case close the connection immediately and try again.
+     *
+     * On Success or any other error, break out of the loop.
+     *
+     * NOTE: Looping is probably not a great idea. If the server isn't
+     * responding the chances it will respond after a few tries are poor.
+     * However, the original code looped and it only happens on
+     * the error condition.
+     */
+    for (failures=0; failures<10; failures++)
+    {
+        rc = uldap_simple_bind(ldc, (char *)ldc->binddn, (char *)ldc->bindpw,
+                               st->opTimeout);
+        if ((AP_LDAP_IS_SERVER_DOWN(rc) && failures == 5) ||
+            (rc == LDAP_TIMEOUT && failures == 0))
+        {
+            if (rc == LDAP_TIMEOUT && !new_connection) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "ldap_simple_bind() timed out on reused "
+                              "connection, dropped by firewall?");
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "attempt to re-init the connection");
+            uldap_connection_unbind( ldc );
+            rc = uldap_connection_init( r, ldc );
+            if (LDAP_SUCCESS != rc)
+            {
+                break;
+            }
         }
-    }
-    index_pct = (100 * total) / (header->index_num *
-                                 header->subcache_num);
-    cache_pct = (100 * cache_total) / (header->subcache_data_size *
-                                       header->subcache_num);
-    /* Generate HTML */
-    ap_rprintf(r, "cache type: <b>SHMCB</b>, shared memory: <b>%" APR_SIZE_T_FMT "</b> "
-               "bytes, current entries: <b>%d</b><br>",
-               ctx->shm_size, total);
-    ap_rprintf(r, "subcaches: <b>%d</b>, indexes per subcache: <b>%d</b><br>",
-               header->subcache_num, header->index_num);
-    if (non_empty_subcaches) {
-        average_expiry = (apr_time_t)(expiry_total / (double)non_empty_subcaches);
-        ap_rprintf(r, "time left on oldest entries' objects: ");
-        if (now < average_expiry)
-            ap_rprintf(r, "avg: <b>%d</b> seconds, (range: %d...%d)<br>",
-                       (int)apr_time_sec(average_expiry - now),
-                       (int)apr_time_sec(min_expiry - now),
-                       (int)apr_time_sec(max_expiry - now));
-        else
-            ap_rprintf(r, "expiry_threshold: <b>Calculation error!</b><br>");
+        else if (!AP_LDAP_IS_SERVER_DOWN(rc)) {
+            break;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "ldap_simple_bind() failed with server down "
+                      "(try %d)", failures + 1);
     }
 
-    ap_rprintf(r, "index usage: <b>%d%%</b>, cache usage: <b>%d%%</b><br>",
-               index_pct, cache_pct);
-    ap_rprintf(r, "total entries stored since starting: <b>%lu</b><br>",
-               header->stat_stores);
-    ap_rprintf(r, "total entries replaced since starting: <b>%lu</b><br>",
-               header->stat_replaced);
-    ap_rprintf(r, "total entries expired since starting: <b>%lu</b><br>",
-               header->stat_expiries);
-    ap_rprintf(r, "total (pre-expiry) entries scrolled out of the cache: "
-               "<b>%lu</b><br>", header->stat_scrolled);
-    ap_rprintf(r, "total retrieves since starting: <b>%lu</b> hit, "
-               "<b>%lu</b> miss<br>", header->stat_retrieves_hit,
-               header->stat_retrieves_miss);
-    ap_rprintf(r, "total removes since starting: <b>%lu</b> hit, "
-               "<b>%lu</b> miss<br>", header->stat_removes_hit,
-               header->stat_removes_miss);
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "leaving shmcb_status");
+    /* free the handle if there was an error
+    */
+    if (LDAP_SUCCESS != rc)
+    {
+        uldap_connection_unbind(ldc);
+        ldc->reason = "LDAP: ldap_simple_bind() failed";
+    }
+    else {
+        ldc->bound = 1;
+        ldc->reason = "LDAP: connection open successful";
+    }
+
+    return(rc);
 }

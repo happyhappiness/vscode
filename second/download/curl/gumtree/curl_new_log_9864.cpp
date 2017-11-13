@@ -1,9 +1,10 @@
 fputs(
-"              should not replace internally set headers without  knowing  per-\n"
-"              fectly well what you're doing. Remove an internal header by giv-\n"
-"              ing a replacement without content  on  the  right  side  of  the\n"
-"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
-"              value then its header must be terminated with a semicolon,  such\n"
-"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
+"              ters, and the ';type=' string in the value have no special mean-\n"
+"              ing. Use this in preference to --form if there's any possibility\n"
+"              that  the  string  value may accidentally trigger the '@' or '<'\n"
+"              features of --form.\n"
 "\n"
+"       -g, --globoff\n"
+"              This option switches off the \"URL globbing parser\". When you set\n"
+"              this  option, you can specify URLs that contain the letters {}[]\n"
 , stdout);

@@ -1,147 +1,67 @@
-static authn_status authn_ldap_check_password(request_rec *r, const char *user,
-                                              const char *password)
+static void usage(const char *progname)
 {
-    int failures = 0;
-    char filtbuf[FILTER_LENGTH];
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    fprintf(stderr, "Usage: %s [options] [http"
+#ifdef USE_SSL
+        "[s]"
+#endif
+        "://]hostname[:port]/path\n", progname);
+/* 80 column ruler:  ********************************************************************************
+ */
+    fprintf(stderr, "Options are:\n");
+    fprintf(stderr, "    -n requests     Number of requests to perform\n");
+    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
+    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
+    fprintf(stderr, "    -b windowsize   Size of TCP send/receive buffer, in bytes\n");
+    fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");
+    fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");
+    fprintf(stderr, "    -T content-type Content-type header for POSTing, eg.\n");
+    fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
+    fprintf(stderr, "                    Default is 'text/plain'\n");
+    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
+    fprintf(stderr, "    -w              Print out results in HTML tables\n");
+    fprintf(stderr, "    -i              Use HEAD instead of GET\n");
+    fprintf(stderr, "    -x attributes   String to insert as table attributes\n");
+    fprintf(stderr, "    -y attributes   String to insert as tr attributes\n");
+    fprintf(stderr, "    -z attributes   String to insert as td or th attributes\n");
+    fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234. (repeatable)\n");
+    fprintf(stderr, "    -H attribute    Add Arbitrary header line, eg. 'Accept-Encoding: gzip'\n");
+    fprintf(stderr, "                    Inserted after all normal header lines. (repeatable)\n");
+    fprintf(stderr, "    -A attribute    Add Basic WWW Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -P attribute    Add Basic Proxy Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -X proxy:port   Proxyserver and port number to use\n");
+    fprintf(stderr, "    -V              Print version number and exit\n");
+    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
+    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
 
-    util_ldap_connection_t *ldc = NULL;
-    int result = 0;
-    int remote_user_attribute_set = 0;
-    const char *dn = NULL;
-    const char *utfpassword;
-
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)apr_pcalloc(r->pool, sizeof(authn_ldap_request_t));
-    ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-
-/*
-    if (!sec->enabled) {
-        return AUTH_USER_NOT_FOUND;
-    }
-*/
-
-    /*
-     * Basic sanity checks before any LDAP operations even happen.
-     */
-    if (!sec->have_ldap_url) {
-        return AUTH_GENERAL_ERROR;
-    }
-
-start_over:
-
-    /* There is a good AuthLDAPURL, right? */
-    if (sec->host) {
-        const char *binddn = sec->binddn;
-        const char *bindpw = sec->bindpw;
-        if (sec->initial_bind_as_user) {
-            bindpw = password;
-            binddn = ldap_determine_binddn(r, user);
-        }
-
-        ldc = util_ldap_connection_find(r, sec->host, sec->port,
-                                       binddn, bindpw,
-                                       sec->deref, sec->secure);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no sec->host - weird...?", getpid());
-        return AUTH_GENERAL_ERROR;
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: using URL %s", getpid(), sec->url);
-
-    /* Get the password that the client sent */
-    if (password == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no password specified", getpid());
-        util_ldap_connection_close(ldc);
-        return AUTH_GENERAL_ERROR;
-    }
-
-    if (user == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no user specified", getpid());
-        util_ldap_connection_close(ldc);
-        return AUTH_GENERAL_ERROR;
-    }
-
-    /* build the username filter */
-    authn_ldap_build_filter(filtbuf, r, user, NULL, sec);
-
-    /* convert password to utf-8 */
-    utfpassword = authn_ldap_xlate_password(r, password);
-
-    /* do the user search */
-    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
-                                         sec->attributes, filtbuf, utfpassword,
-                                         &dn, &(req->vals));
-    util_ldap_connection_close(ldc);
-
-    /* sanity check - if server is down, retry it up to 5 times */
-    if (AP_LDAP_IS_SERVER_DOWN(result)) {
-        if (failures++ <= 5) {
-            goto start_over;
-        }
-    }
-
-    /* handle bind failure */
-    if (result != LDAP_SUCCESS) {
-        if (!sec->bind_authoritative) {
-           ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
-                      "user %s authentication failed; URI %s [%s][%s] (not authoritative)",
-                      getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
-           return AUTH_USER_NOT_FOUND;
-        }
-
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
-                      "user %s authentication failed; URI %s [%s][%s]",
-                      getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
-
-        return (LDAP_NO_SUCH_OBJECT == result) ? AUTH_USER_NOT_FOUND
-#ifdef LDAP_SECURITY_ERROR
-                 : (LDAP_SECURITY_ERROR(result)) ? AUTH_DENIED
+#ifndef OPENSSL_NO_SSL2
+#define SSL2_HELP_MSG "SSL2, "
 #else
-                 : (LDAP_INAPPROPRIATE_AUTH == result) ? AUTH_DENIED
-                 : (LDAP_INVALID_CREDENTIALS == result) ? AUTH_DENIED
-#ifdef LDAP_INSUFFICIENT_ACCESS
-                 : (LDAP_INSUFFICIENT_ACCESS == result) ? AUTH_DENIED
+#define SSL2_HELP_MSG ""
 #endif
-#ifdef LDAP_INSUFFICIENT_RIGHTS
-                 : (LDAP_INSUFFICIENT_RIGHTS == result) ? AUTH_DENIED
+
+#ifndef OPENSSL_NO_SSL3
+#define SSL3_HELP_MSG "SSL3, "
+#else
+#define SSL3_HELP_MSG ""
 #endif
+
+#ifdef HAVE_TLSV1_X
+#define TLS1_X_HELP_MSG ", TLS1.1, TLS1.2"
+#else
+#define TLS1_X_HELP_MSG ""
 #endif
-                 : AUTH_GENERAL_ERROR;
-    }
 
-    /* mark the user and DN */
-    req->dn = apr_pstrdup(r->pool, dn);
-    req->user = apr_pstrdup(r->pool, user);
-    req->password = apr_pstrdup(r->pool, password);
-    if (sec->user_is_dn) {
-        r->user = req->dn;
-    }
-
-    /* add environment variables */
-    remote_user_attribute_set = set_request_vars(r, LDAP_AUTHN);
-
-    /* sanity check */
-    if (sec->remote_user_attribute && !remote_user_attribute_set) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
-                  "REMOTE_USER was to be set with attribute '%s', "
-                  "but this attribute was not requested for in the "
-                  "LDAP query for the user. REMOTE_USER will fall "
-                  "back to username or DN as appropriate.", getpid(),
-                  sec->remote_user_attribute);
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: accepting %s", getpid(), user);
-
-    return AUTH_GRANTED;
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n"); 
+    fprintf(stderr, "                    (" SSL2_HELP_MSG SSL3_HELP_MSG "TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+#endif
+    exit(EINVAL);
 }

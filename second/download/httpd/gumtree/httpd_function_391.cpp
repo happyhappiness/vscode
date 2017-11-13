@@ -1,245 +1,251 @@
-static void output_results(void)
+static int cache_url_handler(request_rec *r, int lookup)
 {
-    apr_interval_time_t timetakenusec;
-    float timetaken;
+    apr_status_t rv;
+    const char *cc_in, *pragma, *auth;
+    apr_uri_t uri = r->parsed_uri;
+    char *url = r->unparsed_uri;
+    apr_size_t urllen;
+    char *path = uri.path;
+    const char *types;
+    cache_info *info = NULL;
+    cache_request_rec *cache;
+    cache_server_conf *conf;
 
-    endtime = apr_time_now();
-    timetakenusec = endtime - start;
-    timetaken = ((float)apr_time_sec(timetakenusec)) +
-        ((float)apr_time_usec(timetakenusec)) / 1000000.0F;
-    
-    printf("\n\n");
-    printf("Server Software:        %s\n", servername);
-    printf("Server Hostname:        %s\n", hostname);
-    printf("Server Port:            %hd\n", port);
-    printf("\n");
-    printf("Document Path:          %s\n", path);
-    printf("Document Length:        %" APR_SIZE_T_FMT " bytes\n", doclen);
-    printf("\n");
-    printf("Concurrency Level:      %d\n", concurrency);
-    printf("Time taken for tests:   %ld.%03ld seconds\n",
-           (long) apr_time_sec(timetakenusec),
-           (long) apr_time_usec(timetakenusec));
-    printf("Complete requests:      %ld\n", done);
-    printf("Failed requests:        %ld\n", bad);
-    if (bad)
-	printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-	       err_conn, err_length, err_except);
-    printf("Write errors:           %ld\n", epipe);
-    if (err_response)
-	printf("Non-2xx responses:      %d\n", err_response);
-    if (keepalive)
-	printf("Keep-Alive requests:    %ld\n", doneka);
-    printf("Total transferred:      %ld bytes\n", totalread);
-    if (posting > 0)
-	printf("Total POSTed:           %ld\n", totalposted);
-    printf("HTML transferred:       %ld bytes\n", totalbread);
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                                      &cache_module);
 
-    /* avoid divide by zero */
-    if (timetaken) {
-	printf("Requests per second:    %.2f [#/sec] (mean)\n", 
-               (float) (done / timetaken));
-	printf("Time per request:       %.3f [ms] (mean)\n", 
-               (float) (1000 * concurrency * timetaken / done));
-	printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
-	       (float) (1000 * timetaken / done));
-	printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
-	       (float) (totalread / 1024 / timetaken));
-	if (posting > 0) {
-	    printf("                        %.2f kb/s sent\n",
-		   (float) (totalposted / timetaken / 1024));
-	    printf("                        %.2f kb/s total\n",
-		   (float) ((totalread + totalposted) / timetaken / 1024));
-	}
+    /* we don't handle anything but GET */
+    if (r->method_number != M_GET) {
+        return DECLINED;
     }
 
-    if (requests) {
-	/* work out connection times */
-	long i;
-	apr_time_t totalcon = 0, total = 0, totald = 0, totalwait = 0;
-        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX, mind = AB_MAX, 
-                            minwait = AB_MAX;
-        apr_interval_time_t maxcon = 0, maxtot = 0, maxd = 0, maxwait = 0;
-        apr_interval_time_t meancon = 0, meantot = 0, meand = 0, meanwait = 0;
-        double sdtot = 0, sdcon = 0, sdd = 0, sdwait = 0;
-
-	for (i = 0; i < requests; i++) {
-	    struct data s = stats[i];
-	    mincon = ap_min(mincon, s.ctime);
-	    mintot = ap_min(mintot, s.time);
-	    mind = ap_min(mind, s.time - s.ctime);
-	    minwait = ap_min(minwait, s.waittime);
-
-	    maxcon = ap_max(maxcon, s.ctime);
-	    maxtot = ap_max(maxtot, s.time);
-	    maxd = ap_max(maxd, s.time - s.ctime);
-	    maxwait = ap_max(maxwait, s.waittime);
-
-	    totalcon += s.ctime;
-	    total += s.time;
-	    totald += s.time - s.ctime;
-	    totalwait += s.waittime;
-	}
-	totalcon /= requests;
-	total /= requests;
-	totald /= requests;
-	totalwait /= requests;
-
-	for (i = 0; i < requests; i++) {
-	    struct data s = stats[i];
-            double a;
-            a = ((double)s.time - total);
-            sdtot += a * a;
-	    a = ((double)s.ctime - totalcon);
-	    sdcon += a * a;
-	    a = ((double)s.time - (double)s.ctime - totald);
-	    sdd += a * a;
-	    a = ((double)s.waittime - totalwait);
-	    sdwait += a * a;
-	}
-
-	sdtot = (requests > 1) ? sqrt(sdtot / (requests - 1)) : 0;
-	sdcon = (requests > 1) ? sqrt(sdcon / (requests - 1)) : 0;
-	sdd = (requests > 1) ? sqrt(sdd / (requests - 1)) : 0;
-	sdwait = (requests > 1) ? sqrt(sdwait / (requests - 1)) : 0;
-
-	if (gnuplot) {
-	    FILE *out = fopen(gnuplot, "w");
-	    long i;
-	    apr_time_t sttime;
-	    char tmstring[1024];/* XXXX */
-	    if (!out) {
-		perror("Cannot open gnuplot output file");
-		exit(1);
-	    }
-	    fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");
-	    for (i = 0; i < requests; i++) {
-                apr_time_t diff = stats[i].time - stats[i].ctime;
-
-		sttime = stats[i].starttime;
-		(void) apr_ctime(tmstring, sttime);
-		fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\n",
-			tmstring,
-			sttime,
-			stats[i].ctime,
-			diff,
-			stats[i].time,
-			stats[i].waittime);
-	    }
-	    fclose(out);
-	}
     /*
-     * XXX: what is better; this hideous cast of the compradre function; or
-     * the four warnings during compile ? dirkx just does not know and
-     * hates both/
+     * Which cache module (if any) should handle this request?
      */
-	qsort(stats, requests, sizeof(struct data),
-	      (int (*) (const void *, const void *)) compradre);
-	if ((requests > 1) && (requests % 2))
-	    meancon = (stats[requests / 2].ctime + stats[requests / 2 + 1].ctime) / 2;
-	else
-	    meancon = stats[requests / 2].ctime;
+    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
+        return DECLINED;
+    }
 
-	qsort(stats, requests, sizeof(struct data),
-	      (int (*) (const void *, const void *)) compri);
-	if ((requests > 1) && (requests % 2))
-	    meand = (stats[requests / 2].time + stats[requests / 2 + 1].time \
-	    -stats[requests / 2].ctime - stats[requests / 2 + 1].ctime) / 2;
-	else
-	    meand = stats[requests / 2].time - stats[requests / 2].ctime;
+    urllen = strlen(url);
+    if (urllen > MAX_URL_LENGTH) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: URL exceeds length threshold: %s", url);
+        return DECLINED;
+    }
+    /* DECLINE urls ending in / ??? EGP: why? */
+    if (url[urllen-1] == '/') {
+        return DECLINED;
+    }
 
-	qsort(stats, requests, sizeof(struct data),
-	      (int (*) (const void *, const void *)) compwait);
-	if ((requests > 1) && (requests % 2))
-	    meanwait = (stats[requests / 2].waittime + stats[requests / 2 + 1].waittime) / 2;
-	else
-	    meanwait = stats[requests / 2].waittime;
+    /* make space for the per request config */
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config, 
+                                                       &cache_module);
+    if (!cache) {
+        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
+        ap_set_module_config(r->request_config, &cache_module, cache);
+    }
 
-	qsort(stats, requests, sizeof(struct data),
-	      (int (*) (const void *, const void *)) comprando);
-	if ((requests > 1) && (requests % 2))
-	    meantot = (stats[requests / 2].time + stats[requests / 2 + 1].time) / 2;
-	else
-	    meantot = stats[requests / 2].time;
+    /* save away the type */
+    cache->types = types;
 
-	printf("\nConnection Times (ms)\n");
+    /*
+     * Are we allowed to serve cached info at all?
+     */
 
-	if (confidence) {
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4d %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
-	    printf("              min  mean[+/-sd] median   max\n");
-	    printf("Connect:    " CONF_FMT_STRING, 
-                   mincon, (int) (totalcon + 0.5), sdcon, meancon, maxcon);
-	    printf("Processing: " CONF_FMT_STRING,
-		   mind, (int) (totald + 0.5), sdd, meand, maxd);
-	    printf("Waiting:    " CONF_FMT_STRING,
-	           minwait, (int) (totalwait + 0.5), sdwait, meanwait, maxwait);
-	    printf("Total:      " CONF_FMT_STRING,
-		   mintot, (int) (total + 0.5), sdtot, meantot, maxtot);
-#undef CONF_FMT_STRING
+    /* find certain cache controlling headers */
+    cc_in = apr_table_get(r->headers_in, "Cache-Control");
+    pragma = apr_table_get(r->headers_in, "Pragma");
+    auth = apr_table_get(r->headers_in, "Authorization");
 
-#define     SANE(what,avg,mean,sd) \
-              { \
-                double d = (double)avg - mean; \
-                if (d < 0) d = -d; \
-                if (d > 2 * sd ) \
-                    printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
-                           "       deviation apart. These results are NOT reliable.\n"); \
-                else if (d > sd ) \
-                    printf("WARNING: The median and mean for " what " are not within a normal deviation\n" \
-                           "        These results are probably not that reliable.\n"); \
-            }
-	    SANE("the initial connection time", totalcon, meancon, sdcon);
-	    SANE("the processing time", totald, meand, sdd);
-	    SANE("the waiting time", totalwait, meanwait, sdwait);
-	    SANE("the total time", total, meantot, sdtot);
-	}
-	else {
-	    printf("              min   avg   max\n");
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
-	    printf("Connect:    " CONF_FMT_STRING, 
-                   mincon, totalcon / requests, maxcon);
-	    printf("Processing: " CONF_FMT_STRING, mintot - mincon, 
-                   (total / requests) - (totalcon / requests), 
-                   maxtot - maxcon);
-	    printf("Total:      " CONF_FMT_STRING, 
-                   mintot, total / requests, maxtot);
-#undef CONF_FMT_STRING
-	}
+    /* first things first - does the request allow us to return
+     * cached information at all? If not, just decline the request.
+     *
+     * Note that there is a big difference between not being allowed
+     * to cache a request (no-store) and not being allowed to return
+     * a cached request without revalidation (max-age=0).
+     *
+     * Caching is forbidden under the following circumstances:
+     *
+     * - RFC2616 14.9.2 Cache-Control: no-store
+     * - Pragma: no-cache
+     * - Any requests requiring authorization.
+     */
+    if (conf->ignorecachecontrol == 1 && auth == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it", url);
+    }
+    else {
+        if (ap_cache_liststr(NULL, cc_in, "no-store", NULL) ||
+            ap_cache_liststr(NULL, pragma, "no-cache", NULL) || (auth != NULL)) {
+            /* delete the previously cached file */
+            cache_remove_url(r, cache->types, url);
 
-
-	/* Sorted on total connect times */
-	if (percentile && (requests > 1)) {
-	    printf("\nPercentage of the requests served within a certain time (ms)\n");
-	    for (i = 0; i < sizeof(percs) / sizeof(int); i++)
-		if (percs[i] <= 0)
-		    printf(" 0%%  <0> (never)\n");
-                else if (percs[i] >= 100)
-		    printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
-                           stats[requests - 1].time);
-                else
-		    printf("  %d%%  %5" APR_TIME_T_FMT "\n", percs[i], 
-                           stats[(int) (requests * percs[i] / 100)].time);
-	}
-	if (csvperc) {
-	    FILE *out = fopen(csvperc, "w");
-	    int i;
-	    if (!out) {
-		perror("Cannot open CSV output file");
-		exit(1);
-	    }
-	    fprintf(out, "" "Percentage served" "," "Time in ms" "\n");
-	    for (i = 0; i < 100; i++) {
-		apr_time_t t;
-		if (i == 0)
-		    t = stats[0].time;
-		else if (i == 100)
-		    t = stats[requests - 1].time;
-		else
-		    t = stats[(int) (0.5 + requests * i / 100.0)].time;
-		fprintf(out, "%d,%e\n", i, (double)t);
-	    }
-	    fclose(out);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no-store forbids caching of %s", url);
+            return DECLINED;
         }
+    }
 
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file
+     *   add cache_in filter
+     * If stale cache file
+     *   If conditional request
+     *     add cache_in filter
+     *   If non-conditional request
+     *     fudge response into a conditional
+     *     add cache_conditional filter
+     * If fresh cache file
+     *   clear filter stack
+     *   add cache_out filter
+     */
+
+    rv = cache_select_url(r, cache->types, url);
+    if (DECLINED == rv) {
+        if (!lookup) {
+            /* no existing cache file */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no cache - add cache_in filter and DECLINE");
+            /* add cache_in filter to cache this request */
+            ap_add_output_filter_handle(cache_in_filter_handle, NULL, r,
+                                        r->connection);
+        }
+        return DECLINED;
+    }
+    else if (OK == rv) {
+        /* RFC2616 13.2 - Check cache object expiration */
+        cache->fresh = ap_cache_check_freshness(cache, r);
+        if (cache->fresh) {
+            /* fresh data available */
+            apr_bucket_brigade *out;
+            conn_rec *c = r->connection;
+
+            if (lookup) {
+                return OK;
+            }
+            rv = ap_meets_conditions(r);
+            if (rv != OK) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "cache: fresh cache - returning status %d", rv);
+                return rv;
+            }
+
+            /*
+             * Not a conditionl request. Serve up the content 
+             */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: fresh cache - add cache_out filter and "
+                         "handle request");
+
+            /* We are in the quick handler hook, which means that no output
+             * filters have been set. So lets run the insert_filter hook.
+             */
+            ap_run_insert_filter(r);
+            ap_add_output_filter_handle(cache_out_filter_handle, NULL,
+                                        r, r->connection);
+
+            /* kick off the filter stack */
+            out = apr_brigade_create(r->pool, c->bucket_alloc);
+            if (APR_SUCCESS
+                != (rv = ap_pass_brigade(r->output_filters, out))) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "cache: error returned while trying to return %s "
+                             "cached data", 
+                             cache->type);
+                return rv;
+            }
+            return OK;
+        }
+        else {
+            if (!r->err_headers_out) {
+                r->err_headers_out = apr_table_make(r->pool, 3);
+            }
+            /* stale data available */
+            if (lookup) {
+                return DECLINED;
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: stale cache - test conditional");
+            /* if conditional request */
+            if (ap_cache_request_is_conditional(r)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: conditional - add cache_in filter and "
+                             "DECLINE");
+                /* Why not add CACHE_CONDITIONAL? */
+                ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                            r, r->connection);
+
+                return DECLINED;
+            }
+            /* else if non-conditional request */
+            else {
+                /* Temporarily hack this to work the way it had been. Its broken,
+                 * but its broken the way it was before. I'm working on figuring
+                 * out why the filter add in the conditional filter doesn't work. pjr
+                 *
+                 * info = &(cache->handle->cache_obj->info);
+                 *
+                 * Uncomment the above when the code in cache_conditional_filter_handle
+                 * is properly fixed...  pjr
+                 */
+                
+                /* fudge response into a conditional */
+                if (info && info->etag) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by etag");
+                    /* if we have a cached etag */
+                    apr_table_set(r->headers_in, "If-None-Match", info->etag);
+                }
+                else if (info && info->lastmods) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by lastmod");
+                    /* if we have a cached IMS */
+                    apr_table_set(r->headers_in, 
+                                  "If-Modified-Since", 
+                                  info->lastmods);
+                }
+                else {
+                    /* something else - pretend there was no cache */
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - no cached "
+                                 "etag/lastmods - add cache_in and DECLINE");
+
+                    ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                                r, r->connection);
+
+                    return DECLINED;
+                }
+                /* add cache_conditional filter */
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: nonconditional - add cache_conditional "
+                             "and DECLINE");
+                ap_add_output_filter_handle(cache_conditional_filter_handle,
+                                            NULL, 
+                                            r, 
+                                            r->connection);
+
+                return DECLINED;
+            }
+        }
+    }
+    else {
+        /* error */
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, 
+                     r->server,
+                     "cache: error returned while checking for cached file by "
+                     "%s cache", 
+                     cache->type);
+        return DECLINED;
     }
 }

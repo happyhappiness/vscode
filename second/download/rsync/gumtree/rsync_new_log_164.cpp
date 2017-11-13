@@ -1,1 +1,2 @@
-fprintf(FERROR,"mapped %s of size %d\n",fname,(int)st.st_size);
+fprintf(FERROR,"offset=%d sum=%08x\n",
+	      offset,sum);

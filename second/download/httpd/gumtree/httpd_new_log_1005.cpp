@@ -1,2 +1,2 @@
-fprintf(stderr, "ab: Could not read POST data file: %s\n",
-                apr_strerror(rv, errmsg, sizeof errmsg));
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_MODULES : show all loaded modules ");

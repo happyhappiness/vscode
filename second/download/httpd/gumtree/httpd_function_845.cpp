@@ -1,39 +1,64 @@
-static void show_mpm_settings(void)
+static apr_status_t ssl_filter_write(ap_filter_t *f,
+                                     const char *data,
+                                     apr_size_t len)
 {
-    int mpm_query_info;
-    apr_status_t retval;
+    ssl_filter_ctx_t *filter_ctx = f->ctx;
+    bio_filter_out_ctx_t *outctx;
+    int res;
 
-    printf("Server MPM:     %s\n", ap_show_mpm());
-
-    retval = ap_mpm_query(AP_MPMQ_IS_THREADED, &mpm_query_info);
-
-    if (retval == APR_SUCCESS) {
-        printf("  threaded:     ");
-
-        if (mpm_query_info == AP_MPMQ_DYNAMIC) {
-            printf("yes (variable thread count)\n");
-        }
-        else if (mpm_query_info == AP_MPMQ_STATIC) {
-            printf("yes (fixed thread count)\n");
-        }
-        else {
-            printf("no\n");
-        }
+    /* write SSL */
+    if (filter_ctx->pssl == NULL) {
+        return APR_EGENERAL;
     }
 
-    retval = ap_mpm_query(AP_MPMQ_IS_FORKED, &mpm_query_info);
+    outctx = (bio_filter_out_ctx_t *)filter_ctx->pbioWrite->ptr;
+    res = SSL_write(filter_ctx->pssl, (unsigned char *)data, len);
 
-    if (retval == APR_SUCCESS) {
-        printf("    forked:     ");
+    if (res < 0) {
+        int ssl_err = SSL_get_error(filter_ctx->pssl, res);
+        conn_rec *c = (conn_rec*)SSL_get_app_data(outctx->filter_ctx->pssl);
 
-        if (mpm_query_info == AP_MPMQ_DYNAMIC) {
-            printf("yes (variable process count)\n");
+        if (ssl_err == SSL_ERROR_WANT_WRITE) {
+            /*
+             * If OpenSSL wants to write more, and we were nonblocking,
+             * report as an EAGAIN.  Otherwise loop, pushing more
+             * data at the network filter.
+             *
+             * (This is usually the case when the client forces an SSL
+             * renegotation which is handled implicitly by OpenSSL.)
+             */
+            outctx->rc = APR_EAGAIN;
         }
-        else if (mpm_query_info == AP_MPMQ_STATIC) {
-            printf("yes (fixed process count)\n");
+        else if (ssl_err == SSL_ERROR_SYSCALL) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                        "SSL output filter write failed.");
         }
-        else {
-            printf("no\n");
+        else /* if (ssl_err == SSL_ERROR_SSL) */ {
+            /*
+             * Log SSL errors
+             */
+            ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                         "SSL library error %d writing data", ssl_err);
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
+        }
+        if (outctx->rc == APR_SUCCESS) {
+            outctx->rc = APR_EGENERAL;
         }
     }
+    else if ((apr_size_t)res != len) {
+        conn_rec *c = f->c;
+        char *reason = "reason unknown";
+
+        /* XXX: probably a better way to determine this */
+        if (SSL_total_renegotiations(filter_ctx->pssl)) {
+            reason = "likely due to failed renegotiation";
+        }
+
+        ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                     "failed to write %d of %d bytes (%s)",
+                     len - (apr_size_t)res, len, reason);
+
+        outctx->rc = APR_EGENERAL;
+    }
+    return outctx->rc;
 }

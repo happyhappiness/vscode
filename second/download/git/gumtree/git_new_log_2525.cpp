@@ -1,1 +1,0 @@
-git_die_config(key, _("unknown notes merge strategy %s"), value);

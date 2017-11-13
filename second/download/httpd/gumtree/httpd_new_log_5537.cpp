@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
-                  "h2_stream(%ld-%d): set_response(%d)", 
-                  stream->session->id, stream->id, stream->sos->response->http_status);
+fprintf(stderr,
+                "post_rotate: could not set up process attributes for '%s': %s\n",
+                config->postrotate_prog,
+                apr_strerror(rv, error, sizeof(error)));

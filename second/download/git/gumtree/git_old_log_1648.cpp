@@ -1,1 +1,1 @@
-vwritef(child_err, "error: ", err, params);
+error("cannot delete '%s' from packed refs", refnames[i]);

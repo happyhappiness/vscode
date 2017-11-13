@@ -1,204 +1,234 @@
-static int proxy_http2_handler(request_rec *r, 
-                               proxy_worker *worker,
-                               proxy_server_conf *conf,
-                               char *url, 
-                               const char *proxyname,
-                               apr_port_t proxyport)
+static int worker_check_config(apr_pool_t *p, apr_pool_t *plog,
+                               apr_pool_t *ptemp, server_rec *s)
 {
-    const char *proxy_func;
-    char *locurl = url, *u;
-    apr_size_t slen;
-    int is_ssl = 0;
-    apr_status_t status;
-    h2_proxy_ctx *ctx;
-    apr_uri_t uri;
-    int reconnects = 0;
-    
-    /* find the scheme */
-    if ((url[0] != 'h' && url[0] != 'H') || url[1] != '2') {
-       return DECLINED;
-    }
-    u = strchr(url, ':');
-    if (u == NULL || u[1] != '/' || u[2] != '/' || u[3] == '\0') {
-       return DECLINED;
-    }
-    slen = (u - url);
-    switch(slen) {
-        case 2:
-            proxy_func = "H2";
-            is_ssl = 1;
-            break;
-        case 3:
-            if (url[2] != 'c' && url[2] != 'C') {
-                return DECLINED;
-            }
-            proxy_func = "H2C";
-            break;
-        default:
-            return DECLINED;
-    }
-    
-    ctx = apr_pcalloc(r->pool, sizeof(*ctx));
-    ctx->owner      = r->connection;
-    ctx->pool       = r->pool;
-    ctx->rbase      = r;
-    ctx->server     = r->server;
-    ctx->proxy_func = proxy_func;
-    ctx->is_ssl     = is_ssl;
-    ctx->worker     = worker;
-    ctx->conf       = conf;
-    ctx->flushall   = apr_table_get(r->subprocess_env, "proxy-flushall")? 1 : 0;
-    ctx->r_status   = HTTP_SERVICE_UNAVAILABLE;
-    
-    h2_proxy_fifo_set_create(&ctx->requests, ctx->pool, 100);
-    
-    ap_set_module_config(ctx->owner->conn_config, &proxy_http2_module, ctx);
+    int startup = 0;
 
-    /* scheme says, this is for us. */
-    apr_table_setn(ctx->rbase->notes, H2_PROXY_REQ_URL_NOTE, url);
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, ctx->rbase, 
-                  "H2: serving URL %s", url);
-    
-run_connect:    
-    /* Get a proxy_conn_rec from the worker, might be a new one, might
-     * be one still open from another request, or it might fail if the
-     * worker is stopped or in error. */
-    if ((status = ap_proxy_acquire_connection(ctx->proxy_func, &ctx->p_conn,
-                                              ctx->worker, ctx->server)) != OK) {
-        goto cleanup;
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->module_loads == 1) {
+        startup = 1;
     }
 
-    ctx->p_conn->is_ssl = ctx->is_ssl;
-    if (ctx->is_ssl && ctx->p_conn->connection) {
-        /* If there are some metadata on the connection (e.g. TLS alert),
-         * let mod_ssl detect them, and create a new connection below.
-         */ 
-        apr_bucket_brigade *tmp_bb;
-        tmp_bb = apr_brigade_create(ctx->rbase->pool, 
-                                    ctx->rbase->connection->bucket_alloc);
-        status = ap_get_brigade(ctx->p_conn->connection->input_filters, tmp_bb,
-                                AP_MODE_SPECULATIVE, APR_NONBLOCK_READ, 1);
-        if (status != APR_SUCCESS && !APR_STATUS_IS_EAGAIN(status)) {
-            ctx->p_conn->close = 1;
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00300)
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00301)
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
         }
-        apr_brigade_cleanup(tmp_bb);
-    }   
-
-    /* Step One: Determine the URL to connect to (might be a proxy),
-     * initialize the backend accordingly and determine the server 
-     * port string we can expect in responses. */
-    if ((status = ap_proxy_determine_connection(ctx->pool, ctx->rbase, conf, worker, 
-                                                ctx->p_conn, &uri, &locurl, 
-                                                proxyname, proxyport, 
-                                                ctx->server_portstr,
-                                                sizeof(ctx->server_portstr))) != OK) {
-        goto cleanup;
+        server_limit = MAX_SERVER_LIMIT;
     }
-    
-    /* If we are not already hosting an engine, try to push the request 
-     * to an already existing engine or host a new engine here. */
-    if (r && !ctx->engine) {
-        ctx->r_status = push_request_somewhere(ctx, r);
-        r = NULL;
-        if (ctx->r_status == SUSPENDED) {
-            /* request was pushed to another thread, leave processing here */
-            goto cleanup;
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00302)
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00303)
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
         }
-    }
-    
-    /* Step Two: Make the Connection (or check that an already existing
-     * socket is still usable). On success, we have a socket connected to
-     * backend->hostname. */
-    if (ap_proxy_connect_backend(ctx->proxy_func, ctx->p_conn, ctx->worker, 
-                                 ctx->server)) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, APLOGNO(03352)
-                      "H2: failed to make connection to backend: %s",
-                      ctx->p_conn->hostname);
-        goto reconnect;
-    }
-    
-    /* Step Three: Create conn_rec for the socket we have open now. */
-    if (!ctx->p_conn->connection) {
-        if ((status = ap_proxy_connection_create(ctx->proxy_func, ctx->p_conn,
-                                                 ctx->owner, 
-                                                 ctx->server)) != OK) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, ctx->owner, APLOGNO(03353)
-                          "setup new connection: is_ssl=%d %s %s %s", 
-                          ctx->p_conn->is_ssl, ctx->p_conn->ssl_hostname, 
-                          locurl, ctx->p_conn->hostname);
-            goto reconnect;
-        }
-        
-        if (!ctx->p_conn->data) {
-            /* New conection: set a note on the connection what CN is
-             * requested and what protocol we want */
-            if (ctx->p_conn->ssl_hostname) {
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, ctx->owner, 
-                              "set SNI to %s for (%s)", 
-                              ctx->p_conn->ssl_hostname, 
-                              ctx->p_conn->hostname);
-                apr_table_setn(ctx->p_conn->connection->notes,
-                               "proxy-request-hostname", ctx->p_conn->ssl_hostname);
-            }
-            if (ctx->is_ssl) {
-                apr_table_setn(ctx->p_conn->connection->notes,
-                               "proxy-request-alpn-protos", "h2");
-            }
-        }
+        server_limit = 1;
     }
 
-run_session:
-    status = proxy_engine_run(ctx);
-    if (status == APR_SUCCESS) {
-        /* session and connection still ok */
-        if (next_request(ctx, 1) == APR_SUCCESS) {
-            /* more requests, run again */
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, APLOGNO(03376)
-                          "run_session, again");
-            goto run_session;
-        }
-        /* done */
-        ctx->engine = NULL;
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
+     */
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00304)
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
     }
 
-reconnect:
-    if (next_request(ctx, 1) == APR_SUCCESS) {
-        /* Still more to do, tear down old conn and start over */
-        if (ctx->p_conn) {
-            ctx->p_conn->close = 1;
-            /*only in trunk so far */
-            /*proxy_run_detach_backend(r, ctx->p_conn);*/
-            ap_proxy_release_connection(ctx->proxy_func, ctx->p_conn, ctx->server);
-            ctx->p_conn = NULL;
+    if (thread_limit > MAX_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00305)
+                         "WARNING: ThreadLimit of %d exceeds compile-time "
+                         "limit of", thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00306)
+                         "ThreadLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         thread_limit, MAX_THREAD_LIMIT);
         }
-        ++reconnects;
-        if (reconnects < 5 && !ctx->owner->aborted) {
-            goto run_connect;
-        } 
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, APLOGNO(10023)
-                      "giving up after %d reconnects, %d requests todo",
-                      reconnects, h2_proxy_fifo_count(ctx->requests));
+        thread_limit = MAX_THREAD_LIMIT;
     }
-    
-cleanup:
-    if (ctx->p_conn) {
-        if (status != APR_SUCCESS) {
-            /* close socket when errors happened or session shut down (EOF) */
-            ctx->p_conn->close = 1;
+    else if (thread_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00307)
+                         "WARNING: ThreadLimit of %d not allowed, "
+                         "increasing to 1.", thread_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00308)
+                         "ThreadLimit of %d not allowed, increasing to 1",
+                         thread_limit);
         }
-        /*only in trunk so far */
-        /*proxy_run_detach_backend(ctx->rbase, ctx->p_conn);*/
-        ap_proxy_release_connection(ctx->proxy_func, ctx->p_conn, ctx->server);
-        ctx->p_conn = NULL;
+        thread_limit = 1;
     }
 
-    /* Any requests will still have need to fail */
-    while (APR_SUCCESS == h2_proxy_fifo_try_pull(ctx->requests, (void**)&r)) {
-        request_done(ctx, r, HTTP_SERVICE_UNAVAILABLE, 1);
+    /* you cannot change ThreadLimit across a restart; ignore
+     * any such attempts
+     */
+    if (!retained->first_thread_limit) {
+        retained->first_thread_limit = thread_limit;
     }
-    
-    ap_set_module_config(ctx->owner->conn_config, &proxy_http2_module, NULL);
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, ctx->owner, 
-                  APLOGNO(03377) "leaving handler");
-    return ctx->r_status;
+    else if (thread_limit != retained->first_thread_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00309)
+                     "changing ThreadLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     thread_limit, retained->first_thread_limit);
+        thread_limit = retained->first_thread_limit;
+    }
+
+    if (threads_per_child > thread_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00310)
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of", threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         thread_limit, thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ThreadLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00311)
+                         "ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of %d, decreasing to match",
+                         threads_per_child, thread_limit);
+        }
+        threads_per_child = thread_limit;
+    }
+    else if (threads_per_child < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00312)
+                         "WARNING: ThreadsPerChild of %d not allowed, "
+                         "increasing to 1.", threads_per_child);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00313)
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         threads_per_child);
+        }
+        threads_per_child = 1;
+    }
+
+    if (max_workers < threads_per_child) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00314)
+                         "WARNING: MaxRequestWorkers of %d is less than "
+                         "ThreadsPerChild of", max_workers);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d, increasing to %d.  MaxRequestWorkers must be at "
+                         "least as large",
+                         threads_per_child, threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " as the number of threads in a single server.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00315)
+                         "MaxRequestWorkers of %d is less than ThreadsPerChild "
+                         "of %d, increasing to match",
+                         max_workers, threads_per_child);
+        }
+        max_workers = threads_per_child;
+    }
+
+    ap_daemons_limit = max_workers / threads_per_child;
+
+    if (max_workers % threads_per_child) {
+        int tmp_max_workers = ap_daemons_limit * threads_per_child;
+
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00316)
+                         "WARNING: MaxRequestWorkers of %d is not an integer "
+                         "multiple of", max_workers);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d,", threads_per_child,
+                         tmp_max_workers);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " for a maximum of %d servers.",
+                         ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00317)
+                         "MaxRequestWorkers of %d is not an integer multiple of "
+                         "ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d", max_workers, threads_per_child,
+                         tmp_max_workers);
+        }
+        max_workers = tmp_max_workers;
+    }
+
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00318)
+                         "WARNING: MaxRequestWorkers of %d would require %d "
+                         "servers and ", max_workers, ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " would exceed ServerLimit of %d, decreasing to %d.",
+                         server_limit, server_limit * threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00319)
+                         "MaxRequestWorkers of %d would require %d servers and "
+                         "exceed ServerLimit of %d, decreasing to %d",
+                         max_workers, ap_daemons_limit, server_limit,
+                         server_limit * threads_per_child);
+        }
+        ap_daemons_limit = server_limit;
+    }
+
+    /* ap_daemons_to_start > ap_daemons_limit checked in worker_run() */
+    if (ap_daemons_to_start < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00320)
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00321)
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
+
+    if (min_spare_threads < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00322)
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", min_spare_threads);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00323)
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         min_spare_threads);
+        }
+        min_spare_threads = 1;
+    }
+
+    /* max_spare_threads < min_spare_threads + threads_per_child
+     * checked in worker_run()
+     */
+
+    return OK;
 }

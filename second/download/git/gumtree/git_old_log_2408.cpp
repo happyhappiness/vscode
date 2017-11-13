@@ -1,1 +1,1 @@
-error("cannot open %s: %s", filename ? filename : "NULL", strerror(errno));
+fputs(sha1_to_hex(commit->object.sha1), stdout);

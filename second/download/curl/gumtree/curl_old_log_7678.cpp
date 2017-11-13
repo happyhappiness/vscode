@@ -1,11 +1,8 @@
 fputs(
-"              mand with an asterisk (*) to make libcurl continue even  if  the\n"
-"              command fails as by default curl will stop at first failure.\n"
-"\n"
-"              SFTP  is  a  binary protocol. Unlike for FTP, libcurl interprets\n"
-"              SFTP quote commands itself before sending them  to  the  server.\n"
-"              File  names may be quoted shell-style to embed spaces or special\n"
-"              characters.  Following is the list of all supported  SFTP  quote\n"
-"              commands:\n"
-"\n"
+"              supported for FTP). You may specify any number of  commands.  If\n"
+"              the  server  returns failure for one of the commands, the entire\n"
+"              operation will be aborted. You must send  syntactically  correct\n"
+"              FTP  commands  as  RFC 959 defines to FTP servers, or one of the\n"
+"              commands listed below to SFTP servers.  This option can be  used\n"
+"              multiple  times.  When speaking to a FTP server, prefix the com-\n"
 , stdout);

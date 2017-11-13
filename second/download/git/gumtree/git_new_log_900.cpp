@@ -1,1 +1,1 @@
-packet_buf_write(&req_buf, "%s", item->string);
+die(_("could not create directory '%s'"), new_git_dir);

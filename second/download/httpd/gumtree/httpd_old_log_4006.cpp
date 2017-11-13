@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "3)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(*ip));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                    "cannot read directory for multi: %s", neg->dir_name);

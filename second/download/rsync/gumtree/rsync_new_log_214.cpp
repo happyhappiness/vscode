@@ -1,1 +1,1 @@
-fprintf(FERROR,"gen mapped %s of size %d\n",fname,(int)st.st_size);
+fprintf(FERROR,"send_files(%d,%s)\n",i,fname);

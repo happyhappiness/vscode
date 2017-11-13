@@ -1,33 +1,20 @@
-static void usage(void)
+static void accept_mutex_off(void)
 {
-    apr_file_printf(errfile, "Usage:\n");
-    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");
-    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password\n\n");
-    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
-    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
-    apr_file_printf(errfile, " -c  Create a new file.\n");
-    apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout.\n");
-    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-#if defined(WIN32) || defined(TPF) || defined(NETWARE)
-        " (default)"
-#endif
-        ".\n");
-    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-            " (default)"
-#endif
-            ".\n");
-    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");
-    apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
-    apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it.\n");
-    apr_file_printf(errfile, " -D  Delete the specified user.\n");
-    apr_file_printf(errfile,
-            "On Windows, NetWare and TPF systems the '-m' flag is used by "
-            "default.\n");
-    apr_file_printf(errfile,
-            "On all other systems, the '-p' flag will probably not work.\n");
-    exit(ERR_SYNTAX);
+    apr_status_t rv = apr_proc_mutex_unlock(accept_mutex);
+    if (rv != APR_SUCCESS) {
+        const char *msg = "couldn't release the accept mutex";
+
+        if (ap_my_generation != 
+            ap_scoreboard_image->global->running_generation) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);
+            /* don't exit here... we have a connection to
+             * process, after which point we'll see that the
+             * generation changed and we'll exit cleanly
+             */
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, msg);
+            exit(APEXIT_CHILDFATAL);
+        }
+    }
 }

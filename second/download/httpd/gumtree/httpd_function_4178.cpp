@@ -1,54 +1,34 @@
-static void ssl_init_ticket_key(server_rec *s,
-                                apr_pool_t *p,
-                                apr_pool_t *ptemp,
-                                modssl_ctx_t *mctx)
+static int lb_hb_init(apr_pool_t *p, apr_pool_t *plog,
+                          apr_pool_t *ptemp, server_rec *s)
 {
-    apr_status_t rv;
-    apr_file_t *fp;
-    apr_size_t len;
-    char buf[TLSEXT_TICKET_KEY_LEN];
-    char *path;
-    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
-
-    if (!ticket_key->file_path) {
-        return;
+    const char *userdata_key = "mod_lbmethod_heartbeat_init";
+    void *data;
+    apr_size_t size;
+    unsigned int num;
+    lb_hb_ctx_t *ctx = ap_get_module_config(s->module_config,
+                                            &lbmethod_heartbeat_module);
+    
+    apr_pool_userdata_get(&data, userdata_key, s->process->pool);
+    if (!data) {
+        /* first call do nothing */
+        apr_pool_userdata_set((const void *)1, userdata_key, apr_pool_cleanup_null, s->process->pool);
+        return OK;
+    }
+    storage = ap_lookup_provider(AP_SLOTMEM_PROVIDER_GROUP, "shared", "0");
+    if (!storage) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, s, "ap_lookup_provider %s failed", AP_SLOTMEM_PROVIDER_GROUP);
+        return OK;
     }
 
-    path = ap_server_root_relative(p, ticket_key->file_path);
+    /* Try to use a slotmem created by mod_heartmonitor */
+    storage->attach(&hm_serversmem, "mod_heartmonitor", &size, &num, p);
+    if (!hm_serversmem) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, s, "No slotmem from mod_heartmonitor");
+    } else
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, s, "Using slotmem from mod_heartmonitor");
 
-    rv = apr_file_open(&fp, path, APR_READ|APR_BINARY,
-                       APR_OS_DEFAULT, ptemp);
+    if (hm_serversmem)
+        ctx->path = "(slotmem)";
 
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02286)
-                     "Failed to open ticket key file %s: (%d) %pm",
-                     path, rv, &rv);
-        ssl_die();
-    }
-
-    rv = apr_file_read_full(fp, &buf[0], TLSEXT_TICKET_KEY_LEN, &len);
-
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02287)
-                     "Failed to read %d bytes from %s: (%d) %pm",
-                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);
-        ssl_die();
-    }
-
-    memcpy(ticket_key->key_name, buf, 16);
-    memcpy(ticket_key->hmac_secret, buf + 16, 16);
-    memcpy(ticket_key->aes_key, buf + 32, 16);
-
-    if (!SSL_CTX_set_tlsext_ticket_key_cb(mctx->ssl_ctx,
-                                          ssl_callback_SessionTicket)) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01913)
-                     "Unable to initialize TLS session ticket key callback "
-                     "(incompatible OpenSSL version?)");
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-        ssl_die();
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02288)
-                 "TLS session ticket key for %s successfully loaded from %s",
-                 (mySrvConfig(s))->vhost_id, path);
+    return OK;
 }

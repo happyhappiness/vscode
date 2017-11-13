@@ -1,9 +1,11 @@
 fputs(
-"              -I, --head, headers from all requested pages will be shown. When\n"
-"              authentication  is  used, curl only sends its credentials to the\n"
-"              initial host. If a redirect takes curl to a different  host,  it\n"
-"              won't  be  able to intercept the user+password. See also --loca-\n"
-"              tion-trusted on how to change this. You can limit the amount  of\n"
-"              redirects to follow by using the --max-redirs option.\n"
+"              This option requires a library  built  with  kerberos4  support.\n"
+"              This  is  not very common. Use -V, --version to see if your curl\n"
+"              supports it.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -l, --list-only\n"
+"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
+"              only  view.  This  is  especially  useful  if  the user wants to\n"
 , stdout);

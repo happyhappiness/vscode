@@ -1,1 +1,1 @@
-strbuf_addf(&buf, "%s:%s", name, ref->name);
+die_errno("cannot getcwd");

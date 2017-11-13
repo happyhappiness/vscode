@@ -1,1 +1,2 @@
-error(_("running trailer command '%s' failed"), cmd.buf);
+strbuf_addf(err, "unable to append to %s: %s",
+				    logfile->buf, strerror(errno));

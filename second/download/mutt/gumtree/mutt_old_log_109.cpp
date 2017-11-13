@@ -1,1 +1,1 @@
-state_attach_puts (_(": "), s);
+printf (_("Error extracting key data!\n"));

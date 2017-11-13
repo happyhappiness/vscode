@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00999)
-               "ajp_parse_reuse: ajp_msg_get_byte failed");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                                  "Not compressing (content-encoding already "
+                                  " set: %s)", token);

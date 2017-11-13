@@ -1,8 +1,10 @@
 fputs(
-"              prefix them with a dash '-'.  To make  commands  be  sent  after\n"
-"              curl has changed the working directory, just before the transfer\n"
-"              command(s), prefix the command with a '+'  (this  is  only  sup-\n"
-"              ported  for FTP). You may specify any number of commands. If the\n"
-"              server returns failure for one of the commands, the entire oper-\n"
-"              ation  will  be aborted. You must send syntactically correct FTP\n"
+"              config  file will not be read and used. See the -K, --config for\n"
+"              details on the default config file search path.\n"
+"\n"
+"       -Q, --quote <command>\n"
+"              (FTP/SFTP) Send an arbitrary command to the remote FTP  or  SFTP\n"
+"              server.  Quote commands are sent BEFORE the transfer takes place\n"
+"              (just after the initial PWD command in an FTP  transfer,  to  be\n"
+"              exact). To make commands take place after a successful transfer,\n"
 , stdout);

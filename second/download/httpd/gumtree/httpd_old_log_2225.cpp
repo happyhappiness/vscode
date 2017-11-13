@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, svr->pool,
-                      "DBD: failed to initialise");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require MaxClients > 0, setting to 1");

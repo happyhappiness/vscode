@@ -1,2 +1,2 @@
-die("unknown object type for %s: %s",
-		    oid_to_hex(oid), typename(type));
+error(_("could not update %s"),
+					head_ref.buf);

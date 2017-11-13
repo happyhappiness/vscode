@@ -1,1 +1,1 @@
-vfprintf(stderr, fmt, ap);
+die(_("%%(body) does not take arguments"));

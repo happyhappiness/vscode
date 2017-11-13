@@ -1,1 +1,1 @@
-error("unable to write sha1 filename %s: %s", filename, strerror(ret));
+fprintf(fout, "Author: %s\n", name.buf);

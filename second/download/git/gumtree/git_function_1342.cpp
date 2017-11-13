@@ -1,69 +1,43 @@
-int stat_tracking_info(struct branch *branch, int *num_ours, int *num_theirs)
+static int update_branch(struct branch *b)
 {
-	unsigned char sha1[20];
-	struct commit *ours, *theirs;
-	char symmetric[84];
-	struct rev_info revs;
-	const char *rev_argv[10], *base;
-	int rev_argc;
+	static const char *msg = "fast-import";
+	struct ref_transaction *transaction;
+	unsigned char old_sha1[20];
+	struct strbuf err = STRBUF_INIT;
 
-	/* Cannot stat unless we are marked to build on top of somebody else. */
-	if (!branch ||
-	    !branch->merge || !branch->merge[0] || !branch->merge[0]->dst)
+	if (is_null_sha1(b->sha1)) {
+		if (b->delete)
+			delete_ref(NULL, b->name, NULL, 0);
 		return 0;
-
-	/* Cannot stat if what we used to build on no longer exists */
-	base = branch->merge[0]->dst;
-	if (read_ref(base, sha1))
-		return -1;
-	theirs = lookup_commit_reference(sha1);
-	if (!theirs)
-		return -1;
-
-	if (read_ref(branch->refname, sha1))
-		return -1;
-	ours = lookup_commit_reference(sha1);
-	if (!ours)
-		return -1;
-
-	/* are we the same? */
-	if (theirs == ours) {
-		*num_theirs = *num_ours = 0;
-		return 1;
 	}
+	if (read_ref(b->name, old_sha1))
+		hashclr(old_sha1);
+	if (!force_update && !is_null_sha1(old_sha1)) {
+		struct commit *old_cmit, *new_cmit;
 
-	/* Run "rev-list --left-right ours...theirs" internally... */
-	rev_argc = 0;
-	rev_argv[rev_argc++] = NULL;
-	rev_argv[rev_argc++] = "--left-right";
-	rev_argv[rev_argc++] = symmetric;
-	rev_argv[rev_argc++] = "--";
-	rev_argv[rev_argc] = NULL;
+		old_cmit = lookup_commit_reference_gently(old_sha1, 0);
+		new_cmit = lookup_commit_reference_gently(b->sha1, 0);
+		if (!old_cmit || !new_cmit)
+			return error("Branch %s is missing commits.", b->name);
 
-	strcpy(symmetric, sha1_to_hex(ours->object.sha1));
-	strcpy(symmetric + 40, "...");
-	strcpy(symmetric + 43, sha1_to_hex(theirs->object.sha1));
-
-	init_revisions(&revs, NULL);
-	setup_revisions(rev_argc, rev_argv, &revs, NULL);
-	if (prepare_revision_walk(&revs))
-		die("revision walk setup failed");
-
-	/* ... and count the commits on each side. */
-	*num_ours = 0;
-	*num_theirs = 0;
-	while (1) {
-		struct commit *c = get_revision(&revs);
-		if (!c)
-			break;
-		if (c->object.flags & SYMMETRIC_LEFT)
-			(*num_ours)++;
-		else
-			(*num_theirs)++;
+		if (!in_merge_bases(old_cmit, new_cmit)) {
+			warning("Not updating %s"
+				" (new tip %s does not contain %s)",
+				b->name, sha1_to_hex(b->sha1), sha1_to_hex(old_sha1));
+			return -1;
+		}
 	}
-
-	/* clear object flags smudged by the above traversal */
-	clear_commit_marks(ours, ALL_REV_FLAGS);
-	clear_commit_marks(theirs, ALL_REV_FLAGS);
-	return 1;
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_update(transaction, b->name, b->sha1, old_sha1,
+				   0, msg, &err) ||
+	    ref_transaction_commit(transaction, &err)) {
+		ref_transaction_free(transaction);
+		error("%s", err.buf);
+		strbuf_release(&err);
+		return -1;
+	}
+	ref_transaction_free(transaction);
+	strbuf_release(&err);
+	return 0;
 }

@@ -1,1 +1,1 @@
-xalloca_free(tptree);
+xstrdup(srvc->host);

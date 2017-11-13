@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00412)
-                     "Parent: Failed to get the current path");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02221)
+                      "Requesting connection re-negotiation");

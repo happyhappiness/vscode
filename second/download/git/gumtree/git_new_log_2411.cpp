@@ -1,1 +1,1 @@
-warning_errno(_("unable to access '%s'"), path);
+die("missing blob object '%s'", oid_to_hex(&obj->oid));

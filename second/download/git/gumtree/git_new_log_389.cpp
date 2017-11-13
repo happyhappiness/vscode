@@ -1,1 +1,0 @@
-print_verbose(args, _("Server supports multi_ack_detailed"));

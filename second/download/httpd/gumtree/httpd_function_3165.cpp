@@ -1,21 +1,37 @@
-static int dumpio_output_filter (ap_filter_t *f, apr_bucket_brigade *bb)
+static authn_status check_dbm_pw(request_rec *r, const char *user,
+                                 const char *password)
 {
-    apr_bucket *b;
-    conn_rec *c = f->c;
-    dumpio_conf_t *ptr = f->ctx;
+    authn_dbm_config_rec *conf = ap_get_module_config(r->per_dir_config,
+                                                      &authn_dbm_module);
+    apr_status_t rv;
+    char *dbm_password;
+    char *colon_pw;
 
-    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, c->base_server, "mod_dumpio: %s", f->frec->name) ;
+    rv = fetch_dbm_value(conf->dbmtype, conf->pwfile, user, &dbm_password,
+                         r->pool);
 
-    for (b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) {
-        /*
-         * If we ever see an EOS, make sure to FLUSH.
-         */
-        if (APR_BUCKET_IS_EOS(b)) {
-            apr_bucket *flush = apr_bucket_flush_create(f->c->bucket_alloc);
-            APR_BUCKET_INSERT_BEFORE(b, flush);
-        }
-        dumpit(f, b, ptr);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "could not open dbm (type %s) auth file: %s",
+                      conf->dbmtype, conf->pwfile);
+        return AUTH_GENERAL_ERROR;
     }
 
-    return ap_pass_brigade(f->next, bb) ;
+    if (!dbm_password) {
+        return AUTH_USER_NOT_FOUND;
+    }
+
+    colon_pw = ap_strchr(dbm_password, ':');
+    if (colon_pw) {
+        *colon_pw = '\0';
+    }
+    AUTHN_CACHE_STORE(r, user, NULL, dbm_password);
+
+    rv = apr_password_validate(password, dbm_password);
+
+    if (rv != APR_SUCCESS) {
+        return AUTH_DENIED;
+    }
+
+    return AUTH_GRANTED;
 }

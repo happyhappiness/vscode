@@ -1,98 +1,106 @@
-int ssl_io_buffer_fill(request_rec *r, apr_size_t maxlen)
+static int proxy_ajp_handler(request_rec *r, proxy_worker *worker,
+                             proxy_server_conf *conf,
+                             char *url, const char *proxyname,
+                             apr_port_t proxyport)
 {
-    conn_rec *c = r->connection;
-    struct modssl_buffer_ctx *ctx;
-    apr_bucket_brigade *tempb;
-    apr_off_t total = 0; /* total length buffered */
-    int eos = 0; /* non-zero once EOS is seen */
+    int status;
+    char server_portstr[32];
+    conn_rec *origin = NULL;
+    proxy_conn_rec *backend = NULL;
+    const char *scheme = "AJP";
+    int retry;
+    proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+                                                 &proxy_module);
 
-    /* Create the context which will be passed to the input filter;
-     * containing a setaside pool and a brigade which constrain the
-     * lifetime of the buffered data. */
-    ctx = apr_palloc(r->pool, sizeof *ctx);
-    ctx->bb = apr_brigade_create(r->pool, c->bucket_alloc);
+    /*
+     * Note: Memory pool allocation.
+     * A downstream keepalive connection is always connected to the existence
+     * (or not) of an upstream keepalive connection. If this is not done then
+     * load balancing against multiple backend servers breaks (one backend
+     * server ends up taking 100% of the load), and the risk is run of
+     * downstream keepalive connections being kept open unnecessarily. This
+     * keeps webservers busy and ties up resources.
+     *
+     * As a result, we allocate all sockets out of the upstream connection
+     * pool, and when we want to reuse a socket, we check first whether the
+     * connection ID of the current upstream connection is the same as that
+     * of the connection when the socket was opened.
+     */
+    apr_pool_t *p = r->connection->pool;
+    apr_uri_t *uri = apr_palloc(r->connection->pool, sizeof(*uri));
 
-    /* ... and a temporary brigade. */
-    tempb = apr_brigade_create(r->pool, c->bucket_alloc);
 
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c, "filling buffer, max size "
-                  "%" APR_SIZE_T_FMT " bytes", maxlen);
+    if (strncasecmp(url, "ajp:", 4) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: AJP: declining URL %s", url);
+        return DECLINED;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: AJP: serving URL %s", url);
 
-    do {
-        apr_status_t rv;
-        apr_bucket *e, *next;
-
-        /* The request body is read from the protocol-level input
-         * filters; the buffering filter will reinject it from that
-         * level, allowing content/resource filters to run later, if
-         * necessary. */
-
-        rv = ap_get_brigade(r->proto_input_filters, tempb, AP_MODE_READBYTES,
-                            APR_BLOCK_READ, 8192);
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "could not read request body for SSL buffer");
-            return HTTP_INTERNAL_SERVER_ERROR;
+    /* create space for state information */
+    status = ap_proxy_acquire_connection(scheme, &backend, worker,
+                                         r->server);
+    if (status != OK) {
+        if (backend) {
+            backend->close = 1;
+            ap_proxy_release_connection(scheme, backend, r->server);
         }
-
-        /* Iterate through the returned brigade: setaside each bucket
-         * into the context's pool and move it into the brigade. */
-        for (e = APR_BRIGADE_FIRST(tempb);
-             e != APR_BRIGADE_SENTINEL(tempb) && !eos; e = next) {
-            const char *data;
-            apr_size_t len;
-
-            next = APR_BUCKET_NEXT(e);
-
-            if (APR_BUCKET_IS_EOS(e)) {
-                eos = 1;
-            } else if (!APR_BUCKET_IS_METADATA(e)) {
-                rv = apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
-                if (rv != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "could not read bucket for SSL buffer");
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-                total += len;
-            }
-
-            rv = apr_bucket_setaside(e, r->pool);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "could not setaside bucket for SSL buffer");
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            APR_BUCKET_REMOVE(e);
-            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
-        }
-
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c,
-                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
-                      total, eos);
-
-        /* Fail if this exceeds the maximum buffer size. */
-        if (total > maxlen) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request body exceeds maximum size (%" APR_SIZE_T_FMT 
-                          ") for SSL buffer", maxlen);
-            return HTTP_REQUEST_ENTITY_TOO_LARGE;
-        }
-
-    } while (!eos);
-
-    apr_brigade_destroy(tempb);
-
-    /* After consuming all protocol-level input, remove all protocol-level
-     * filters.  It should strictly only be necessary to remove filters
-     * at exactly ftype == AP_FTYPE_PROTOCOL, since this filter will 
-     * precede all > AP_FTYPE_PROTOCOL anyway. */
-    while (r->proto_input_filters->frec->ftype < AP_FTYPE_CONNECTION) {
-        ap_remove_input_filter(r->proto_input_filters);
+        return status;
     }
 
-    /* Insert the filter which will supply the buffered content. */
-    ap_add_input_filter(ssl_io_buffer, ctx, r, c);
+    backend->is_ssl = 0;
+    backend->close = 0;
 
-    return 0;
+    retry = 0;
+    while (retry < 2) {
+        char *locurl = url;
+        /* Step One: Determine Who To Connect To */
+        status = ap_proxy_determine_connection(p, r, conf, worker, backend,
+                                               uri, &locurl, proxyname, proxyport,
+                                               server_portstr,
+                                               sizeof(server_portstr));
+
+        if (status != OK)
+            break;
+
+        /* Step Two: Make the Connection */
+        if (ap_proxy_connect_backend(scheme, backend, worker, r->server)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "proxy: AJP: failed to make connection to backend: %s",
+                         backend->hostname);
+            status = HTTP_SERVICE_UNAVAILABLE;
+            break;
+        }
+
+        /* Handle CPING/CPONG */
+        if (worker->ping_timeout_set) {
+            status = ajp_handle_cping_cpong(backend->sock, r,
+                                            worker->ping_timeout);
+            /*
+             * In case the CPING / CPONG failed for the first time we might be
+             * just out of luck and got a faulty backend connection, but the
+             * backend might be healthy nevertheless. So ensure that the backend
+             * TCP connection gets closed and try it once again.
+             */
+            if (status != APR_SUCCESS) {
+                backend->close++;
+                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                             "proxy: AJP: cping/cpong failed to %pI (%s)",
+                             worker->cp->addr,
+                             worker->hostname);
+                status = HTTP_SERVICE_UNAVAILABLE;
+                retry++;
+                continue;
+            }
+        }
+        /* Step Three: Process the Request */
+        status = ap_proxy_ajp_request(p, r, backend, origin, dconf, uri, locurl,
+                                      server_portstr);
+        break;
+    }
+
+    /* Do not close the socket */
+    ap_proxy_release_connection(scheme, backend, r->server);
+    return status;
 }

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, status, workers->s,
-                     "h2_workers: register mplx(%ld)", m->id);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00292)
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());

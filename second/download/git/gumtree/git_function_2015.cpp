@@ -1,57 +1,66 @@
-void test_bitmap_walk(struct rev_info *revs)
+int cmd_rerere(int argc, const char **argv, const char *prefix)
 {
-	struct object *root;
-	struct bitmap *result = NULL;
-	khiter_t pos;
-	size_t result_popcnt;
-	struct bitmap_test_data tdata;
+	struct string_list merge_rr = STRING_LIST_INIT_DUP;
+	int i, fd, autoupdate = -1, flags = 0;
 
-	if (prepare_bitmap_git())
-		die("failed to load bitmap indexes");
+	struct option options[] = {
+		OPT_SET_INT(0, "rerere-autoupdate", &autoupdate,
+			N_("register clean resolutions in index"), 1),
+		OPT_END(),
+	};
 
-	if (revs->pending.nr != 1)
-		die("you must specify exactly one commit to test");
+	argc = parse_options(argc, argv, prefix, options, rerere_usage, 0);
 
-	fprintf(stderr, "Bitmap v%d test (%d entries loaded)\n",
-		bitmap_git.version, bitmap_git.entry_count);
+	git_config(git_xmerge_config, NULL);
 
-	root = revs->pending.objects[0].item;
-	pos = kh_get_sha1(bitmap_git.bitmaps, root->sha1);
+	if (autoupdate == 1)
+		flags = RERERE_AUTOUPDATE;
+	if (autoupdate == 0)
+		flags = RERERE_NOAUTOUPDATE;
 
-	if (pos < kh_end(bitmap_git.bitmaps)) {
-		struct stored_bitmap *st = kh_value(bitmap_git.bitmaps, pos);
-		struct ewah_bitmap *bm = lookup_stored_bitmap(st);
+	if (argc < 1)
+		return rerere(flags);
 
-		fprintf(stderr, "Found bitmap for %s. %d bits / %08x checksum\n",
-			sha1_to_hex(root->sha1), (int)bm->bit_size, ewah_checksum(bm));
-
-		result = ewah_to_bitmap(bm);
+	if (!strcmp(argv[0], "forget")) {
+		struct pathspec pathspec;
+		if (argc < 2)
+			warning("'git rerere forget' without paths is deprecated");
+		parse_pathspec(&pathspec, 0, PATHSPEC_PREFER_CWD,
+			       prefix, argv + 1);
+		return rerere_forget(&pathspec);
 	}
 
-	if (result == NULL)
-		die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));
+	fd = setup_rerere(&merge_rr, flags);
+	if (fd < 0)
+		return 0;
 
-	revs->tag_objects = 1;
-	revs->tree_objects = 1;
-	revs->blob_objects = 1;
-
-	result_popcnt = bitmap_popcount(result);
-
-	if (prepare_revision_walk(revs))
-		die("revision walk setup failed");
-
-	tdata.base = bitmap_new();
-	tdata.prg = start_progress("Verifying bitmap entries", result_popcnt);
-	tdata.seen = 0;
-
-	traverse_commit_list(revs, &test_show_commit, &test_show_object, &tdata);
-
-	stop_progress(&tdata.prg);
-
-	if (bitmap_equals(result, tdata.base))
-		fprintf(stderr, "OK!\n");
+	if (!strcmp(argv[0], "clear")) {
+		rerere_clear(&merge_rr);
+	} else if (!strcmp(argv[0], "gc"))
+		rerere_gc(&merge_rr);
+	else if (!strcmp(argv[0], "status"))
+		for (i = 0; i < merge_rr.nr; i++)
+			printf("%s\n", merge_rr.items[i].string);
+	else if (!strcmp(argv[0], "remaining")) {
+		rerere_remaining(&merge_rr);
+		for (i = 0; i < merge_rr.nr; i++) {
+			if (merge_rr.items[i].util != RERERE_RESOLVED)
+				printf("%s\n", merge_rr.items[i].string);
+			else
+				/* prepare for later call to
+				 * string_list_clear() */
+				merge_rr.items[i].util = NULL;
+		}
+	} else if (!strcmp(argv[0], "diff"))
+		for (i = 0; i < merge_rr.nr; i++) {
+			const char *path = merge_rr.items[i].string;
+			const char *name = (const char *)merge_rr.items[i].util;
+			if (diff_two(rerere_path(name, "preimage"), path, path, path))
+				die("unable to generate diff for %s", name);
+		}
 	else
-		fprintf(stderr, "Mismatch!\n");
+		usage_with_options(rerere_usage, options);
 
-	bitmap_free(result);
+	string_list_clear(&merge_rr, 1);
+	return 0;
 }

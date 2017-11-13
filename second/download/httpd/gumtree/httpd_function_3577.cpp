@@ -1,221 +1,111 @@
-static int parse(server_rec *serv, apr_pool_t *p, char *l, int lineno)
+static int wd_post_config_hook(apr_pool_t *pconf, apr_pool_t *plog,
+                               apr_pool_t *ptemp, server_rec *s)
 {
-    struct magic *m;
-    char *t, *s;
-    magic_server_config_rec *conf = (magic_server_config_rec *)
-                    ap_get_module_config(serv->module_config, &mime_magic_module);
+    apr_status_t rv;
+    const char *pk = "watchdog_init_module_tag";
+    apr_pool_t *pproc = s->process->pool;
+    const apr_array_header_t *wl;
 
-    /* allocate magic structure entry */
-    m = (struct magic *) apr_pcalloc(p, sizeof(struct magic));
-
-    /* append to linked list */
-    m->next = NULL;
-    if (!conf->magic || !conf->last) {
-        conf->magic = conf->last = m;
+    apr_pool_userdata_get((void *)&wd_server_conf, pk, pproc);
+    if (!wd_server_conf) {
+        if (!(wd_server_conf = apr_pcalloc(pproc, sizeof(wd_server_conf_t))))
+            return APR_ENOMEM;
+        apr_pool_create(&wd_server_conf->pool, pproc);
+        wd_server_conf->s = s;
+        apr_pool_userdata_set(wd_server_conf, pk, apr_pool_cleanup_null, pproc);
+        /* First time config phase -- skip. */
+        return OK;
     }
-    else {
-        conf->last->next = m;
-        conf->last = m;
+#if defined(WIN32)
+    {
+        const char *ppid = getenv("AP_PARENT_PID");
+        if (ppid && *ppid) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                "[%" APR_PID_T_FMT " - %s] "
+                "child second stage post config hook",
+                getpid(), ppid);
+            return OK;
+        }
     }
+#endif
+    wd_server_conf->s = s;
+    if ((wl = ap_list_provider_names(pconf, AP_WATCHODG_PGROUP,
+                                            AP_WATCHODG_PVERSION))) {
+        const ap_list_provider_names_t *wn;
+        int i;
 
-    /* set values in magic structure */
-    m->flag = 0;
-    m->cont_level = 0;
-    m->lineno = lineno;
-
-    while (*l == '>') {
-        ++l;  /* step over */
-        m->cont_level++;
-    }
-
-    if (m->cont_level != 0 && *l == '(') {
-        ++l;  /* step over */
-        m->flag |= INDIR;
-    }
-
-    /* get offset, then skip over it */
-    m->offset = (int) strtol(l, &t, 0);
-    if (l == t) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
-                    MODNAME ": offset %s invalid", l);
-    }
-    l = t;
-
-    if (m->flag & INDIR) {
-        m->in.type = LONG;
-        m->in.offset = 0;
-        /*
-         * read [.lbs][+-]nnnnn)
-         */
-        if (*l == '.') {
-            switch (*++l) {
-            case 'l':
-                m->in.type = LONG;
-                break;
-            case 's':
-                m->in.type = SHORT;
-                break;
-            case 'b':
-                m->in.type = BYTE;
-                break;
-            default:
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
-                        MODNAME ": indirect offset type %c invalid", *l);
-                break;
+        wn = (ap_list_provider_names_t *)wl->elts;
+        for (i = 0; i < wl->nelts; i++) {
+            ap_watchdog_t *w = ap_lookup_provider(AP_WATCHODG_PGROUP,
+                                                  wn[i].provider_name,
+                                                  AP_WATCHODG_PVERSION);
+            if (w) {
+                if (!w->active) {
+                    int status = ap_run_watchdog_need(s, w->name, 1,
+                                                      w->singleton);
+                    if (status == OK) {
+                        /* One of the modules returned OK to this watchog.
+                         * Mark it as active
+                         */
+                        w->active = 1;
+                    }
+                }
+                if (w->active) {
+                    /* We have active watchdog.
+                     * Create the watchdog thread
+                     */
+                    if ((rv = wd_startup(w, wd_server_conf->pool)) != APR_SUCCESS) {
+                        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                                "Watchdog: Failed to create parent worker thread.");
+                        return rv;
+                    }
+                    wd_server_conf->parent_workers++;
+                }
             }
-            l++;
         }
-        s = l;
-        if (*l == '+' || *l == '-')
-            l++;
-        if (apr_isdigit((unsigned char) *l)) {
-            m->in.offset = strtol(l, &t, 0);
-            if (*s == '-')
-                m->in.offset = -m->in.offset;
+    }
+    if (wd_server_conf->parent_workers) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Spawned %d parent worker threads.",
+                     wd_server_conf->parent_workers);
+    }
+    if ((wl = ap_list_provider_names(pconf, AP_WATCHODG_PGROUP,
+                                            AP_WATCHODG_CVERSION))) {
+        const ap_list_provider_names_t *wn;
+        int i;
+
+        wn = (ap_list_provider_names_t *)wl->elts;
+        for (i = 0; i < wl->nelts; i++) {
+            ap_watchdog_t *w = ap_lookup_provider(AP_WATCHODG_PGROUP,
+                                                  wn[i].provider_name,
+                                                  AP_WATCHODG_CVERSION);
+            if (w) {
+                if (!w->active) {
+                    int status = ap_run_watchdog_need(s, w->name, 0,
+                                                      w->singleton);
+                    if (status == OK) {
+                        /* One of the modules returned OK to this watchog.
+                         * Mark it as active
+                         */
+                        w->active = 1;
+                    }
+                }
+                if (w->active) {
+                    /* We have some callbacks registered.
+                     * Create mutexes for singleton watchdogs
+                     */
+                    if (w->singleton) {
+                        rv = ap_proc_mutex_create(&w->mutex, NULL, wd_proc_mutex_type,
+                                                  w->name, s,
+                                                  wd_server_conf->pool, 0);
+                        if (rv != APR_SUCCESS) {
+                            return rv;
+                        }
+                    }
+                    wd_server_conf->child_workers++;
+                }
+            }
         }
-        else
-            t = l;
-        if (*t++ != ')') {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
-                        MODNAME ": missing ')' in indirect offset");
-        }
-        l = t;
     }
-
-
-    while (apr_isdigit((unsigned char) *l))
-        ++l;
-    EATAB;
-
-#define NBYTE           4
-#define NSHORT          5
-#define NLONG           4
-#define NSTRING         6
-#define NDATE           4
-#define NBESHORT        7
-#define NBELONG         6
-#define NBEDATE         6
-#define NLESHORT        7
-#define NLELONG         6
-#define NLEDATE         6
-
-    if (*l == 'u') {
-        ++l;
-        m->flag |= UNSIGNED;
-    }
-
-    /* get type, skip it */
-    if (strncmp(l, "byte", NBYTE) == 0) {
-        m->type = BYTE;
-        l += NBYTE;
-    }
-    else if (strncmp(l, "short", NSHORT) == 0) {
-        m->type = SHORT;
-        l += NSHORT;
-    }
-    else if (strncmp(l, "long", NLONG) == 0) {
-        m->type = LONG;
-        l += NLONG;
-    }
-    else if (strncmp(l, "string", NSTRING) == 0) {
-        m->type = STRING;
-        l += NSTRING;
-    }
-    else if (strncmp(l, "date", NDATE) == 0) {
-        m->type = DATE;
-        l += NDATE;
-    }
-    else if (strncmp(l, "beshort", NBESHORT) == 0) {
-        m->type = BESHORT;
-        l += NBESHORT;
-    }
-    else if (strncmp(l, "belong", NBELONG) == 0) {
-        m->type = BELONG;
-        l += NBELONG;
-    }
-    else if (strncmp(l, "bedate", NBEDATE) == 0) {
-        m->type = BEDATE;
-        l += NBEDATE;
-    }
-    else if (strncmp(l, "leshort", NLESHORT) == 0) {
-        m->type = LESHORT;
-        l += NLESHORT;
-    }
-    else if (strncmp(l, "lelong", NLELONG) == 0) {
-        m->type = LELONG;
-        l += NLELONG;
-    }
-    else if (strncmp(l, "ledate", NLEDATE) == 0) {
-        m->type = LEDATE;
-        l += NLEDATE;
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
-                    MODNAME ": type %s invalid", l);
-        return -1;
-    }
-    /* New-style anding: "0 byte&0x80 =0x80 dynamically linked" */
-    if (*l == '&') {
-        ++l;
-        m->mask = signextend(serv, m, strtol(l, &l, 0));
-    }
-    else
-        m->mask = ~0L;
-    EATAB;
-
-    switch (*l) {
-    case '>':
-    case '<':
-        /* Old-style anding: "0 byte &0x80 dynamically linked" */
-    case '&':
-    case '^':
-    case '=':
-        m->reln = *l;
-        ++l;
-        break;
-    case '!':
-        if (m->type != STRING) {
-            m->reln = *l;
-            ++l;
-            break;
-        }
-        /* FALL THROUGH */
-    default:
-        if (*l == 'x' && apr_isspace(l[1])) {
-            m->reln = *l;
-            ++l;
-            goto GetDesc;  /* Bill The Cat */
-        }
-        m->reln = '=';
-        break;
-    }
-    EATAB;
-
-    if (getvalue(serv, m, &l))
-        return -1;
-    /*
-     * now get last part - the description
-     */
-  GetDesc:
-    EATAB;
-    if (l[0] == '\b') {
-        ++l;
-        m->nospflag = 1;
-    }
-    else if ((l[0] == '\\') && (l[1] == 'b')) {
-        ++l;
-        ++l;
-        m->nospflag = 1;
-    }
-    else
-        m->nospflag = 0;
-    apr_cpystrn(m->desc, l, sizeof(m->desc));
-
-#if MIME_MAGIC_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, serv,
-                MODNAME ": parse line=%d m=%x next=%x cont=%d desc=%s",
-                lineno, m, m->next, m->cont_level, m->desc);
-#endif /* MIME_MAGIC_DEBUG */
-
-    return 0;
+    return OK;
 }

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rc,
-                         c->base_server,
-                         "SSL handshake stopped: connection was closed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                              "Invalid Content-Length");

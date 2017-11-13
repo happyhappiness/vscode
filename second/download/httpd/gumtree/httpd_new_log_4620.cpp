@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00229)
-                         "MaxThreads of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         ap_threads_limit, HARD_THREAD_LIMIT);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01854)
+                      "query execution error saving session '%s' "
+                      "in database using query '%s': %s", key, conf->selectlabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));

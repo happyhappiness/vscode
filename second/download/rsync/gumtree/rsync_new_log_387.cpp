@@ -1,2 +1,1 @@
-rprintf(FERROR,"readlink %s : %s\n",
-				fname,strerror(errno));
+fprintf(FINFO,"recv_files finished\n");

@@ -1,126 +1,68 @@
-void send_files(struct file_list *flist,int f_out,int f_in)
-{ 
-  int fd;
-  struct sum_struct *s;
-  struct map_struct *buf;
-  struct stat st;
-  char fname[MAXPATHLEN];  
-  int i;
-  struct file_struct *file;
-  int phase = 0;
-  int offset=0;
+static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname)
+{
+  int i,n,remainder,len,count;
+  off_t offset = 0;
+  off_t offset2;
+  char *data;
+  static char file_sum1[MD4_SUM_LENGTH];
+  static char file_sum2[MD4_SUM_LENGTH];
+  char *map=NULL;
 
-  if (verbose > 2)
-    fprintf(FINFO,"send_files starting\n");
+  count = read_int(f_in);
+  n = read_int(f_in);
+  remainder = read_int(f_in);
 
-  setup_nonblocking(f_in,f_out);
+  sum_init();
 
-  while (1) {
-	  i = read_int(f_in);
-	  if (i == -1) {
-		  if (phase==0 && remote_version >= 13) {
-			  phase++;
-			  csum_length = SUM_LENGTH;
-			  write_int(f_out,-1);
-			  write_flush(f_out);
-			  if (verbose > 2)
-				  fprintf(FINFO,"send_files phase=%d\n",phase);
-			  continue;
-		  }
-		  break;
-	  }
+  for (i=recv_token(f_in,&data); i != 0; i=recv_token(f_in,&data)) {
+    if (i > 0) {
+      if (verbose > 3)
+	fprintf(FINFO,"data recv %d at %d\n",i,(int)offset);
 
-	  file = flist->files[i];
+      sum_update(data,i);
 
-	  fname[0] = 0;
-	  if (file->basedir) {
-		  strncpy(fname,file->basedir,MAXPATHLEN-1);
-		  fname[MAXPATHLEN-1] = 0;
-		  if (strlen(fname) == MAXPATHLEN-1) {
-			  io_error = 1;
-			  fprintf(FERROR, "send_files failed on long-named directory %s\n",
-				  fname);
-			  return;
-		  }
-		  strcat(fname,"/");
-		  offset = strlen(file->basedir)+1;
-	  }
-	  strncat(fname,f_name(file),MAXPATHLEN-strlen(fname));
-	  
-	  if (verbose > 2) 
-		  fprintf(FINFO,"send_files(%d,%s)\n",i,fname);
-	  
-	  if (dry_run) {	
-		  if (!am_server && verbose)
-			  printf("%s\n",fname);
-		  write_int(f_out,i);
-		  continue;
-	  }
+      if (fd != -1 && write_file(fd,data,i) != i) {
+	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
+      offset += i;
+    } else {
+      i = -(i+1);
+      offset2 = i*n;
+      len = n;
+      if (i == count-1 && remainder != 0)
+	len = remainder;
 
-	  s = receive_sums(f_in);
-	  if (!s) {
-		  io_error = 1;
-		  fprintf(FERROR,"receive_sums failed\n");
-		  return;
-	  }
-	  
-	  fd = open(fname,O_RDONLY);
-	  if (fd == -1) {
-		  io_error = 1;
-		  fprintf(FERROR,"send_files failed to open %s: %s\n",
-			  fname,strerror(errno));
-		  free_sums(s);
-		  continue;
-	  }
-	  
-	  /* map the local file */
-	  if (fstat(fd,&st) != 0) {
-		  io_error = 1;
-		  fprintf(FERROR,"fstat failed : %s\n",strerror(errno));
-		  free_sums(s);
-		  close(fd);
-		  return;
-	  }
-	  
-	  if (st.st_size > 0) {
-		  buf = map_file(fd,st.st_size);
-	  } else {
-		  buf = NULL;
-	  }
-	  
-	  if (verbose > 2)
-		  fprintf(FINFO,"send_files mapped %s of size %d\n",
-			  fname,(int)st.st_size);
-	  
-	  write_int(f_out,i);
-	  
-	  write_int(f_out,s->count);
-	  write_int(f_out,s->n);
-	  write_int(f_out,s->remainder);
-	  
-	  if (verbose > 2)
-		  fprintf(FINFO,"calling match_sums %s\n",fname);
-	  
-	  if (!am_server && verbose)
-		  printf("%s\n",fname+offset);
-	  
-	  match_sums(f_out,s,buf,st.st_size);
-	  write_flush(f_out);
-	  
-	  if (buf) unmap_file(buf);
-	  close(fd);
-	  
-	  free_sums(s);
-	  
-	  if (verbose > 2)
-		  fprintf(FINFO,"sender finished %s\n",fname);
+      if (verbose > 3)
+	fprintf(FINFO,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);
+
+      map = map_ptr(buf,offset2,len);
+
+      see_token(map, len);
+      sum_update(map,len);
+
+      if (fd != -1 && write_file(fd,map,len) != len) {
+	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
+      offset += len;
+    }
   }
 
-  if (verbose > 2)
-	  fprintf(FINFO,"send files finished\n");
+  if (fd != -1 && offset > 0 && sparse_end(fd) != 0) {
+    fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+    exit_cleanup(1);
+  }
 
-  match_report();
+  sum_end(file_sum1);
 
-  write_int(f_out,-1);
-  write_flush(f_out);
+  if (remote_version >= 14) {
+    read_buf(f_in,file_sum2,MD4_SUM_LENGTH);
+    if (verbose > 2)
+      fprintf(FINFO,"got file_sum\n");
+    if (fd != -1 && memcmp(file_sum1,file_sum2,MD4_SUM_LENGTH) != 0)
+      return 0;
+  }
+  return 1;
 }

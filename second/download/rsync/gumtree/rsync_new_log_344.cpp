@@ -1,1 +1,2 @@
-fprintf(FINFO,"IO error encountered - skipping file deletion\n");
+fprintf(FINFO,"hash search s->n=%d len=%d count=%d\n",
+			s->n,(int)len,s->count);

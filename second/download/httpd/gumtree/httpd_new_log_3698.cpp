@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00867) "error parsing URL %s: %s",
-                      url, err);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, f->r, APLOGNO(01462)
+                                  "apr_pollset_poll()");

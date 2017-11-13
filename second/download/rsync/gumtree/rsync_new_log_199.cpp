@@ -1,1 +1,1 @@
-fprintf(FERROR,"pipe: %s\n",strerror(errno));
+fprintf(FERROR,"deleting %s\n",f->name);

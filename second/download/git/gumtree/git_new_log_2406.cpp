@@ -1,1 +1,1 @@
-error_errno("cannot write delta postimage");
+die("unable to generate diff for %s", rerere_path(id, NULL));

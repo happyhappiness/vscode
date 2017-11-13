@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->intern->r, "unable to "
-                      "compile pattern \"%s\"", rexp);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main,
+                         "unable to replace stderr with error_log");

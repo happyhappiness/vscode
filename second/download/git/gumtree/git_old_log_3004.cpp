@@ -1,1 +1,1 @@
-error("ftell error: %s", strerror(errno));
+error("seek error: %s", strerror(errno));

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, r->server,
-                     "proxy: FTP: RETR failed, trying LIST instead");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                      "LDAP: SSL trusted global cert - %s (type %s)",
+                       file, type);

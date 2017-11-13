@@ -1,2 +1,1 @@
-printf("%c %s\n", sign,
-		       find_unique_abbrev(commit->object.oid.hash, abbrev));
+die("object '%s' is not a blob!", oid_to_hex(oid));

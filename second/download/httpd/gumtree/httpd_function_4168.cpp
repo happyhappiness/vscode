@@ -1,62 +1,82 @@
-static int ssl_server_import_key(server_rec *s,
-                                 modssl_ctx_t *mctx,
-                                 const char *id,
-                                 int idx)
+static proxy_worker *find_best_bybusyness(proxy_balancer *balancer,
+                                request_rec *r)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    ssl_asn1_t *asn1;
-    MODSSL_D2I_PrivateKey_CONST unsigned char *ptr;
-    const char *type = ssl_asn1_keystr(idx);
-    int pkey_type;
-    EVP_PKEY *pkey;
 
-#ifndef OPENSSL_NO_EC
-    if (idx == SSL_AIDX_ECC)
-      pkey_type = EVP_PKEY_EC;
-    else
-#endif /* SSL_LIBRARY_VERSION */
-    pkey_type = (idx == SSL_AIDX_RSA) ? EVP_PKEY_RSA : EVP_PKEY_DSA;
+    int i;
+    proxy_worker **worker;
+    proxy_worker *mycandidate = NULL;
+    int cur_lbset = 0;
+    int max_lbset = 0;
+    int checking_standby;
+    int checked_standby;
 
-    if (!(asn1 = ssl_asn1_table_get(mc->tPrivateKey, id))) {
-        return FALSE;
-    }
+    int total_factor = 0;
+    
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering bybusyness for BALANCER (%s)",
+                 balancer->name);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring %s server private key", type);
+    /* First try to see if we have available candidate */
+    do {
 
-    ptr = asn1->cpData;
-    if (!(pkey = d2i_PrivateKey(pkey_type, NULL, &ptr, asn1->nData)))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Unable to import %s server private key", type);
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        ssl_die();
-    }
+        checking_standby = checked_standby = 0;
+        while (!mycandidate && !checked_standby) {
 
-    if (SSL_CTX_use_PrivateKey(mctx->ssl_ctx, pkey) <= 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Unable to configure %s server private key", type);
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        ssl_die();
-    }
+            worker = (proxy_worker **)balancer->workers->elts;
+            for (i = 0; i < balancer->workers->nelts; i++, worker++) {
+                if  (!checking_standby) {    /* first time through */
+                    if ((*worker)->s->lbset > max_lbset)
+                        max_lbset = (*worker)->s->lbset;
+                }
 
-    /*
-     * XXX: wonder if this is still needed, this is old todo doc.
-     * (see http://www.psy.uq.edu.au/~ftp/Crypto/ssleay/TODO.html)
-     */
-    if ((pkey_type == EVP_PKEY_DSA) && mctx->pks->certs[idx]) {
-        EVP_PKEY *pubkey = X509_get_pubkey(mctx->pks->certs[idx]);
+                if ((*worker)->s->lbset != cur_lbset)
+                    continue;
 
-        if (pubkey && EVP_PKEY_missing_parameters(pubkey)) {
-            EVP_PKEY_copy_parameters(pubkey, pkey);
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                    "Copying DSA parameters from private key to certificate");
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-            EVP_PKEY_free(pubkey);
+                if ( (checking_standby ? !PROXY_WORKER_IS_STANDBY(*worker) : PROXY_WORKER_IS_STANDBY(*worker)) )
+                    continue;
+
+                /* If the worker is in error state run
+                 * retry on that worker. It will be marked as
+                 * operational if the retry timeout is elapsed.
+                 * The worker might still be unusable, but we try
+                 * anyway.
+                 */
+                if (!PROXY_WORKER_IS_USABLE(*worker))
+                    ap_proxy_retry_worker("BALANCER", *worker, r->server);
+
+                /* Take into calculation only the workers that are
+                 * not in error state or not disabled.
+                 */
+                if (PROXY_WORKER_IS_USABLE(*worker)) {
+
+                    (*worker)->s->lbstatus += (*worker)->s->lbfactor;
+                    total_factor += (*worker)->s->lbfactor;
+                    
+                    if (!mycandidate
+                        || (*worker)->s->busy < mycandidate->s->busy
+                        || ((*worker)->s->busy == mycandidate->s->busy && (*worker)->s->lbstatus > mycandidate->s->lbstatus))
+                        mycandidate = *worker;
+
+                }
+
+            }
+
+            checked_standby = checking_standby++;
+
         }
+
+        cur_lbset++;
+
+    } while (cur_lbset <= max_lbset && !mycandidate);
+
+    if (mycandidate) {
+        mycandidate->s->lbstatus -= total_factor;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: bybusyness selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
+                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);
+
     }
 
-    mctx->pks->keys[idx] = pkey;
+    return mycandidate;
 
-    return TRUE;
 }

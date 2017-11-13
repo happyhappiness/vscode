@@ -1,1 +1,1 @@
-rp_error("%s", refuse_unconfigured_deny_msg[i]);
+error(_("%s: %s"), old_name, strerror(errno));

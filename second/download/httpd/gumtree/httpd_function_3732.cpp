@@ -1,55 +1,107 @@
-static proxy_worker *find_session_route(proxy_balancer *balancer,
-                                        request_rec *r,
-                                        char **route,
-                                        const char **sticky_used,
-                                        char **url)
+static apr_status_t handle_include(include_ctx_t *ctx, ap_filter_t *f,
+                                   apr_bucket_brigade *bb)
 {
-    proxy_worker *worker = NULL;
+    request_rec *r = f->r;
 
-    if (!balancer->sticky)
-        return NULL;
-    /* Try to find the sticky route inside url */
-    *route = get_path_param(r->pool, *url, balancer->sticky_path, balancer->scolonsep);
-    if (*route) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: BALANCER: Found value %s for "
-                     "stickysession %s", *route, balancer->sticky_path);
-        *sticky_used =  balancer->sticky_path;
+    if (!ctx->argc) {
+        ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "missing argument for include element in %s",
+                      r->filename);
     }
-    else {
-        *route = get_cookie_param(r, balancer->sticky);
-        if (*route) {
-            *sticky_used =  balancer->sticky;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: BALANCER: Found value %s for "
-                         "stickysession %s", *route, balancer->sticky);
+
+    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
+        return APR_SUCCESS;
+    }
+
+    if (!ctx->argc) {
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
+
+    while (1) {
+        char *tag     = NULL;
+        char *tag_val = NULL;
+        request_rec *rr = NULL;
+        char *error_fmt = NULL;
+        char *parsed_string;
+
+        ap_ssi_get_tag_and_value(ctx, &tag, &tag_val, SSI_VALUE_DECODED);
+        if (!tag || !tag_val) {
+            break;
         }
-    }
-    /*
-     * If we found a value for sticksession, find the first '.' within.
-     * Everything after '.' (if present) is our route.
-     */
-    if ((*route) && ((*route = strchr(*route, '.')) != NULL ))
-        (*route)++;
-    if ((*route) && (**route)) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                  "proxy: BALANCER: Found route %s", *route);
-        /* We have a route in path or in cookie
-         * Find the worker that has this route defined.
+
+        if (strcmp(tag, "virtual") && strcmp(tag, "file")) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
+                          "\"%s\" to tag include in %s", tag, r->filename);
+            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+            break;
+        }
+
+        parsed_string = ap_ssi_parse_string(ctx, tag_val, NULL, 0,
+                                            SSI_EXPAND_DROP_NAME);
+        if (tag[0] == 'f') {
+            char *newpath;
+            apr_status_t rv;
+
+            /* be safe; only files in this directory or below allowed */
+            rv = apr_filepath_merge(&newpath, NULL, parsed_string,
+                                    APR_FILEPATH_SECUREROOTTEST |
+                                    APR_FILEPATH_NOTABSOLUTE, ctx->dpool);
+
+            if (rv != APR_SUCCESS) {
+                error_fmt = "unable to include file \"%s\" in parsed file %s";
+            }
+            else {
+                rr = ap_sub_req_lookup_file(newpath, r, f->next);
+            }
+        }
+        else {
+            if (r->kept_body) {
+                rr = ap_sub_req_method_uri(r->method, parsed_string, r, f->next);
+            }
+            else {
+                rr = ap_sub_req_lookup_uri(parsed_string, r, f->next);
+            }
+        }
+
+        if (!error_fmt && rr->status != HTTP_OK) {
+            error_fmt = "unable to include \"%s\" in parsed file %s";
+        }
+
+        if (!error_fmt && (ctx->flags & SSI_FLAG_NO_EXEC) &&
+            rr->content_type && strncmp(rr->content_type, "text/", 5)) {
+
+            error_fmt = "unable to include potential exec \"%s\" in parsed "
+                        "file %s";
+        }
+
+        /* See the Kludge in includes_filter for why.
+         * Basically, it puts a bread crumb in here, then looks
+         * for the crumb later to see if its been here.
          */
-        worker = find_route_worker(balancer, *route, r);
-        if (worker && strcmp(*route, worker->s->route)) {
-            /*
-             * Notice that the route of the worker chosen is different from
-             * the route supplied by the client.
-             */
-            apr_table_setn(r->subprocess_env, "BALANCER_ROUTE_CHANGED", "1");
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: BALANCER: Route changed from %s to %s",
-                         *route, worker->s->route);
+        ctx->intern->kludge_child = rr;
+
+        if (!error_fmt && ap_run_sub_req(rr)) {
+            error_fmt = "unable to include \"%s\" in parsed file %s";
         }
-        return worker;
+
+        if (error_fmt) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error_fmt, tag_val,
+                          r->filename);
+            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        }
+
+        /* Do *not* destroy the subrequest here; it may have allocated
+         * variables in this r->subprocess_env in the subrequest's
+         * r->pool, so that pool must survive as long as this request.
+         * Yes, this is a memory leak. */
+
+        if (error_fmt) {
+            break;
+        }
     }
-    else
-        return NULL;
+
+    return APR_SUCCESS;
 }

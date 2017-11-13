@@ -1,11 +1,11 @@
 fputs(
-"              Since 7.21.7, this option is superfluous since you can specify a\n"
-"              socks5 hostname proxy with -x, --proxy using a socks5h:// proto-\n"
-"              col prefix.\n"
+"              Reverts to a non-secure connection if the server doesn't support\n"
+"              SSL/TLS.   See also --ftp-ssl-control and --ssl-reqd for differ-\n"
+"              ent levels of encryption required. (Added in 7.20.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"              (This option was  previously  wrongly  documented  and  used  as\n"
-"              --socks without the number appended.)\n"
+"              This option was formerly known as --ftp-ssl (Added  in  7.11.0).\n"
+"              That  option  name  can  still  be used but will be removed in a\n"
+"              future version.\n"
 "\n"
-"       --socks5 <host[:port]>\n"
+"       --ssl-reqd\n"
 , stdout);

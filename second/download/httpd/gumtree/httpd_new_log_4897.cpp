@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, APLOGNO(00061) "sigaction(SIGSEGV)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01953)
+                     "stapling_cb: retrieved cached response");

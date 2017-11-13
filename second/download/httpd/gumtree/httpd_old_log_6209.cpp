@@ -1,4 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, session->c, APLOGNO(03199)
-                      "session(%ld): connection disappeared without proper "
-                      "goodbye, clients will be confused, should not happen", 
-                      session->id);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                         ref ? "Spelling fix: %s: %d candidates from %s"
+                             : "Spelling fix: %s: %d candidates%s",
+                         r->uri, candidates->nelts,
+                         (ref ? ref : ""));

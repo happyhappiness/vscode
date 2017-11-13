@@ -1,205 +1,304 @@
-static int cache_handler(request_rec *r)
+static int cgid_handler(request_rec *r)
 {
+    conn_rec *c = r->connection;
+    int retval, nph, dbpos = 0;
+    char *argv0, *dbuf = NULL;
+    apr_bucket_brigade *bb;
+    apr_bucket *b;
+    cgid_server_conf *conf;
+    int is_included;
+    int seen_eos, child_stopped_reading;
+    int sd;
+    char **env;
+    apr_file_t *tempsock;
+    struct cleanup_script_info *info;
     apr_status_t rv;
-    cache_provider_list *providers;
-    cache_request_rec *cache;
-    apr_bucket_brigade *out;
-    ap_filter_t *next;
-    ap_filter_rec_t *cache_out_handle;
-    ap_filter_rec_t *cache_save_handle;
-    cache_server_conf *conf;
+    cgid_dirconf *dc;
 
-    /* Delay initialization until we know we are handling a GET */
-    if (r->method_number != M_GET) {
+    if (strcmp(r->handler,CGI_MAGIC_TYPE) && strcmp(r->handler,"cgi-script"))
         return DECLINED;
+
+    conf = ap_get_module_config(r->server->module_config, &cgid_module);
+    dc = ap_get_module_config(r->per_dir_config, &cgid_module);
+
+    
+    is_included = !strcmp(r->protocol, "INCLUDED");
+
+    if ((argv0 = strrchr(r->filename, '/')) != NULL)
+        argv0++;
+    else
+        argv0 = r->filename;
+
+    nph = !(strncmp(argv0, "nph-", 4));
+
+    argv0 = r->filename;
+
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r))
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "Options ExecCGI is off in this directory");
+    if (nph && is_included)
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to include NPH CGI script");
+
+#if defined(OS2) || defined(WIN32)
+#error mod_cgid does not work on this platform.  If you teach it to, look
+#error at mod_cgi.c for required code in this path.
+#else
+    if (r->finfo.filetype == 0)
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
+                               "script not found or unable to stat");
+#endif
+    if (r->finfo.filetype == APR_DIR)
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to invoke directory as script");
+
+    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
+        r->path_info && *r->path_info)
+    {
+        /* default to accept */
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
+                               "AcceptPathInfo off disallows user's path");
+    }
+/*
+    if (!ap_suexec_enabled) {
+        if (!ap_can_exec(&r->finfo))
+            return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                                   "file permissions deny server execution");
+    }
+*/
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+    env = ap_create_environment(r->pool, r->subprocess_env);
+
+    if ((retval = connect_to_daemon(&sd, r, conf)) != OK) {
+        return retval;
     }
 
-    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
-                                                      &cache_module);
-
-    /* only run if the quick handler is disabled */
-    if (conf->quick) {
-        return DECLINED;
+    rv = send_req(sd, r, argv0, env, CGI_REQ);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                     "write to cgi daemon process");
     }
 
-    /*
-     * Which cache module (if any) should handle this request?
+    info = apr_palloc(r->pool, sizeof(struct cleanup_script_info));
+    info->r = r;
+    info->conn_id = r->connection->id;
+    info->conf = conf;
+    apr_pool_cleanup_register(r->pool, info,
+                              cleanup_script,
+                              apr_pool_cleanup_null);
+    /* We are putting the socket discriptor into an apr_file_t so that we can
+     * use a pipe bucket to send the data to the client.  APR will create
+     * a cleanup for the apr_file_t which will close the socket, so we'll
+     * get rid of the cleanup we registered when we created the socket.
      */
-    if (!(providers = ap_cache_get_providers(r, conf, r->parsed_uri))) {
-        return DECLINED;
+
+    apr_os_pipe_put_ex(&tempsock, &sd, 1, r->pool);
+    if (dc->timeout > 0) { 
+        apr_file_pipe_timeout_set(tempsock, dc->timeout);
     }
-
-    /* make space for the per request config */
-    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
-                                                       &cache_module);
-    if (!cache) {
-        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
-        ap_set_module_config(r->request_config, &cache_module, cache);
+    else { 
+        apr_file_pipe_timeout_set(tempsock, r->server->timeout);
     }
+    apr_pool_cleanup_kill(r->pool, (void *)((long)sd), close_unix_socket);
 
-    /* save away the possible providers */
-    cache->providers = providers;
+    if ((argv0 = strrchr(r->filename, '/')) != NULL)
+        argv0++;
+    else
+        argv0 = r->filename;
 
-    /*
-     * Try to serve this request from the cache.
-     *
-     * If no existing cache file (DECLINED)
-     *   add cache_save filter
-     * If cached file (OK)
-     *   clear filter stack
-     *   add cache_out filter
-     *   return OK
+    /* Transfer any put/post args, CERN style...
+     * Note that we already ignore SIGPIPE in the core server.
      */
-    rv = cache_select(r);
-    if (rv != OK) {
-        if (rv == DECLINED) {
+    bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    seen_eos = 0;
+    child_stopped_reading = 0;
+    if (conf->logname) {
+        dbuf = apr_palloc(r->pool, conf->bufbytes + 1);
+        dbpos = 0;
+    }
+    do {
+        apr_bucket *bucket;
 
-            /* try to obtain a cache lock at this point. if we succeed,
-             * we are the first to try and cache this url. if we fail,
-             * it means someone else is already trying to cache this
-             * url, and we should just let the request through to the
-             * backend without any attempt to cache. this stops
-             * duplicated simultaneous attempts to cache an entity.
-             */
-            rv = ap_cache_try_lock(conf, r, NULL);
-            if (APR_SUCCESS == rv) {
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
 
-                /*
-                 * Add cache_save filter to cache this request. Choose
-                 * the correct filter by checking if we are a subrequest
-                 * or not.
-                 */
-                if (r->main) {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r->server,
-                            "Adding CACHE_SAVE_SUBREQ filter for %s",
-                            r->uri);
-                    cache_save_handle = cache_save_subreq_filter_handle;
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {
+            const char *data;
+            apr_size_t len;
+
+            if (APR_BUCKET_IS_EOS(bucket)) {
+                seen_eos = 1;
+                break;
+            }
+
+            /* We can't do much with this. */
+            if (APR_BUCKET_IS_FLUSH(bucket)) {
+                continue;
+            }
+
+            /* If the child stopped, we still must read to EOS. */
+            if (child_stopped_reading) {
+                continue;
+            }
+
+            /* read */
+            apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
+
+            if (conf->logname && dbpos < conf->bufbytes) {
+                int cursize;
+
+                if ((dbpos + len) > conf->bufbytes) {
+                    cursize = conf->bufbytes - dbpos;
                 }
                 else {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r->server, "Adding CACHE_SAVE filter for %s",
-                            r->uri);
-                    cache_save_handle = cache_save_filter_handle;
+                    cursize = len;
                 }
-                ap_add_output_filter_handle(cache_save_handle,
-                        NULL, r, r->connection);
+                memcpy(dbuf + dbpos, data, cursize);
+                dbpos += cursize;
+            }
 
-                /*
-                 * Did the user indicate the precise location of the
-                 * CACHE_SAVE filter by inserting the CACHE filter as a
-                 * marker?
-                 *
-                 * If so, we get cunning and replace CACHE with the
-                 * CACHE_SAVE filter. This has the effect of inserting
-                 * the CACHE_SAVE filter at the precise location where
-                 * the admin wants to cache the content. All filters that
-                 * lie before and after the original location of the CACHE
-                 * filter will remain in place.
-                 */
-                if (cache_replace_filter(r->output_filters,
-                        cache_filter_handle, cache_save_handle)) {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r->server, "Replacing CACHE with CACHE_SAVE "
-                            "filter for %s", r->uri);
-                }
+            /* Keep writing data to the child until done or too much time
+             * elapses with no progress or an error occurs.
+             */
+            rv = apr_file_write_full(tempsock, data, len, NULL);
 
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                        "Adding CACHE_REMOVE_URL filter for %s",
-                        r->uri);
-
-                /* Add cache_remove_url filter to this request to remove a
-                 * stale cache entry if needed. Also put the current cache
-                 * request rec in the filter context, as the request that
-                 * is available later during running the filter may be
-                 * different due to an internal redirect.
-                 */
-                cache->remove_url_filter =
-                    ap_add_output_filter_handle(cache_remove_url_filter_handle,
-                            cache, r, r->connection);
+            if (rv != APR_SUCCESS) {
+                /* silly script stopped reading, soak up remaining message */
+                child_stopped_reading = 1;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, 
+                              "Error writing request body to script %s", 
+                              r->filename);
 
             }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
-                             r->server, "Cache locked for url, not caching "
-                             "response: %s", r->uri);
+        }
+        apr_brigade_cleanup(bb);
+    }
+    while (!seen_eos);
+
+    if (conf->logname) {
+        dbuf[dbpos] = '\0';
+    }
+
+    /* we're done writing, or maybe we didn't write at all;
+     * force EOF on child's stdin so that the cgi detects end (or
+     * absence) of data
+     */
+    shutdown(sd, 1);
+
+    /* Handle script return... */
+    if (!nph) {
+        const char *location;
+        char sbuf[MAX_STRING_LEN];
+        int ret;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_pipe_create(tempsock, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+
+        if ((ret = ap_scan_script_header_err_brigade(r, bb, sbuf))) {
+            ret = log_script(r, conf, ret, dbuf, sbuf, bb, NULL);
+
+            /*
+             * ret could be HTTP_NOT_MODIFIED in the case that the CGI script
+             * does not set an explicit status and ap_meets_conditions, which
+             * is called by ap_scan_script_header_err_brigade, detects that
+             * the conditions of the requests are met and the response is
+             * not modified.
+             * In this case set r->status and return OK in order to prevent
+             * running through the error processing stack as this would
+             * break with mod_cache, if the conditions had been set by
+             * mod_cache itself to validate a stale entity.
+             * BTW: We circumvent the error processing stack anyway if the
+             * CGI script set an explicit status code (whatever it is) and
+             * the only possible values for ret here are:
+             *
+             * HTTP_NOT_MODIFIED          (set by ap_meets_conditions)
+             * HTTP_PRECONDITION_FAILED   (set by ap_meets_conditions)
+             * HTTP_INTERNAL_SERVER_ERROR (if something went wrong during the
+             * processing of the response of the CGI script, e.g broken headers
+             * or a crashed CGI process).
+             */
+            if (ret == HTTP_NOT_MODIFIED) {
+                r->status = ret;
+                return OK;
             }
+
+            return ret;
         }
-        else {
-            /* error */
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                         "cache: error returned while checking for cached "
-                         "file by %s cache", cache->provider_name);
+
+        location = apr_table_get(r->headers_out, "Location");
+
+        if (location && location[0] == '/' && r->status == 200) {
+
+            /* Soak up all the script output */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            /* This redirect needs to be a GET no matter what the original
+             * method was.
+             */
+            r->method = apr_pstrdup(r->pool, "GET");
+            r->method_number = M_GET;
+
+            /* We already read the message body (if any), so don't allow
+             * the redirected request to think it has one. We can ignore
+             * Transfer-Encoding, since we used REQUEST_CHUNKED_ERROR.
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
+
+            ap_internal_redirect_handler(location, r);
+            return OK;
         }
-        return DECLINED;
-    }
-
-    rv = ap_meets_conditions(r);
-    if (rv != OK) {
-        return rv;
-    }
-
-    /* Serve up the content */
-
-    /*
-     * Add cache_out filter to serve this request. Choose
-     * the correct filter by checking if we are a subrequest
-     * or not.
-     */
-    if (r->main) {
-        cache_out_handle = cache_out_subreq_filter_handle;
-    }
-    else {
-        cache_out_handle = cache_out_filter_handle;
-    }
-    ap_add_output_filter_handle(cache_out_handle, NULL, r, r->connection);
-
-    /*
-     * Did the user indicate the precise location of the CACHE_OUT filter by
-     * inserting the CACHE filter as a marker?
-     *
-     * If so, we get cunning and replace CACHE with the CACHE_OUT filters.
-     * This has the effect of inserting the CACHE_OUT filter at the precise
-     * location where the admin wants to cache the content. All filters that
-     * lie *after* the original location of the CACHE filter will remain in
-     * place.
-     */
-    if (cache_replace_filter(r->output_filters, cache_filter_handle, cache_out_handle)) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                r->server, "Replacing CACHE with CACHE_OUT filter for %s",
-                r->uri);
-    }
-
-    /*
-     * Remove all filters that are before the cache_out filter. This ensures
-     * that we kick off the filter stack with our cache_out filter being the
-     * first in the chain. This make sense because we want to restore things
-     * in the same manner as we saved them.
-     * There may be filters before our cache_out filter, because
-     *
-     * 1. We call ap_set_content_type during cache_select. This causes
-     *    Content-Type specific filters to be added.
-     * 2. We call the insert_filter hook. This causes filters e.g. like
-     *    the ones set with SetOutputFilter to be added.
-     */
-    next = r->output_filters;
-    while (next && (next->frec != cache_out_handle)) {
-        ap_remove_output_filter(next);
-        next = next->next;
-    }
-
-    /* kick off the filter stack */
-    out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-    rv = ap_pass_brigade(r->output_filters, out);
-    if (rv != APR_SUCCESS) {
-        if (rv != AP_FILTER_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                         "cache: error returned while trying to return %s "
-                         "cached data",
-                         cache->provider_name);
+        else if (location && r->status == 200) {
+            /* XX Note that if a script wants to produce its own Redirect
+             * body, it now has to explicitly *say* "Status: 302"
+             */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            return HTTP_MOVED_TEMPORARILY;
         }
-        return rv;
+
+        rv = ap_pass_brigade(r->output_filters, bb);
+        if (rv != APR_SUCCESS) { 
+            /* APLOG_ERR because the core output filter message is at error,
+             * but doesn't know it's passing CGI output 
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "Failed to flush CGI output to client");
+        }
     }
 
-    return OK;
+    if (nph) {
+        struct ap_filter_t *cur;
+
+        /* get rid of all filters up through protocol...  since we
+         * haven't parsed off the headers, there is no way they can
+         * work
+         */
+
+        cur = r->proto_output_filters;
+        while (cur && cur->frec->ftype < AP_FTYPE_CONNECTION) {
+            cur = cur->next;
+        }
+        r->output_filters = r->proto_output_filters = cur;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_pipe_create(tempsock, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        ap_pass_brigade(r->output_filters, bb);
+    }
+
+    return OK; /* NOT r->status, even if it has changed. */
 }

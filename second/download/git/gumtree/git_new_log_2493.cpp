@@ -1,2 +1,1 @@
-printf("              to %7s %s\n",
-				 typename(obj->type), describe_object(obj));
+die("Object not in bitmap: %s\n", oid_to_hex(&commit->object.oid));

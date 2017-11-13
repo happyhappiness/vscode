@@ -1,18 +1,18 @@
-apr_status_t h2_stream_set_request_rec(h2_stream *stream, request_rec *r)
+static void h2_push_diary_append(h2_push_diary *diary, h2_push_diary_entry *e)
 {
-    h2_request *req;
-    apr_status_t status;
-
-    ap_assert(stream->request == NULL);
-    ap_assert(stream->rtmp == NULL);
-    if (stream->rst_error) {
-        return APR_ECONNRESET;
+    h2_push_diary_entry *ne;
+    
+    if (diary->entries->nelts < diary->N) {
+        /* append a new diary entry at the end */
+        APR_ARRAY_PUSH(diary->entries, h2_push_diary_entry) = *e;
+        ne = &APR_ARRAY_IDX(diary->entries, diary->entries->nelts-1, h2_push_diary_entry);
     }
-    status = h2_request_rcreate(&req, stream->pool, r);
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
-                  "h2_request(%d): set_request_rec %s host=%s://%s%s",
-                  stream->id, req->method, req->scheme, req->authority, 
-                  req->path);
-    stream->rtmp = req;
-    return status;
+    else {
+        /* replace content with new digest. keeps memory usage constant once diary is full */
+        ne = move_to_last(diary, 0);
+        *ne = *e;
+    }
+    /* Intentional no APLOGNO */
+    ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, diary->entries->pool,
+                  "push_diary_append: %"APR_UINT64_T_HEX_FMT, ne->hash);
 }

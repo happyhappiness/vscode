@@ -1,11 +1,8 @@
 fputs(
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.\n"
-"\n"
-"       -o, --output <file>\n"
-"              Write output to <file> instead of stdout. If you are using {} or\n"
-"              [] to fetch multiple documents, you can use '#'  followed  by  a\n"
-"              number  in  the <file> specifier. That variable will be replaced\n"
-"              with the current string for the URL being fetched. Like in:\n"
-"\n"
+"       --noproxy <no-proxy-list>\n"
+"              Comma-separated list of hosts which do not use a proxy,  if  one\n"
+"              is  specified.  The only wildcard is a single * character, which\n"
+"              matches all hosts, and effectively disables the proxy. Each name\n"
+"              in  this  list  is matched as either a domain which contains the\n"
+"              hostname, or the hostname itself. For example,  local.com  would\n"
 , stdout);

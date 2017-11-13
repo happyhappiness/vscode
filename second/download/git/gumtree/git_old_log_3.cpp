@@ -1,1 +1,1 @@
-error(FAILED_RUN, reflog.argv[0]);
+error(FAILED_RUN, pack_refs_cmd.argv[0]);

@@ -1,94 +1,51 @@
-int main(void)
+static void register_hooks(apr_pool_t *p)
 {
-int i;
-const unsigned char *tables = pcre_maketables();
+    /* create_connection and install_transport_filters are
+     * hooks that should always be APR_HOOK_REALLY_LAST to give other
+     * modules the opportunity to install alternate network transports
+     * and stop other functions from being run.
+     */
+    ap_hook_create_connection(core_create_conn, NULL, NULL,
+                              APR_HOOK_REALLY_LAST);
+    ap_hook_pre_connection(core_pre_connection, NULL, NULL,
+                           APR_HOOK_REALLY_LAST);
 
-printf(
-  "/*************************************************\n"
-  "*      Perl-Compatible Regular Expressions       *\n"
-  "*************************************************/\n\n"
-  "/* This file is automatically written by the dftables auxiliary \n"
-  "program. If you edit it by hand, you might like to edit the Makefile to \n"
-  "prevent its ever being regenerated.\n\n"
-  "This file is #included in the compilation of pcre.c to build the default\n"
-  "character tables which are used when no tables are passed to the compile\n"
-  "function. */\n\n"
-  "static unsigned char pcre_default_tables[] = {\n\n"
-  "/* This table is a lower casing table. */\n\n");
+    ap_hook_post_config(core_post_config,NULL,NULL,APR_HOOK_REALLY_FIRST);
+    ap_hook_translate_name(ap_core_translate,NULL,NULL,APR_HOOK_REALLY_LAST);
+    ap_hook_map_to_storage(core_map_to_storage,NULL,NULL,APR_HOOK_REALLY_LAST);
+    ap_hook_open_logs(ap_open_logs,NULL,NULL,APR_HOOK_REALLY_FIRST);
+    ap_hook_child_init(ap_logs_child_init,NULL,NULL,APR_HOOK_MIDDLE);
+    ap_hook_handler(default_handler,NULL,NULL,APR_HOOK_REALLY_LAST);
+    /* FIXME: I suspect we can eliminate the need for these do_nothings - Ben */
+    ap_hook_type_checker(do_nothing,NULL,NULL,APR_HOOK_REALLY_LAST);
+    ap_hook_fixups(core_override_type,NULL,NULL,APR_HOOK_REALLY_FIRST);
+    ap_hook_access_checker(do_nothing,NULL,NULL,APR_HOOK_REALLY_LAST);
+    ap_hook_create_request(core_create_req, NULL, NULL, APR_HOOK_MIDDLE);
+    APR_OPTIONAL_HOOK(proxy, create_req, core_create_proxy_req, NULL, NULL,
+                      APR_HOOK_MIDDLE);
+    ap_hook_pre_mpm(ap_create_scoreboard, NULL, NULL, APR_HOOK_MIDDLE);
 
-printf("  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0) printf("\n  ");
-  printf("%3d", *tables++);
-  if (i != 255) printf(",");
-  }
-printf(",\n\n");
+    /* register the core's insert_filter hook and register core-provided
+     * filters
+     */
+    ap_hook_insert_filter(core_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
 
-printf("/* This table is a case flipping table. */\n\n");
-
-printf("  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0) printf("\n  ");
-  printf("%3d", *tables++);
-  if (i != 255) printf(",");
-  }
-printf(",\n\n");
-
-printf(
-  "/* This table contains bit maps for various character classes.\n"
-  "Each map is 32 bytes long and the bits run from the least\n"
-  "significant end of each byte. The classes that have their own\n"
-  "maps are: space, xdigit, digit, upper, lower, word, graph\n"
-  "print, punct, and cntrl. Other classes are built from combinations. */\n\n");
-
-printf("  ");
-for (i = 0; i < cbit_length; i++)
-  {
-  if ((i & 7) == 0 && i != 0)
-    {
-    if ((i & 31) == 0) printf("\n");
-    printf("\n  ");
-    }
-  printf("0x%02x", *tables++);
-  if (i != cbit_length - 1) printf(",");
-  }
-printf(",\n\n");
-
-printf(
-  "/* This table identifies various classes of character by individual bits:\n"
-  "  0x%02x   white space character\n"
-  "  0x%02x   letter\n"
-  "  0x%02x   decimal digit\n"
-  "  0x%02x   hexadecimal digit\n"
-  "  0x%02x   alphanumeric or '_'\n"
-  "  0x%02x   regular expression metacharacter or binary zero\n*/\n\n",
-  ctype_space, ctype_letter, ctype_digit, ctype_xdigit, ctype_word,
-  ctype_meta);
-
-printf("  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0)
-    {
-    printf(" /* ");
-    if (isprint(i-8)) printf(" %c -", i-8);
-      else printf("%3d-", i-8);
-    if (isprint(i-1)) printf(" %c ", i-1);
-      else printf("%3d", i-1);
-    printf(" */\n  ");
-    }
-  printf("0x%02x", *tables++);
-  if (i != 255) printf(",");
-  }
-
-printf("};/* ");
-if (isprint(i-8)) printf(" %c -", i-8);
-  else printf("%3d-", i-8);
-if (isprint(i-1)) printf(" %c ", i-1);
-  else printf("%3d", i-1);
-printf(" */\n\n/* End of chartables.c */\n");
-
-return 0;
+    ap_core_input_filter_handle =
+        ap_register_input_filter("CORE_IN", core_input_filter,
+                                 NULL, AP_FTYPE_NETWORK);
+    ap_net_time_filter_handle =
+        ap_register_input_filter("NET_TIME", net_time_filter,
+                                 NULL, AP_FTYPE_PROTOCOL);
+    ap_content_length_filter_handle =
+        ap_register_output_filter("CONTENT_LENGTH", ap_content_length_filter,
+                                  NULL, AP_FTYPE_PROTOCOL);
+    ap_core_output_filter_handle =
+        ap_register_output_filter("CORE", core_output_filter,
+                                  NULL, AP_FTYPE_NETWORK);
+    ap_subreq_core_filter_handle =
+        ap_register_output_filter("SUBREQ_CORE", ap_sub_req_output_filter,
+                                  NULL, AP_FTYPE_CONTENT_SET);
+    ap_old_write_func =
+        ap_register_output_filter("OLD_WRITE", ap_old_write_filter,
+                                  NULL, AP_FTYPE_RESOURCE - 10);
 }

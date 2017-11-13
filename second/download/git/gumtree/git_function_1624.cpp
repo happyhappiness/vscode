@@ -1,15 +1,10 @@
-static void fsck_handle_reflog_sha1(const char *refname, unsigned char *sha1)
+int optbug(const struct option *opt, const char *reason)
 {
-	struct object *obj;
-
-	if (!is_null_sha1(sha1)) {
-		obj = lookup_object(sha1);
-		if (obj) {
-			obj->used = 1;
-			mark_object_reachable(obj);
-		} else {
-			error("%s: invalid reflog entry %s", refname, sha1_to_hex(sha1));
-			errors_found |= ERROR_REACHABLE;
-		}
+	if (opt->long_name) {
+		if (opt->short_name)
+			return error("BUG: switch '%c' (--%s) %s",
+				     opt->short_name, opt->long_name, reason);
+		return error("BUG: option '%s' %s", opt->long_name, reason);
 	}
+	return error("BUG: switch '%c' %s", opt->short_name, reason);
 }

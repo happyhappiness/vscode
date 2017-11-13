@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "DBD: not configured");
+ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
+                     "Failed to find temporary directory");

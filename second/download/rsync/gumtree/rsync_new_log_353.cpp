@@ -1,1 +1,1 @@
-fprintf(FINFO,"send_files starting\n");
+fprintf(FERROR,"stat(%s) : %s\n", fname, strerror(errno));

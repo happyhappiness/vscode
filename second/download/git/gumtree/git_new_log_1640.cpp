@@ -1,1 +1,2 @@
-die("Could not read ref %s", private);
+die("unordered stage entries for '%s'",
+				ce->name);

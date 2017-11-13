@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "LDAP: Could not set the LDAP library debug level to %d:(%d) %s", 
+                    st->debug_level, result, ldap_err2string(result));

@@ -1,21 +1,4 @@
-static int strbuf_set_helper_option(struct helper_data *data,
-				    struct strbuf *buf)
+static NORETURN void die_want_option(const char *option_name)
 {
-	int ret;
-
-	sendline(data, buf);
-	if (recvline(data, buf))
-		exit(128);
-
-	if (!strcmp(buf->buf, "ok"))
-		ret = 0;
-	else if (starts_with(buf->buf, "error"))
-		ret = -1;
-	else if (!strcmp(buf->buf, "unsupported"))
-		ret = 1;
-	else {
-		warning("%s unexpectedly said: '%s'", data->name, buf->buf);
-		ret = 1;
-	}
-	return ret;
+	die(_("option '%s' requires a value"), option_name);
 }

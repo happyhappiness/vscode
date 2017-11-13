@@ -1,1 +1,1 @@
-error_errno(_("failed to remove '%s'"), path.buf);
+die("--reverse --first-parent together require range along first-parent chain");

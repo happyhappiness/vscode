@@ -1,1 +1,1 @@
-fprintf(stderr,"EOF in map_ptr!\n");
+fprintf(stderr,"unlink %s : %s\n",f->name,strerror(errno));

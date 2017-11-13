@@ -1,2 +1,1 @@
-die(_("Unimplemented pathspec magic '%c' in '%s'"),
-				    ch, elt);
+die(_("Could not read %s."), git_path_todo_file());

@@ -1,48 +1,17 @@
-static void import_object(unsigned char *sha1, enum object_type type,
-			  int raw, const char *filename)
+static void run_pager(struct grep_opt *opt, const char *prefix)
 {
-	int fd;
+	struct string_list *path_list = opt->output_priv;
+	const char **argv = xmalloc(sizeof(const char *) * (path_list->nr + 1));
+	int i, status;
 
-	fd = open(filename, O_RDONLY);
-	if (fd < 0)
-		die_errno("unable to open %s for reading", filename);
+	for (i = 0; i < path_list->nr; i++)
+		argv[i] = path_list->items[i].string;
+	argv[path_list->nr] = NULL;
 
-	if (!raw && type == OBJ_TREE) {
-		const char *argv[] = { "mktree", NULL };
-		struct child_process cmd = { argv };
-		struct strbuf result = STRBUF_INIT;
-
-		cmd.argv = argv;
-		cmd.git_cmd = 1;
-		cmd.in = fd;
-		cmd.out = -1;
-
-		if (start_command(&cmd))
-			die("unable to spawn mktree");
-
-		if (strbuf_read(&result, cmd.out, 41) < 0)
-			die_errno("unable to read from mktree");
-		close(cmd.out);
-
-		if (finish_command(&cmd))
-			die("mktree reported failure");
-		if (get_sha1_hex(result.buf, sha1) < 0)
-			die("mktree did not return an object name");
-
-		strbuf_release(&result);
-	} else {
-		struct stat st;
-		int flags = HASH_FORMAT_CHECK | HASH_WRITE_OBJECT;
-
-		if (fstat(fd, &st) < 0)
-			die_errno("unable to fstat %s", filename);
-		if (index_fd(sha1, fd, &st, type, NULL, flags) < 0)
-			die("unable to write object to database");
-		/* index_fd close()s fd for us */
-	}
-
-	/*
-	 * No need to close(fd) here; both run-command and index-fd
-	 * will have done it for us.
-	 */
+	if (prefix && chdir(prefix))
+		die(_("Failed to chdir: %s"), prefix);
+	status = run_command_v_opt(argv, RUN_USING_SHELL);
+	if (status)
+		exit(status);
+	free(argv);
 }

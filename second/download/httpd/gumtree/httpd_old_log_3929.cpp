@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "proxy: FTP: error setting reuseaddr option");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "ldap cache: Setting cache TTL to %ld microseconds.",
+                 st->search_cache_ttl);

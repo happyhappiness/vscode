@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00386)
-                     "Child: Unable to retrieve the start_mutex from the parent");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c, APLOGNO(02006)
+                         "SSL handshake stopped: connection was closed");

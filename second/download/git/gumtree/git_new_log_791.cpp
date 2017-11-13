@@ -1,1 +1,1 @@
-die("sha1 mismatch in blob %s", oid_to_hex(oid));
+error("%s: object missing", sha1_to_hex(sha1));

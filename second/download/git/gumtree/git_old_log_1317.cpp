@@ -1,1 +1,1 @@
-die("bad tag object %s", sha1_to_hex(obj->sha1));
+die(_("unknown error occurred while reading the configuration files"));

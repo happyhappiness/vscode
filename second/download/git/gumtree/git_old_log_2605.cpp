@@ -1,1 +1,5 @@
-printf("%s%sdiff --git a/%s b/%s%s\n", prefix, c_meta, pair->one->path, pair->two->path, c_reset);
+die("Path '%s' is in the index, but not '%s'.\n"
+			    "Did you mean ':%d:%s' aka ':%d:./%s'?",
+			    fullname, filename,
+			    ce_stage(ce), fullname,
+			    ce_stage(ce), filename);

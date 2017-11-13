@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00741) "distributed scache 'store' successful");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: require ldap-attribute: user's DN "
+                      "has not been defined; failing authorization");

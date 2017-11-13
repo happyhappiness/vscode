@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+die("invalid shallow object %s", oid_to_hex(&oid));

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                         "Parent: Unable to write duplicated socket %d to the child.", lr->sd );
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
+                     "proxy: FTP: declining URL %s - not ftp:", url);

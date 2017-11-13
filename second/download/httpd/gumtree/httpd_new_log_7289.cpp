@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01456)
-                                  "rl: partition failed.");
+ap_rvputs(r, "<dt>Server MPM: ",
+                  ap_show_mpm(), "</dt>\n", NULL);

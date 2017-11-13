@@ -1,11 +1,9 @@
 fputs(
-"              zero  will  make  curl  use the default backoff time.  (Added in\n"
-"              7.12.3)\n"
-"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --retry-max-time <seconds>\n"
-"              The retry timer is reset  before  the  first  transfer  attempt.\n"
-"              Retries will be done as usual (see --retry) as long as the timer\n"
-"              hasn't reached this given limit. Notice that if the timer hasn't\n"
+"       --retry-delay <seconds>\n"
+"              Make  curl  sleep  this  amount of time before each retry when a\n"
+"              transfer has failed with  a  transient  error  (it  changes  the\n"
+"              default  backoff time algorithm between retries). This option is\n"
+"              only interesting if --retry is also used. Setting this delay  to\n"
 , stdout);

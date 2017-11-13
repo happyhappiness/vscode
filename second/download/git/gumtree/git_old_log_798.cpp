@@ -1,1 +1,0 @@
-error("%s: invalid reflog entry %s", refname, sha1_to_hex(sha1));

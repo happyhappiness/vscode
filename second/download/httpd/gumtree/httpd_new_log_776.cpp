@@ -1,2 +1,2 @@
-printf("%sdebug: error recovery discarding state %d\n",
-                            YYPREFIX, *ssl_expr_yyssp);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+            MODNAME ": read failed from uncompress of %s", r->filename);

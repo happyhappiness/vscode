@@ -1,1 +1,1 @@
-fprintf(F," -f, --fake-super            display attributes including fake-super xattrs\n");
+fprintf(out, "/* crc32.h -- tables for rapid CRC calculation\n");

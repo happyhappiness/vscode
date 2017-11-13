@@ -1,1 +1,0 @@
-die("update %s: missing <newvalue>", refname);

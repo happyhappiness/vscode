@@ -1,2 +1,1 @@
-warning(_("unsupported sort specification '%s' in variable '%s'"),
-				var, arg);
+die(_("Not a valid object name: '%s'"), mergetag_data->argv[i]);

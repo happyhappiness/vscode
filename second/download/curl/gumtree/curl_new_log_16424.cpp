@@ -1,9 +1,12 @@
 fputs(
-"              The  file will be saved in the current working directory. If you\n"
-"              want the file saved in a  different  directory,  make  sure  you\n"
-"              change  the  current working directory before invoking curl with\n"
-"              this option.\n"
+"                     the file operand to the group ID specified by  the  group\n"
+"                     operand. The group operand is a decimal integer group ID.\n"
 "\n"
-"              The remote file name to use for saving  is  extracted  from  the\n"
-"              given  URL,  nothing  else,  and if it already exists it will be\n"
+"              chmod mode file\n"
+"                     The  chmod  command  modifies  the  file mode bits of the\n"
+"                     specified file. The mode operand is an octal integer mode\n"
+"                     number.\n"
+"\n"
+"              chown user file\n"
+"                     The chown command sets the owner of the file named by the\n"
 , stdout);

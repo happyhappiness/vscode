@@ -1,1 +1,1 @@
-printw (TITLE_FMT "%s", _("sign as: "), PgpSignAs ? PgpSignAs : _("<default>"));
+state_attach_puts ("\n", s);

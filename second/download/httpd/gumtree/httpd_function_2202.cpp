@@ -1,148 +1,121 @@
-static int open_listeners(apr_pool_t *pool)
+static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    ap_listen_rec *lr;
-    ap_listen_rec *next;
-    ap_listen_rec *previous;
-    int num_open;
-    const char *userdata_key = "ap_open_listeners";
-    void *data;
+    int startup = 0;
 
-    /* Don't allocate a default listener.  If we need to listen to a
-     * port, then the user needs to have a Listen directive in their
-     * config file.
-     */
-    num_open = 0;
-    previous = NULL;
-    for (lr = ap_listeners; lr; previous = lr, lr = lr->next) {
-        if (lr->active) {
-            ++num_open;
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->module_loads == 1) {
+        startup = 1;
+    }
+
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
         }
-        else {
-#if APR_HAVE_IPV6
-            int v6only_setting;
-
-            /* If we have the unspecified IPv4 address (0.0.0.0) and
-             * the unspecified IPv6 address (::) is next, we need to
-             * swap the order of these in the list. We always try to
-             * bind to IPv6 first, then IPv4, since an IPv6 socket
-             * might be able to receive IPv4 packets if V6ONLY is not
-             * enabled, but never the other way around. */
-            if (lr->next != NULL
-                && IS_INADDR_ANY(lr->bind_addr)
-                && lr->bind_addr->port == lr->next->bind_addr->port
-                && IS_IN6ADDR_ANY(lr->next->bind_addr)) {
-                /* Exchange lr and lr->next */
-                next = lr->next;
-                lr->next = next->next;
-                next->next = lr;
-                if (previous) {
-                    previous->next = next;
-                }
-                else {
-                    ap_listeners = next;
-                }
-                lr = next;
-            }
-
-            /* If we are trying to bind to 0.0.0.0 and the previous listener
-             * was :: on the same port and in turn that socket does not have
-             * the IPV6_V6ONLY flag set; we must skip the current attempt to
-             * listen (which would generate an error). IPv4 will be handled
-             * on the established IPv6 socket.
-             */
-            if (previous != NULL
-                && IS_INADDR_ANY(lr->bind_addr)
-                && lr->bind_addr->port == previous->bind_addr->port
-                && IS_IN6ADDR_ANY(previous->bind_addr)
-                && apr_socket_opt_get(previous->sd, APR_IPV6_V6ONLY,
-                                      &v6only_setting) == APR_SUCCESS
-                && v6only_setting == 0) {
-
-                /* Remove the current listener from the list */
-                previous->next = lr->next;
-                continue;
-            }
-#endif
-            if (make_sock(pool, lr) == APR_SUCCESS) {
-                ++num_open;
-                lr->active = 1;
-            }
-            else {
-#if APR_HAVE_IPV6
-                /* If we tried to bind to ::, and the next listener is
-                 * on 0.0.0.0 with the same port, don't give a fatal
-                 * error. The user will still get a warning from make_sock
-                 * though.
-                 */
-                if (lr->next != NULL
-                    && IS_IN6ADDR_ANY(lr->bind_addr)
-                    && lr->bind_addr->port == lr->next->bind_addr->port
-                    && IS_INADDR_ANY(lr->next->bind_addr)) {
-
-                    /* Remove the current listener from the list */
-                    if (previous) {
-                        previous->next = lr->next;
-                    }
-                    else {
-                        ap_listeners = lr->next;
-                    }
-
-                    /* Although we've removed ourselves from the list,
-                     * we need to make sure that the next iteration won't
-                     * consider "previous" a working IPv6 '::' socket.
-                     * Changing the family is enough to make sure the
-                     * conditions before make_sock() fail.
-                     */
-                    lr->bind_addr->family = AF_INET;
-
-                    continue;
-                }
-#endif
-                /* fatal error */
-                return -1;
-            }
+        server_limit = MAX_SERVER_LIMIT;
+    }
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
         }
+        server_limit = 1;
     }
 
-    /* close the old listeners */
-    for (lr = old_listeners; lr; lr = next) {
-        apr_socket_close(lr->sd);
-        lr->active = 0;
-        next = lr->next;
-    }
-    old_listeners = NULL;
-
-#if AP_NONBLOCK_WHEN_MULTI_LISTEN
-    /* if multiple listening sockets, make them non-blocking so that
-     * if select()/poll() reports readability for a reset connection that
-     * is already forgotten about by the time we call accept, we won't
-     * be hung until another connection arrives on that port
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
      */
-    if (ap_listeners && ap_listeners->next) {
-        for (lr = ap_listeners; lr; lr = lr->next) {
-            apr_status_t status;
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
+    }
 
-            status = apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
-            if (status != APR_SUCCESS) {
-                ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
-                              "unable to make listening socket non-blocking");
-                return -1;
-            }
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d exceeds ServerLimit "
+                         "value of", ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing MaxClients to %d.",
+                         server_limit, server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d exceeds ServerLimit value "
+                         "of %d, decreasing to match",
+                         ap_daemons_limit, server_limit);
         }
+        ap_daemons_limit = server_limit;
     }
-#endif /* AP_NONBLOCK_WHEN_MULTI_LISTEN */
-
-    /* we come through here on both passes of the open logs phase
-     * only register the cleanup once... otherwise we try to close
-     * listening sockets twice when cleaning up prior to exec
-     */
-    apr_pool_userdata_get(&data, userdata_key, pool);
-    if (!data) {
-        apr_pool_userdata_set((const void *)1, userdata_key,
-                              apr_pool_cleanup_null, pool);
-        apr_pool_cleanup_register(pool, NULL, apr_pool_cleanup_null,
-                                  close_listeners_on_exec);
+    else if (ap_daemons_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d not allowed, "
+                         "increasing to 1.", ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d not allowed, increasing to 1",
+                         ap_daemons_limit);
+        }
+        ap_daemons_limit = 1;
     }
 
-    return num_open ? 0 : -1;
+    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
+
+    if (ap_daemons_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareServers of %d not allowed, "
+                         "increasing to 1", ap_daemons_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareServers of %d not allowed, increasing to 1",
+                         ap_daemons_min_free);
+        }
+        ap_daemons_min_free = 1;
+    }
+
+    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
+
+    return OK;
 }

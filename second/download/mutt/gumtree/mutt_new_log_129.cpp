@@ -1,1 +1,1 @@
-mutt_window_mvprintw (MuttIndexWindow, HDR_SUBJECT, 0, TITLE_FMT, Prompts[HDR_SUBJECT]);
+(mutt_yesorno (_("Warning: This alias name may not work.  Fix it?"), MUTT_YES);

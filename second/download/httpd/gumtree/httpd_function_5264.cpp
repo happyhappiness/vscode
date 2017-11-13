@@ -1,37 +1,40 @@
-apr_status_t h2_mplx_out_write(h2_mplx *m, int stream_id, 
-                               ap_filter_t* f, apr_bucket_brigade *bb,
-                               apr_table_t *trailers,
-                               struct apr_thread_cond_t *iowait)
+static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
+                                   apr_file_t *child_in)
 {
-    apr_status_t status;
-    AP_DEBUG_ASSERT(m);
-    if (m->aborted) {
-        return APR_ECONNABORTED;
-    }
-    status = apr_thread_mutex_lock(m->lock);
-    if (APR_SUCCESS == status) {
-        if (!m->aborted) {
-            h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
-            if (io && !io->orphaned) {
-                status = out_write(m, io, f, bb, trailers, iowait);
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
-                              "h2_mplx(%ld-%d): write with trailers=%s", 
-                              m->id, io->id, trailers? "yes" : "no");
-                H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_out_write");
-                
-                have_out_data_for(m, stream_id);
-                if (m->aborted) {
-                    return APR_ECONNABORTED;
-                }
-            }
-            else {
-                status = APR_ECONNABORTED;
-            }
+    apr_status_t rv;
+    int lcnt = 0;
+    ap_listen_rec *lr;
+    LPWSAPROTOCOL_INFO  lpWSAProtocolInfo;
+    apr_size_t BytesWritten;
+
+    /* Run the chain of open sockets. For each socket, duplicate it
+     * for the target process then send the WSAPROTOCOL_INFO
+     * (returned by dup socket) to the child.
+     */
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        apr_os_sock_t nsd;
+        lpWSAProtocolInfo = apr_pcalloc(p, sizeof(WSAPROTOCOL_INFO));
+        apr_os_sock_get(&nsd,lr->sd);
+        ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                     "Parent: Duplicating socket %d and sending it to child process %d",
+                     nsd, dwProcessId);
+        if (WSADuplicateSocket(nsd, dwProcessId,
+                               lpWSAProtocolInfo) == SOCKET_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", lr->sd );
+            return -1;
         }
-        
-        if (m->lock) {
-            apr_thread_mutex_unlock(m->lock);
+
+        if ((rv = apr_file_write_full(child_in, lpWSAProtocolInfo,
+                                      sizeof(WSAPROTOCOL_INFO), &BytesWritten))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                         "Parent: Unable to write duplicated socket %d to the child.", lr->sd );
+            return -1;
         }
     }
-    return status;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Parent: Sent %d listeners to child %d", lcnt, dwProcessId);
+    return 0;
 }

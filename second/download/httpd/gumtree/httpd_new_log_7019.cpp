@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 
-                     apr_get_os_error(), NULL, 
-                     APLOGNO(10008) "Failure registering service handler");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     APLOGNO(10009)  "Failed to open the Windows service "
+                     "manager, perhaps you forgot to log in as Adminstrator?");

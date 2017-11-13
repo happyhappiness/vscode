@@ -1,1 +1,1 @@
-die_errno(_("could not read file '%s'"), filename);
+warning("object %s: %s", oid_to_hex(&obj->oid), message);

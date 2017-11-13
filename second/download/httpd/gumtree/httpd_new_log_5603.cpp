@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03003)
-                              "%d:  lightuserdata", i);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(02808)
+        "Alert! worker name (%s) too long; truncated to: %s", ptr, wshared->name);

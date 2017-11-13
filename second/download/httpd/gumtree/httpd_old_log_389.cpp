@@ -1,2 +1,4 @@
-printf("Connect:    " CONF_FMT_STRING, 
-                   mincon, (int) (totalcon + 0.5), sdcon, meancon, maxcon);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "cache: error returned while trying to return %s "
+                             "cached data", 
+                             cache->type);

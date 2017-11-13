@@ -1,1 +1,1 @@
-out_of_memory("glob_expand_module");
+io_printf(f_out, "@ERROR: failed to open lock file\n");

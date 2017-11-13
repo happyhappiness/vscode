@@ -1,146 +1,199 @@
-static
-apr_status_t ap_proxy_http_create_connection(apr_pool_t *p, request_rec *r,
-                                             proxy_http_conn_t *p_conn,
-                                             conn_rec *c, conn_rec **origin,
-                                             proxy_conn_rec *backend,
-                                             proxy_server_conf *conf,
-                                             const char *proxyname) {
-    int failed=0, new=0;
-    apr_socket_t *client_socket = NULL;
+static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
+                                 apr_pool_t *ptemp, server_rec *s)
+{
+    int rc = LDAP_SUCCESS;
+    apr_status_t result;
+    char buf[MAX_STRING_LEN];
 
-    /* We have determined who to connect to. Now make the connection, supporting
-     * a KeepAlive connection.
-     */
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
 
-    /* get all the possible IP addresses for the destname and loop through them
-     * until we get a successful connection
-     */
+#if APR_HAS_SHARED_MEMORY
+    server_rec *s_vhost;
+    util_ldap_state_t *st_vhost;
+    
+    /* initializing cache if file is here and we already don't have shm addr*/
+    if (st->cache_file && !st->cache_shm) {
+#endif
+        result = util_ldap_cache_init(p, st);
+        apr_strerror(result, buf, sizeof(buf));
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
+                     "LDAP cache init: %s", buf);
 
-    /* if a keepalive socket is already open, check whether it must stay
-     * open, or whether it should be closed and a new socket created.
-     */
-    /* see memory note above */
-    if (backend->connection) {
-        client_socket = ap_get_module_config(backend->connection->conn_config, &core_module);
-        if ((backend->connection->id == c->id) &&
-            (backend->port == p_conn->port) &&
-            (backend->hostname) &&
-            (!apr_strnatcasecmp(backend->hostname, p_conn->name))) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: keepalive address match (keep original socket)");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: keepalive address mismatch / connection has"
-                         " changed (close old socket (%s/%s, %d/%d))", 
-                         p_conn->name, backend->hostname, p_conn->port,
-                         backend->port);
-            apr_socket_close(client_socket);
-            backend->connection = NULL;
+#if APR_HAS_SHARED_MEMORY
+        /* merge config in all vhost */
+        s_vhost = s->next;
+        while (s_vhost) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
+                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
+                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
+
+            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
+            st_vhost->cache_shm = st->cache_shm;
+            st_vhost->cache_rmm = st->cache_rmm;
+            st_vhost->cache_file = st->cache_file;
+            s_vhost = s_vhost->next;
         }
     }
-
-    /* get a socket - either a keepalive one, or a new one */
-    new = 1;
-    if ((backend->connection) && (backend->connection->id == c->id)) {
-        apr_size_t buffer_len = 1;
-        char test_buffer[1]; 
-        apr_status_t socket_status;
-        apr_interval_time_t current_timeout;
-
-        /* use previous keepalive socket */
-        *origin = backend->connection;
-        p_conn->sock = client_socket;
-        new = 0;
-
-        /* save timeout */
-        apr_socket_timeout_get(p_conn->sock, &current_timeout);
-        /* set no timeout */
-        apr_socket_timeout_set(p_conn->sock, 0);
-        socket_status = apr_recv(p_conn->sock, test_buffer, &buffer_len);
-        /* put back old timeout */
-        apr_socket_timeout_set(p_conn->sock, current_timeout);
-        if ( APR_STATUS_IS_EOF(socket_status) ) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
-                         "proxy: previous connection is closed, creating a new connection.");
-            new = 1;
-        }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
     }
-    if (new) {
-        int rc;
+#endif
+    
+    /* log the LDAP SDK used 
+     */
+    #if APR_HAS_NETSCAPE_LDAPSDK 
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Netscape LDAP SDK" );
 
-        /* create a new socket */
-        backend->connection = NULL;
+    #elif APR_HAS_NOVELL_LDAPSDK
 
-        /*
-         * At this point we have a list of one or more IP addresses of
-         * the machine to connect to. If configured, reorder this
-         * list so that the "best candidate" is first try. "best
-         * candidate" could mean the least loaded server, the fastest
-         * responding server, whatever.
-         *
-         * For now we do nothing, ie we get DNS round robin.
-         * XXX FIXME
-         */
-        failed = ap_proxy_connect_to_backend(&p_conn->sock, "HTTP",
-                                             p_conn->addr, p_conn->name,
-                                             conf, r->server, c->pool);
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Novell LDAP SDK" );
 
-        /* handle a permanent error on the connect */
-        if (failed) {
-            if (proxyname) {
-                return DECLINED;
-            } else {
-                return HTTP_BAD_GATEWAY;
+    #elif APR_HAS_OPENLDAP_LDAPSDK
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with OpenLDAP LDAP SDK" );
+
+    #elif APR_HAS_MICROSOFT_LDAPSDK
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Microsoft LDAP SDK" );
+    #else
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with unknown LDAP SDK" );
+
+    #endif /* APR_HAS_NETSCAPE_LDAPSDK */
+
+
+
+    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
+                              util_ldap_cleanup_module); 
+
+    /* initialize SSL support if requested
+    */
+    if (st->cert_auth_file)
+    {
+        #if APR_HAS_LDAP_SSL /* compiled with ssl support */
+
+        #if APR_HAS_NETSCAPE_LDAPSDK 
+
+            /* Netscape sdk only supports a cert7.db file 
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_CERT7_DB)
+            {
+                rc = ldapssl_client_init(st->cert_auth_file, NULL);
             }
-        }
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: socket is connected");
-
-        /* the socket is now open, create a new backend server connection */
-        *origin = ap_run_create_connection(c->pool, r->server, p_conn->sock,
-                                           r->connection->id,
-                                           r->connection->sbh, c->bucket_alloc);
-        if (!*origin) {
-        /* the peer reset the connection already; ap_run_create_connection() 
-         * closed the socket
-         */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                         r->server, "proxy: an error occurred creating a "
-                         "new connection to %pI (%s)", p_conn->addr,
-                         p_conn->name);
-            apr_socket_close(p_conn->sock);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        backend->connection = *origin;
-        backend->hostname = apr_pstrdup(c->pool, p_conn->name);
-        backend->port = p_conn->port;
-
-        if (backend->is_ssl) {
-            if (!ap_proxy_ssl_enable(backend->connection)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             r->server, "proxy: failed to enable ssl support "
-                             "for %pI (%s)", p_conn->addr, p_conn->name);
-                return HTTP_INTERNAL_SERVER_ERROR;
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                         "LDAP: Invalid LDAPTrustedCAType directive - "
+                          "CERT7_DB_PATH type required");
+                rc = -1;
             }
-        }
-        else {
-            ap_proxy_ssl_disable(backend->connection);
-        }
 
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: connection complete to %pI (%s)",
-                     p_conn->addr, p_conn->name);
+        #elif APR_HAS_NOVELL_LDAPSDK
+        
+            /* Novell SDK supports DER or BASE64 files
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_DER  ||
+                st->cert_file_type == LDAP_CA_TYPE_BASE64 )
+            {
+                rc = ldapssl_client_init(NULL, NULL);
+                if (LDAP_SUCCESS == rc)
+                {
+                    if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
+                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
+                                                  LDAPSSL_CERT_FILETYPE_B64);
+                    else
+                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
+                                                  LDAPSSL_CERT_FILETYPE_DER);
 
-        /* set up the connection filters */
-        rc = ap_run_pre_connection(*origin, p_conn->sock);
-        if (rc != OK && rc != DONE) {
-            (*origin)->aborted = 1;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: HTTP: pre_connection setup failed (%d)",
-                         rc);
-            return rc;
+                    if (LDAP_SUCCESS != rc)
+                        ldapssl_client_deinit();
+                }
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                             "LDAP: Invalid LDAPTrustedCAType directive - "
+                             "DER_FILE or BASE64_FILE type required");
+                rc = -1;
+            }
+
+        #elif APR_HAS_OPENLDAP_LDAPSDK
+
+            /* OpenLDAP SDK supports BASE64 files
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
+            {
+                rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, st->cert_auth_file);
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                             "LDAP: Invalid LDAPTrustedCAType directive - "
+                             "BASE64_FILE type required");
+                rc = -1;
+            }
+
+
+        #elif APR_HAS_MICROSOFT_LDAPSDK
+            
+            /* Microsoft SDK use the registry certificate store - always
+             * assume support is always available
+            */
+            rc = LDAP_SUCCESS;
+
+        #else
+            rc = -1;
+        #endif /* APR_HAS_NETSCAPE_LDAPSDK */
+
+        #else  /* not compiled with SSL Support */
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                     "LDAP: Not built with SSL support." );
+            rc = -1;
+
+        #endif /* APR_HAS_LDAP_SSL */
+
+        if (LDAP_SUCCESS == rc)
+        {
+            st->ssl_support = 1;
+        }
+        else
+        {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
+                         "LDAP: SSL initialization failed");
+            st->ssl_support = 0;
         }
     }
-    return OK;
+      
+        /* The Microsoft SDK uses the registry certificate store -
+         * always assume support is available
+        */
+    #if APR_HAS_MICROSOFT_LDAPSDK
+        st->ssl_support = 1;
+    #endif
+    
+
+        /* log SSL status - If SSL isn't available it isn't necessarily
+         * an error because the modules asking for LDAP connections 
+         * may not ask for SSL support
+        */
+    if (st->ssl_support)
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support available" );
+    }
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
+    }
+    
+    return(OK);
 }

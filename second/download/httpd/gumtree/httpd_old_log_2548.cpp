@@ -1,4 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "access to %s failed, reason: env variable list does not meet "
-                  "'require'ments for user '%s' to be allowed access",
-                  r->uri, r->user);
+fprintf(stderr,
+            "Usage: %s [-l] [-f] <logfile> "
+            "{<rotation time in seconds>|<rotation size in megabytes>} "
+            "[offset minutes from UTC]\n\n",
+            argv0);

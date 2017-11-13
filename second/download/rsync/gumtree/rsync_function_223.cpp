@@ -1,20 +1,27 @@
-struct map_struct *map_file(int fd,off_t len)
+void generate_files(int f,struct file_list *flist,char *local_name)
 {
-  struct map_struct *ret;
-  ret = (struct map_struct *)malloc(sizeof(*ret));
-  if (!ret) out_of_memory("map_file");
+  int i;
 
-  ret->map = NULL;
-  ret->fd = fd;
-  ret->size = len;
-  ret->p = NULL;
-  ret->p_size = 0;
-  ret->p_offset = 0;
-  ret->p_len = 0;
+  if (verbose > 2)
+    fprintf(stderr,"generator starting pid=%d count=%d\n",
+	    (int)getpid(),flist->count);
 
-#ifdef HAVE_MMAP
-  if (len < MAX_MAP_SIZE)
-    ret->map = (char *)mmap(NULL,len,PROT_READ,MAP_SHARED,fd,0);
-#endif
-  return ret;
+  for (i = 0; i < flist->count; i++) {
+    if (!flist->files[i].name) continue;
+    if (S_ISDIR(flist->files[i].mode)) {
+      if (dry_run) continue;
+      if (mkdir(flist->files[i].name,flist->files[i].mode) != 0 &&
+	  errno != EEXIST) {
+	fprintf(stderr,"mkdir %s : %s\n",
+		flist->files[i].name,strerror(errno));
+      }
+      continue;
+    }
+    recv_generator(local_name?local_name:flist->files[i].name,
+		   flist,i,f);
+  }
+  write_int(f,-1);
+  write_flush(f);
+  if (verbose > 2)
+    fprintf(stderr,"generator wrote %d\n",write_total());
 }

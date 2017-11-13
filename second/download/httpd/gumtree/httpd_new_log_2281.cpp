@@ -1,3 +1,2 @@
-ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", 
-              ap_escape_html(r->pool, r->uri),
-              "</title>\n</head><body>\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the scoreboard from the parent", my_pid);

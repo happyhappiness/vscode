@@ -1,1 +1,1 @@
-die("Not handling anything other than two heads merge.");
+die(_("patch with only garbage at line %d"), state->linenr);

@@ -1,22 +1,27 @@
-static void dav_log_err(request_rec *r, dav_error *err, int level)
+static int ssl_tmp_key_init_ec(server_rec *s,
+                               int bits, int idx)
 {
-    dav_error *errscan;
+    SSLModConfigRec *mc = myModConfig(s);
+    EC_KEY *ecdh = NULL;
 
-    /* Log the errors */
-    /* ### should have a directive to log the first or all */
-    for (errscan = err; errscan != NULL; errscan = errscan->prev) {
-        if (errscan->desc == NULL)
-            continue;
+    /* XXX: Are there any FIPS constraints we should enforce? */
 
-        if (errscan->save_errno != 0) {
-            errno = errscan->save_errno;
-            ap_log_rerror(APLOG_MARK, level, errno, r, "%s  [%d, #%d]",
-                          errscan->desc, errscan->status, errscan->error_id);
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, level, 0, r,
-                          "%s  [%d, #%d]",
-                          errscan->desc, errscan->status, errscan->error_id);
-        }
+    if (bits != 256) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit EC parameters, only 256 bits supported", bits);
+        return !OK;
     }
+
+    if ((ecdh = EC_KEY_new()) == NULL ||
+        EC_KEY_set_group(ecdh, EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1)) != 1)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit EC parameters", bits);
+        return !OK;
+    }
+
+    mc->pTmpKeys[idx] = ecdh;
+    return OK;
 }

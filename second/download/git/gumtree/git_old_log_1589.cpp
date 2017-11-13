@@ -1,2 +1,1 @@
-fprintf(fp, "gitdir: %s\n", relative_path(git_dir, real_work_tree,
-						  &rel_path));
+error("Unable to update %s", b->name);

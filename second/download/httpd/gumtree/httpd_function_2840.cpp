@@ -1,73 +1,106 @@
-int SSLize_Socket(SOCKET socketHnd, char *key, request_rec *r)
+static void start_connect(struct connection * c)
 {
-    int rcode;
-    struct tlsserveropts sWS2Opts;
-    struct nwtlsopts    sNWTLSOpts;
-    unicode_t SASKey[512];
-    unsigned long ulFlag;
+    apr_status_t rv;
 
-    memset((char *)&sWS2Opts, 0, sizeof(struct tlsserveropts));
-    memset((char *)&sNWTLSOpts, 0, sizeof(struct nwtlsopts));
+    if (!(started < requests))
+    return;
 
+    c->read = 0;
+    c->bread = 0;
+    c->keepalive = 0;
+    c->cbx = 0;
+    c->gotheader = 0;
+    c->rwrite = 0;
+    if (c->ctx)
+        apr_pool_clear(c->ctx);
+    else
+        apr_pool_create(&c->ctx, cntxt);
 
-    ulFlag = SO_TLS_ENABLE;
-    rcode = WSAIoctl(socketHnd, SO_TLS_SET_FLAGS, &ulFlag, sizeof(unsigned long), NULL, 0, NULL, NULL, NULL);
-    if(rcode)
+    if ((rv = apr_socket_create(&c->aprsock, destsa->family,
+                SOCK_STREAM, 0, c->ctx)) != APR_SUCCESS) {
+    apr_err("socket", rv);
+    }
+    if ((rv = apr_socket_opt_set(c->aprsock, APR_SO_NONBLOCK, 1))
+         != APR_SUCCESS) {
+        apr_err("socket nonblock", rv);
+    }
+
+    if (windowsize != 0) {
+        rv = apr_socket_opt_set(c->aprsock, APR_SO_SNDBUF, 
+                                windowsize);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+            apr_err("socket send buffer", rv);
+        }
+        rv = apr_socket_opt_set(c->aprsock, APR_SO_RCVBUF, 
+                                windowsize);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+            apr_err("socket receive buffer", rv);
+        }
+    }
+
+    c->start = lasttime = apr_time_now();
+#ifdef USE_SSL
+    if (is_ssl) {
+        BIO *bio;
+        apr_os_sock_t fd;
+
+        if ((c->ssl = SSL_new(ssl_ctx)) == NULL) {
+            BIO_printf(bio_err, "SSL_new failed.\n");
+            ERR_print_errors(bio_err);
+            exit(1);
+        }
+        ssl_rand_seed();
+        apr_os_sock_get(&fd, c->aprsock);
+        bio = BIO_new_socket(fd, BIO_NOCLOSE);
+        SSL_set_bio(c->ssl, bio, bio);
+        SSL_set_connect_state(c->ssl);
+        if (verbosity >= 4) {
+            BIO_set_callback(bio, ssl_print_cb);
+            BIO_set_callback_arg(bio, (void *)bio_err);
+        }
+    } else {
+        c->ssl = NULL;
+    }
+#endif
+    if ((rv = apr_socket_connect(c->aprsock, destsa)) != APR_SUCCESS) {
+        if (APR_STATUS_IS_EINPROGRESS(rv)) {
+            apr_pollfd_t new_pollfd;
+            c->state = STATE_CONNECTING;
+            c->rwrite = 0;
+            new_pollfd.desc_type = APR_POLL_SOCKET;
+            new_pollfd.reqevents = APR_POLLOUT;
+            new_pollfd.desc.s = c->aprsock;
+            new_pollfd.client_data = c;
+            apr_pollset_add(readbits, &new_pollfd);
+            return;
+        }
+        else {
+            apr_pollfd_t remove_pollfd;
+            remove_pollfd.desc_type = APR_POLL_SOCKET;
+            remove_pollfd.desc.s = c->aprsock;
+            apr_pollset_remove(readbits, &remove_pollfd);
+            apr_socket_close(c->aprsock);
+            err_conn++;
+            if (bad++ > 10) {
+                fprintf(stderr,
+                   "\nTest aborted after 10 failures\n\n");
+                apr_err("apr_socket_connect()", rv);
+            }
+            c->state = STATE_UNCONNECTED;
+            start_connect(c);
+            return;
+        }
+    }
+
+    /* connected first time */
+    c->state = STATE_CONNECTED;
+    started++;
+#ifdef USE_SSL
+    if (c->ssl) {
+        ssl_proceed_handshake(c);
+    } else
+#endif
     {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_ENABLE)", WSAGetLastError());
-        goto ERR;
+        write_request(c);
     }
-
-
-    ulFlag = SO_TLS_SERVER;
-    rcode = WSAIoctl(socketHnd, SO_TLS_SET_FLAGS, &ulFlag, sizeof(unsigned long),NULL, 0, NULL, NULL, NULL);
-
-    if(rcode)
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_SERVER)", WSAGetLastError());
-        goto ERR;
-    }
-
-    loc2uni(UNI_LOCAL_DEFAULT, SASKey, key, 0, 0);
-
-    //setup the tlsserveropts struct
-    sWS2Opts.wallet = SASKey;
-    sWS2Opts.walletlen = unilen(SASKey);
-    sWS2Opts.sidtimeout = 0;
-    sWS2Opts.sidentries = 0;
-    sWS2Opts.siddir = NULL;
-    sWS2Opts.options = &sNWTLSOpts;
-
-    //setup the nwtlsopts structure
-
-    sNWTLSOpts.walletProvider               = WAL_PROV_KMO;
-    sNWTLSOpts.keysList                     = NULL;
-    sNWTLSOpts.numElementsInKeyList         = 0;
-    sNWTLSOpts.reservedforfutureuse         = NULL;
-    sNWTLSOpts.reservedforfutureCRL         = NULL;
-    sNWTLSOpts.reservedforfutureCRLLen      = 0;
-    sNWTLSOpts.reserved1                    = NULL;
-    sNWTLSOpts.reserved2                    = NULL;
-    sNWTLSOpts.reserved3                    = NULL;
-
-
-    rcode = WSAIoctl(socketHnd,
-                     SO_TLS_SET_SERVER,
-                     &sWS2Opts,
-                     sizeof(struct tlsserveropts),
-                     NULL,
-                     0,
-                     NULL,
-                     NULL,
-                     NULL);
-    if(SOCKET_ERROR == rcode) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_SERVER)", WSAGetLastError());
-        goto ERR;
-    }
-
-ERR:
-    return rcode;
 }

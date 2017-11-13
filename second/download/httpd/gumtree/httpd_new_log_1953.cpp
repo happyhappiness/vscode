@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG,
-                                 rv, ap_server_conf,
-                                 "accept() failed, retrying.");
+ap_rvputs(r, "<td>", (*worker)->hostname, "</td><td>", NULL);

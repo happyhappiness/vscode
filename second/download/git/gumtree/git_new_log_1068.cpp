@@ -1,1 +1,2 @@
-die("object not found: %s", oid_to_hex(oid));
+die(_("Escape character '\\' not allowed as "
+				      "last character in attr value"));

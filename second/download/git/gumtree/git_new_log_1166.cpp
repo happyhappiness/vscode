@@ -1,1 +1,1 @@
-error("Could not write flush packet");
+BUG("setup_git_env called without repository");

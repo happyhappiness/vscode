@@ -1,1 +1,1 @@
-fprintf(out, " * Generated automatically by crc32.c\n */\n\n");
+io_printf(f_out, "@ERROR: setgroups failed\n");

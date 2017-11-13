@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "Adding password for %s in realm %s.\n",
-                    user, realm);
+fprintf(stderr, "suexec policy violation: see suexec log for more "
+                        "details\n");

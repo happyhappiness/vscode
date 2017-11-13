@@ -1,29 +1,33 @@
-static int ssl_tmp_key_init_rsa(server_rec *s,
-                                int bits, int idx)
+static void usage(void)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-
-#ifdef HAVE_FIPS
-
-    if (FIPS_mode() && bits < 1024) {
-        mc->pTmpKeys[idx] = NULL;
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Skipping generating temporary "
-                     "%d bit RSA private key in FIPS mode", bits);
-        return OK;
-    }
-
+    apr_file_printf(errfile, "Usage:\n");
+    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");
+    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
+                    "password\n\n");
+    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
+    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
+    apr_file_printf(errfile, " -c  Create a new file.\n");
+    apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout.\n");
+    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+#if defined(WIN32) || defined(TPF) || defined(NETWARE)
+        " (default)"
 #endif
-
-    if (!(mc->pTmpKeys[idx] =
-          RSA_generate_key(bits, RSA_F4, NULL, NULL)))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Failed to generate temporary "
-                     "%d bit RSA private key", bits);
-        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
-        return !OK;
-    }
-
-    return OK;
+        ".\n");
+    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+            " (default)"
+#endif
+            ".\n");
+    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");
+    apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
+    apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it.\n");
+    apr_file_printf(errfile, " -D  Delete the specified user.\n");
+    apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by "
+            "default.\n");
+    apr_file_printf(errfile,
+            "On all other systems, the '-p' flag will probably not work.\n");
+    exit(ERR_SYNTAX);
 }

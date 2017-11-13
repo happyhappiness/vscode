@@ -1,1 +1,2 @@
-fprintf(stderr,"open %s : %s\n",fnametmp,strerror(errno));
+fprintf(stderr,"link %s -> %s : %s\n",
+	      fname,flist->files[i].link,strerror(errno));

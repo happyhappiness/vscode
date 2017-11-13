@@ -1,1 +1,2 @@
-die("--reverse --first-parent together require range along first-parent chain");
+printf("dangling %"PRIuMAX"\n%s\n",
+			       (uintmax_t)strlen(obj_name), obj_name);

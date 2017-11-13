@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01917)
-                     "Init: You should not use name-based "
-                     "virtual hosts in conjunction with SSL!!");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00871)
+                          "ap_get_brigade failed");

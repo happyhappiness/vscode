@@ -1,1 +1,2 @@
-error(_("bad config file line %d in %s"), cf->linenr, cf->name);
+error("chmod on %s failed: %s",
+				lock->filename.buf, strerror(errno));

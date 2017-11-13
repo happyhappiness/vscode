@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01021)
-                      "an error occurred creating a new connection "
-                      "to %pI (%s)", nexthop, connectname);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                      "h2_stream(%ld-%d): send_data_cb, reading stream",
+                      session->id, (int)stream_id);

@@ -1,1 +1,1 @@
-fprintf(stderr,"fork: %s\n",strerror(errno));
+fprintf(stderr,"rmdir %s : %s\n",f->name,strerror(errno));

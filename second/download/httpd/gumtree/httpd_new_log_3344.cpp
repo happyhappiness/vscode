@@ -1,2 +1,2 @@
-log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01263)
-                "attempt to include NPH CGI script");
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02158)
+                         "Cannot chroot when not started as root");

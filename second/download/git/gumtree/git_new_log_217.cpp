@@ -1,1 +1,1 @@
-die("object %s changed type!?", oid_to_hex(oid));
+die("strange pathname '%s' blocked", path);

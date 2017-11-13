@@ -1,261 +1,181 @@
-static apr_status_t inflate_out_filter(ap_filter_t *f,
-                                      apr_bucket_brigade *bb)
+static apr_ssize_t send_response_header(isapi_cid *cid,
+                                        const char *stat,
+                                        const char *head,
+                                        apr_size_t statlen,
+                                        apr_size_t headlen)
 {
-    int zlib_method;
-    int zlib_flags;
-    int deflate_init = 1;
-    apr_bucket *bkt;
-    request_rec *r = f->r;
-    deflate_ctx *ctx = f->ctx;
-    int zRC;
-    apr_status_t rv;
-    deflate_filter_config *c;
+    int head_present = 1;
+    int termarg;
+    int res;
+    int old_status;
+    const char *termch;
+    apr_size_t ate = 0;
 
-    /* Do nothing if asked to filter nothing. */
-    if (APR_BRIGADE_EMPTY(bb)) {
-        return APR_SUCCESS;
+    if (!head || headlen == 0 || !*head) {
+        head = stat;
+        stat = NULL;
+        headlen = statlen;
+        statlen = 0;
+        head_present = 0; /* Don't eat the header */
     }
 
-    c = ap_get_module_config(r->server->module_config, &deflate_module);
-
-    if (!ctx) {
-        int found = 0;
-        char *token;
-        const char *encoding;
-
-        /* only work on main request/no subrequests */
-        if (!ap_is_initial_req(r)) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        /* Let's see what our current Content-Encoding is.
-         * If gzip is present, don't gzip again.  (We could, but let's not.)
-         */
-        encoding = apr_table_get(r->headers_out, "Content-Encoding");
-        if (encoding) {
-            const char *tmp = encoding;
-
-            token = ap_get_token(r->pool, &tmp, 0);
-            while (token && token[0]) {
-                if (!strcasecmp(token, "gzip")) {
-                    found = 1;
-                    break;
-                }
-                /* Otherwise, skip token */
-                tmp++;
-                token = ap_get_token(r->pool, &tmp, 0);
-            }
-        }
-
-        if (found == 0) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-        apr_table_unset(r->headers_out, "Content-Encoding");
-
-        /* No need to inflate HEAD or 204/304 */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(bb))) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-
-        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
-        ctx->proc_bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
-
-
-        zRC = inflateInit2(&ctx->stream, c->windowSize);
-
-        if (zRC != Z_OK) {
-            f->ctx = NULL;
-            inflateEnd(&ctx->stream);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "unable to init Zlib: "
-                          "inflateInit2 returned %d: URL %s",
-                          zRC, r->uri);
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        /* initialize deflate output buffer */
-        ctx->stream.next_out = ctx->buffer;
-        ctx->stream.avail_out = c->bufferSize;
-
-        deflate_init = 0;
-    }
-
-    for (bkt = APR_BRIGADE_FIRST(bb);
-         bkt != APR_BRIGADE_SENTINEL(bb);
-         bkt = APR_BUCKET_NEXT(bkt))
-    {
-        const char *data;
-        apr_size_t len;
-
-        /* If we actually see the EOS, that means we screwed up! */
-        /* no it doesn't - not in a HEAD or 204/304 */
-        if (APR_BUCKET_IS_EOS(bkt)) {
-            inflateEnd(&ctx->stream);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        if (APR_BUCKET_IS_FLUSH(bkt)) {
-            apr_bucket *tmp_heap;
-            zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
-            if (zRC != Z_OK) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Inflate error %d on flush", zRC);
-                inflateEnd(&ctx->stream);
-                return APR_EGENERAL;
-            }
-
-            ctx->stream.next_out = ctx->buffer;
-            len = c->bufferSize - ctx->stream.avail_out;
-
-            ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-            tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                             NULL, f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-            ctx->stream.avail_out = c->bufferSize;
-
-            /* Move everything to the returning brigade. */
-            APR_BUCKET_REMOVE(bkt);
-            break;
-        }
-
-        /* read */
-        apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
-
-        /* first bucket contains zlib header */
-        if (!deflate_init++) {
-            if (len < 10) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Insufficient data for inflate");
-                return APR_EGENERAL;
-            }
-            else  {
-                zlib_method = data[2];
-                zlib_flags = data[3];
-                if (zlib_method != Z_DEFLATED) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "inflate: data not deflated!");
-                    ap_remove_output_filter(f);
-                    return ap_pass_brigade(f->next, bb);
-                }
-                if (data[0] != deflate_magic[0] ||
-                    data[1] != deflate_magic[1] ||
-                    (zlib_flags & RESERVED) != 0) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "inflate: bad header");
-                    return APR_EGENERAL ;
-                }
-                data += 10 ;
-                len -= 10 ;
-           }
-           if (zlib_flags & EXTRA_FIELD) {
-               unsigned int bytes = (unsigned int)(data[0]);
-               bytes += ((unsigned int)(data[1])) << 8;
-               bytes += 2;
-               if (len < bytes) {
-                   ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                 "inflate: extra field too big (not "
-                                 "supported)");
-                   return APR_EGENERAL;
-               }
-               data += bytes;
-               len -= bytes;
-           }
-           if (zlib_flags & ORIG_NAME) {
-               while (len-- && *data++);
-           }
-           if (zlib_flags & COMMENT) {
-               while (len-- && *data++);
-           }
-           if (zlib_flags & HEAD_CRC) {
-                len -= 2;
-                data += 2;
-           }
-        }
-
-        /* pass through zlib inflate. */
-        ctx->stream.next_in = (unsigned char *)data;
-        ctx->stream.avail_in = len;
-
-        zRC = Z_OK;
-
-        while (ctx->stream.avail_in != 0) {
-            if (ctx->stream.avail_out == 0) {
-                apr_bucket *tmp_heap;
-                ctx->stream.next_out = ctx->buffer;
-                len = c->bufferSize - ctx->stream.avail_out;
-
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                  NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                ctx->stream.avail_out = c->bufferSize;
-            }
-
-            zRC = inflate(&ctx->stream, Z_NO_FLUSH);
-
-            if (zRC == Z_STREAM_END) {
-                break;
-            }
-
-            if (zRC != Z_OK) {
-                    inflateEnd(&ctx->stream);
-                    return APR_EGENERAL;
-            }
-        }
-        if (zRC == Z_STREAM_END) {
-            apr_bucket *tmp_heap, *eos;
-
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Zlib: Inflated %ld to %ld : URL %s",
-                          ctx->stream.total_in, ctx->stream.total_out,
-                          r->uri);
-
-            len = c->bufferSize - ctx->stream.avail_out;
-
-            ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-            tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                              NULL, f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-            ctx->stream.avail_out = c->bufferSize;
-
-            /* Is the remaining 8 bytes already in the avail stream? */
-            if (ctx->stream.avail_in >= 8) {
-                unsigned long compCRC, compLen;
-                compCRC = getLong(ctx->stream.next_in);
-                if (ctx->crc != compCRC) {
-                    inflateEnd(&ctx->stream);
-                    return APR_EGENERAL;
-                }
-                ctx->stream.next_in += 4;
-                compLen = getLong(ctx->stream.next_in);
-                if (ctx->stream.total_out != compLen) {
-                    inflateEnd(&ctx->stream);
-                    return APR_EGENERAL;
-                }
+    if (!stat || statlen == 0 || !*stat) {
+        if (head && headlen && *head && ((stat = memchr(head, '\r', headlen))
+                                      || (stat = memchr(head, '\n', headlen))
+                                      || (stat = memchr(head, '\0', headlen))
+                                      || (stat = head + headlen))) {
+            statlen = stat - head;
+            if (memchr(head, ':', statlen)) {
+                stat = "Status: 200 OK";
+                statlen = strlen(stat);
             }
             else {
-                /* FIXME: We need to grab the 8 verification bytes
-                 * from the wire! */
-                inflateEnd(&ctx->stream);
-                return APR_EGENERAL;
+                const char *flip = head;
+                head = stat;
+                stat = flip;
+                headlen -= statlen;
+                ate += statlen;
+                if (*head == '\r' && headlen)
+                    ++head, --headlen, ++ate;
+                if (*head == '\n' && headlen)
+                    ++head, --headlen, ++ate;
             }
-
-            inflateEnd(&ctx->stream);
-
-            eos = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, eos);
-            break;
         }
-
     }
 
-    rv = ap_pass_brigade(f->next, ctx->proc_bb);
-    apr_brigade_cleanup(ctx->proc_bb);
-    return rv ;
+    if (stat && (statlen > 0) && *stat) {
+        char *newstat;
+        if (!apr_isdigit(*stat)) {
+            const char *stattok = stat;
+            int toklen = statlen;
+            while (toklen && *stattok && !apr_isspace(*stattok)) {
+                ++stattok; --toklen;
+            }
+            while (toklen && apr_isspace(*stattok)) {
+                ++stattok; --toklen;
+            }
+            /* Now decide if we follow the xxx message
+             * or the http/x.x xxx message format
+             */
+            if (toklen && apr_isdigit(*stattok)) {
+                statlen = toklen;
+                stat = stattok;
+            }
+        }
+        newstat = apr_palloc(cid->r->pool, statlen + 9);
+        strcpy(newstat, "Status: ");
+        apr_cpystrn(newstat + 8, stat, statlen + 1);
+        stat = newstat;
+        statlen += 8;
+    }
+
+    if (!head || headlen == 0 || !*head) {
+        head = "\r\n";
+        headlen = 2;
+    }
+    else
+    {
+        if (head[headlen - 1] && head[headlen]) {
+            /* Whoops... not NULL terminated */
+            head = apr_pstrndup(cid->r->pool, head, headlen);
+        }
+    }
+
+    /* Seems IIS does not enforce the requirement for \r\n termination
+     * on HSE_REQ_SEND_RESPONSE_HEADER, but we won't panic...
+     * ap_scan_script_header_err_strs handles this aspect for us.
+     *
+     * Parse them out, or die trying
+     */
+    old_status = cid->r->status;
+
+    if (stat) {
+        res = ap_scan_script_header_err_strs(cid->r, NULL, &termch, &termarg,
+                stat, head, NULL);
+    }
+    else {
+        res = ap_scan_script_header_err_strs(cid->r, NULL, &termch, &termarg,
+                head, NULL);
+    }
+
+    /* Set our status. */
+    if (res) {
+        /* This is an immediate error result from the parser
+         */
+        cid->r->status = res;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+    }
+    else if (cid->r->status) {
+        /* We have a status in r->status, so let's just use it.
+         * This is likely to be the Status: parsed above, and
+         * may also be a delayed error result from the parser.
+         * If it was filled in, status_line should also have
+         * been filled in.
+         */
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+    }
+    else if (cid->ecb->dwHttpStatusCode
+              && cid->ecb->dwHttpStatusCode != HTTP_OK) {
+        /* Now we fall back on dwHttpStatusCode if it appears
+         * ap_scan_script_header fell back on the default code.
+         * Any other results set dwHttpStatusCode to the decoded
+         * status value.
+         */
+        cid->r->status = cid->ecb->dwHttpStatusCode;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+    }
+    else if (old_status) {
+        /* Well... either there is no dwHttpStatusCode or it's HTTP_OK.
+         * In any case, we don't have a good status to return yet...
+         * Perhaps the one we came in with will be better. Let's use it,
+         * if we were given one (note this is a pendantic case, it would
+         * normally be covered above unless the scan script code unset
+         * the r->status). Should there be a check here as to whether
+         * we are setting a valid response code?
+         */
+        cid->r->status = old_status;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+    }
+    else {
+        /* None of dwHttpStatusCode, the parser's r->status nor the 
+         * old value of r->status were helpful, and nothing was decoded
+         * from Status: string passed to us.  Let's just say HTTP_OK 
+         * and get the data out, this was the isapi dev's oversight.
+         */
+        cid->r->status = HTTP_OK;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, cid->r,
+                "ISAPI: Could not determine HTTP response code; using %d",
+                cid->r->status);
+    }
+
+    if (cid->r->status == HTTP_INTERNAL_SERVER_ERROR) {
+        return -1;
+    }
+
+    /* If only Status was passed, we consumed nothing
+     */
+    if (!head_present)
+        return 0;
+
+    cid->headers_set = 1;
+
+    /* If all went well, tell the caller we consumed the headers complete
+     */
+    if (!termch)
+        return(ate + headlen);
+
+    /* Any data left must be sent directly by the caller, all we
+     * give back is the size of the headers we consumed (which only
+     * happens if the parser got to the head arg, which varies based
+     * on whether we passed stat+head to scan, or only head.
+     */
+    if (termch && (termarg == (stat ? 1 : 0))
+               && head_present && head + headlen > termch) {
+        return ate + termch - head;
+    }
+    return ate;
 }

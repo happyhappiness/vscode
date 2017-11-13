@@ -1,1 +1,1 @@
-printf ("\nslang: %d", SLANG_VERSION);
+printf ("\nncurses: %s (compiled with %s)", curses_version(), NCURSES_VERSION);

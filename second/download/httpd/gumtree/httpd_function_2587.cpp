@@ -1,453 +1,335 @@
-static int ap_proxy_ajp_request(apr_pool_t *p, request_rec *r,
-                                proxy_conn_rec *conn,
-                                conn_rec *origin,
-                                proxy_dir_conf *conf,
-                                apr_uri_t *uri,
-                                char *url, char *server_portstr)
+static apr_status_t inflate_out_filter(ap_filter_t *f,
+                                      apr_bucket_brigade *bb)
 {
-    apr_status_t status;
-    int result;
+    int zlib_method;
+    int zlib_flags;
+    int inflate_init = 1;
     apr_bucket *e;
-    apr_bucket_brigade *input_brigade;
-    apr_bucket_brigade *output_brigade;
-    ajp_msg_t *msg;
-    apr_size_t bufsiz = 0;
-    char *buff;
-    char *send_body_chunk_buff;
-    apr_uint16_t size;
-    const char *tenc;
-    int havebody = 1;
-    int output_failed = 0;
-    int backend_failed = 0;
-    apr_off_t bb_len;
-    int data_sent = 0;
-    int request_ended = 0;
-    int headers_sent = 0;
-    int rv = 0;
-    apr_int32_t conn_poll_fd;
-    apr_pollfd_t *conn_poll;
-    proxy_server_conf *psf =
-    ap_get_module_config(r->server->module_config, &proxy_module);
-    apr_size_t maxsize = AJP_MSG_BUFFER_SZ;
-    int send_body = 0;
-    apr_off_t content_length = 0;
+    request_rec *r = f->r;
+    deflate_ctx *ctx = f->ctx;
+    int zRC;
+    apr_status_t rv;
+    deflate_filter_config *c;
 
-    if (psf->io_buffer_size_set)
-       maxsize = psf->io_buffer_size;
-    if (maxsize > AJP_MAX_BUFFER_SZ)
-       maxsize = AJP_MAX_BUFFER_SZ;
-    else if (maxsize < AJP_MSG_BUFFER_SZ)
-       maxsize = AJP_MSG_BUFFER_SZ;
-    maxsize = APR_ALIGN(maxsize, 1024);
-
-    /*
-     * Send the AJP request to the remote server
-     */
-
-    /* send request headers */
-    status = ajp_send_header(conn->sock, r, maxsize, uri);
-    if (status != APR_SUCCESS) {
-        conn->close++;
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: AJP: request failed to %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        if (status == AJP_EOVERFLOW)
-            return HTTP_BAD_REQUEST;
-        else {
-            /*
-             * This is only non fatal when the method is idempotent. In this
-             * case we can dare to retry it with a different worker if we are
-             * a balancer member.
-             */
-            if (is_idempotent(r) == METHOD_IDEMPOTENT) {
-                return HTTP_SERVICE_UNAVAILABLE;
-            }
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
+    /* Do nothing if asked to filter nothing. */
+    if (APR_BRIGADE_EMPTY(bb)) {
+        return ap_pass_brigade(f->next, bb);
     }
 
-    /* allocate an AJP message to store the data of the buckets */
-    bufsiz = maxsize;
-    status = ajp_alloc_data_msg(r->pool, &buff, &bufsiz, &msg);
-    if (status != APR_SUCCESS) {
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: ajp_alloc_data_msg failed");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    c = ap_get_module_config(r->server->module_config, &deflate_module);
 
-    /* read the first bloc of data */
-    input_brigade = apr_brigade_create(p, r->connection->bucket_alloc);
-    tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
-    if (tenc && (strcasecmp(tenc, "chunked") == 0)) {
-        /* The AJP protocol does not want body data yet */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: request is chunked");
-    } else {
-        /* Get client provided Content-Length header */
-        content_length = get_content_length(r);
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                maxsize - AJP_HEADER_SZ);
+    if (!ctx) {
+        int found = 0;
+        char *token;
+        const char *encoding;
 
-        if (status != APR_SUCCESS) {
-            /* We had a failure: Close connection to backend */
-            conn->close++;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: ap_get_brigade failed");
-            apr_brigade_destroy(input_brigade);
-            return HTTP_BAD_REQUEST;
+        /* only work on main request/no subrequests */
+        if (!ap_is_initial_req(r)) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
         }
 
-        /* have something */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: APR_BUCKET_IS_EOS");
-        }
-
-        /* Try to send something */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: data to read (max %" APR_SIZE_T_FMT
-                     " at %" APR_SIZE_T_FMT ")", bufsiz, msg->pos);
-
-        status = apr_brigade_flatten(input_brigade, buff, &bufsiz);
-        if (status != APR_SUCCESS) {
-            /* We had a failure: Close connection to backend */
-            conn->close++;
-            apr_brigade_destroy(input_brigade);
-            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: apr_brigade_flatten");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        apr_brigade_cleanup(input_brigade);
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: got %" APR_SIZE_T_FMT " bytes of data", bufsiz);
-        if (bufsiz > 0) {
-            status = ajp_send_data_msg(conn->sock, msg, bufsiz);
-            if (status != APR_SUCCESS) {
-                /* We had a failure: Close connection to backend */
-                conn->close++;
-                apr_brigade_destroy(input_brigade);
-                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                             "proxy: send failed to %pI (%s)",
-                             conn->worker->cp->addr,
-                             conn->worker->hostname);
-                /*
-                 * It is fatal when we failed to send a (part) of the request
-                 * body.
-                 */
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-            conn->worker->s->transferred += bufsiz;
-            send_body = 1;
-        }
-        else if (content_length > 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: read zero bytes, expecting"
-                         " %" APR_OFF_T_FMT " bytes",
-                         content_length);
-            /*
-             * We can only get here if the client closed the connection
-             * to us without sending the body.
-             * Now the connection is in the wrong state on the backend.
-             * Sending an empty data msg doesn't help either as it does
-             * not move this connection to the correct state on the backend
-             * for later resusage by the next request again.
-             * Close it to clean things up.
-             */
-            conn->close++;
-            return HTTP_BAD_REQUEST;
-        }
-    }
-
-    /* read the response */
-    conn->data = NULL;
-    status = ajp_read_header(conn->sock, r, maxsize,
-                             (ajp_msg_t **)&(conn->data));
-    if (status != APR_SUCCESS) {
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        apr_brigade_destroy(input_brigade);
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: read response failed from %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
         /*
-         * This is only non fatal when we have not sent (parts) of a possible
-         * request body so far (we do not store it and thus cannot sent it
-         * again) and the method is idempotent. In this case we can dare to
-         * retry it with a different worker if we are a balancer member.
+         * Let's see what our current Content-Encoding is.
+         * Only inflate if gzip is present.
          */
-        if (!send_body && (is_idempotent(r) == METHOD_IDEMPOTENT)) {
-            return HTTP_SERVICE_UNAVAILABLE;
-        }
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    /* parse the reponse */
-    result = ajp_parse_type(r, conn->data);
-    output_brigade = apr_brigade_create(p, r->connection->bucket_alloc);
+        encoding = apr_table_get(r->headers_out, "Content-Encoding");
+        if (encoding) {
+            const char *tmp = encoding;
 
-    /*
-     * Prepare apr_pollfd_t struct for possible later check if there is currently
-     * data available from the backend (do not flush response to client)
-     * or not (flush response to client)
-     */
-    conn_poll = apr_pcalloc(p, sizeof(apr_pollfd_t));
-    conn_poll->reqevents = APR_POLLIN;
-    conn_poll->desc_type = APR_POLL_SOCKET;
-    conn_poll->desc.s = conn->sock;
-
-    bufsiz = maxsize;
-    for (;;) {
-        switch (result) {
-            case CMD_AJP13_GET_BODY_CHUNK:
-                if (havebody) {
-                    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-                        /* This is the end */
-                        bufsiz = 0;
-                        havebody = 0;
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                                     "proxy: APR_BUCKET_IS_EOS");
-                    } else {
-                        status = ap_get_brigade(r->input_filters, input_brigade,
-                                                AP_MODE_READBYTES,
-                                                APR_BLOCK_READ,
-                                                maxsize - AJP_HEADER_SZ);
-                        if (status != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
-                                         r->server,
-                                         "ap_get_brigade failed");
-                            output_failed = 1;
-                            break;
-                        }
-                        bufsiz = maxsize;
-                        status = apr_brigade_flatten(input_brigade, buff,
-                                                     &bufsiz);
-                        apr_brigade_cleanup(input_brigade);
-                        if (status != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
-                                         r->server,
-                                         "apr_brigade_flatten failed");
-                            output_failed = 1;
-                            break;
-                        }
-                    }
-
-                    ajp_msg_reset(msg);
-                    /* will go in ajp_send_data_msg */
-                    status = ajp_send_data_msg(conn->sock, msg, bufsiz);
-                    if (status != APR_SUCCESS) {
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                                     "ajp_send_data_msg failed");
-                        backend_failed = 1;
-                        break;
-                    }
-                    conn->worker->s->transferred += bufsiz;
-                } else {
-                    /*
-                     * something is wrong TC asks for more body but we are
-                     * already at the end of the body data
-                     */
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "ap_proxy_ajp_request error read after end");
-                    backend_failed = 1;
-                }
-                break;
-            case CMD_AJP13_SEND_HEADERS:
-                if (headers_sent) {
-                    /* Do not send anything to the client.
-                     * Backend already send us the headers.
-                     */
-                    backend_failed = 1;
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "proxy: Backend sent headers twice.");
+            token = ap_get_token(r->pool, &tmp, 0);
+            while (token && token[0]) {
+                if (!strcasecmp(token, "gzip")) {
+                    found = 1;
                     break;
                 }
-                /* AJP13_SEND_HEADERS: process them */
-                status = ajp_parse_header(r, conf, conn->data);
-                if (status != APR_SUCCESS) {
-                    backend_failed = 1;
-                }
-                headers_sent = 1;
-                break;
-            case CMD_AJP13_SEND_BODY_CHUNK:
-                /* AJP13_SEND_BODY_CHUNK: piece of data */
-                status = ajp_parse_data(r, conn->data, &size, &send_body_chunk_buff);
-                if (status == APR_SUCCESS) {
-                    /* AJP13_SEND_BODY_CHUNK with zero length
-                     * is explicit flush message
-                     */
-                    if (size == 0) {
-                        if (headers_sent) {
-                            e = apr_bucket_flush_create(r->connection->bucket_alloc);
-                            APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                        }
-                        else {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "Ignoring flush message received before headers");
-                        }
-                    }
-                    else {
-                        apr_status_t rv;
+                /* Otherwise, skip token */
+                tmp++;
+                token = ap_get_token(r->pool, &tmp, 0);
+            }
+        }
 
-                        e = apr_bucket_transient_create(send_body_chunk_buff, size,
-                                                    r->connection->bucket_alloc);
-                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+        if (found == 0) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
+        apr_table_unset(r->headers_out, "Content-Encoding");
 
-                        if ((conn->worker->flush_packets == flush_on) ||
-                            ((conn->worker->flush_packets == flush_auto) &&
-                            ((rv = apr_poll(conn_poll, 1, &conn_poll_fd,
-                                             conn->worker->flush_wait))
-                                             != APR_SUCCESS) &&
-                              APR_STATUS_IS_TIMEUP(rv))) {
-                            e = apr_bucket_flush_create(r->connection->bucket_alloc);
-                            APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                        }
-                        apr_brigade_length(output_brigade, 0, &bb_len);
-                        if (bb_len != -1)
-                            conn->worker->s->read += bb_len;
-                    }
-                    if (ap_pass_brigade(r->output_filters,
-                                        output_brigade) != APR_SUCCESS) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "proxy: error processing body.%s",
-                                      r->connection->aborted ?
-                                      " Client aborted connection." : "");
-                        output_failed = 1;
-                    }
-                    data_sent = 1;
-                    apr_brigade_cleanup(output_brigade);
-                }
-                else {
-                    backend_failed = 1;
-                }
-                break;
-            case CMD_AJP13_END_RESPONSE:
-                e = apr_bucket_eos_create(r->connection->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                if (ap_pass_brigade(r->output_filters,
-                                    output_brigade) != APR_SUCCESS) {
+        /* No need to inflate HEAD or 204/304 */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(bb))) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
+
+
+        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
+        ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
+        ctx->libz_end_func = inflateEnd;
+        ctx->validation_buffer = NULL;
+        ctx->validation_buffer_length = 0;
+
+        zRC = inflateInit2(&ctx->stream, c->windowSize);
+
+        if (zRC != Z_OK) {
+            f->ctx = NULL;
+            inflateEnd(&ctx->stream);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "unable to init Zlib: "
+                          "inflateInit2 returned %d: URL %s",
+                          zRC, r->uri);
+            /*
+             * Remove ourselves as it does not make sense to return:
+             * We are not able to init libz and pass data down the chain
+             * compressed.
+             */
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
+
+        /*
+         * Register a cleanup function to ensure that we cleanup the internal
+         * libz resources.
+         */
+        apr_pool_cleanup_register(r->pool, ctx, deflate_ctx_cleanup,
+                                  apr_pool_cleanup_null);
+
+        apr_table_unset(r->headers_out, "Content-Length");
+
+        /* initialize inflate output buffer */
+        ctx->stream.next_out = ctx->buffer;
+        ctx->stream.avail_out = c->bufferSize;
+
+        inflate_init = 0;
+    }
+
+    while (!APR_BRIGADE_EMPTY(bb))
+    {
+        const char *data;
+        apr_bucket *b;
+        apr_size_t len;
+
+        e = APR_BRIGADE_FIRST(bb);
+
+        if (APR_BUCKET_IS_EOS(e)) {
+            /*
+             * We are really done now. Ensure that we never return here, even
+             * if a second EOS bucket falls down the chain. Thus remove
+             * ourselves.
+             */
+            ap_remove_output_filter(f);
+            /* should be zero already anyway */
+            ctx->stream.avail_in = 0;
+            /*
+             * Flush the remaining data from the zlib buffers. It is correct
+             * to use Z_SYNC_FLUSH in this case and not Z_FINISH as in the
+             * deflate case. In the inflate case Z_FINISH requires to have a
+             * large enough output buffer to put ALL data in otherwise it
+             * fails, whereas in the deflate case you can empty a filled output
+             * buffer and call it again until no more output can be created.
+             */
+            flush_libz_buffer(ctx, c, f->c->bucket_alloc, inflate, Z_SYNC_FLUSH,
+                              UPDATE_CRC);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Zlib: Inflated %ld to %ld : URL %s",
+                          ctx->stream.total_in, ctx->stream.total_out, r->uri);
+
+            if (ctx->validation_buffer_length == VALIDATION_SIZE) {
+                unsigned long compCRC, compLen;
+                compCRC = getLong(ctx->validation_buffer);
+                if (ctx->crc != compCRC) {
                     ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "proxy: error processing end");
-                    output_failed = 1;
+                                  "Zlib: Checksum of inflated stream invalid");
+                    return APR_EGENERAL;
                 }
-                /* XXX: what about flush here? See mod_jk */
-                data_sent = 1;
-                request_ended = 1;
+                ctx->validation_buffer += VALIDATION_SIZE / 2;
+                compLen = getLong(ctx->validation_buffer);
+                if (ctx->stream.total_out != compLen) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Zlib: Length of inflated stream invalid");
+                    return APR_EGENERAL;
+                }
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Zlib: Validation bytes not present");
+                return APR_EGENERAL;
+            }
+
+            inflateEnd(&ctx->stream);
+            /* No need for cleanup any longer */
+            apr_pool_cleanup_kill(r->pool, ctx, deflate_ctx_cleanup);
+
+            /* Remove EOS from the old list, and insert into the new. */
+            APR_BUCKET_REMOVE(e);
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
+
+            /*
+             * Okay, we've seen the EOS.
+             * Time to pass it along down the chain.
+             */
+            return ap_pass_brigade(f->next, ctx->bb);
+        }
+
+        if (APR_BUCKET_IS_FLUSH(e)) {
+            apr_status_t rv;
+
+            /* flush the remaining data from the zlib buffers */
+            zRC = flush_libz_buffer(ctx, c, f->c->bucket_alloc, inflate,
+                                    Z_SYNC_FLUSH, UPDATE_CRC);
+            if (zRC != Z_OK) {
+                return APR_EGENERAL;
+            }
+
+            /* Remove flush bucket from old brigade anf insert into the new. */
+            APR_BUCKET_REMOVE(e);
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
+            rv = ap_pass_brigade(f->next, ctx->bb);
+            if (rv != APR_SUCCESS) {
+                return rv;
+            }
+            continue;
+        }
+
+        /* read */
+        apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+
+        /* first bucket contains zlib header */
+        if (!inflate_init++) {
+            if (len < 10) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Insufficient data for inflate");
+                return APR_EGENERAL;
+            }
+            else  {
+                zlib_method = data[2];
+                zlib_flags = data[3];
+                if (zlib_method != Z_DEFLATED) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "inflate: data not deflated!");
+                    ap_remove_output_filter(f);
+                    return ap_pass_brigade(f->next, bb);
+                }
+                if (data[0] != deflate_magic[0] ||
+                    data[1] != deflate_magic[1] ||
+                    (zlib_flags & RESERVED) != 0) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "inflate: bad header");
+                    return APR_EGENERAL ;
+                }
+                data += 10 ;
+                len -= 10 ;
+           }
+           if (zlib_flags & EXTRA_FIELD) {
+               unsigned int bytes = (unsigned int)(data[0]);
+               bytes += ((unsigned int)(data[1])) << 8;
+               bytes += 2;
+               if (len < bytes) {
+                   ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                 "inflate: extra field too big (not "
+                                 "supported)");
+                   return APR_EGENERAL;
+               }
+               data += bytes;
+               len -= bytes;
+           }
+           if (zlib_flags & ORIG_NAME) {
+               while (len-- && *data++);
+           }
+           if (zlib_flags & COMMENT) {
+               while (len-- && *data++);
+           }
+           if (zlib_flags & HEAD_CRC) {
+                len -= 2;
+                data += 2;
+           }
+        }
+
+        /* pass through zlib inflate. */
+        ctx->stream.next_in = (unsigned char *)data;
+        ctx->stream.avail_in = len;
+
+        if (ctx->validation_buffer) {
+            if (ctx->validation_buffer_length < VALIDATION_SIZE) {
+                apr_size_t copy_size;
+
+                copy_size = VALIDATION_SIZE - ctx->validation_buffer_length;
+                if (copy_size > ctx->stream.avail_in)
+                    copy_size = ctx->stream.avail_in;
+                memcpy(ctx->validation_buffer + ctx->validation_buffer_length,
+                       ctx->stream.next_in, copy_size);
+                /* Saved copy_size bytes */
+                ctx->stream.avail_in -= copy_size;
+                ctx->validation_buffer_length += copy_size;
+            }
+            if (ctx->stream.avail_in) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "Zlib: %d bytes of garbage at the end of "
+                              "compressed stream.", ctx->stream.avail_in);
+                /*
+                 * There is nothing worth consuming for zlib left, because it is
+                 * either garbage data or the data has been copied to the
+                 * validation buffer (processing validation data is no business
+                 * for zlib). So set ctx->stream.avail_in to zero to indicate
+                 * this to the following while loop.
+                 */
+                ctx->stream.avail_in = 0;
+            }
+        }
+
+        zRC = Z_OK;
+
+        while (ctx->stream.avail_in != 0) {
+            if (ctx->stream.avail_out == 0) {
+
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                b = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                           NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
+                ctx->stream.avail_out = c->bufferSize;
+                /* Send what we have right now to the next filter. */
+                rv = ap_pass_brigade(f->next, ctx->bb);
+                if (rv != APR_SUCCESS) {
+                    return rv;
+                }
+            }
+
+            zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+
+            if (zRC == Z_STREAM_END) {
+                /*
+                 * We have inflated all data. Now try to capture the
+                 * validation bytes. We may not have them all available
+                 * right now, but capture what is there.
+                 */
+                ctx->validation_buffer = apr_pcalloc(f->r->pool,
+                                                     VALIDATION_SIZE);
+                if (ctx->stream.avail_in > VALIDATION_SIZE) {
+                    ctx->validation_buffer_length = VALIDATION_SIZE;
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Zlib: %d bytes of garbage at the end of "
+                                  "compressed stream.",
+                                  ctx->stream.avail_in - VALIDATION_SIZE);
+                } else if (ctx->stream.avail_in > 0) {
+                           ctx->validation_buffer_length = ctx->stream.avail_in;
+                }
+                if (ctx->validation_buffer_length)
+                    memcpy(ctx->validation_buffer, ctx->stream.next_in,
+                           ctx->validation_buffer_length);
                 break;
-            default:
-                backend_failed = 1;
-                break;
+            }
+
+            if (zRC != Z_OK) {
+                return APR_EGENERAL;
+            }
         }
 
-        /*
-         * If connection has been aborted by client: Stop working.
-         * Nevertheless, we regard our operation so far as a success:
-         * So reset output_failed to 0 and set result to CMD_AJP13_END_RESPONSE
-         * But: Close this connection to the backend.
-         */
-        if (r->connection->aborted) {
-            conn->close++;
-            output_failed = 0;
-            result = CMD_AJP13_END_RESPONSE;
-            request_ended = 1;
-        }
-
-        /*
-         * We either have finished successfully or we failed.
-         * So bail out
-         */
-        if ((result == CMD_AJP13_END_RESPONSE) || backend_failed
-            || output_failed)
-            break;
-
-        /* read the response */
-        status = ajp_read_header(conn->sock, r, maxsize,
-                                 (ajp_msg_t **)&(conn->data));
-        if (status != APR_SUCCESS) {
-            backend_failed = 1;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                         "ajp_read_header failed");
-            break;
-        }
-        result = ajp_parse_type(r, conn->data);
-    }
-    apr_brigade_destroy(input_brigade);
-
-    /*
-     * Clear output_brigade to remove possible buckets that remained there
-     * after an error.
-     */
-    apr_brigade_cleanup(output_brigade);
-
-    if (backend_failed || output_failed) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: Processing of request failed backend: %i, "
-                     "output: %i", backend_failed, output_failed);
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        /* Return DONE to avoid error messages being added to the stream */
-        if (data_sent) {
-            rv = DONE;
-        }
-    }
-    else if (!request_ended) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: Processing of request didn't terminate cleanly");
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        backend_failed = 1;
-        /* Return DONE to avoid error messages being added to the stream */
-        if (data_sent) {
-            rv = DONE;
-        }
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: got response from %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        rv = OK;
+        apr_bucket_delete(e);
     }
 
-    if (backend_failed) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: dialog to %pI (%s) failed",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        /*
-         * If we already send data, signal a broken backend connection
-         * upwards in the chain.
-         */
-        if (data_sent) {
-            ap_proxy_backend_broke(r, output_brigade);
-        } else
-            rv = HTTP_SERVICE_UNAVAILABLE;
-    }
-
-    /*
-     * Ensure that we sent an EOS bucket thru the filter chain, if we already
-     * have sent some data. Maybe ap_proxy_backend_broke was called and added
-     * one to the brigade already (no longer making it empty). So we should
-     * not do this in this case.
-     */
-    if (data_sent && !r->eos_sent && APR_BRIGADE_EMPTY(output_brigade)) {
-        e = apr_bucket_eos_create(r->connection->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-    }
-
-    /* If we have added something to the brigade above, sent it */
-    if (!APR_BRIGADE_EMPTY(output_brigade))
-        ap_pass_brigade(r->output_filters, output_brigade);
-
-    apr_brigade_destroy(output_brigade);
-
-    if (apr_table_get(r->subprocess_env, "proxy-nokeepalive")) {
-        conn->close++;
-    }
-
-    return rv;
+    apr_brigade_cleanup(bb);
+    return APR_SUCCESS;
 }

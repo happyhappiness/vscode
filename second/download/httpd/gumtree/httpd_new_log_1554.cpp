@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                 "cache: Key for entity %s?%s is %s", r->parsed_uri.path,
-                 r->parsed_uri.query, *key);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                      "Zlib: Length %ld of inflated data does "
+                                      "not match expected value %ld",
+                                      ctx->stream.total_out, compLen);

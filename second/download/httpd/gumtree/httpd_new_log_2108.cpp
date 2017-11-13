@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "Could not open directory %s: %s" APR_EOL_STR,
-                base, apr_strerror(rv, errmsg, sizeof errmsg));
+ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,
+                     "Can't read PKCS7 object %s", pkcs7);

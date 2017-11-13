@@ -1,51 +1,63 @@
-static void diff_words_show(struct diff_words_data *diff_words)
+static void determine_author_info(struct strbuf *author_ident)
 {
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	mmfile_t minus, plus;
-	struct diff_words_style *style = diff_words->style;
+	char *name, *email, *date;
+	struct ident_split author;
+	char date_buf[64];
 
-	struct diff_options *opt = diff_words->opt;
-	const char *line_prefix;
+	name = getenv("GIT_AUTHOR_NAME");
+	email = getenv("GIT_AUTHOR_EMAIL");
+	date = getenv("GIT_AUTHOR_DATE");
 
-	assert(opt);
-	line_prefix = diff_line_prefix(opt);
+	if (author_message) {
+		const char *a, *lb, *rb, *eol;
+		size_t len;
 
-	/* special case: only removal */
-	if (!diff_words->plus.text.size) {
-		fputs(line_prefix, diff_words->opt->file);
-		fn_out_diff_words_write_helper(diff_words->opt->file,
-			&style->old, style->newline,
-			diff_words->minus.text.size,
-			diff_words->minus.text.ptr, line_prefix);
-		diff_words->minus.text.size = 0;
-		return;
+		a = strstr(author_message_buffer, "\nauthor ");
+		if (!a)
+			die(_("invalid commit: %s"), author_message);
+
+		lb = strchrnul(a + strlen("\nauthor "), '<');
+		rb = strchrnul(lb, '>');
+		eol = strchrnul(rb, '\n');
+		if (!*lb || !*rb || !*eol)
+			die(_("invalid commit: %s"), author_message);
+
+		if (lb == a + strlen("\nauthor "))
+			/* \nauthor <foo@example.com> */
+			name = xcalloc(1, 1);
+		else
+			name = xmemdupz(a + strlen("\nauthor "),
+					(lb - strlen(" ") -
+					 (a + strlen("\nauthor "))));
+		email = xmemdupz(lb + strlen("<"), rb - (lb + strlen("<")));
+		len = eol - (rb + strlen("> "));
+		date = xmalloc(len + 2);
+		*date = '@';
+		memcpy(date + 1, rb + strlen("> "), len);
+		date[len + 1] = '\0';
 	}
 
-	diff_words->current_plus = diff_words->plus.text.ptr;
-	diff_words->last_minus = 0;
+	if (force_author) {
+		const char *lb = strstr(force_author, " <");
+		const char *rb = strchr(force_author, '>');
 
-	memset(&xpp, 0, sizeof(xpp));
-	memset(&xecfg, 0, sizeof(xecfg));
-	diff_words_fill(&diff_words->minus, &minus, diff_words->word_regex);
-	diff_words_fill(&diff_words->plus, &plus, diff_words->word_regex);
-	xpp.flags = 0;
-	/* as only the hunk header will be parsed, we need a 0-context */
-	xecfg.ctxlen = 0;
-	if (xdi_diff_outf(&minus, &plus, fn_out_diff_words_aux, diff_words,
-			  &xpp, &xecfg))
-		die("unable to generate word diff");
-	free(minus.ptr);
-	free(plus.ptr);
-	if (diff_words->current_plus != diff_words->plus.text.ptr +
-			diff_words->plus.text.size) {
-		if (color_words_output_graph_prefix(diff_words))
-			fputs(line_prefix, diff_words->opt->file);
-		fn_out_diff_words_write_helper(diff_words->opt->file,
-			&style->ctx, style->newline,
-			diff_words->plus.text.ptr + diff_words->plus.text.size
-			- diff_words->current_plus, diff_words->current_plus,
-			line_prefix);
+		if (!lb || !rb)
+			die(_("malformed --author parameter"));
+		name = xstrndup(force_author, lb - force_author);
+		email = xstrndup(lb + 2, rb - (lb + 2));
 	}
-	diff_words->minus.text.size = diff_words->plus.text.size = 0;
+
+	if (force_date) {
+		if (parse_force_date(force_date, date_buf, sizeof(date_buf)))
+			die(_("invalid date format: %s"), force_date);
+		date = date_buf;
+	}
+
+	strbuf_addstr(author_ident, fmt_ident(name, email, date, IDENT_STRICT));
+	if (!split_ident_line(&author, author_ident->buf, author_ident->len) &&
+	    sane_ident_split(&author)) {
+		export_one("GIT_AUTHOR_NAME", author.name_begin, author.name_end, 0);
+		export_one("GIT_AUTHOR_EMAIL", author.mail_begin, author.mail_end, 0);
+		export_one("GIT_AUTHOR_DATE", author.date_begin, author.tz_end, '@');
+	}
 }

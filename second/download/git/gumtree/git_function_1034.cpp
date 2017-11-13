@@ -1,202 +1,257 @@
-int cmd_tag(int argc, const char **argv, const char *prefix)
+int cmd_update_index(int argc, const char **argv, const char *prefix)
 {
-	struct strbuf buf = STRBUF_INIT;
-	struct strbuf ref = STRBUF_INIT;
-	struct strbuf reflog_msg = STRBUF_INIT;
-	unsigned char object[20], prev[20];
-	const char *object_ref, *tag;
-	struct create_tag_options opt;
-	char *cleanup_arg = NULL;
-	int create_reflog = 0;
-	int annotate = 0, force = 0;
-	int cmdmode = 0, create_tag_object = 0;
-	const char *msgfile = NULL, *keyid = NULL;
-	struct msg_arg msg = { 0, STRBUF_INIT };
-	struct ref_transaction *transaction;
-	struct strbuf err = STRBUF_INIT;
-	struct ref_filter filter;
-	static struct ref_sorting *sorting = NULL, **sorting_tail = &sorting;
-	const char *format = NULL;
-	int icase = 0;
+	int newfd, entries, has_errors = 0, nul_term_line = 0;
+	enum uc_mode untracked_cache = UC_UNSPECIFIED;
+	int read_from_stdin = 0;
+	int prefix_length = prefix ? strlen(prefix) : 0;
+	int preferred_index_format = 0;
+	char set_executable_bit = 0;
+	struct refresh_params refresh_args = {0, &has_errors};
+	int lock_error = 0;
+	int split_index = -1;
+	struct lock_file *lock_file;
+	struct parse_opt_ctx_t ctx;
+	strbuf_getline_fn getline_fn;
+	int parseopt_state = PARSE_OPT_UNKNOWN;
 	struct option options[] = {
-		OPT_CMDMODE('l', "list", &cmdmode, N_("list tag names"), 'l'),
-		{ OPTION_INTEGER, 'n', NULL, &filter.lines, N_("n"),
-				N_("print <n> lines of each tag message"),
-				PARSE_OPT_OPTARG, NULL, 1 },
-		OPT_CMDMODE('d', "delete", &cmdmode, N_("delete tags"), 'd'),
-		OPT_CMDMODE('v', "verify", &cmdmode, N_("verify tags"), 'v'),
-
-		OPT_GROUP(N_("Tag creation options")),
-		OPT_BOOL('a', "annotate", &annotate,
-					N_("annotated tag, needs a message")),
-		OPT_CALLBACK('m', "message", &msg, N_("message"),
-			     N_("tag message"), parse_msg_arg),
-		OPT_FILENAME('F', "file", &msgfile, N_("read message from file")),
-		OPT_BOOL('s', "sign", &opt.sign, N_("annotated and GPG-signed tag")),
-		OPT_STRING(0, "cleanup", &cleanup_arg, N_("mode"),
-			N_("how to strip spaces and #comments from message")),
-		OPT_STRING('u', "local-user", &keyid, N_("key-id"),
-					N_("use another key to sign the tag")),
-		OPT__FORCE(&force, N_("replace the tag if exists")),
-		OPT_BOOL(0, "create-reflog", &create_reflog, N_("create a reflog")),
-
-		OPT_GROUP(N_("Tag listing options")),
-		OPT_COLUMN(0, "column", &colopts, N_("show tag list in columns")),
-		OPT_CONTAINS(&filter.with_commit, N_("print only tags that contain the commit")),
-		OPT_NO_CONTAINS(&filter.no_commit, N_("print only tags that don't contain the commit")),
-		OPT_WITH(&filter.with_commit, N_("print only tags that contain the commit")),
-		OPT_WITHOUT(&filter.no_commit, N_("print only tags that don't contain the commit")),
-		OPT_MERGED(&filter, N_("print only tags that are merged")),
-		OPT_NO_MERGED(&filter, N_("print only tags that are not merged")),
-		OPT_CALLBACK(0 , "sort", sorting_tail, N_("key"),
-			     N_("field name to sort on"), &parse_opt_ref_sorting),
-		{
-			OPTION_CALLBACK, 0, "points-at", &filter.points_at, N_("object"),
-			N_("print only tags of the object"), PARSE_OPT_LASTARG_DEFAULT,
-			parse_opt_object_name, (intptr_t) "HEAD"
-		},
-		OPT_STRING(  0 , "format", &format, N_("format"), N_("format to use for the output")),
-		OPT_BOOL('i', "ignore-case", &icase, N_("sorting and filtering are case insensitive")),
+		OPT_BIT('q', NULL, &refresh_args.flags,
+			N_("continue refresh even when index needs update"),
+			REFRESH_QUIET),
+		OPT_BIT(0, "ignore-submodules", &refresh_args.flags,
+			N_("refresh: ignore submodules"),
+			REFRESH_IGNORE_SUBMODULES),
+		OPT_SET_INT(0, "add", &allow_add,
+			N_("do not ignore new files"), 1),
+		OPT_SET_INT(0, "replace", &allow_replace,
+			N_("let files replace directories and vice-versa"), 1),
+		OPT_SET_INT(0, "remove", &allow_remove,
+			N_("notice files missing from worktree"), 1),
+		OPT_BIT(0, "unmerged", &refresh_args.flags,
+			N_("refresh even if index contains unmerged entries"),
+			REFRESH_UNMERGED),
+		{OPTION_CALLBACK, 0, "refresh", &refresh_args, NULL,
+			N_("refresh stat information"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG,
+			refresh_callback},
+		{OPTION_CALLBACK, 0, "really-refresh", &refresh_args, NULL,
+			N_("like --refresh, but ignore assume-unchanged setting"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG,
+			really_refresh_callback},
+		{OPTION_LOWLEVEL_CALLBACK, 0, "cacheinfo", NULL,
+			N_("<mode>,<object>,<path>"),
+			N_("add the specified entry to the index"),
+			PARSE_OPT_NOARG | /* disallow --cacheinfo=<mode> form */
+			PARSE_OPT_NONEG | PARSE_OPT_LITERAL_ARGHELP,
+			(parse_opt_cb *) cacheinfo_callback},
+		{OPTION_CALLBACK, 0, "chmod", &set_executable_bit, N_("(+/-)x"),
+			N_("override the executable bit of the listed files"),
+			PARSE_OPT_NONEG | PARSE_OPT_LITERAL_ARGHELP,
+			chmod_callback},
+		{OPTION_SET_INT, 0, "assume-unchanged", &mark_valid_only, NULL,
+			N_("mark files as \"not changing\""),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, MARK_FLAG},
+		{OPTION_SET_INT, 0, "no-assume-unchanged", &mark_valid_only, NULL,
+			N_("clear assumed-unchanged bit"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, UNMARK_FLAG},
+		{OPTION_SET_INT, 0, "skip-worktree", &mark_skip_worktree_only, NULL,
+			N_("mark files as \"index-only\""),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, MARK_FLAG},
+		{OPTION_SET_INT, 0, "no-skip-worktree", &mark_skip_worktree_only, NULL,
+			N_("clear skip-worktree bit"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, UNMARK_FLAG},
+		OPT_SET_INT(0, "info-only", &info_only,
+			N_("add to index only; do not add content to object database"), 1),
+		OPT_SET_INT(0, "force-remove", &force_remove,
+			N_("remove named paths even if present in worktree"), 1),
+		OPT_BOOL('z', NULL, &nul_term_line,
+			 N_("with --stdin: input lines are terminated by null bytes")),
+		{OPTION_LOWLEVEL_CALLBACK, 0, "stdin", &read_from_stdin, NULL,
+			N_("read list of paths to be updated from standard input"),
+			PARSE_OPT_NONEG | PARSE_OPT_NOARG,
+			(parse_opt_cb *) stdin_callback},
+		{OPTION_LOWLEVEL_CALLBACK, 0, "index-info", &nul_term_line, NULL,
+			N_("add entries from standard input to the index"),
+			PARSE_OPT_NONEG | PARSE_OPT_NOARG,
+			(parse_opt_cb *) stdin_cacheinfo_callback},
+		{OPTION_LOWLEVEL_CALLBACK, 0, "unresolve", &has_errors, NULL,
+			N_("repopulate stages #2 and #3 for the listed paths"),
+			PARSE_OPT_NONEG | PARSE_OPT_NOARG,
+			(parse_opt_cb *) unresolve_callback},
+		{OPTION_LOWLEVEL_CALLBACK, 'g', "again", &has_errors, NULL,
+			N_("only update entries that differ from HEAD"),
+			PARSE_OPT_NONEG | PARSE_OPT_NOARG,
+			(parse_opt_cb *) reupdate_callback},
+		OPT_BIT(0, "ignore-missing", &refresh_args.flags,
+			N_("ignore files missing from worktree"),
+			REFRESH_IGNORE_MISSING),
+		OPT_SET_INT(0, "verbose", &verbose,
+			N_("report actions to standard output"), 1),
+		{OPTION_CALLBACK, 0, "clear-resolve-undo", NULL, NULL,
+			N_("(for porcelains) forget saved unresolved conflicts"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG,
+			resolve_undo_clear_callback},
+		OPT_INTEGER(0, "index-version", &preferred_index_format,
+			N_("write index in this format")),
+		OPT_BOOL(0, "split-index", &split_index,
+			N_("enable or disable split index")),
+		OPT_BOOL(0, "untracked-cache", &untracked_cache,
+			N_("enable/disable untracked cache")),
+		OPT_SET_INT(0, "test-untracked-cache", &untracked_cache,
+			    N_("test if the filesystem supports untracked cache"), UC_TEST),
+		OPT_SET_INT(0, "force-untracked-cache", &untracked_cache,
+			    N_("enable untracked cache without testing the filesystem"), UC_FORCE),
 		OPT_END()
 	};
 
-	setup_ref_filter_porcelain_msg();
+	if (argc == 2 && !strcmp(argv[1], "-h"))
+		usage_with_options(update_index_usage, options);
 
-	git_config(git_tag_config, sorting_tail);
+	git_config(git_default_config, NULL);
 
-	memset(&opt, 0, sizeof(opt));
-	memset(&filter, 0, sizeof(filter));
-	filter.lines = -1;
+	/* We can't free this memory, it becomes part of a linked list parsed atexit() */
+	lock_file = xcalloc(1, sizeof(struct lock_file));
 
-	argc = parse_options(argc, argv, prefix, options, git_tag_usage, 0);
+	/* we will diagnose later if it turns out that we need to update it */
+	newfd = hold_locked_index(lock_file, 0);
+	if (newfd < 0)
+		lock_error = errno;
 
-	if (keyid) {
-		opt.sign = 1;
-		set_signing_key(keyid);
-	}
-	create_tag_object = (opt.sign || annotate || msg.given || msgfile);
+	entries = read_cache();
+	if (entries < 0)
+		die("cache corrupted");
 
-	if (!cmdmode) {
-		if (argc == 0)
-			cmdmode = 'l';
-		else if (filter.with_commit || filter.no_commit ||
-			 filter.points_at.nr || filter.merge_commit ||
-			 filter.lines != -1)
-			cmdmode = 'l';
-	}
+	/*
+	 * Custom copy of parse_options() because we want to handle
+	 * filename arguments as they come.
+	 */
+	parse_options_start(&ctx, argc, argv, prefix,
+			    options, PARSE_OPT_STOP_AT_NON_OPTION);
+	while (ctx.argc) {
+		if (parseopt_state != PARSE_OPT_DONE)
+			parseopt_state = parse_options_step(&ctx, options,
+							    update_index_usage);
+		if (!ctx.argc)
+			break;
+		switch (parseopt_state) {
+		case PARSE_OPT_HELP:
+			exit(129);
+		case PARSE_OPT_NON_OPTION:
+		case PARSE_OPT_DONE:
+		{
+			const char *path = ctx.argv[0];
+			char *p;
 
-	if ((create_tag_object || force) && (cmdmode != 0))
-		usage_with_options(git_tag_usage, options);
-
-	finalize_colopts(&colopts, -1);
-	if (cmdmode == 'l' && filter.lines != -1) {
-		if (explicitly_enable_column(colopts))
-			die(_("--column and -n are incompatible"));
-		colopts = 0;
-	}
-	if (!sorting)
-		sorting = ref_default_sorting();
-	sorting->ignore_case = icase;
-	filter.ignore_case = icase;
-	if (cmdmode == 'l') {
-		int ret;
-		if (column_active(colopts)) {
-			struct column_options copts;
-			memset(&copts, 0, sizeof(copts));
-			copts.padding = 2;
-			run_column_filter(colopts, &copts);
+			setup_work_tree();
+			p = prefix_path(prefix, prefix_length, path);
+			update_one(p);
+			if (set_executable_bit)
+				chmod_path(set_executable_bit, p);
+			free(p);
+			ctx.argc--;
+			ctx.argv++;
+			break;
 		}
-		filter.name_patterns = argv;
-		ret = list_tags(&filter, sorting, format);
-		if (column_active(colopts))
-			stop_column_filter();
-		return ret;
+		case PARSE_OPT_UNKNOWN:
+			if (ctx.argv[0][1] == '-')
+				error("unknown option '%s'", ctx.argv[0] + 2);
+			else
+				error("unknown switch '%c'", *ctx.opt);
+			usage_with_options(update_index_usage, options);
+		}
 	}
-	if (filter.lines != -1)
-		die(_("-n option is only allowed in list mode"));
-	if (filter.with_commit)
-		die(_("--contains option is only allowed in list mode"));
-	if (filter.no_commit)
-		die(_("--no-contains option is only allowed in list mode"));
-	if (filter.points_at.nr)
-		die(_("--points-at option is only allowed in list mode"));
-	if (filter.merge_commit)
-		die(_("--merged and --no-merged options are only allowed in list mode"));
-	if (cmdmode == 'd')
-		return for_each_tag_name(argv, delete_tag, NULL);
-	if (cmdmode == 'v') {
-		if (format)
-			verify_ref_format(format);
-		return for_each_tag_name(argv, verify_tag, format);
+	argc = parse_options_end(&ctx);
+
+	getline_fn = nul_term_line ? strbuf_getline_nul : strbuf_getline_lf;
+	if (preferred_index_format) {
+		if (preferred_index_format < INDEX_FORMAT_LB ||
+		    INDEX_FORMAT_UB < preferred_index_format)
+			die("index-version %d not in range: %d..%d",
+			    preferred_index_format,
+			    INDEX_FORMAT_LB, INDEX_FORMAT_UB);
+
+		if (the_index.version != preferred_index_format)
+			active_cache_changed |= SOMETHING_CHANGED;
+		the_index.version = preferred_index_format;
 	}
 
-	if (msg.given || msgfile) {
-		if (msg.given && msgfile)
-			die(_("only one -F or -m option is allowed."));
-		if (msg.given)
-			strbuf_addbuf(&buf, &(msg.buf));
-		else {
-			if (!strcmp(msgfile, "-")) {
-				if (strbuf_read(&buf, 0, 1024) < 0)
-					die_errno(_("cannot read '%s'"), msgfile);
-			} else {
-				if (strbuf_read_file(&buf, msgfile, 1024) < 0)
-					die_errno(_("could not open or read '%s'"),
-						msgfile);
+	if (read_from_stdin) {
+		struct strbuf buf = STRBUF_INIT;
+		struct strbuf unquoted = STRBUF_INIT;
+
+		setup_work_tree();
+		while (getline_fn(&buf, stdin) != EOF) {
+			char *p;
+			if (!nul_term_line && buf.buf[0] == '"') {
+				strbuf_reset(&unquoted);
+				if (unquote_c_style(&unquoted, buf.buf, NULL))
+					die("line is badly quoted");
+				strbuf_swap(&buf, &unquoted);
 			}
+			p = prefix_path(prefix, prefix_length, buf.buf);
+			update_one(p);
+			if (set_executable_bit)
+				chmod_path(set_executable_bit, p);
+			free(p);
 		}
+		strbuf_release(&unquoted);
+		strbuf_release(&buf);
 	}
 
-	tag = argv[0];
-
-	object_ref = argc == 2 ? argv[1] : "HEAD";
-	if (argc > 2)
-		die(_("too many params"));
-
-	if (get_sha1(object_ref, object))
-		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
-
-	if (strbuf_check_tag_ref(&ref, tag))
-		die(_("'%s' is not a valid tag name."), tag);
-
-	if (read_ref(ref.buf, prev))
-		hashclr(prev);
-	else if (!force)
-		die(_("tag '%s' already exists"), tag);
-
-	opt.message_given = msg.given || msgfile;
-
-	if (!cleanup_arg || !strcmp(cleanup_arg, "strip"))
-		opt.cleanup_mode = CLEANUP_ALL;
-	else if (!strcmp(cleanup_arg, "verbatim"))
-		opt.cleanup_mode = CLEANUP_NONE;
-	else if (!strcmp(cleanup_arg, "whitespace"))
-		opt.cleanup_mode = CLEANUP_SPACE;
-	else
-		die(_("Invalid cleanup mode %s"), cleanup_arg);
-
-	create_reflog_msg(object, &reflog_msg);
-
-	if (create_tag_object) {
-		if (force_sign_annotate && !annotate)
-			opt.sign = 1;
-		create_tag(object, tag, &buf, &opt, prev, object);
+	if (split_index > 0) {
+		if (git_config_get_split_index() == 0)
+			warning(_("core.splitIndex is set to false; "
+				  "remove or change it, if you really want to "
+				  "enable split index"));
+		if (the_index.split_index)
+			the_index.cache_changed |= SPLIT_INDEX_ORDERED;
+		else
+			add_split_index(&the_index);
+	} else if (!split_index) {
+		if (git_config_get_split_index() == 1)
+			warning(_("core.splitIndex is set to true; "
+				  "remove or change it, if you really want to "
+				  "disable split index"));
+		remove_split_index(&the_index);
 	}
 
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_update(transaction, ref.buf, object, prev,
-				   create_reflog ? REF_FORCE_CREATE_REFLOG : 0,
-				   reflog_msg.buf, &err) ||
-	    ref_transaction_commit(transaction, &err))
-		die("%s", err.buf);
-	ref_transaction_free(transaction);
-	if (force && !is_null_sha1(prev) && hashcmp(prev, object))
-		printf(_("Updated tag '%s' (was %s)\n"), tag, find_unique_abbrev(prev, DEFAULT_ABBREV));
+	switch (untracked_cache) {
+	case UC_UNSPECIFIED:
+		break;
+	case UC_DISABLE:
+		if (git_config_get_untracked_cache() == 1)
+			warning(_("core.untrackedCache is set to true; "
+				  "remove or change it, if you really want to "
+				  "disable the untracked cache"));
+		remove_untracked_cache(&the_index);
+		report(_("Untracked cache disabled"));
+		break;
+	case UC_TEST:
+		setup_work_tree();
+		return !test_if_untracked_cache_is_supported();
+	case UC_ENABLE:
+	case UC_FORCE:
+		if (git_config_get_untracked_cache() == 0)
+			warning(_("core.untrackedCache is set to false; "
+				  "remove or change it, if you really want to "
+				  "enable the untracked cache"));
+		add_untracked_cache(&the_index);
+		report(_("Untracked cache enabled for '%s'"), get_git_work_tree());
+		break;
+	default:
+		die("BUG: bad untracked_cache value: %d", untracked_cache);
+	}
 
-	strbuf_release(&err);
-	strbuf_release(&buf);
-	strbuf_release(&ref);
-	strbuf_release(&reflog_msg);
-	return 0;
+	if (active_cache_changed) {
+		if (newfd < 0) {
+			if (refresh_args.flags & REFRESH_QUIET)
+				exit(128);
+			unable_to_lock_die(get_index_file(), lock_error);
+		}
+		if (write_locked_index(&the_index, lock_file, COMMIT_LOCK))
+			die("Unable to write new index file");
+	}
+
+	rollback_lock_file(lock_file);
+
+	return has_errors ? 1 : 0;
 }

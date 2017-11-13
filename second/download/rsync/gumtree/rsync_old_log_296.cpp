@@ -1,1 +1,0 @@
-fprintf(FERROR,"%s ",args[i]);

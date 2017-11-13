@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                    "Unable to determine list of acceptable "
-                    "CA certificates for client authentication");
+ap_rputs
+        ("</dl>\n<hr />\n<h2><a name=\"request_hooks\">Request Hooks</a></h2>\n<dl>",
+         r);

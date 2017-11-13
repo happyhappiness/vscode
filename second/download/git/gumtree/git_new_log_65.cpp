@@ -1,1 +1,1 @@
-die(_("Could not read the index"));
+die(_("bad mergetag in commit '%s'"), ref);

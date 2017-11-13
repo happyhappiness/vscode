@@ -1,71 +1,58 @@
-static int make_child(server_rec *s, int slot)
+void ssl_scache_init(server_rec *s, apr_pool_t *p)
 {
-    int pid;
-
-    if (slot + 1 > max_daemons_limit) {
-        max_daemons_limit = slot + 1;
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
+    void *data;
+    const char *userdata_key = "ssl_scache_init";
+    struct ap_socache_hints hints;
+    
+    /* The very first invocation of this function will be the
+     * post_config invocation during server startup; do nothing for
+     * this first (and only the first) time through, since the pool
+     * will be immediately cleared anyway.  For every subsequent
+     * invocation, initialize the configured cache. */
+    apr_pool_userdata_get(&data, userdata_key, s->process->pool);
+    if (!data) {
+        apr_pool_userdata_set((const void *)1, userdata_key,
+                              apr_pool_cleanup_null, s->process->pool);
+        return;
     }
 
-    if (one_process) {
-        set_signals();
-        ap_scoreboard_image->parent[slot].pid = getpid();
-        child_main(slot);
+#ifdef HAVE_OCSP_STAPLING
+    if (mc->stapling_cache) {
+        memset(&hints, 0, sizeof hints);
+        hints.avg_obj_size = 1500;
+        hints.avg_id_len = 20;
+        hints.expiry_interval = 300;
+    
+        rv = mc->stapling_cache->init(mc->stapling_cache_context,
+                                     "mod_ssl-stapling", &hints, s, p);
+        if (rv) {
+            /* ABORT ABORT etc. */
+            ssl_die();
+        }
     }
-
-    if ((pid = fork()) == -1) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, s,
-                     "fork: Unable to fork new process");
-        /* fork didn't succeed.  There's no need to touch the scoreboard;
-         * if we were trying to replace a failed child process, then
-         * server_main_loop() marked its workers SERVER_DEAD, and if
-         * we were trying to replace a child process that exited normally,
-         * its worker_thread()s left SERVER_DEAD or SERVER_GRACEFUL behind.
-         */
-
-        /* In case system resources are maxxed out, we don't want
-           Apache running away with the CPU trying to fork over and
-           over and over again. */
-        apr_sleep(apr_time_from_sec(10));
-
-        return -1;
-    }
-
-    if (!pid) {
-#ifdef HAVE_BINDPROCESSOR
-        /* By default, AIX binds to a single processor.  This bit unbinds
-         * children which will then bind to another CPU.
-         */
-        int status = bindprocessor(BINDPROCESS, (int)getpid(),
-                               PROCESSOR_CLASS_ANY);
-        if (status != OK)
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
-                         ap_server_conf,
-                         "processor unbind failed");
 #endif
-        RAISE_SIGSTOP(MAKE_CHILD);
 
-        apr_signal(SIGTERM, just_die);
-        child_main(slot);
+    /*
+     * Warn the user that he should use the session cache.
+     * But we can operate without it, of course.
+     */
+    if (mc->sesscache == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "Init: Session Cache is not configured "
+                     "[hint: SSLSessionCache]");
+        return;
+    }
 
-        clean_child_exit(0);
+    memset(&hints, 0, sizeof hints);
+    hints.avg_obj_size = 150;
+    hints.avg_id_len = 30;
+    hints.expiry_interval = 30;
+    
+    rv = mc->sesscache->init(mc->sesscache_context, "mod_ssl-session", &hints, s, p);
+    if (rv) {
+        /* ABORT ABORT etc. */
+        ssl_die();
     }
-    /* else */
-    if (ap_scoreboard_image->parent[slot].pid != 0) {
-        /* This new child process is squatting on the scoreboard
-         * entry owned by an exiting child process, which cannot
-         * exit until all active requests complete.
-         * Don't forget about this exiting child process, or we
-         * won't be able to kill it if it doesn't exit by the
-         * time the server is shut down.
-         */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                     "taking over scoreboard slot from %" APR_PID_T_FMT "%s",
-                     ap_scoreboard_image->parent[slot].pid,
-                     ap_scoreboard_image->parent[slot].quiescing ?
-                         " (quiescing)" : "");
-        ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid);
-    }
-    ap_scoreboard_image->parent[slot].quiescing = 0;
-    ap_scoreboard_image->parent[slot].pid = pid;
-    return 0;
 }

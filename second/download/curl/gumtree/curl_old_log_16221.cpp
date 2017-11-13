@@ -1,10 +1,11 @@
 fputs(
-"              See also -F, --form.\n"
+"              requires  that  the  underlying  libcurl was built to support c-\n"
+"              ares. Added in 7.33.0.\n"
 "\n"
-"       -F, --form <name=content>\n"
-"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
-"              has pressed the submit button. This causes  curl  to  POST  data\n"
-"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
-"              2388. This enables uploading of binary files etc. To  force  the\n"
-"              'content'  part  to  be  a  file, prefix the file name with an @\n"
+"       --dns-servers <addresses>\n"
+"              Set the list of DNS servers to be used  instead  of  the  system\n"
+"              default.  The list of IP addresses should be separated with com-\n"
+"              mas. Port numbers may also optionally be given as :<port-number>\n"
+"              after each IP address.\n"
+"\n"
 , stdout);

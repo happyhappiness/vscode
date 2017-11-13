@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02645)
-                          "Server name not provided via TLS extension "
-                          "(using default/first virtual host)");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02621)
+                     "stapling_renew_response: no uri for responder");

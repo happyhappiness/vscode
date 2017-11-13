@@ -1,1 +1,1 @@
-rprintf(FINFO,"send_files(%d,%s)\n",i,fname);
+rprintf(FERROR,"skipping %s\n",fname);

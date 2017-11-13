@@ -1,4 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01663)
-                  "access to %s failed, reason: user '%s' does not meet "
-                  "'require'ments for user to be allowed access",
-                  r->uri, r->user);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
+                  "h2_stream(%ld-%d): prepare, len=%ld eos=%d, trailers=%s",
+                  c->id, stream->id, (long)*plen, *peos,
+                  (stream->response && stream->response->trailers)? 
+                  "yes" : "no");

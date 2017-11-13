@@ -1,36 +1,96 @@
-static apr_status_t proxy_buckets_lifetime_transform(request_rec *r,
-        apr_bucket_brigade *from, apr_bucket_brigade *to)
+void *util_ald_cache_insert(util_ald_cache_t *cache, void *payload)
 {
-    apr_bucket *e;
-    apr_bucket *new;
-    const char *data;
-    apr_size_t bytes;
-    apr_status_t rv = APR_SUCCESS;
+    unsigned long hashval;
+    void *tmp_payload;
+    util_cache_node_t *node;
 
-    apr_brigade_cleanup(to);
-    for (e = APR_BRIGADE_FIRST(from);
-         e != APR_BRIGADE_SENTINEL(from);
-         e = APR_BUCKET_NEXT(e)) {
-        if (!APR_BUCKET_IS_METADATA(e)) {
-            apr_bucket_read(e, &data, &bytes, APR_BLOCK_READ);
-            new = apr_bucket_transient_create(data, bytes, r->connection->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(to, new);
-        }
-        else if (APR_BUCKET_IS_FLUSH(e)) {
-            new = apr_bucket_flush_create(r->connection->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(to, new);
-        }
-        else if (APR_BUCKET_IS_EOS(e)) {
-            new = apr_bucket_eos_create(r->connection->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(to, new);
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00964)
-                          "Unhandled bucket type of type %s in"
-                          " proxy_buckets_lifetime_transform", e->type->name);
-            apr_bucket_delete(e);
-            rv = APR_EGENERAL;
+    /* sanity check */
+    if (cache == NULL || payload == NULL) {
+        return NULL;
+    }
+
+    /* check if we are full - if so, try purge */
+    if (cache->numentries >= cache->maxentries) {
+        util_ald_cache_purge(cache);
+        if (cache->numentries >= cache->maxentries) {
+            /* if the purge was not effective, we leave now to avoid an overflow */
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                         "Purge of LDAP cache failed");
+            return NULL;
         }
     }
-    return rv;
+
+    node = (util_cache_node_t *)util_ald_alloc(cache,
+                                               sizeof(util_cache_node_t));
+    if (node == NULL) {
+        /*
+         * XXX: The cache management should be rewritten to work
+         * properly when LDAPSharedCacheSize is too small.
+         */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                     "LDAPSharedCacheSize is too small. Increase it or "
+                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
+        if (cache->numentries < cache->fullmark) {
+            /*
+             * We have not even reached fullmark, trigger a complete purge.
+             * This is still better than not being able to add new entries
+             * at all.
+             */
+            cache->marktime = apr_time_now();
+        }
+        util_ald_cache_purge(cache);
+        node = (util_cache_node_t *)util_ald_alloc(cache,
+                                                   sizeof(util_cache_node_t));
+        if (node == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                         "Could not allocate memory for LDAP cache entry");
+            return NULL;
+        }
+    }
+
+    /* Take a copy of the payload before proceeeding. */
+    tmp_payload = (*cache->copy)(cache, payload);
+    if (tmp_payload == NULL) {
+        /*
+         * XXX: The cache management should be rewritten to work
+         * properly when LDAPSharedCacheSize is too small.
+         */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                     "LDAPSharedCacheSize is too small. Increase it or "
+                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
+        if (cache->numentries < cache->fullmark) {
+            /*
+             * We have not even reached fullmark, trigger a complete purge.
+             * This is still better than not being able to add new entries
+             * at all.
+             */
+            cache->marktime = apr_time_now();
+        }
+        util_ald_cache_purge(cache);
+        tmp_payload = (*cache->copy)(cache, payload);
+        if (tmp_payload == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                         "Could not allocate memory for LDAP cache value");
+            util_ald_free(cache, node);
+            return NULL;
+        }
+    }
+    payload = tmp_payload;
+
+    /* populate the entry */
+    cache->inserts++;
+    hashval = (*cache->hash)(payload) % cache->size;
+    node->add_time = apr_time_now();
+    node->payload = payload;
+    node->next = cache->nodes[hashval];
+    cache->nodes[hashval] = node;
+
+    /* if we reach the full mark, note the time we did so
+     * for the benefit of the purge function
+     */
+    if (++cache->numentries == cache->fullmark) {
+        cache->marktime=apr_time_now();
+    }
+
+    return node->payload;
 }

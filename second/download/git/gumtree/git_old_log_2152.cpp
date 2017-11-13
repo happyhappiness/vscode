@@ -1,1 +1,0 @@
-die("malformed field name: %.*s", (int)(ep-atom), atom);

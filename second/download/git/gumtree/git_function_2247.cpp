@@ -1,43 +1,17 @@
-static int split_mail_conv(mail_conv_fn fn, struct am_state *state,
-			const char **paths, int keep_cr)
+FILE *xfopen(const char *path, const char *mode)
 {
-	static const char *stdin_only[] = {"-", NULL};
-	int i;
+	for (;;) {
+		FILE *fp = fopen(path, mode);
+		if (fp)
+			return fp;
+		if (errno == EINTR)
+			continue;
 
-	if (!*paths)
-		paths = stdin_only;
-
-	for (i = 0; *paths; paths++, i++) {
-		FILE *in, *out;
-		const char *mail;
-		int ret;
-
-		if (!strcmp(*paths, "-"))
-			in = stdin;
+		if (*mode && mode[1] == '+')
+			die_errno(_("could not open '%s' for reading and writing"), path);
+		else if (*mode == 'w' || *mode == 'a')
+			die_errno(_("could not open '%s' for writing"), path);
 		else
-			in = fopen(*paths, "r");
-
-		if (!in)
-			return error(_("could not open '%s' for reading: %s"),
-					*paths, strerror(errno));
-
-		mail = mkpath("%s/%0*d", state->dir, state->prec, i + 1);
-
-		out = fopen(mail, "w");
-		if (!out)
-			return error(_("could not open '%s' for writing: %s"),
-					mail, strerror(errno));
-
-		ret = fn(out, in, keep_cr);
-
-		fclose(out);
-		fclose(in);
-
-		if (ret)
-			return error(_("could not parse patch '%s'"), *paths);
+			die_errno(_("could not open '%s' for reading"), path);
 	}
-
-	state->cur = 1;
-	state->last = i;
-	return 0;
 }

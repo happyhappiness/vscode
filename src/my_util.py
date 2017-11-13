@@ -266,6 +266,18 @@ def get_version_number(version):
         print 'error processing version dir %s' %version
     return version_number
 
+def is_sub_list(child, parent):
+    """
+    @ param child and parent list\n
+    @ return true if every element in child is contained by parent list\n
+    @ involve search each element of child list in parent list\n
+    """
+    for child_element in child:
+        # if parent miss one element in child list, then return false
+        if child_element not in parent:
+            return False
+    return True
+
 def longest_common_sub(list_a, list_b):
     """
     @ param list of a and b\n

@@ -1,223 +1,270 @@
-static int cgid_server(void *data) 
-{ 
-    struct sockaddr_un unix_addr;
-    int sd, sd2, rc;
-    mode_t omask;
-    apr_socklen_t len;
-    apr_pool_t *ptrans;
-    server_rec *main_server = data;
-    cgid_server_conf *sconf = ap_get_module_config(main_server->module_config,
-                                                   &cgid_module); 
-    apr_hash_t *script_hash = apr_hash_make(pcgi);
+apr_status_t isapi_handler (request_rec *r)
+{
+    isapi_dir_conf *dconf;
+    apr_table_t *e;
+    apr_status_t rv;
+    isapi_loaded *isa;
+    isapi_cid *cid;
+    const char *val;
+    apr_uint32_t read;
+    int res;
 
-    apr_pool_create(&ptrans, pcgi); 
+    if(strcmp(r->handler, "isapi-isa")
+        && strcmp(r->handler, "isapi-handler")) {
+        /* Hang on to the isapi-isa for compatibility with older docs
+         * (wtf did '-isa' mean in the first place?) but introduce
+         * a newer and clearer "isapi-handler" name.
+         */
+        return DECLINED;
+    }
+    dconf = ap_get_module_config(r->per_dir_config, &isapi_module);
+    e = r->subprocess_env;
 
-    apr_signal(SIGCHLD, SIG_IGN); 
-    apr_signal(SIGHUP, daemon_signal_handler);
-
-    if (unlink(sconf->sockname) < 0 && errno != ENOENT) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                     "Couldn't unlink unix domain socket %s",
-                     sconf->sockname);
-        /* just a warning; don't bail out */
+    /* Use similar restrictions as CGIs
+     *
+     * If this fails, it's pointless to load the isapi dll.
+     */
+    if (!(ap_allow_options(r) & OPT_EXECCGI)) {
+        return HTTP_FORBIDDEN;
+    }
+    if (r->finfo.filetype == APR_NOFILE) {
+        return HTTP_NOT_FOUND;
+    }
+    if (r->finfo.filetype != APR_REG) {
+        return HTTP_FORBIDDEN;
+    }
+    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
+        r->path_info && *r->path_info) {
+        /* default to accept */
+        return HTTP_NOT_FOUND;
     }
 
-    /* cgid should use its own suexec doer */
-    ap_hook_get_suexec_identity(cgid_suexec_id_doer, NULL, NULL,
-                                APR_HOOK_REALLY_FIRST);
-    apr_hook_sort_all();
+    if (isapi_lookup(r->pool, r->server, r, r->filename, &isa)
+           != APR_SUCCESS) {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    /* Set up variables */
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+    apr_table_setn(e, "UNMAPPED_REMOTE_USER", "REMOTE_USER");
+    if ((val = apr_table_get(e, "HTTPS")) && (strcmp(val, "on") == 0))
+        apr_table_setn(e, "SERVER_PORT_SECURE", "1");
+    else
+        apr_table_setn(e, "SERVER_PORT_SECURE", "0");
+    apr_table_setn(e, "URL", r->uri);
 
-    if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't create unix domain socket");
-        return errno;
-    } 
+    /* Set up connection structure and ecb,
+     * NULL or zero out most fields.
+     */
+    cid = apr_pcalloc(r->pool, sizeof(isapi_cid));
 
-    memset(&unix_addr, 0, sizeof(unix_addr));
-    unix_addr.sun_family = AF_UNIX;
-    strcpy(unix_addr.sun_path, sconf->sockname);
+    /* Fixup defaults for dconf */
+    cid->dconf.read_ahead_buflen = (dconf->read_ahead_buflen == ISAPI_UNDEF)
+                                     ? 49152 : dconf->read_ahead_buflen;
+    cid->dconf.log_unsupported   = (dconf->log_unsupported == ISAPI_UNDEF)
+                                     ? 0 : dconf->log_unsupported;
+    cid->dconf.log_to_errlog     = (dconf->log_to_errlog == ISAPI_UNDEF)
+                                     ? 0 : dconf->log_to_errlog;
+    cid->dconf.log_to_query      = (dconf->log_to_query == ISAPI_UNDEF)
+                                     ? 1 : dconf->log_to_query;
+    cid->dconf.fake_async        = (dconf->fake_async == ISAPI_UNDEF)
+                                     ? 0 : dconf->fake_async;
 
-    omask = umask(0077); /* so that only Apache can use socket */
-    rc = bind(sd, (struct sockaddr *)&unix_addr, sizeof(unix_addr));
-    umask(omask); /* can't fail, so can't clobber errno */
-    if (rc < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't bind unix domain socket %s",
-                     sconf->sockname); 
-        return errno;
-    } 
+    cid->ecb = apr_pcalloc(r->pool, sizeof(EXTENSION_CONTROL_BLOCK));
+    cid->ecb->ConnID = cid;
+    cid->isa = isa;
+    cid->r = r;
+    r->status = 0;
 
-    if (listen(sd, DEFAULT_CGID_LISTENBACKLOG) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't listen on unix domain socket"); 
-        return errno;
-    } 
+    cid->ecb->cbSize = sizeof(EXTENSION_CONTROL_BLOCK);
+    cid->ecb->dwVersion = isa->report_version;
+    cid->ecb->dwHttpStatusCode = 0;
+    strcpy(cid->ecb->lpszLogData, "");
+    /* TODO: are copies really needed here?
+     */
+    cid->ecb->lpszMethod = (char*) r->method;
+    cid->ecb->lpszQueryString = (char*) apr_table_get(e, "QUERY_STRING");
+    cid->ecb->lpszPathInfo = (char*) apr_table_get(e, "PATH_INFO");
+    cid->ecb->lpszPathTranslated = (char*) apr_table_get(e, "PATH_TRANSLATED");
+    cid->ecb->lpszContentType = (char*) apr_table_get(e, "CONTENT_TYPE");
 
-    if (!geteuid()) {
-        if (chown(sconf->sockname, unixd_config.user_id, -1) < 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                         "Couldn't change owner of unix domain socket %s",
-                         sconf->sockname); 
-            return errno;
+    /* Set up the callbacks */
+    cid->ecb->GetServerVariable = GetServerVariable;
+    cid->ecb->WriteClient = WriteClient;
+    cid->ecb->ReadClient = ReadClient;
+    cid->ecb->ServerSupportFunction = ServerSupportFunction;
+
+    /* Set up client input */
+    res = ap_setup_client_block(r, REQUEST_CHUNKED_ERROR);
+    if (res) {
+        return res;
+    }
+
+    if (ap_should_client_block(r)) {
+        /* Time to start reading the appropriate amount of data,
+         * and allow the administrator to tweak the number
+         */
+        if (r->remaining) {
+            cid->ecb->cbTotalBytes = (apr_size_t)r->remaining;
+            if (cid->ecb->cbTotalBytes > (apr_uint32_t)cid->dconf.read_ahead_buflen)
+                cid->ecb->cbAvailable = cid->dconf.read_ahead_buflen;
+            else
+                cid->ecb->cbAvailable = cid->ecb->cbTotalBytes;
+        }
+        else
+        {
+            cid->ecb->cbTotalBytes = 0xffffffff;
+            cid->ecb->cbAvailable = cid->dconf.read_ahead_buflen;
+        }
+
+        cid->ecb->lpbData = apr_pcalloc(r->pool, cid->ecb->cbAvailable + 1);
+
+        read = 0;
+        while (read < cid->ecb->cbAvailable &&
+               ((res = ap_get_client_block(r, (char*)cid->ecb->lpbData + read,
+                                        cid->ecb->cbAvailable - read)) > 0)) {
+            read += res;
+        }
+
+        if (res < 0) {
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        /* Although it's not to spec, IIS seems to null-terminate
+         * its lpdData string. So we will too.
+         */
+        if (res == 0)
+            cid->ecb->cbAvailable = cid->ecb->cbTotalBytes = read;
+        else
+            cid->ecb->cbAvailable = read;
+        cid->ecb->lpbData[read] = '\0';
+    }
+    else {
+        cid->ecb->cbTotalBytes = 0;
+        cid->ecb->cbAvailable = 0;
+        cid->ecb->lpbData = NULL;
+    }
+
+    /* To emulate async behavior...
+     *
+     * We create a cid->completed mutex and lock on it so that the
+     * app can believe is it running async.
+     *
+     * This request completes upon a notification through
+     * ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION), which
+     * unlocks this mutex.  If the HttpExtensionProc() returns
+     * HSE_STATUS_PENDING, we will attempt to gain this lock again
+     * which may *only* happen once HSE_REQ_DONE_WITH_SESSION has
+     * unlocked the mutex.
+     */
+    if (cid->dconf.fake_async) {
+        rv = apr_thread_mutex_create(&cid->completed,
+                                     APR_THREAD_MUTEX_UNNESTED,
+                                     r->pool);
+        if (cid->completed && (rv == APR_SUCCESS)) {
+            rv = apr_thread_mutex_lock(cid->completed);
+        }
+
+        if (!cid->completed || (rv != APR_SUCCESS)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: Failed to create completion mutex");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
     }
-    
-    unixd_setup_child(); /* if running as root, switch to configured user/group */
 
-    while (!daemon_should_exit) {
-        int errfileno = STDERR_FILENO;
-        char *argv0; 
-        char **env; 
-        const char * const *argv; 
-        apr_int32_t in_pipe;
-        apr_int32_t out_pipe;
-        apr_int32_t err_pipe;
-        apr_cmdtype_e cmd_type;
-        request_rec *r;
-        apr_procattr_t *procattr = NULL;
-        apr_proc_t *procnew = NULL;
-        apr_file_t *inout;
-        cgid_req_t cgid_req;
-        apr_status_t stat;
+    /* All right... try and run the sucker */
+    rv = (*isa->HttpExtensionProc)(cid->ecb);
 
-        apr_pool_clear(ptrans);
+    /* Check for a log message - and log it */
+    if (cid->ecb->lpszLogData && *cid->ecb->lpszLogData)
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "ISAPI: %s: %s", r->filename, cid->ecb->lpszLogData);
 
-        len = sizeof(unix_addr);
-        sd2 = accept(sd, (struct sockaddr *)&unix_addr, &len);
-        if (sd2 < 0) {
-            if (errno != EINTR) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, errno, 
-                             (server_rec *)data,
-                             "Error accepting on cgid socket");
-            }
-            continue;
-        }
-       
-        r = apr_pcalloc(ptrans, sizeof(request_rec)); 
-        procnew = apr_pcalloc(ptrans, sizeof(*procnew));
-        r->pool = ptrans; 
-        stat = get_req(sd2, r, &argv0, &env, &cgid_req); 
-        if (stat != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, stat,
-                         main_server,
-                         "Error reading request on cgid socket");
-            close(sd2);
-            continue;
-        }
-
-        if (cgid_req.req_type == GETPID_REQ) {
-            pid_t pid;
-
-            pid = (pid_t)apr_hash_get(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id));
-            if (write(sd2, &pid, sizeof(pid)) != sizeof(pid)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             main_server,
-                             "Error writing pid %" APR_PID_T_FMT " to handler", pid);
-            }
-            close(sd2);
-            continue;
-        }
-
-        apr_os_file_put(&r->server->error_log, &errfileno, 0, r->pool);
-        apr_os_file_put(&inout, &sd2, 0, r->pool);
-
-        if (cgid_req.req_type == SSI_REQ) {
-            in_pipe  = APR_NO_PIPE;
-            out_pipe = APR_FULL_BLOCK;
-            err_pipe = APR_NO_PIPE;
-            cmd_type = APR_SHELLCMD;
-        }
-        else {
-            in_pipe  = APR_CHILD_BLOCK;
-            out_pipe = APR_CHILD_BLOCK;
-            err_pipe = APR_CHILD_BLOCK;
-            cmd_type = APR_PROGRAM;
-        }
-
-        if (((rc = apr_procattr_create(&procattr, ptrans)) != APR_SUCCESS) ||
-            ((cgid_req.req_type == CGI_REQ) && 
-             (((rc = apr_procattr_io_set(procattr,
-                                        in_pipe,
-                                        out_pipe,
-                                        err_pipe)) != APR_SUCCESS) ||
-              /* XXX apr_procattr_child_*_set() is creating an unnecessary 
-               * pipe between this process and the child being created...
-               * It is cleaned up with the temporary pool for this request.
-               */
-              ((rc = apr_procattr_child_err_set(procattr, r->server->error_log, NULL)) != APR_SUCCESS) ||
-              ((rc = apr_procattr_child_in_set(procattr, inout, NULL)) != APR_SUCCESS))) ||
-            ((rc = apr_procattr_child_out_set(procattr, inout, NULL)) != APR_SUCCESS) ||
-            ((rc = apr_procattr_dir_set(procattr,
-                                  ap_make_dirstr_parent(r->pool, r->filename))) != APR_SUCCESS) ||
-            ((rc = apr_procattr_cmdtype_set(procattr, cmd_type)) != APR_SUCCESS) ||
-            ((rc = apr_procattr_child_errfn_set(procattr, cgid_child_errfn)) != APR_SUCCESS)) {
-            /* Something bad happened, tell the world.
-             * ap_log_rerror() won't work because the header table used by
-             * ap_log_rerror() hasn't been replicated in the phony r
+    switch(rv) {
+        case 0:  /* Strange, but MS isapi accepts this as success */
+        case HSE_STATUS_SUCCESS:
+        case HSE_STATUS_SUCCESS_AND_KEEP_CONN:
+            /* Ignore the keepalive stuff; Apache handles it just fine without
+             * the ISAPI Handler's "advice".
+             * Per Microsoft: "In IIS versions 4.0 and later, the return
+             * values HSE_STATUS_SUCCESS and HSE_STATUS_SUCCESS_AND_KEEP_CONN
+             * are functionally identical: Keep-Alive connections are
+             * maintained, if supported by the client."
+             * ... so we were pat all this time
              */
-            ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                         "couldn't set child process attributes: %s", r->filename);
+            break;
+
+        case HSE_STATUS_PENDING:
+            /* emulating async behavior...
+             */
+            if (cid->completed) {
+                /* The completion port was locked prior to invoking
+                 * HttpExtensionProc().  Once we can regain the lock,
+                 * when ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION)
+                 * is called by the extension to release the lock,
+                 * we may finally destroy the request.
+                 */
+                (void)apr_thread_mutex_lock(cid->completed);
+                break;
+            }
+            else if (cid->dconf.log_unsupported) {
+                 ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                               "ISAPI: asynch I/O result HSE_STATUS_PENDING "
+                               "from HttpExtensionProc() is not supported: %s",
+                               r->filename);
+                 r->status = HTTP_INTERNAL_SERVER_ERROR;
+            }
+            break;
+
+        case HSE_STATUS_ERROR:
+            /* end response if we have yet to do so.
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, apr_get_os_error(), r,
+                          "ISAPI: HSE_STATUS_ERROR result from "
+                          "HttpExtensionProc(): %s", r->filename);
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+
+        default:
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, apr_get_os_error(), r,
+                          "ISAPI: unrecognized result code %d "
+                          "from HttpExtensionProc(): %s ", 
+                          rv, r->filename);
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+    }
+
+    /* Flush the response now, including headers-only responses */
+    if (cid->headers_set || cid->response_sent) {
+        conn_rec *c = r->connection;
+        apr_bucket_brigade *bb;
+        apr_bucket *b;
+        apr_status_t rv;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "ISAPI: ap_pass_brigade failed to "
+                          "complete the response: %s ", r->filename);
         }
-        else {
-            apr_pool_userdata_set(r, ERRFN_USERDATA_KEY, apr_pool_cleanup_null, ptrans);
 
-            argv = (const char * const *)create_argv(r->pool, NULL, NULL, NULL, argv0, r->args);
+        return OK; /* NOT r->status, even if it has changed. */
+    }
 
-           /* We want to close sd2 for the new CGI process too.
-            * If it is left open it'll make ap_pass_brigade() block
-            * waiting for EOF if CGI forked something running long.
-            * close(sd2) here should be okay, as CGI channel
-            * is already dup()ed by apr_procattr_child_{in,out}_set()
-            * above.
-            */
-            close(sd2);
+    /* As the client returned no error, and if we did not error out
+     * ourselves, trust dwHttpStatusCode to say something relevant.
+     */
+    if (!ap_is_HTTP_SERVER_ERROR(r->status) && cid->ecb->dwHttpStatusCode) {
+        r->status = cid->ecb->dwHttpStatusCode;
+    }
 
-            if (memcmp(&empty_ugid, &cgid_req.ugid, sizeof(empty_ugid))) {
-                /* We have a valid identity, and can be sure that 
-                 * cgid_suexec_id_doer will return a valid ugid 
-                 */
-                rc = ap_os_create_privileged_process(r, procnew, argv0, argv,
-                                                     (const char * const *)env,
-                                                     procattr, ptrans);
-            } else {
-                rc = apr_proc_create(procnew, argv0, argv, 
-                                     (const char * const *)env, 
-                                     procattr, ptrans);
-            }
-                
-            if (rc != APR_SUCCESS) {
-                /* Bad things happened. Everyone should have cleaned up.
-                 * ap_log_rerror() won't work because the header table used by
-                 * ap_log_rerror() hasn't been replicated in the phony r
-                 */
-                ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                             "couldn't create child process: %d: %s", rc, 
-                             apr_filename_of_pathname(r->filename));
-            }
-            else {
-                /* We don't want to leak storage for the key, so only allocate
-                 * a key if the key doesn't exist yet in the hash; there are
-                 * only a limited number of possible keys (one for each
-                 * possible thread in the server), so we can allocate a copy
-                 * of the key the first time a thread has a cgid request.
-                 * Note that apr_hash_set() only uses the storage passed in
-                 * for the key if it is adding the key to the hash for the
-                 * first time; new key storage isn't needed for replacing the
-                 * existing value of a key.
-                 */
-                void *key;
-
-                if (apr_hash_get(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id))) {
-                    key = &cgid_req.conn_id;
-                }
-                else {
-                    key = apr_pcalloc(pcgi, sizeof(cgid_req.conn_id));
-                    memcpy(key, &cgid_req.conn_id, sizeof(cgid_req.conn_id));
-                }
-                apr_hash_set(script_hash, key, sizeof(cgid_req.conn_id),
-                             (void *)procnew->pid);
-            }
-        }
-    } 
-    return -1; 
+    /* For all missing-response situations simply return the status,
+     * and let the core respond to the client.
+     */
+    return r->status;
 }

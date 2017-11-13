@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02231)
-                "No SSL protocols available [hint: SSLProtocol]");
+ap_log_rerror(APLOG_MARK, level, 0, r, "%s", buf);

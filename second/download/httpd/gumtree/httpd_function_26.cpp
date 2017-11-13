@@ -1,261 +1,346 @@
-int main(int argc, const char * const argv[])
+static apr_status_t core_output_filter(ap_filter_t *f, apr_bucket_brigade *b)
 {
-    char c;
-    int configtestonly = 0;
-    const char *confname = SERVER_CONFIG_FILE;
-    const char *def_server_root = HTTPD_ROOT;
-    const char *temp_error_log = NULL;
-    process_rec *process;
-    server_rec *server_conf;
-    apr_pool_t *pglobal;
-    apr_pool_t *pconf;
-    apr_pool_t *plog; /* Pool of log streams, reset _after_ each read of conf */
-    apr_pool_t *ptemp; /* Pool for temporary config stuff, reset often */
-    apr_pool_t *pcommands; /* Pool for -D, -C and -c switches */
-    apr_getopt_t *opt;
     apr_status_t rv;
-    module **mod;
-    const char *optarg;
-    APR_OPTIONAL_FN_TYPE(ap_signal_server) *signal_server;
+    conn_rec *c = f->c;
+    core_net_rec *net = f->ctx;
+    core_output_filter_ctx_t *ctx = net->out_ctx;
 
-    AP_MONCONTROL(0); /* turn off profiling of startup */
-
-    apr_app_initialize(&argc, &argv, NULL);
-
-    process = create_process(argc, argv);
-    pglobal = process->pool;
-    pconf = process->pconf;
-    ap_server_argv0 = process->short_name;
-
-#if APR_CHARSET_EBCDIC
-    if (ap_init_ebcdic(pglobal) != APR_SUCCESS) {
-        destroy_and_exit_process(process, 1);
+    if (ctx == NULL) {
+        ctx = apr_pcalloc(c->pool, sizeof(*ctx));
+        net->out_ctx = ctx;
     }
-#endif
 
-    ap_setup_prelinked_modules(process);
+    /* If we have a saved brigade, concatenate the new brigade to it */
+    if (ctx->b) {
+        APR_BRIGADE_CONCAT(ctx->b, b);
+        b = ctx->b;
+        ctx->b = NULL;
+    }
 
-    apr_pool_create(&pcommands, pglobal);
-    apr_pool_tag(pcommands, "pcommands");
-    ap_server_pre_read_config  = apr_array_make(pcommands, 1, sizeof(char *));
-    ap_server_post_read_config = apr_array_make(pcommands, 1, sizeof(char *));
-    ap_server_config_defines   = apr_array_make(pcommands, 1, sizeof(char *));
+    /* Perform multiple passes over the brigade, sending batches of output
+       to the connection. */
+    while (b && !APR_BRIGADE_EMPTY(b)) {
+        apr_size_t nbytes = 0;
+        apr_bucket *last_e = NULL; /* initialized for debugging */
+        apr_bucket *e;
 
-    ap_run_rewrite_args(process);
+        /* tail of brigade if we need another pass */
+        apr_bucket_brigade *more = NULL;
 
-    /* Maintain AP_SERVER_BASEARGS list in http_main.h to allow the MPM
-     * to safely pass on our args from its rewrite_args() handler.
-     */
-    apr_getopt_init(&opt, pcommands, process->argc, process->argv);
+        /* one group of iovecs per pass over the brigade */
+        apr_size_t nvec = 0;
+        apr_size_t nvec_trailers = 0;
+        struct iovec vec[MAX_IOVEC_TO_WRITE];
+        struct iovec vec_trailers[MAX_IOVEC_TO_WRITE];
 
-    while ((rv = apr_getopt(opt, AP_SERVER_BASEARGS, &c, &optarg))
-            == APR_SUCCESS) {
-        char **new;
+        /* one file per pass over the brigade */
+        apr_file_t *fd = NULL;
+        apr_size_t flen = 0;
+        apr_off_t foffset = 0;
 
-        switch (c) {
-        case 'c':
-            new = (char **)apr_array_push(ap_server_post_read_config);
-            *new = apr_pstrdup(pcommands, optarg);
-            break;
+        /* keep track of buckets that we've concatenated
+         * to avoid small writes
+         */
+        apr_bucket *last_merged_bucket = NULL;
 
-        case 'C':
-            new = (char **)apr_array_push(ap_server_pre_read_config);
-            *new = apr_pstrdup(pcommands, optarg);
-            break;
-
-        case 'd':
-            def_server_root = optarg;
-            break;
-
-        case 'D':
-            new = (char **)apr_array_push(ap_server_config_defines);
-            *new = apr_pstrdup(pcommands, optarg);
-            break;
-
-        case 'e':
-            if (strcasecmp(optarg, "emerg") == 0) {
-                ap_default_loglevel = APLOG_EMERG;
+        /* Iterate over the brigade: collect iovecs and/or a file */
+        APR_BRIGADE_FOREACH(e, b) {
+            /* keep track of the last bucket processed */
+            last_e = e;
+            if (APR_BUCKET_IS_EOS(e)) {
+                break;
             }
-            else if (strcasecmp(optarg, "alert") == 0) {
-                ap_default_loglevel = APLOG_ALERT;
+            if (APR_BUCKET_IS_FLUSH(e)) {
+                more = apr_brigade_split(b, APR_BUCKET_NEXT(e));
+                break;
             }
-            else if (strcasecmp(optarg, "crit") == 0) {
-                ap_default_loglevel = APLOG_CRIT;
-            }
-            else if (strncasecmp(optarg, "err", 3) == 0) {
-                ap_default_loglevel = APLOG_ERR;
-            }
-            else if (strncasecmp(optarg, "warn", 4) == 0) {
-                ap_default_loglevel = APLOG_WARNING;
-            }
-            else if (strcasecmp(optarg, "notice") == 0) {
-                ap_default_loglevel = APLOG_NOTICE;
-            }
-            else if (strcasecmp(optarg, "info") == 0) {
-                ap_default_loglevel = APLOG_INFO;
-            }
-            else if (strcasecmp(optarg, "debug") == 0) {
-                ap_default_loglevel = APLOG_DEBUG;
+
+            /* It doesn't make any sense to use sendfile for a file bucket
+             * that represents 10 bytes.
+             */
+            else if (APR_BUCKET_IS_FILE(e)
+                     && (e->length >= AP_MIN_SENDFILE_BYTES)) {
+                apr_bucket_file *a = e->data;
+
+                /* We can't handle more than one file bucket at a time
+                 * so we split here and send the file we have already
+                 * found.
+                 */
+                if (fd) {
+                    more = apr_brigade_split(b, e);
+                    break;
+                }
+
+                fd = a->fd;
+                flen = e->length;
+                foffset = e->start;
             }
             else {
-                usage(process);
+                const char *str;
+                apr_size_t n;
+
+                rv = apr_bucket_read(e, &str, &n, APR_BLOCK_READ);
+                if (n) {
+                    if (!fd) {
+                        if (nvec == MAX_IOVEC_TO_WRITE) {
+                            /* woah! too many. buffer them up, for use later. */
+                            apr_bucket *temp, *next;
+                            apr_bucket_brigade *temp_brig;
+
+                            if (nbytes >= AP_MIN_BYTES_TO_WRITE) {
+                                /* We have enough data in the iovec
+                                 * to justify doing a writev
+                                 */
+                                more = apr_brigade_split(b, e);
+                                break;
+                            }
+
+                            /* Create a temporary brigade as a means
+                             * of concatenating a bunch of buckets together
+                             */
+                            if (last_merged_bucket) {
+                                /* If we've concatenated together small
+                                 * buckets already in a previous pass,
+                                 * the initial buckets in this brigade
+                                 * are heap buckets that may have extra
+                                 * space left in them (because they
+                                 * were created by apr_brigade_write()).
+                                 * We can take advantage of this by
+                                 * building the new temp brigade out of
+                                 * these buckets, so that the content
+                                 * in them doesn't have to be copied again.
+                                 */
+                                apr_bucket_brigade *bb;
+                                bb = apr_brigade_split(b,
+                                         APR_BUCKET_NEXT(last_merged_bucket));
+                                temp_brig = b;
+                                b = bb;
+                            }
+                            else {
+                                temp_brig = apr_brigade_create(f->c->pool,
+                                                           f->c->bucket_alloc);
+                            }
+
+                            temp = APR_BRIGADE_FIRST(b);
+                            while (temp != e) {
+                                apr_bucket *d;
+                                rv = apr_bucket_read(temp, &str, &n, APR_BLOCK_READ);
+                                apr_brigade_write(temp_brig, NULL, NULL, str, n);
+                                d = temp;
+                                temp = APR_BUCKET_NEXT(temp);
+                                apr_bucket_delete(d);
+                            }
+
+                            nvec = 0;
+                            nbytes = 0;
+                            temp = APR_BRIGADE_FIRST(temp_brig);
+                            APR_BUCKET_REMOVE(temp);
+                            APR_BRIGADE_INSERT_HEAD(b, temp);
+                            apr_bucket_read(temp, &str, &n, APR_BLOCK_READ);
+                            vec[nvec].iov_base = (char*) str;
+                            vec[nvec].iov_len = n;
+                            nvec++;
+
+                            /* Just in case the temporary brigade has
+                             * multiple buckets, recover the rest of
+                             * them and put them in the brigade that
+                             * we're sending.
+                             */
+                            for (next = APR_BRIGADE_FIRST(temp_brig);
+                                 next != APR_BRIGADE_SENTINEL(temp_brig);
+                                 next = APR_BRIGADE_FIRST(temp_brig)) {
+                                APR_BUCKET_REMOVE(next);
+                                APR_BUCKET_INSERT_AFTER(temp, next);
+                                temp = next;
+                                apr_bucket_read(next, &str, &n,
+                                                APR_BLOCK_READ);
+                                vec[nvec].iov_base = (char*) str;
+                                vec[nvec].iov_len = n;
+                                nvec++;
+                            }
+
+                            apr_brigade_destroy(temp_brig);
+
+                            last_merged_bucket = temp;
+                            e = temp;
+                            last_e = e;
+                        }
+                        else {
+                            vec[nvec].iov_base = (char*) str;
+                            vec[nvec].iov_len = n;
+                            nvec++;
+                        }
+                    }
+                    else {
+                        /* The bucket is a trailer to a file bucket */
+
+                        if (nvec_trailers == MAX_IOVEC_TO_WRITE) {
+                            /* woah! too many. stop now. */
+                            more = apr_brigade_split(b, e);
+                            break;
+                        }
+
+                        vec_trailers[nvec_trailers].iov_base = (char*) str;
+                        vec_trailers[nvec_trailers].iov_len = n;
+                        nvec_trailers++;
+                    }
+
+                    nbytes += n;
+                }
             }
-            break;
-
-        case 'E':
-            temp_error_log = apr_pstrdup(process->pool, optarg);
-            break;
-
-        case 'X':
-            new = (char **)apr_array_push(ap_server_config_defines);
-            *new = "DEBUG";
-            break;
-
-        case 'f':
-            confname = optarg;
-            break;
-
-        case 'v':
-            printf("Server version: %s\n", ap_get_server_version());
-            printf("Server built:   %s\n", ap_get_server_built());
-            destroy_and_exit_process(process, 0);
-
-        case 'V':
-            show_compile_settings();
-            destroy_and_exit_process(process, 0);
-
-        case 'l':
-            ap_show_modules();
-            destroy_and_exit_process(process, 0);
-
-        case 'L':
-            ap_show_directives();
-            destroy_and_exit_process(process, 0);
-
-        case 't':
-            configtestonly = 1;
-            break;
-
-        case 'h':
-        case '?':
-            usage(process);
-        }
-    }
-
-    /* bad cmdline option?  then we die */
-    if (rv != APR_EOF || opt->ind < opt->argc) {
-        usage(process);
-    }
-
-    apr_pool_create(&plog, pglobal);
-    apr_pool_tag(plog, "plog");
-    apr_pool_create(&ptemp, pconf);
-    apr_pool_tag(ptemp, "ptemp");
-
-    /* Note that we preflight the config file once
-     * before reading it _again_ in the main loop.
-     * This allows things, log files configuration
-     * for example, to settle down.
-     */
-
-    ap_server_root = def_server_root;
-    if (temp_error_log) {
-        ap_replace_stderr_log(process->pool, temp_error_log);
-    }
-    server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
-    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Pre-configuration failed\n");
-        destroy_and_exit_process(process, 1);
-    }
-
-    ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
-    ap_fixup_virtual_hosts(pconf, server_conf);
-    ap_fini_vhost_config(pconf, server_conf);
-    apr_sort_hooks();
-    if (configtestonly) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
-        destroy_and_exit_process(process, 0);
-    }
-
-    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
-    if (signal_server) {
-        int exit_status;
-
-        if (signal_server(&exit_status, pconf) != 0) {
-            destroy_and_exit_process(process, exit_status);
-        }
-    }
-
-    apr_pool_clear(plog);
-
-    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                     0, NULL, "Unable to open logs\n");
-        destroy_and_exit_process(process, 1);
-    }
-
-    if ( ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Configuration Failed\n");
-        destroy_and_exit_process(process, 1);
-    }
-
-    apr_pool_destroy(ptemp);
-
-    for (;;) {
-        apr_hook_deregister_all();
-        apr_pool_clear(pconf);
-
-        for (mod = ap_prelinked_modules; *mod != NULL; mod++) {
-            ap_register_hooks(*mod, pconf);
         }
 
-        /* This is a hack until we finish the code so that it only reads
-         * the config file once and just operates on the tree already in
-         * memory.  rbb
+
+        /* Completed iterating over the brigades, now determine if we want
+         * to buffer the brigade or send the brigade out on the network.
+         *
+         * Save if:
+         *
+         *   1) we didn't see a file, we don't have more passes over the
+         *      brigade to perform, we haven't accumulated enough bytes to
+         *      send, AND we didn't stop at a FLUSH bucket.
+         *      (IOW, we will save away plain old bytes)
+         * or
+         *   2) we hit the EOS and have a keep-alive connection
+         *      (IOW, this response is a bit more complex, but we save it
+         *       with the hope of concatenating with another response)
          */
-        ap_conftree = NULL;
-        apr_pool_create(&ptemp, pconf);
-        apr_pool_tag(ptemp, "ptemp");
-        ap_server_root = def_server_root;
-        server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
-        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Pre-configuration failed\n");
-            destroy_and_exit_process(process, 1);
+        if ((!fd && !more
+             && (nbytes + flen < AP_MIN_BYTES_TO_WRITE)
+             && !APR_BUCKET_IS_FLUSH(last_e))
+            || (nbytes + flen < AP_MIN_BYTES_TO_WRITE 
+                && APR_BUCKET_IS_EOS(last_e)
+                && c->keepalive == AP_CONN_KEEPALIVE)) {
+
+            /* NEVER save an EOS in here.  If we are saving a brigade with
+             * an EOS bucket, then we are doing keepalive connections, and
+             * we want to process to second request fully.
+             */
+            if (APR_BUCKET_IS_EOS(last_e)) {
+                apr_bucket *bucket = NULL;
+                /* If we are in here, then this request is a keepalive.  We
+                 * need to be certain that any data in a bucket is valid
+                 * after the request_pool is cleared.
+                 */
+                if (ctx->b == NULL) {
+                    ctx->b = apr_brigade_create(net->c->pool,
+                                                net->c->bucket_alloc);
+                }
+
+                APR_BRIGADE_FOREACH(bucket, b) {
+                    const char *str;
+                    apr_size_t n;
+
+                    rv = apr_bucket_read(bucket, &str, &n, APR_BLOCK_READ);
+
+                    /* This apr_brigade_write does not use a flush function
+                       because we assume that we will not write enough data
+                       into it to cause a flush. However, if we *do* write
+                       "too much", then we could end up with transient
+                       buckets which would suck. This works for now, but is
+                       a bit shaky if changes are made to some of the
+                       buffering sizes. Let's do an assert to prevent
+                       potential future problems... */
+                    AP_DEBUG_ASSERT(AP_MIN_BYTES_TO_WRITE <=
+                                    APR_BUCKET_BUFF_SIZE);
+                    if (rv != APR_SUCCESS) {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, rv, c->base_server,
+                                     "core_output_filter: Error reading from bucket.");
+                        return HTTP_INTERNAL_SERVER_ERROR;
+                    }
+
+                    apr_brigade_write(ctx->b, NULL, NULL, str, n);
+                }
+
+                apr_brigade_destroy(b);
+            }
+            else {
+                ap_save_brigade(f, &ctx->b, &b, c->pool);
+            }
+
+            return APR_SUCCESS;
         }
 
-        ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
-        ap_fixup_virtual_hosts(pconf, server_conf);
-        ap_fini_vhost_config(pconf, server_conf);
-        apr_sort_hooks();
-        apr_pool_clear(plog);
-        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Unable to open logs\n");
-            destroy_and_exit_process(process, 1);
+        if (fd) {
+            apr_hdtr_t hdtr;
+#if APR_HAS_SENDFILE
+            apr_int32_t flags = 0;
+#endif
+
+            memset(&hdtr, '\0', sizeof(hdtr));
+            if (nvec) {
+                hdtr.numheaders = nvec;
+                hdtr.headers = vec;
+            }
+
+            if (nvec_trailers) {
+                hdtr.numtrailers = nvec_trailers;
+                hdtr.trailers = vec_trailers;
+            }
+
+#if APR_HAS_SENDFILE
+            if (c->keepalive == AP_CONN_CLOSE && APR_BUCKET_IS_EOS(last_e)) {
+                /* Prepare the socket to be reused */
+                flags |= APR_SENDFILE_DISCONNECT_SOCKET;
+            }
+
+            rv = sendfile_it_all(net,      /* the network information   */
+                                 fd,       /* the file to send          */
+                                 &hdtr,    /* header and trailer iovecs */
+                                 foffset,  /* offset in the file to begin
+                                              sending from              */
+                                 flen,     /* length of file            */
+                                 nbytes + flen, /* total length including
+                                                   headers                */
+                                 flags);   /* apr_sendfile flags        */
+
+            /* If apr_sendfile() returns APR_ENOTIMPL, call emulate_sendfile().
+             * emulate_sendfile() is useful to enable the same Apache binary
+             * distribution to support Windows NT/2000 (supports TransmitFile)
+             * and Win95/98 (do not support TransmitFile)
+             */
+            if (rv == APR_ENOTIMPL)
+#endif
+            {
+                apr_size_t unused_bytes_sent;
+                rv = emulate_sendfile(net, fd, &hdtr, foffset, flen,
+                                      &unused_bytes_sent);
+            }
+
+            fd = NULL;
+        }
+        else {
+            apr_size_t unused_bytes_sent;
+
+            rv = writev_it_all(net->client_socket,
+                               vec, nvec,
+                               nbytes, &unused_bytes_sent);
         }
 
-        if (ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Configuration Failed\n");
-            destroy_and_exit_process(process, 1);
+        apr_brigade_destroy(b);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
+                         "core_output_filter: writing data to the network");
+
+            if (more)
+                apr_brigade_destroy(more);
+
+            if (APR_STATUS_IS_ECONNABORTED(rv)
+                || APR_STATUS_IS_ECONNRESET(rv)
+                || APR_STATUS_IS_EPIPE(rv)) {
+                c->aborted = 1;
+            }
+
+            /* The client has aborted, but the request was successful. We
+             * will report success, and leave it to the access and error
+             * logs to note that the connection was aborted.
+             */
+            return APR_SUCCESS;
         }
 
-        apr_pool_destroy(ptemp);
-        apr_pool_lock(pconf, 1);
+        b = more;
+        more = NULL;
+    }  /* end while () */
 
-        ap_run_optional_fn_retrieve();
-
-        if (ap_mpm_run(pconf, plog, server_conf))
-            break;
-
-        apr_pool_lock(pconf, 0);
-    }
-
-    apr_pool_lock(pconf, 0);
-    destroy_and_exit_process(process, 0);
-
-    return 0; /* Termination 'ok' */
+    return APR_SUCCESS;
 }

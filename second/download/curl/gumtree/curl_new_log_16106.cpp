@@ -1,10 +1,11 @@
 fputs(
-"                             to  a  file  with  the  -O,  --remote-name or -o,\n"
-"                             --output option. It's most useful in  combination\n"
-"                             with  the -J, --remote-header-name option. (Added\n"
-"                             in 7.26.0)\n"
+"              If  you  use a Windows SSPI-enabled curl binary and perform Ker-\n"
+"              beros V5, Negotiate, NTLM or Digest authentication then you  can\n"
+"              tell  curl  to select the user name and password from your envi-\n"
+"              ronment by specifying a single colon with this option: \"-u :\".\n"
 "\n"
-"              ftp_entry_path The initial path curl ended up in when logging on\n"
-"                             to the remote FTP server. (Added in 7.15.4)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       -v, --verbose\n"
+"              Makes curl verbose during the operation.  Useful  for  debugging\n"
 , stdout);

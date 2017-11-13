@@ -1,0 +1,1 @@
+die_errno(_("Cannot come back to cwd"));

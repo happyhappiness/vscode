@@ -1,1 +1,0 @@
-warning("No LOGIN_OPTIONS support in this cURL version");

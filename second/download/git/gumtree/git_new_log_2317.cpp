@@ -1,1 +1,0 @@
-error_errno("opening %s", config_filename);

@@ -1,1 +1,1 @@
-fprintf(FERROR,"cannot cvs-exclude in long-named directory %s\n",fname);
+fprintf(FERROR,"mkdir %s : %s\n",fname,strerror(errno));

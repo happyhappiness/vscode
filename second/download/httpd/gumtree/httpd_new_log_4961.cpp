@@ -1,5 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(00023)
-                 "Couldn't create the %s mutex %s%s%s", type,
-                 fname ? "(file " : "",
-                 fname ? fname : "",
-                 fname ? ")" : "");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00141)
+                 "Could not initialize random number generator");

@@ -1,1 +1,1 @@
-error_errno("Could not open %s", filename);
+die(_("could not start ls-files in .."));

@@ -1,1 +1,1 @@
-fprintf(stderr,"%s : not a regular file\n",fname);
+fprintf(am_server?stderr:stdout,"%s\n",fname);

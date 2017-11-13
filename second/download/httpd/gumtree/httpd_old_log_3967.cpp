@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: read timeout");
+ap_log_error(dbg.source, dbg.currentline, APLOG_MODULE_INDEX, level, 0, cmd->server, msg);

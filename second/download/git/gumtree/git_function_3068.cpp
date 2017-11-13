@@ -1,14 +1,25 @@
-static void handle_skipped_merge_base(const unsigned char *mb)
+static void check_merge_bases(int no_checkout)
 {
-	char *mb_hex = sha1_to_hex(mb);
-	char *bad_hex = sha1_to_hex(current_bad_oid->hash);
-	char *good_hex = join_sha1_array_hex(&good_revs, ' ');
+	struct commit_list *result;
+	int rev_nr;
+	struct commit **rev = get_bad_and_good_commits(&rev_nr);
 
-	warning("the merge base between %s and [%s] "
-		"must be skipped.\n"
-		"So we cannot be sure the first %s commit is "
-		"between %s and %s.\n"
-		"We continue anyway.",
-		bad_hex, good_hex, term_bad, mb_hex, bad_hex);
-	free(good_hex);
+	result = get_merge_bases_many(rev[0], rev_nr - 1, rev + 1);
+
+	for (; result; result = result->next) {
+		const unsigned char *mb = result->item->object.oid.hash;
+		if (!hashcmp(mb, current_bad_oid->hash)) {
+			handle_bad_merge_base();
+		} else if (0 <= sha1_array_lookup(&good_revs, mb)) {
+			continue;
+		} else if (0 <= sha1_array_lookup(&skipped_revs, mb)) {
+			handle_skipped_merge_base(mb);
+		} else {
+			printf("Bisecting: a merge base must be tested\n");
+			exit(bisect_checkout(mb, no_checkout));
+		}
+	}
+
+	free(rev);
+	free_commit_list(result);
 }

@@ -1,2 +1,4 @@
-ap_rprintf(r, "<dt>Parent Server Config. Generation: %d</dt>\n",
-                   ap_state_query(AP_SQ_CONFIG_GEN));
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ServerSupportFunction "
+                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
+                          r->filename);

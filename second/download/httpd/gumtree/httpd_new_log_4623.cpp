@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00232)
-                         "StartThreads of %d not allowed, increasing to 1",
-                         ap_threads_to_start);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01857)
+                      "query execution error updating session '%s' "
+                      "using database query '%s': %s", key, conf->updatelabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));

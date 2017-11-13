@@ -1,1 +1,1 @@
-out_of_memory("add_suffix");
+fprintf(out, "local const unsigned long FAR ");

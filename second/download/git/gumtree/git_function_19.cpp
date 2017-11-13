@@ -1,21 +1,18 @@
-static void origin_decref(struct origin *o)
+void *object_as_type(struct object *obj, enum object_type type, int quiet)
 {
-	if (o && --o->refcnt <= 0) {
-		struct origin *p, *l = NULL;
-		if (o->previous)
-			origin_decref(o->previous);
-		free(o->file.ptr);
-		/* Should be present exactly once in commit chain */
-		for (p = o->commit->util; p; l = p, p = p->next) {
-			if (p == o) {
-				if (l)
-					l->next = p->next;
-				else
-					o->commit->util = p->next;
-				free(o);
-				return;
-			}
-		}
-		die("internal error in blame::origin_decref");
+	if (obj->type == type)
+		return obj;
+	else if (obj->type == OBJ_NONE) {
+		if (type == OBJ_COMMIT)
+			((struct commit *)obj)->index = alloc_commit_index();
+		obj->type = type;
+		return obj;
+	}
+	else {
+		if (!quiet)
+			error("object %s is a %s, not a %s",
+			      sha1_to_hex(obj->sha1),
+			      typename(obj->type), typename(type));
+		return NULL;
 	}
 }

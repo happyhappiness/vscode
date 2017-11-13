@@ -1,1 +1,1 @@
-printf("%"PRItime" ", commit->date);
+die(_("--merged and --no-merged options are only allowed in list mode"));

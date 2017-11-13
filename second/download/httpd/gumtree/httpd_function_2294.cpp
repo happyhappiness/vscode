@@ -1,84 +1,163 @@
-static int proxy_status_hook(request_rec *r, int flags)
+static int master_main(server_rec *s, HANDLE shutdown_event, HANDLE restart_event)
 {
-    int i, n;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf = (proxy_server_conf *)
-        ap_get_module_config(sconf, &proxy_module);
-    proxy_balancer *balancer = NULL;
-    proxy_worker *worker = NULL;
+    int rv, cld;
+    int child_created;
+    int restart_pending;
+    int shutdown_pending;
+    HANDLE child_exit_event;
+    HANDLE event_handles[NUM_WAIT_HANDLES];
+    DWORD child_pid;
 
-    if (flags & AP_STATUS_SHORT || conf->balancers->nelts == 0 ||
-        conf->proxy_status == status_off)
-        return OK;
+    child_created = restart_pending = shutdown_pending = 0;
 
-    balancer = (proxy_balancer *)conf->balancers->elts;
-    for (i = 0; i < conf->balancers->nelts; i++) {
-        ap_rputs("<hr />\n<h1>Proxy LoadBalancer Status for ", r);
-        ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);
-        ap_rputs("\n\n<table border=\"0\"><tr>"
-                 "<th>SSes</th><th>Timeout</th><th>Method</th>"
-                 "</tr>\n<tr>", r);
-        if (balancer->sticky) {
-            ap_rvputs(r, "<td>", balancer->sticky, NULL);
+    event_handles[SHUTDOWN_HANDLE] = shutdown_event;
+    event_handles[RESTART_HANDLE] = restart_event;
+
+    /* Create a single child process */
+    rv = create_process(pconf, &event_handles[CHILD_HANDLE],
+                        &child_exit_event, &child_pid);
+    if (rv < 0)
+    {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: create child process failed. Exiting.");
+        shutdown_pending = 1;
+        goto die_now;
+    }
+
+    child_created = 1;
+
+    if (!strcasecmp(signal_arg, "runservice")) {
+        mpm_service_started();
+    }
+
+    /* Update the scoreboard. Note that there is only a single active
+     * child at once.
+     */
+    ap_scoreboard_image->parent[0].quiescing = 0;
+    ap_scoreboard_image->parent[0].pid = child_pid;
+
+    /* Wait for shutdown or restart events or for child death */
+    winnt_mpm_state = AP_MPMQ_RUNNING;
+    rv = WaitForMultipleObjects(NUM_WAIT_HANDLES, (HANDLE *) event_handles, FALSE, INFINITE);
+    cld = rv - WAIT_OBJECT_0;
+    if (rv == WAIT_FAILED) {
+        /* Something serious is wrong */
+        ap_log_error(APLOG_MARK,APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: WaitForMultipeObjects WAIT_FAILED -- doing server shutdown");
+        shutdown_pending = 1;
+    }
+    else if (rv == WAIT_TIMEOUT) {
+        /* Hey, this cannot happen */
+        ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                     "master_main: WaitForMultipeObjects with INFINITE wait exited with WAIT_TIMEOUT");
+        shutdown_pending = 1;
+    }
+    else if (cld == SHUTDOWN_HANDLE) {
+        /* shutdown_event signalled */
+        shutdown_pending = 1;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s,
+                     "Parent: Received shutdown signal -- Shutting down the server.");
+        if (ResetEvent(shutdown_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "ResetEvent(shutdown_event)");
+        }
+    }
+    else if (cld == RESTART_HANDLE) {
+        /* Received a restart event. Prepare the restart_event to be reused
+         * then signal the child process to exit.
+         */
+        restart_pending = 1;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                     "Parent: Received restart signal -- Restarting the server.");
+        if (ResetEvent(restart_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: ResetEvent(restart_event) failed.");
+        }
+        if (SetEvent(child_exit_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: SetEvent for child process %pp failed.",
+                         event_handles[CHILD_HANDLE]);
+        }
+        /* Don't wait to verify that the child process really exits,
+         * just move on with the restart.
+         */
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;
+    }
+    else {
+        /* The child process exited prematurely due to a fatal error. */
+        DWORD exitcode;
+        if (!GetExitCodeProcess(event_handles[CHILD_HANDLE], &exitcode)) {
+            /* HUH? We did exit, didn't we? */
+            exitcode = APEXIT_CHILDFATAL;
+        }
+        if (   exitcode == APEXIT_CHILDFATAL
+            || exitcode == APEXIT_CHILDINIT
+            || exitcode == APEXIT_INIT) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "Parent: child process exited with status %lu -- Aborting.", exitcode);
+            shutdown_pending = 1;
         }
         else {
-            ap_rputs("<td> - ", r);
+            int i;
+            restart_pending = 1;
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Parent: child process exited with status %lu -- Restarting.", exitcode);
+            for (i = 0; i < ap_threads_per_child; i++) {
+                ap_update_child_status_from_indexes(0, i, SERVER_DEAD, NULL);
+            }
         }
-        ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
-                   apr_time_sec(balancer->timeout));
-        ap_rprintf(r, "<td>%s</td>\n",
-                   balancer->lbmethod->name);
-        ap_rputs("</table>\n", r);
-        ap_rputs("\n\n<table border=\"0\"><tr>"
-                 "<th>Sch</th><th>Host</th><th>Stat</th>"
-                 "<th>Route</th><th>Redir</th>"
-                 "<th>F</th><th>Set</th><th>Acc</th><th>Wr</th><th>Rd</th>"
-                 "</tr>\n", r);
-
-        worker = (proxy_worker *)balancer->workers->elts;
-        for (n = 0; n < balancer->workers->nelts; n++) {
-            char fbuf[50];
-            ap_rvputs(r, "<tr>\n<td>", worker->scheme, "</td>", NULL);
-            ap_rvputs(r, "<td>", worker->hostname, "</td><td>", NULL);
-            if (worker->s->status & PROXY_WORKER_DISABLED)
-                ap_rputs("Dis", r);
-            else if (worker->s->status & PROXY_WORKER_IN_ERROR)
-                ap_rputs("Err", r);
-            else if (worker->s->status & PROXY_WORKER_INITIALIZED)
-                ap_rputs("Ok", r);
-            else
-                ap_rputs("-", r);
-            ap_rvputs(r, "</td><td>", worker->s->route, NULL);
-            ap_rvputs(r, "</td><td>", worker->s->redirect, NULL);
-            ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
-            ap_rprintf(r, "<td>%d</td>", worker->s->lbset);
-            ap_rprintf(r, "<td>%" APR_SIZE_T_FMT "</td><td>", worker->s->elected);
-            ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
-            ap_rputs("</td><td>", r);
-            ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
-            ap_rputs("</td>\n", r);
-
-            /* TODO: Add the rest of dynamic worker data */
-            ap_rputs("</tr>\n", r);
-
-            ++worker;
-        }
-        ap_rputs("</table>\n", r);
-        ++balancer;
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;
     }
-    ap_rputs("<hr /><table>\n"
-             "<tr><th>SSes</th><td>Sticky session name</td></tr>\n"
-             "<tr><th>Timeout</th><td>Balancer Timeout</td></tr>\n"
-             "<tr><th>Sch</th><td>Connection scheme</td></tr>\n"
-             "<tr><th>Host</th><td>Backend Hostname</td></tr>\n"
-             "<tr><th>Stat</th><td>Worker status</td></tr>\n"
-             "<tr><th>Route</th><td>Session Route</td></tr>\n"
-             "<tr><th>Redir</th><td>Session Route Redirection</td></tr>\n"
-             "<tr><th>F</th><td>Load Balancer Factor in %</td></tr>\n"
-             "<tr><th>Acc</th><td>Number of requests</td></tr>\n"
-             "<tr><th>Wr</th><td>Number of bytes transferred</td></tr>\n"
-             "<tr><th>Rd</th><td>Number of bytes read</td></tr>\n"
-             "</table>", r);
+    if (restart_pending) {
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
+    }
+die_now:
+    if (shutdown_pending)
+    {
+        int timeout = 30000;  /* Timeout is milliseconds */
+        winnt_mpm_state = AP_MPMQ_STOPPING;
 
-    return OK;
+        if (!child_created) {
+            return 0;  /* Tell the caller we do not want to restart */
+        }
+
+        /* This shutdown is only marginally graceful. We will give the
+         * child a bit of time to exit gracefully. If the time expires,
+         * the child will be wacked.
+         */
+        if (!strcasecmp(signal_arg, "runservice")) {
+            mpm_service_stopping();
+        }
+        /* Signal the child processes to exit */
+        if (SetEvent(child_exit_event) == 0) {
+                ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
+                             "Parent: SetEvent for child process %pp failed",
+                             event_handles[CHILD_HANDLE]);
+        }
+        if (event_handles[CHILD_HANDLE]) {
+            rv = WaitForSingleObject(event_handles[CHILD_HANDLE], timeout);
+            if (rv == WAIT_OBJECT_0) {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Child process exited successfully.");
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
+            }
+            else {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %pp",
+                             event_handles[CHILD_HANDLE]);
+                TerminateProcess(event_handles[CHILD_HANDLE], 1);
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
+            }
+        }
+        CloseHandle(child_exit_event);
+        return 0;  /* Tell the caller we do not want to restart */
+    }
+    winnt_mpm_state = AP_MPMQ_STARTING;
+    CloseHandle(child_exit_event);
+    return 1;      /* Tell the caller we want a restart */
 }

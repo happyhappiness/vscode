@@ -1,17 +1,35 @@
-static void record_ws_error(unsigned result, const char *line, int len, int linenr)
+static struct object_list **process_tree(struct tree *tree,
+					 struct object_list **p)
 {
-	char *err;
+	struct object *obj = &tree->object;
+	struct tree_desc desc;
+	struct name_entry entry;
 
-	if (!result)
-		return;
+	obj->flags |= LOCAL;
 
-	whitespace_error++;
-	if (squelch_whitespace_errors &&
-	    squelch_whitespace_errors < whitespace_error)
-		return;
+	if (obj->flags & (UNINTERESTING | SEEN))
+		return p;
+	if (parse_tree(tree) < 0)
+		die("bad tree object %s", sha1_to_hex(obj->sha1));
 
-	err = whitespace_error_string(result);
-	fprintf(stderr, "%s:%d: %s.\n%.*s\n",
-		patch_input_file, linenr, err, len, line);
-	free(err);
+	obj->flags |= SEEN;
+	p = add_one_object(obj, p);
+
+	init_tree_desc(&desc, tree->buffer, tree->size);
+
+	while (tree_entry(&desc, &entry))
+		switch (object_type(entry.mode)) {
+		case OBJ_TREE:
+			p = process_tree(lookup_tree(entry.sha1), p);
+			break;
+		case OBJ_BLOB:
+			p = process_blob(lookup_blob(entry.sha1), p);
+			break;
+		default:
+			/* Subproject commit - not in this repository */
+			break;
+		}
+
+	free_tree_buffer(tree);
+	return p;
 }

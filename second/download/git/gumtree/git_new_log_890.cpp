@@ -1,1 +1,1 @@
-die("error while iterating over references");
+error("unable to unpack contents of %s", path);

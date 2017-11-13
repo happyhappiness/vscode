@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01969)
-                     "Init: Requesting pass phrase from dialog filter "
-                     "program (%s)", cmd);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02212) "Can't open %s", pkcs7);

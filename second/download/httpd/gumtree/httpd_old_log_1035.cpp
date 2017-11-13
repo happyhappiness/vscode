@@ -1,1 +1,0 @@
-apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d\n", rv);

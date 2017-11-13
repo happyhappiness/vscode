@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03157)
-                      "selected protocol=%s", 
-                      protocol? protocol : "(none)");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Read: %s",
+                      MODSSL_LIBRARY_NAME, SSL_state_string_long(ssl));

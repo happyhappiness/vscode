@@ -1,1 +1,1 @@
-die_errno(_("could not open temporary file"));
+die_errno(_("could not rename temporary file to %s"), file);

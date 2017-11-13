@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+error("remote-curl: error reading command stream from git");

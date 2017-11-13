@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-              "proxy: worker %s already initialized",
-              worker->name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache_disk: URL %s failed the size check "
+                         "(%" APR_OFF_T_FMT " > %" APR_OFF_T_FMT ")",
+                         h->cache_obj->key, dobj->file_size, conf->maxfs);

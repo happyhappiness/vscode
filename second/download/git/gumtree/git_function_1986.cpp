@@ -1,55 +1,91 @@
-struct http_pack_request *new_http_pack_request(
-	struct packed_git *target, const char *base_url)
+static int delete_branches(int argc, const char **argv, int force, int kinds,
+			   int quiet)
 {
-	long prev_posn = 0;
-	char range[RANGE_HEADER_SIZE];
-	struct strbuf buf = STRBUF_INIT;
-	struct http_pack_request *preq;
+	struct commit *head_rev = NULL;
+	unsigned char sha1[20];
+	char *name = NULL;
+	const char *fmt;
+	int i;
+	int ret = 0;
+	int remote_branch = 0;
+	struct strbuf bname = STRBUF_INIT;
 
-	preq = xcalloc(1, sizeof(*preq));
-	preq->target = target;
+	switch (kinds) {
+	case REF_REMOTE_BRANCH:
+		fmt = "refs/remotes/%s";
+		/* For subsequent UI messages */
+		remote_branch = 1;
 
-	end_url_with_slash(&buf, base_url);
-	strbuf_addf(&buf, "objects/pack/pack-%s.pack",
-		sha1_to_hex(target->sha1));
-	preq->url = strbuf_detach(&buf, NULL);
-
-	snprintf(preq->tmpfile, sizeof(preq->tmpfile), "%s.temp",
-		sha1_pack_name(target->sha1));
-	preq->packfile = fopen(preq->tmpfile, "a");
-	if (!preq->packfile) {
-		error("Unable to open local file %s for pack",
-		      preq->tmpfile);
-		goto abort;
+		force = 1;
+		break;
+	case REF_LOCAL_BRANCH:
+		fmt = "refs/heads/%s";
+		break;
+	default:
+		die(_("cannot use -a with -d"));
 	}
 
-	preq->slot = get_active_slot();
-	curl_easy_setopt(preq->slot->curl, CURLOPT_FILE, preq->packfile);
-	curl_easy_setopt(preq->slot->curl, CURLOPT_WRITEFUNCTION, fwrite);
-	curl_easy_setopt(preq->slot->curl, CURLOPT_URL, preq->url);
-	curl_easy_setopt(preq->slot->curl, CURLOPT_HTTPHEADER,
-		no_pragma_header);
+	if (!force) {
+		head_rev = lookup_commit_reference(head_sha1);
+		if (!head_rev)
+			die(_("Couldn't look up commit object for HEAD"));
+	}
+	for (i = 0; i < argc; i++, strbuf_release(&bname)) {
+		const char *target;
+		int flags = 0;
 
-	/*
-	 * If there is data present from a previous transfer attempt,
-	 * resume where it left off
-	 */
-	prev_posn = ftell(preq->packfile);
-	if (prev_posn>0) {
-		if (http_is_verbose)
-			fprintf(stderr,
-				"Resuming fetch of pack %s at byte %ld\n",
-				sha1_to_hex(target->sha1), prev_posn);
-		sprintf(range, "Range: bytes=%ld-", prev_posn);
-		preq->range_header = curl_slist_append(NULL, range);
-		curl_easy_setopt(preq->slot->curl, CURLOPT_HTTPHEADER,
-			preq->range_header);
+		strbuf_branchname(&bname, argv[i]);
+		if (kinds == REF_LOCAL_BRANCH && !strcmp(head, bname.buf)) {
+			error(_("Cannot delete the branch '%s' "
+			      "which you are currently on."), bname.buf);
+			ret = 1;
+			continue;
+		}
+
+		free(name);
+
+		name = mkpathdup(fmt, bname.buf);
+		target = resolve_ref_unsafe(name,
+					    RESOLVE_REF_READING
+					    | RESOLVE_REF_NO_RECURSE
+					    | RESOLVE_REF_ALLOW_BAD_NAME,
+					    sha1, &flags);
+		if (!target) {
+			error(remote_branch
+			      ? _("remote branch '%s' not found.")
+			      : _("branch '%s' not found."), bname.buf);
+			ret = 1;
+			continue;
+		}
+
+		if (!(flags & (REF_ISSYMREF|REF_ISBROKEN)) &&
+		    check_branch_commit(bname.buf, name, sha1, head_rev, kinds,
+					force)) {
+			ret = 1;
+			continue;
+		}
+
+		if (delete_ref(name, sha1, REF_NODEREF)) {
+			error(remote_branch
+			      ? _("Error deleting remote branch '%s'")
+			      : _("Error deleting branch '%s'"),
+			      bname.buf);
+			ret = 1;
+			continue;
+		}
+		if (!quiet) {
+			printf(remote_branch
+			       ? _("Deleted remote branch %s (was %s).\n")
+			       : _("Deleted branch %s (was %s).\n"),
+			       bname.buf,
+			       (flags & REF_ISBROKEN) ? "broken"
+			       : (flags & REF_ISSYMREF) ? target
+			       : find_unique_abbrev(sha1, DEFAULT_ABBREV));
+		}
+		delete_branch_config(bname.buf);
 	}
 
-	return preq;
+	free(name);
 
-abort:
-	free(preq->url);
-	free(preq);
-	return NULL;
+	return(ret);
 }

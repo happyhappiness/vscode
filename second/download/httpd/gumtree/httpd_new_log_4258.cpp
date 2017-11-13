@@ -1,3 +1,3 @@
-ssl_log_cxerror(SSLLOG_MARK, APLOG_DEBUG, 0, c, info->x509, APLOGNO(02277)
-                    SSLPROXY_CERT_CB_LOG_FMT "%s, sending",
-                    (mySrvConfigFromConn(c))->vhost_id, msg);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01189)
+                          "%s: Lock failed for balancer_handler",
+                          balancer->s->name);

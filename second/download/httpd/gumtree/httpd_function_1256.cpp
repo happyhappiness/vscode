@@ -1,77 +1,166 @@
-void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
-                             apr_proc_mutex_t **child_start_mutex,
-                             apr_shm_t **scoreboard_shm)
+static void show_compile_settings(void)
 {
-    HANDLE hScore;
-    HANDLE ready_event;
-    HANDLE os_start;
-    DWORD BytesRead;
-    void *sb_shared;
-    apr_status_t rv;
-
-    /* *** We now do this was back in winnt_rewrite_args
-     * pipe = GetStdHandle(STD_INPUT_HANDLE);
+    printf("Server version: %s\n", ap_get_server_version());
+    printf("Server built:   %s\n", ap_get_server_built());
+    printf("Server's Module Magic Number: %u:%u\n",
+           MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
+    printf("Server loaded:  APR %s, APR-Util %s\n",
+           apr_version_string(), apu_version_string());
+    printf("Compiled using: APR %s, APR-Util %s\n",
+           APR_VERSION_STRING, APU_VERSION_STRING);
+    /* sizeof(foo) is long on some platforms so we might as well
+     * make it long everywhere to keep the printf format
+     * consistent
      */
-    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(HANDLE))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
+    printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
 
-    SetEvent(ready_event);
-    CloseHandle(ready_event);
+    show_mpm_settings();
 
-    if (!ReadFile(pipe, child_exit_event, sizeof(HANDLE),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(HANDLE))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the exit event from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
+    printf("Server compiled with....\n");
+#ifdef BIG_SECURITY_HOLE
+    printf(" -D BIG_SECURITY_HOLE\n");
+#endif
 
-    if (!ReadFile(pipe, &os_start, sizeof(os_start),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(os_start))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the start_mutex from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    *child_start_mutex = NULL;
-    if ((rv = apr_os_proc_mutex_put(child_start_mutex, &os_start, s->process->pool))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Child %d: Unable to access the start_mutex from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
+#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
+    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
+#endif
 
-    if (!ReadFile(pipe, &hScore, sizeof(hScore),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(hScore))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    *scoreboard_shm = NULL;
-    if ((rv = apr_os_shm_put(scoreboard_shm, &hScore, s->process->pool))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
+#ifdef OS
+    printf(" -D OS=\"" OS "\"\n");
+#endif
 
-    rv = ap_reopen_scoreboard(s->process->pool, scoreboard_shm, 1);
-    if (rv || !(sb_shared = apr_shm_baseaddr_get(*scoreboard_shm))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    /* We must 'initialize' the scoreboard to relink all the
-     * process-local pointer arrays into the shared memory block.
-     */
-    ap_init_scoreboard(sb_shared);
+#ifdef APACHE_MPM_DIR
+    printf(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n");
+#endif
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
+#ifdef HAVE_SHMGET
+    printf(" -D HAVE_SHMGET\n");
+#endif
+
+#if APR_FILE_BASED_SHM
+    printf(" -D APR_FILE_BASED_SHM\n");
+#endif
+
+#if APR_HAS_SENDFILE
+    printf(" -D APR_HAS_SENDFILE\n");
+#endif
+
+#if APR_HAS_MMAP
+    printf(" -D APR_HAS_MMAP\n");
+#endif
+
+#ifdef NO_WRITEV
+    printf(" -D NO_WRITEV\n");
+#endif
+
+#ifdef NO_LINGCLOSE
+    printf(" -D NO_LINGCLOSE\n");
+#endif
+
+#if APR_HAVE_IPV6
+    printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");
+#ifdef AP_ENABLE_V4_MAPPED
+    printf("enabled)\n");
+#else
+    printf("disabled)\n");
+#endif
+#endif
+
+#if APR_USE_FLOCK_SERIALIZE
+    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
+#endif
+
+#if APR_USE_SYSVSEM_SERIALIZE
+    printf(" -D APR_USE_SYSVSEM_SERIALIZE\n");
+#endif
+
+#if APR_USE_POSIXSEM_SERIALIZE
+    printf(" -D APR_USE_POSIXSEM_SERIALIZE\n");
+#endif
+
+#if APR_USE_FCNTL_SERIALIZE
+    printf(" -D APR_USE_FCNTL_SERIALIZE\n");
+#endif
+
+#if APR_USE_PROC_PTHREAD_SERIALIZE
+    printf(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n");
+#endif
+
+#if APR_USE_PTHREAD_SERIALIZE
+    printf(" -D APR_USE_PTHREAD_SERIALIZE\n");
+#endif
+
+#if APR_PROCESS_LOCK_IS_GLOBAL
+    printf(" -D APR_PROCESS_LOCK_IS_GLOBAL\n");
+#endif
+
+#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
+    printf(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n");
+#endif
+
+#if APR_HAS_OTHER_CHILD
+    printf(" -D APR_HAS_OTHER_CHILD\n");
+#endif
+
+#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
+    printf(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n");
+#endif
+
+#ifdef BUFFERED_LOGS
+    printf(" -D BUFFERED_LOGS\n");
+#ifdef PIPE_BUF
+    printf(" -D PIPE_BUF=%ld\n",(long)PIPE_BUF);
+#endif
+#endif
+
+    printf(" -D DYNAMIC_MODULE_LIMIT=%ld\n",(long)DYNAMIC_MODULE_LIMIT);
+
+#if APR_CHARSET_EBCDIC
+    printf(" -D APR_CHARSET_EBCDIC\n");
+#endif
+
+#ifdef NEED_HASHBANG_EMUL
+    printf(" -D NEED_HASHBANG_EMUL\n");
+#endif
+
+#ifdef SHARED_CORE
+    printf(" -D SHARED_CORE\n");
+#endif
+
+/* This list displays the compiled in default paths: */
+#ifdef HTTPD_ROOT
+    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
+#endif
+
+#ifdef SUEXEC_BIN
+    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
+#endif
+
+#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
+    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
+#endif
+
+#ifdef DEFAULT_PIDLOG
+    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
+#endif
+
+#ifdef DEFAULT_SCOREBOARD
+    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
+#endif
+
+#ifdef DEFAULT_LOCKFILE
+    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
+#endif
+
+#ifdef DEFAULT_ERRORLOG
+    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
+#endif
+
+#ifdef AP_TYPES_CONFIG_FILE
+    printf(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n");
+#endif
+
+#ifdef SERVER_CONFIG_FILE
+    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
+#endif
 }

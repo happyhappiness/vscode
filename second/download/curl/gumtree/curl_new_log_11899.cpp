@@ -1,9 +1,9 @@
 fputs(
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              (for example POST or PUT), it will do the following request with\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code was any other 3xx code, curl  will  re-send  the  following\n"
+"              request using the same unmodified method.\n"
 "\n"
-"       -m, --max-time <seconds>\n"
-"              Maximum time in seconds that you allow the  whole  operation  to\n"
-"              take.   This is useful for preventing your batch jobs from hang-\n"
-"              ing for hours due to slow networks or links going  down.   Since\n"
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
+"              You  can  tell  curl to not change the non-GET request method to\n"
+"              GET after a 30x response by  using  the  dedicated  options  for\n"
 , stdout);

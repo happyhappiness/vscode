@@ -1,11 +1,9 @@
 fputs(
-"              The  given  offset  is  the  exact  number of bytes that will be\n"
-"              skipped, counting from the beginning of the source  file  before\n"
-"              it is transferred to the destination.  If used with uploads, the\n"
-"              FTP server command SIZE will not be used by curl.\n"
+"              characters can be used as separators. If the option is specified\n"
+"              with one or two dashes, there can be no colon or equals  charac-\n"
+"              ter between the option and its parameter.\n"
 "\n"
-"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
-"              resume  the  transfer. It then uses the given output/input files\n"
-"              to figure that out.\n"
-"\n"
+"              If the parameter is to contain whitespace, the parameter must be\n"
+"              enclosed within quotes.  Within  double  quotes,  the  following\n"
+"              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
 , stdout);

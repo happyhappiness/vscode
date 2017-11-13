@@ -1,2 +1,3 @@
-die(_("patch fragment without header at line %d: %.*s"),
-			    linenr, (int)len-1, line);
+fprintf(stderr,	"PUT %s failed, aborting (%d/%ld)\n",
+				sha1_to_hex(request->obj->sha1),
+				request->curl_result, request->http_code);

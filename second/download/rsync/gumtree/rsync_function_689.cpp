@@ -1,204 +1,267 @@
-void server_options(char **args,int *argc)
+static int rsync_module(int fd, int i)
 {
-	int ac = *argc;
-	static char argstr[50];
-	char *arg;
+	int argc=0;
+	char *argv[MAX_ARGS];
+	char **argp;
+	char line[MAXPATHLEN];
+	uid_t uid = (uid_t)-2;  /* canonically "nobody" */
+	gid_t gid = (gid_t)-2;
+	char *p;
+	char *addr = client_addr(fd);
+	char *host = client_name(fd);
+	char *name = lp_name(i);
+	int use_chroot = lp_use_chroot(i);
+	int start_glob=0;
+	int ret;
+	char *request=NULL;
+	extern int am_sender;
+	extern int remote_version;
+	extern int am_root;
 
-	int i, x;
-
-	if (blocking_io == -1)
-		blocking_io = 0;
-
-	args[ac++] = "--server";
-
-	if (daemon_over_rsh) {
-		args[ac++] = "--daemon";
-		*argc = ac;
-		/* if we're passing --daemon, we're done */
-		return;
+	if (!allow_access(addr, host, lp_hosts_allow(i), lp_hosts_deny(i))) {
+		rprintf(FERROR,"rsync denied on module %s from %s (%s)\n",
+			name, host, addr);
+		io_printf(fd,"@ERROR: access denied to %s from %s (%s)\n",
+			  name, host, addr);
+		return -1;
 	}
 
-	if (!am_sender)
-		args[ac++] = "--sender";
-
-	x = 1;
-	argstr[0] = '-';
-	for (i = 0; i < verbose; i++)
-		argstr[x++] = 'v';
-
-	/* the -q option is intentionally left out */
-	if (make_backups)
-		argstr[x++] = 'b';
-	if (update_only)
-		argstr[x++] = 'u';
-	if (dry_run)
-		argstr[x++] = 'n';
-	if (preserve_links)
-		argstr[x++] = 'l';
-	if (copy_links)
-		argstr[x++] = 'L';
-
-	if (whole_file > 0)
-		argstr[x++] = 'W';
-	/* We don't need to send --no-whole-file, because it's the
-	 * default for remote transfers, and in any case old versions
-	 * of rsync will not understand it. */
-
-	if (preserve_hard_links)
-		argstr[x++] = 'H';
-	if (preserve_uid)
-		argstr[x++] = 'o';
-	if (preserve_gid)
-		argstr[x++] = 'g';
-	if (preserve_devices)
-		argstr[x++] = 'D';
-	if (preserve_times)
-		argstr[x++] = 't';
-	if (preserve_perms)
-		argstr[x++] = 'p';
-	if (recurse)
-		argstr[x++] = 'r';
-	if (always_checksum)
-		argstr[x++] = 'c';
-	if (cvs_exclude)
-		argstr[x++] = 'C';
-	if (ignore_times)
-		argstr[x++] = 'I';
-	if (relative_paths)
-		argstr[x++] = 'R';
-	if (one_file_system)
-		argstr[x++] = 'x';
-	if (sparse_files)
-		argstr[x++] = 'S';
-	if (do_compression)
-		argstr[x++] = 'z';
-
-	/* this is a complete hack - blame Rusty
-
-	   this is a hack to make the list_only (remote file list)
-	   more useful */
-	if (list_only && !recurse)
-		argstr[x++] = 'r';
-
-	argstr[x] = 0;
-
-	if (x != 1)
-		args[ac++] = argstr;
-
-	if (block_size) {
-		if (asprintf(&arg, "-B%u", block_size) < 0)
-			goto oom;
-		args[ac++] = arg;
-	}
-
-	if (max_delete && am_sender) {
-		if (asprintf(&arg, "--max-delete=%d", max_delete) < 0)
-			goto oom;
-		args[ac++] = arg;
-	}
-
-	if (batch_prefix) {
-		char *r_or_w = write_batch ? "write" : "read";
-		if (asprintf(&arg, "--%s-batch=%s", r_or_w, batch_prefix) < 0)
-			goto oom;
-		args[ac++] = arg;
-	}
-
-	if (io_timeout) {
-		if (asprintf(&arg, "--timeout=%d", io_timeout) < 0)
-			goto oom;
-		args[ac++] = arg;
-	}
-
-	if (bwlimit) {
-		if (asprintf(&arg, "--bwlimit=%d", bwlimit) < 0)
-			goto oom;
-		args[ac++] = arg;
-	}
-
-	if (backup_dir) {
-		args[ac++] = "--backup-dir";
-		args[ac++] = backup_dir;
-	}
-
-	/* Only send --suffix if it specifies a non-default value. */
-	if (strcmp(backup_suffix, backup_dir ? "" : BACKUP_SUFFIX) != 0) {
-		/* We use the following syntax to avoid weirdness with '~'. */
-		if (asprintf(&arg, "--suffix=%s", backup_suffix) < 0)
-			goto oom;
-		args[ac++] = arg;
-	}
-
-	if (delete_excluded)
-		args[ac++] = "--delete-excluded";
-	else if (delete_mode)
-		args[ac++] = "--delete";
-
-	if (size_only)
-		args[ac++] = "--size-only";
-
-	if (modify_window_set) {
-		if (asprintf(&arg, "--modify-window=%d", modify_window) < 0)
-			goto oom;
-		args[ac++] = arg;
-	}
-
-	if (keep_partial)
-		args[ac++] = "--partial";
-
-	if (force_delete)
-		args[ac++] = "--force";
-
-	if (delete_after)
-		args[ac++] = "--delete-after";
-
-	if (ignore_errors)
-		args[ac++] = "--ignore-errors";
-
-	if (copy_unsafe_links)
-		args[ac++] = "--copy-unsafe-links";
-
-	if (safe_symlinks)
-		args[ac++] = "--safe-links";
-
-	if (numeric_ids)
-		args[ac++] = "--numeric-ids";
-
-	if (only_existing && am_sender)
-		args[ac++] = "--existing";
-
-	if (opt_ignore_existing && am_sender)
-		args[ac++] = "--ignore-existing";
-
-	if (tmpdir) {
-		args[ac++] = "--temp-dir";
-		args[ac++] = tmpdir;
-	}
-
-	if (compare_dest && am_sender) {
-		/* the server only needs this option if it is not the sender,
-		 *   and it may be an older version that doesn't know this
-		 *   option, so don't send it if client is the sender.
-		 */
-		args[ac++] = link_dest ? "--link-dest" : "--compare-dest";
-		args[ac++] = compare_dest;
-	}
-
-	if (files_from && (!am_sender || remote_filesfrom_file)) {
-		if (remote_filesfrom_file) {
-			args[ac++] = "--files-from";
-			args[ac++] = remote_filesfrom_file;
-			if (eol_nulls)
-				args[ac++] = "--from0";
+	if (!claim_connection(lp_lock_file(i), lp_max_connections(i))) {
+		if (errno) {
+			rprintf(FERROR,"failed to open lock file %s : %s\n",
+				lp_lock_file(i), strerror(errno));
+			io_printf(fd,"@ERROR: failed to open lock file %s : %s\n",
+				  lp_lock_file(i), strerror(errno));
 		} else {
-			args[ac++] = "--files-from=-";
-			args[ac++] = "--from0";
+			rprintf(FERROR,"max connections (%d) reached\n",
+				lp_max_connections(i));
+			io_printf(fd,"@ERROR: max connections (%d) reached - try again later\n", lp_max_connections(i));
+		}
+		return -1;
+	}
+
+	
+	auth_user = auth_server(fd, i, addr, "@RSYNCD: AUTHREQD ");
+
+	if (!auth_user) {
+		rprintf(FERROR,"auth failed on module %s from %s (%s)\n",
+			name, client_name(fd), client_addr(fd));
+		io_printf(fd,"@ERROR: auth failed on module %s\n",name);
+		return -1;		
+	}
+
+	module_id = i;
+
+	am_root = (getuid() == 0);
+
+	if (am_root) {
+		p = lp_uid(i);
+		if (!name_to_uid(p, &uid)) {
+			if (!isdigit(*p)) {
+				rprintf(FERROR,"Invalid uid %s\n", p);
+				io_printf(fd,"@ERROR: invalid uid %s\n", p);
+				return -1;
+			} 
+			uid = atoi(p);
+		}
+
+		p = lp_gid(i);
+		if (!name_to_gid(p, &gid)) {
+			if (!isdigit(*p)) {
+				rprintf(FERROR,"Invalid gid %s\n", p);
+				io_printf(fd,"@ERROR: invalid gid %s\n", p);
+				return -1;
+			} 
+			gid = atoi(p);
+		}
+	}
+        
+        /* TODO: If we're not root, but the configuration requests
+         * that we change to some uid other than the current one, then
+         * log a warning. */
+
+        /* TODO: Perhaps take a list of gids, and make them into the
+         * supplementary groups. */
+
+	p = lp_include_from(i);
+	add_exclude_file(p, 1, 1);
+
+	p = lp_include(i);
+	add_include_line(p);
+
+	p = lp_exclude_from(i);
+	add_exclude_file(p, 1, 0);
+
+	p = lp_exclude(i);
+	add_exclude_line(p);
+
+	log_init();
+
+	if (use_chroot) {
+		/*
+		 * XXX: The 'use chroot' flag is a fairly reliable
+		 * source of confusion, because it fails under two
+		 * important circumstances: running as non-root,
+		 * running on Win32 (or possibly others).  On the
+		 * other hand, if you are running as root, then it
+		 * might be better to always use chroot.
+		 *
+		 * So, perhaps if we can't chroot we should just issue
+		 * a warning, unless a "require chroot" flag is set,
+		 * in which case we fail.
+		 */
+		if (chroot(lp_path(i))) {
+			rsyserr(FERROR, errno, "chroot %s failed", lp_path(i));
+			io_printf(fd,"@ERROR: chroot failed\n");
+			return -1;
+		}
+
+		if (!push_dir("/", 0)) {
+                        rsyserr(FERROR, errno, "chdir %s failed\n", lp_path(i));
+			io_printf(fd,"@ERROR: chdir failed\n");
+			return -1;
+		}
+
+	} else {
+		if (!push_dir(lp_path(i), 0)) {
+			rsyserr(FERROR, errno, "chdir %s failed\n", lp_path(i));
+			io_printf(fd,"@ERROR: chdir failed\n");
+			return -1;
+		}
+		sanitize_paths = 1;
+	}
+
+	if (am_root) {
+#ifdef HAVE_SETGROUPS
+		/* Get rid of any supplementary groups this process
+		 * might have inheristed. */
+		if (setgroups(0, NULL)) {
+			rsyserr(FERROR, errno, "setgroups failed");
+			io_printf(fd, "@ERROR: setgroups failed\n");
+			return -1;
+		}
+#endif
+
+		/* XXXX: You could argue that if the daemon is started
+		 * by a non-root user and they explicitly specify a
+		 * gid, then we should try to change to that gid --
+		 * this could be possible if it's already in their
+		 * supplementary groups. */
+
+		/* TODO: Perhaps we need to document that if rsyncd is
+		 * started by somebody other than root it will inherit
+		 * all their supplementary groups. */
+
+		if (setgid(gid)) {
+			rsyserr(FERROR, errno, "setgid %d failed", (int) gid);
+			io_printf(fd,"@ERROR: setgid failed\n");
+			return -1;
+		}
+
+		if (setuid(uid)) {
+			rsyserr(FERROR, errno, "setuid %d failed", (int) uid);
+			io_printf(fd,"@ERROR: setuid failed\n");
+			return -1;
+		}
+
+		am_root = (getuid() == 0);
+	}
+
+	io_printf(fd,"@RSYNCD: OK\n");
+
+	argv[argc++] = "rsyncd";
+
+	while (1) {
+		if (!read_line(fd, line, sizeof(line)-1)) {
+			return -1;
+		}
+
+		if (!*line) break;
+
+		p = line;
+
+		argv[argc] = strdup(p);
+		if (!argv[argc]) {
+			return -1;
+		}
+
+		if (start_glob) {
+			if (start_glob == 1) {
+				request = strdup(p);
+				start_glob++;
+			}
+			glob_expand(name, argv, &argc, MAX_ARGS);
+		} else {
+			argc++;
+		}
+
+		if (strcmp(line,".") == 0) {
+			start_glob = 1;
+		}
+
+		if (argc == MAX_ARGS) {
+			return -1;
 		}
 	}
 
-	*argc = ac;
-	return;
+	if (sanitize_paths) {
+		/*
+		 * Note that this is applied to all parameters, whether or not
+		 *    they are filenames, but no other legal parameters contain
+		 *    the forms that need to be sanitized so it doesn't hurt;
+		 *    it is not known at this point which parameters are files
+		 *    and which aren't.
+		 */
+		for (i = 1; i < argc; i++) {
+			sanitize_path(argv[i], NULL);
+		}
+	}
 
-    oom:
-	out_of_memory("server_options");
+        argp = argv;
+	ret = parse_arguments(&argc, (const char ***) &argp, 0);
+
+	if (request) {
+		if (*auth_user) {
+			rprintf(FINFO,"rsync %s %s from %s@%s (%s)\n",
+				am_sender?"on":"to",
+				request, auth_user, host, addr);
+		} else {
+			rprintf(FINFO,"rsync %s %s from %s (%s)\n",
+				am_sender?"on":"to",
+				request, host, addr);
+		}
+		free(request);
+	}
+
+#ifndef DEBUG
+	/* don't allow the logs to be flooded too fast */
+	if (verbose > 1) verbose = 1;
+#endif
+
+	if (remote_version < 23) {
+		if (remote_version == 22 || (remote_version > 17 && am_sender))
+			io_start_multiplex_out(fd);
+	}
+        
+        /* For later protocol versions, we don't start multiplexing
+         * until we've configured nonblocking in start_server.  That
+         * means we're in a sticky situation now: there's no way to
+         * convey errors to the client. */
+
+        /* FIXME: Hold off on reporting option processing errors until
+         * we've set up nonblocking and multiplexed IO and can get the
+         * message back to them. */
+	if (!ret) {
+                option_error();
+                exit_cleanup(RERR_UNSUPPORTED);
+	}
+
+	if (lp_timeout(i)) {
+		extern int io_timeout;
+		io_timeout = lp_timeout(i);
+	}
+
+	start_server(fd, fd, argc, argp);
+
+	return 0;
 }

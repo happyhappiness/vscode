@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                     "cgi: apr_pollset_create(); check system or user limits");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; URI incorrectly encoded: '%.*s'",
+                          field_name_len(r->uri), r->uri);

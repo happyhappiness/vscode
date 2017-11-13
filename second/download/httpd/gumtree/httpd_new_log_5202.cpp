@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                          "%s: Exit: failed in %s",
-                          MODSSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(),
+                     ap_server_conf, APLOGNO(00332)
+                     "winnt_accept: getsockname error on listening socket, "
+                     "is IPv6 available?");

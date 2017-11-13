@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02294)
-                     "slotmem(%s) release failed. Num %u/inuse[%u] %d",
-                     slot->name, slotmem_num_slots(slot),
-                     id, (int)inuse[id]);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
+               "ajp_unmarshal_response: Header[%d] [%s] = [%s]",
+                       i, stringname, value);

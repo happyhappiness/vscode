@@ -1,1 +1,1 @@
-die(_("could not create directory '%s'"), path);
+die(_("Could not read %s."), todo_file);

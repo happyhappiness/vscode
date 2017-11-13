@@ -1,1 +1,1 @@
-fprintf(stderr,"fstat %s : %s\n",fname,strerror(errno));
+fprintf(stderr,"chown %s : %s\n",fname,strerror(errno));

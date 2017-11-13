@@ -1,96 +1,54 @@
-void rwrite(enum logcode code, char *buf, int len)
+static void make_exclude(struct exclude_list_struct *listp, const char *pat,
+			 unsigned int pat_len, unsigned int mflags)
 {
-	int trailing_CR_or_NL;
-	FILE *f = NULL;
+	struct exclude_struct *ret;
+	const char *cp;
+	unsigned int ex_len;
 
-	if (len < 0)
-		exit_cleanup(RERR_MESSAGEIO);
+	ret = new(struct exclude_struct);
+	if (!ret)
+		out_of_memory("make_exclude");
 
-	if (am_server && msg_fd_out >= 0) {
-		/* Pass the message to our sibling. */
-		send_msg((enum msgcode)code, buf, len);
-		return;
-	}
+	memset(ret, 0, sizeof ret[0]);
 
-	if (code == FSOCKERR) /* This gets simplified for a non-sibling. */
-		code = FERROR;
+	if (exclude_path_prefix)
+		mflags |= MATCHFLG_ABS_PATH;
+	if (exclude_path_prefix && *pat == '/')
+		ex_len = strlen(exclude_path_prefix);
+	else
+		ex_len = 0;
+	ret->pattern = new_array(char, ex_len + pat_len + 1);
+	if (!ret->pattern)
+		out_of_memory("make_exclude");
+	if (ex_len)
+		memcpy(ret->pattern, exclude_path_prefix, ex_len);
+	strlcpy(ret->pattern + ex_len, pat, pat_len + 1);
+	pat_len += ex_len;
 
-	if (code == FCLIENT)
-		code = FINFO;
-	else if (am_daemon || logfile_name) {
-		static int in_block;
-		char msg[2048];
-		int priority = code == FERROR ? LOG_WARNING : LOG_INFO;
-
-		if (in_block)
-			return;
-		in_block = 1;
-		if (!log_initialised)
-			log_init(0);
-		strlcpy(msg, buf, MIN((int)sizeof msg, len + 1));
-		logit(priority, msg);
-		in_block = 0;
-
-		if (code == FLOG || (am_daemon && !am_server))
-			return;
-	} else if (code == FLOG)
-		return;
-
-	if (quiet && code != FERROR)
-		return;
-
-	if (am_server) {
-		/* Pass the message to the non-server side. */
-		if (send_msg((enum msgcode)code, buf, len))
-			return;
-		if (am_daemon) {
-			/* TODO: can we send the error to the user somehow? */
-			return;
+	if (strpbrk(ret->pattern, "*[?")) {
+		mflags |= MATCHFLG_WILD;
+		if ((cp = strstr(ret->pattern, "**")) != NULL) {
+			mflags |= MATCHFLG_WILD2;
+			/* If the pattern starts with **, note that. */
+			if (cp == ret->pattern)
+				mflags |= MATCHFLG_WILD2_PREFIX;
 		}
 	}
 
-	switch (code) {
-	case FERROR:
-		log_got_error = 1;
-		f = stderr;
-		break;
-	case FINFO:
-		f = am_server ? stderr : stdout;
-		break;
-	default:
-		exit_cleanup(RERR_MESSAGEIO);
+	if (pat_len > 1 && ret->pattern[pat_len-1] == '/') {
+		ret->pattern[pat_len-1] = 0;
+		mflags |= MATCHFLG_DIRECTORY;
 	}
 
-	trailing_CR_or_NL = len && (buf[len-1] == '\n' || buf[len-1] == '\r')
-			  ? buf[--len] : 0;
+	for (cp = ret->pattern; (cp = strchr(cp, '/')) != NULL; cp++)
+		ret->slash_cnt++;
 
-#if defined HAVE_ICONV_OPEN && defined HAVE_ICONV_H
-	if (ic_chck != (iconv_t)-1) {
-		char convbuf[1024];
-		char *in_buf = buf, *out_buf = convbuf;
-		size_t in_cnt = len, out_cnt = sizeof convbuf - 1;
+	ret->match_flags = mflags;
 
-		iconv(ic_chck, NULL, 0, NULL, 0);
-		while (iconv(ic_chck, &in_buf,&in_cnt,
-				 &out_buf,&out_cnt) == (size_t)-1) {
-			if (out_buf != convbuf) {
-				filtered_fwrite(f, convbuf, out_buf - convbuf, 0);
-				out_buf = convbuf;
-				out_cnt = sizeof convbuf - 1;
-			}
-			if (errno == E2BIG)
-				continue;
-			fprintf(f, "\\#%03o", *(uchar*)in_buf++);
-			in_cnt--;
-		}
-		if (out_buf != convbuf)
-			filtered_fwrite(f, convbuf, out_buf - convbuf, 0);
-	} else
-#endif
-		filtered_fwrite(f, buf, len, !allow_8bit_chars);
-
-	if (trailing_CR_or_NL) {
-		fputc(trailing_CR_or_NL, f);
-		fflush(f);
+	if (!listp->tail)
+		listp->head = listp->tail = ret;
+	else {
+		listp->tail->next = ret;
+		listp->tail = ret;
 	}
 }

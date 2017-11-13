@@ -1,0 +1,1 @@
+fprintf(stderr, "cannot chmod '%s'", ce->name);

@@ -1,24 +1,25 @@
-static int show_blob_object(const unsigned char *sha1, struct rev_info *rev, const char *obj_name)
+static int emit_one_suspect_detail(struct origin *suspect, int repeat)
 {
-	unsigned char sha1c[20];
-	struct object_context obj_context;
-	char *buf;
-	unsigned long size;
+	struct commit_info ci;
 
-	fflush(stdout);
-	if (!DIFF_OPT_TOUCHED(&rev->diffopt, ALLOW_TEXTCONV) ||
-	    !DIFF_OPT_TST(&rev->diffopt, ALLOW_TEXTCONV))
-		return stream_blob_to_fd(1, sha1, NULL, 0);
+	if (!repeat && (suspect->commit->object.flags & METAINFO_SHOWN))
+		return 0;
 
-	if (get_sha1_with_context(obj_name, 0, sha1c, &obj_context))
-		die("Not a valid object name %s", obj_name);
-	if (!obj_context.path[0] ||
-	    !textconv_object(obj_context.path, obj_context.mode, sha1c, 1, &buf, &size))
-		return stream_blob_to_fd(1, sha1, NULL, 0);
+	suspect->commit->object.flags |= METAINFO_SHOWN;
+	get_commit_info(suspect->commit, &ci, 1);
+	printf("author %s\n", ci.author.buf);
+	printf("author-mail %s\n", ci.author_mail.buf);
+	printf("author-time %lu\n", ci.author_time);
+	printf("author-tz %s\n", ci.author_tz.buf);
+	printf("committer %s\n", ci.committer.buf);
+	printf("committer-mail %s\n", ci.committer_mail.buf);
+	printf("committer-time %lu\n", ci.committer_time);
+	printf("committer-tz %s\n", ci.committer_tz.buf);
+	printf("summary %s\n", ci.summary.buf);
+	if (suspect->commit->object.flags & UNINTERESTING)
+		printf("boundary\n");
 
-	if (!buf)
-		die("git show %s: bad file", obj_name);
+	commit_info_destroy(&ci);
 
-	write_or_die(1, buf, size);
-	return 0;
+	return 1;
 }

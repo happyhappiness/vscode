@@ -1,11 +1,10 @@
 fputs(
-"              tipart response!\n"
+"              quote  commands  itself before sending them to the server.  File\n"
+"              names may be quoted shell-style to embed spaces or special char-\n"
+"              acters.   Following is the list of all supported SFTP quote com-\n"
+"              mands:\n"
 "\n"
-"              Only  digit characters (0-9) are valid in the 'start' and 'stop'\n"
-"              fields of the 'start-stop' range syntax. If a non-digit  charac-\n"
-"              ter is given in the range, the server's response will be unspec-\n"
-"              ified, depending on the server's configuration.\n"
-"\n"
-"              You should also be aware that many HTTP/1.1 servers do not  have\n"
-"              this  feature  enabled, so that when you attempt to get a range,\n"
+"              chgrp group file\n"
+"                     The chgrp command sets the group ID of the file named  by\n"
+"                     the  file  operand to the group ID specified by the group\n"
 , stdout);

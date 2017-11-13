@@ -1,98 +1,241 @@
-static struct ref *do_fetch_pack(struct fetch_pack_args *args,
-				 int fd[2],
-				 const struct ref *orig_ref,
-				 struct ref **sought, int nr_sought,
-				 struct shallow_info *si,
-				 char **pack_lockfile)
+int cmd_config(int argc, const char **argv, const char *prefix)
 {
-	struct ref *ref = copy_ref_list(orig_ref);
-	unsigned char sha1[20];
-	const char *agent_feature;
-	int agent_len;
+	int nongit = !startup_info->have_repository;
+	char *value;
 
-	sort_ref_list(&ref, ref_compare_name);
-	qsort(sought, nr_sought, sizeof(*sought), cmp_ref_by_name);
+	given_config_source.file = getenv(CONFIG_ENVIRONMENT);
 
-	if ((args->depth > 0 || is_repository_shallow()) && !server_supports("shallow"))
-		die("Server does not support shallow clients");
-	if (server_supports("multi_ack_detailed")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports multi_ack_detailed\n");
-		multi_ack = 2;
-		if (server_supports("no-done")) {
-			if (args->verbose)
-				fprintf(stderr, "Server supports no-done\n");
-			if (args->stateless_rpc)
-				no_done = 1;
+	argc = parse_options(argc, argv, prefix, builtin_config_options,
+			     builtin_config_usage,
+			     PARSE_OPT_STOP_AT_NON_OPTION);
+
+	if (use_global_config + use_system_config + use_local_config +
+	    !!given_config_source.file + !!given_config_source.blob > 1) {
+		error("only one config file at a time.");
+		usage_with_options(builtin_config_usage, builtin_config_options);
+	}
+
+	if (given_config_source.file &&
+			!strcmp(given_config_source.file, "-")) {
+		given_config_source.file = NULL;
+		given_config_source.use_stdin = 1;
+	}
+
+	if (use_global_config) {
+		char *user_config = expand_user_path("~/.gitconfig");
+		char *xdg_config = xdg_config_home("config");
+
+		if (!user_config)
+			/*
+			 * It is unknown if HOME/.gitconfig exists, so
+			 * we do not know if we should write to XDG
+			 * location; error out even if XDG_CONFIG_HOME
+			 * is set and points at a sane location.
+			 */
+			die("$HOME not set");
+
+		if (access_or_warn(user_config, R_OK, 0) &&
+		    xdg_config && !access_or_warn(xdg_config, R_OK, 0))
+			given_config_source.file = xdg_config;
+		else
+			given_config_source.file = user_config;
+	}
+	else if (use_system_config)
+		given_config_source.file = git_etc_gitconfig();
+	else if (use_local_config)
+		given_config_source.file = git_pathdup("config");
+	else if (given_config_source.file) {
+		if (!is_absolute_path(given_config_source.file) && prefix)
+			given_config_source.file =
+				xstrdup(prefix_filename(prefix,
+							strlen(prefix),
+							given_config_source.file));
+	}
+
+	if (respect_includes == -1)
+		respect_includes = !given_config_source.file;
+
+	if (end_null) {
+		term = '\0';
+		delim = '\n';
+		key_delim = '\n';
+	}
+
+	if (HAS_MULTI_BITS(types)) {
+		error("only one type at a time.");
+		usage_with_options(builtin_config_usage, builtin_config_options);
+	}
+
+	if ((actions & (ACTION_GET_COLOR|ACTION_GET_COLORBOOL)) && types) {
+		error("--get-color and variable type are incoherent");
+		usage_with_options(builtin_config_usage, builtin_config_options);
+	}
+
+	if (HAS_MULTI_BITS(actions)) {
+		error("only one action at a time.");
+		usage_with_options(builtin_config_usage, builtin_config_options);
+	}
+	if (actions == 0)
+		switch (argc) {
+		case 1: actions = ACTION_GET; break;
+		case 2: actions = ACTION_SET; break;
+		case 3: actions = ACTION_SET_ALL; break;
+		default:
+			usage_with_options(builtin_config_usage, builtin_config_options);
+		}
+	if (omit_values &&
+	    !(actions == ACTION_LIST || actions == ACTION_GET_REGEXP)) {
+		error("--name-only is only applicable to --list or --get-regexp");
+		usage_with_options(builtin_config_usage, builtin_config_options);
+	}
+
+	if (show_origin && !(actions &
+		(ACTION_GET|ACTION_GET_ALL|ACTION_GET_REGEXP|ACTION_LIST))) {
+		error("--show-origin is only applicable to --get, --get-all, "
+			  "--get-regexp, and --list.");
+		usage_with_options(builtin_config_usage, builtin_config_options);
+	}
+
+	if (actions == ACTION_LIST) {
+		check_argc(argc, 0, 0);
+		if (git_config_with_options(show_all_config, NULL,
+					    &given_config_source,
+					    respect_includes) < 0) {
+			if (given_config_source.file)
+				die_errno("unable to read config file '%s'",
+					  given_config_source.file);
+			else
+				die("error processing config file(s)");
 		}
 	}
-	else if (server_supports("multi_ack")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports multi_ack\n");
-		multi_ack = 1;
-	}
-	if (server_supports("side-band-64k")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports side-band-64k\n");
-		use_sideband = 2;
-	}
-	else if (server_supports("side-band")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports side-band\n");
-		use_sideband = 1;
-	}
-	if (server_supports("allow-tip-sha1-in-want")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports allow-tip-sha1-in-want\n");
-		allow_unadvertised_object_request |= ALLOW_TIP_SHA1;
-	}
-	if (server_supports("allow-reachable-sha1-in-want")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");
-		allow_unadvertised_object_request |= ALLOW_REACHABLE_SHA1;
-	}
-	if (!server_supports("thin-pack"))
-		args->use_thin_pack = 0;
-	if (!server_supports("no-progress"))
-		args->no_progress = 0;
-	if (!server_supports("include-tag"))
-		args->include_tag = 0;
-	if (server_supports("ofs-delta")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports ofs-delta\n");
-	} else
-		prefer_ofs_delta = 0;
+	else if (actions == ACTION_EDIT) {
+		char *config_file;
 
-	if ((agent_feature = server_feature_value("agent", &agent_len))) {
-		agent_supported = 1;
-		if (args->verbose && agent_len)
-			fprintf(stderr, "Server version is %.*s\n",
-				agent_len, agent_feature);
+		check_argc(argc, 0, 0);
+		if (!given_config_source.file && nongit)
+			die("not in a git directory");
+		if (given_config_source.use_stdin)
+			die("editing stdin is not supported");
+		if (given_config_source.blob)
+			die("editing blobs is not supported");
+		git_config(git_default_config, NULL);
+		config_file = xstrdup(given_config_source.file ?
+				      given_config_source.file : git_path("config"));
+		if (use_global_config) {
+			int fd = open(config_file, O_CREAT | O_EXCL | O_WRONLY, 0666);
+			if (fd >= 0) {
+				char *content = default_user_config();
+				write_str_in_full(fd, content);
+				free(content);
+				close(fd);
+			}
+			else if (errno != EEXIST)
+				die_errno(_("cannot create configuration file %s"), config_file);
+		}
+		launch_editor(config_file, NULL, NULL);
+		free(config_file);
+	}
+	else if (actions == ACTION_SET) {
+		int ret;
+		check_write();
+		check_argc(argc, 2, 2);
+		value = normalize_value(argv[0], argv[1]);
+		ret = git_config_set_in_file_gently(given_config_source.file, argv[0], value);
+		if (ret == CONFIG_NOTHING_SET)
+			error("cannot overwrite multiple values with a single value\n"
+			"       Use a regexp, --add or --replace-all to change %s.", argv[0]);
+		return ret;
+	}
+	else if (actions == ACTION_SET_ALL) {
+		check_write();
+		check_argc(argc, 2, 3);
+		value = normalize_value(argv[0], argv[1]);
+		return git_config_set_multivar_in_file_gently(given_config_source.file,
+							      argv[0], value, argv[2], 0);
+	}
+	else if (actions == ACTION_ADD) {
+		check_write();
+		check_argc(argc, 2, 2);
+		value = normalize_value(argv[0], argv[1]);
+		return git_config_set_multivar_in_file_gently(given_config_source.file,
+							      argv[0], value,
+							      CONFIG_REGEX_NONE, 0);
+	}
+	else if (actions == ACTION_REPLACE_ALL) {
+		check_write();
+		check_argc(argc, 2, 3);
+		value = normalize_value(argv[0], argv[1]);
+		return git_config_set_multivar_in_file_gently(given_config_source.file,
+							      argv[0], value, argv[2], 1);
+	}
+	else if (actions == ACTION_GET) {
+		check_argc(argc, 1, 2);
+		return get_value(argv[0], argv[1]);
+	}
+	else if (actions == ACTION_GET_ALL) {
+		do_all = 1;
+		check_argc(argc, 1, 2);
+		return get_value(argv[0], argv[1]);
+	}
+	else if (actions == ACTION_GET_REGEXP) {
+		show_keys = 1;
+		use_key_regexp = 1;
+		do_all = 1;
+		check_argc(argc, 1, 2);
+		return get_value(argv[0], argv[1]);
+	}
+	else if (actions == ACTION_GET_URLMATCH) {
+		check_argc(argc, 2, 2);
+		return get_urlmatch(argv[0], argv[1]);
+	}
+	else if (actions == ACTION_UNSET) {
+		check_write();
+		check_argc(argc, 1, 2);
+		if (argc == 2)
+			return git_config_set_multivar_in_file_gently(given_config_source.file,
+								      argv[0], NULL, argv[1], 0);
+		else
+			return git_config_set_in_file_gently(given_config_source.file,
+							     argv[0], NULL);
+	}
+	else if (actions == ACTION_UNSET_ALL) {
+		check_write();
+		check_argc(argc, 1, 2);
+		return git_config_set_multivar_in_file_gently(given_config_source.file,
+							      argv[0], NULL, argv[1], 1);
+	}
+	else if (actions == ACTION_RENAME_SECTION) {
+		int ret;
+		check_write();
+		check_argc(argc, 2, 2);
+		ret = git_config_rename_section_in_file(given_config_source.file,
+							argv[0], argv[1]);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			die("No such section!");
+	}
+	else if (actions == ACTION_REMOVE_SECTION) {
+		int ret;
+		check_write();
+		check_argc(argc, 1, 1);
+		ret = git_config_rename_section_in_file(given_config_source.file,
+							argv[0], NULL);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			die("No such section!");
+	}
+	else if (actions == ACTION_GET_COLOR) {
+		check_argc(argc, 1, 2);
+		get_color(argv[0], argv[1]);
+	}
+	else if (actions == ACTION_GET_COLORBOOL) {
+		check_argc(argc, 1, 2);
+		if (argc == 2)
+			color_stdout_is_tty = git_config_bool("command line", argv[1]);
+		return get_colorbool(argv[0], argc == 2);
 	}
 
-	if (everything_local(args, &ref, sought, nr_sought)) {
-		packet_flush(fd[1]);
-		goto all_done;
-	}
-	if (find_common(args, fd, sha1, ref) < 0)
-		if (!args->keep_pack)
-			/* When cloning, it is not unusual to have
-			 * no common commit.
-			 */
-			warning("no common commits");
-
-	if (args->stateless_rpc)
-		packet_flush(fd[1]);
-	if (args->depth > 0)
-		setup_alternate_shallow(&shallow_lock, &alternate_shallow_file,
-					NULL);
-	else if (si->nr_ours || si->nr_theirs)
-		alternate_shallow_file = setup_temporary_shallow(si->shallow);
-	else
-		alternate_shallow_file = NULL;
-	if (get_pack(args, fd, pack_lockfile))
-		die("git fetch-pack: fetch failed.");
-
- all_done:
-	return ref;
+	return 0;
 }

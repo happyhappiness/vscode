@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                 "disk_cache: Cannot read header file %s",  dobj->hdrsfile);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
+                         "proxy: ap_get_brigade failed");

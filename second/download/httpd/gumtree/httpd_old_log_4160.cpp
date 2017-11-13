@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring server certificate chain "
-                 "(%d CA certificate%s)",
-                 n, n == 1 ? "" : "s");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_ilink_send failed");

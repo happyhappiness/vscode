@@ -1,34 +1,40 @@
-int read_index_from(struct index_state *istate, const char *path)
+static int commit_staged_changes(struct replay_opts *opts)
 {
-	struct split_index *split_index;
-	int ret;
+	int amend = 0;
 
-	/* istate->initialized covers both .git/index and .git/sharedindex.xxx */
-	if (istate->initialized)
-		return istate->cache_nr;
+	if (has_unstaged_changes(1))
+		return error(_("cannot rebase: You have unstaged changes."));
+	if (!has_uncommitted_changes(0)) {
+		const char *cherry_pick_head = git_path("CHERRY_PICK_HEAD");
 
-	ret = do_read_index(istate, path, 0);
-
-	split_index = istate->split_index;
-	if (!split_index || is_null_sha1(split_index->base_sha1)) {
-		post_read_index_from(istate);
-		return ret;
+		if (file_exists(cherry_pick_head) && unlink(cherry_pick_head))
+			return error(_("could not remove CHERRY_PICK_HEAD"));
+		return 0;
 	}
 
-	if (split_index->base)
-		discard_index(split_index->base);
-	else
-		split_index->base = xcalloc(1, sizeof(*split_index->base));
-	ret = do_read_index(split_index->base,
-			    git_path("sharedindex.%s",
-				     sha1_to_hex(split_index->base_sha1)), 1);
-	if (hashcmp(split_index->base_sha1, split_index->base->sha1))
-		die("broken index, expect %s in %s, got %s",
-		    sha1_to_hex(split_index->base_sha1),
-		    git_path("sharedindex.%s",
-			     sha1_to_hex(split_index->base_sha1)),
-		    sha1_to_hex(split_index->base->sha1));
-	merge_base_index(istate);
-	post_read_index_from(istate);
-	return ret;
+	if (file_exists(rebase_path_amend())) {
+		struct strbuf rev = STRBUF_INIT;
+		unsigned char head[20], to_amend[20];
+
+		if (get_sha1("HEAD", head))
+			return error(_("cannot amend non-existing commit"));
+		if (!read_oneliner(&rev, rebase_path_amend(), 0))
+			return error(_("invalid file: '%s'"), rebase_path_amend());
+		if (get_sha1_hex(rev.buf, to_amend))
+			return error(_("invalid contents: '%s'"),
+				rebase_path_amend());
+		if (hashcmp(head, to_amend))
+			return error(_("\nYou have uncommitted changes in your "
+				       "working tree. Please, commit them\n"
+				       "first and then run 'git rebase "
+				       "--continue' again."));
+
+		strbuf_release(&rev);
+		amend = 1;
+	}
+
+	if (run_git_commit(rebase_path_message(), opts, 1, 1, amend, 0))
+		return error(_("could not commit staged changes."));
+	unlink(rebase_path_amend());
+	return 0;
 }

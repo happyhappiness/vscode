@@ -1,11 +1,10 @@
 fputs(
-"              port again.\n"
+"       --ftp-pasv\n"
+"              (FTP)  Use  passive mode for the data connection. Passive is the\n"
+"              internal default behavior, but using this option can be used  to\n"
+"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
 "\n"
-"              Passive mode means that curl will try the EPSV command first and\n"
-"              then PASV, unless --disable-epsv is used.\n"
-"\n"
-"       --ftp-alternative-to-user <command>\n"
-"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
-"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
-"              Transport  server  over  FTPS  using a client certificate, using\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference. Undoing an  enforced  passive  really  isn't\n"
+"              doable  but  you must then instead enforce the correct -P/--ftp-\n"
 , stdout);

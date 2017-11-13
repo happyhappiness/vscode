@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00539)
-                              "XML request body is larger than the configured "
-                              "limit of %lu", (unsigned long)limit_xml_body);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p, APLOGNO(00071)
+                          "make_sock: failed to set ReceiveBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);

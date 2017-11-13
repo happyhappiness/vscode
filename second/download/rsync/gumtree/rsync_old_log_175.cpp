@@ -1,1 +1,2 @@
-fprintf(stderr,"recv_files(%d) starting\n",flist->count);
+fprintf(stderr,"failed to set times on %s : %s\n",
+	      fname,strerror(errno));

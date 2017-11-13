@@ -1,10 +1,12 @@
 fputs(
-"              extracting a filename from the URL.\n"
+"              Example:\n"
 "\n"
-"              If  the  server  specifies a file name and a file with that name\n"
-"              already exists in the current working directory it will  not  be\n"
-"              overwritten and an error will occur. If the server doesn't spec-\n"
-"              ify a file name then this option has no effect.\n"
+"              # curl -H \"X-First-Name: Joe\" http://192.168.0.1/\n"
 "\n"
-"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
+"              WARNING:  headers  set  with  this  option  will  be  set in all\n"
+"              requests - even after redirects are  followed,  like  when  told\n"
+"              with  -L,  --location. This can lead to the header being sent to\n"
+"              other hosts than the original host, so sensitive headers  should\n"
+"              be used with caution combined with following redirects.\n"
+"\n"
 , stdout);

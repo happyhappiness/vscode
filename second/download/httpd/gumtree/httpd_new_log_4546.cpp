@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00492)
-                         "caught " AP_SIG_GRACEFUL_STOP_STRING
-                         ", shutting down gracefully");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00932)
+                         "%s: worker for (%s) has been marked for retry",
+                         proxy_function, worker->s->hostname);

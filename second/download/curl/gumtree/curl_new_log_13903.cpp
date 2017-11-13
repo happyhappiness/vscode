@@ -1,8 +1,12 @@
 fputs(
-"              has pressed the submit button. This causes  curl  to  POST  data\n"
-"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
-"              2388. This enables uploading of binary files etc. To  force  the\n"
-"              'content'  part  to  be  a  file, prefix the file name with an @\n"
-"              sign. To just get the content part from a file, prefix the  file\n"
-"              name  with  the symbol <. The difference between @ and < is then\n"
+"              100-continue  response  when curl emits an Expects: 100-continue\n"
+"              header in its request. By default curl  will  wait  one  second.\n"
+"              This  option accepts decimal values! When curl stops waiting, it\n"
+"              will continue as if the response has been received.\n"
+"\n"
+"              See also --connect-timeout. Added in 7.47.0.\n"
+"\n"
+"       --fail-early\n"
+"              Fail and exit on first detected error.\n"
+"\n"
 , stdout);

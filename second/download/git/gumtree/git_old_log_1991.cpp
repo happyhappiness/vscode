@@ -1,2 +1,1 @@
-fprintf(stderr, "    sent %s\n",
-					sha1_to_hex(request->obj->sha1));
+error("there are still refs under '%s'", orig_refname);

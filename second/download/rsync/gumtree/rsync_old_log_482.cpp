@@ -1,2 +1,1 @@
-fprintf(FINFO,"hash search s->n=%d len=%d count=%d\n",
-			s->n,(int)len,s->count);
+fprintf(f,"-o, --owner              preserve owner (root only)\n");

@@ -1,12 +1,9 @@
 fputs(
-"              'name=daniel&skill=lousy'.\n"
+"              binary, you should instead use the --data-binary option. To URL-\n"
+"              encode the value of a form field you may use --data-urlencode.\n"
 "\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              file  name  to read the data from, or - if you want curl to read\n"
-"              the data from stdin.  The contents of the file must  already  be\n"
-"              URL-encoded.  Multiple files can also be specified. Posting data\n"
-"              from a file named 'foobar' would thus be done with --data  @foo-\n"
-"              bar.\n"
-"\n"
-"       -D, --dump-header <file>\n"
+"              If any of these options is used more than once on the same  com-\n"
+"              mand  line,  the  data  pieces specified will be merged together\n"
+"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
 , stdout);

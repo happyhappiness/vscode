@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, session->c, 
-                      "h2_proxy_session(%s): read from conn", session->id);
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "h2_h2, child_init");

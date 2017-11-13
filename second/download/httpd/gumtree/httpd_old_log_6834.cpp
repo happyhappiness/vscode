@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "Could not remove file %s: %s" APR_EOL_STR,
-                        remove, apr_strerror(status, errmsg, sizeof errmsg));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03457)
+                  "session(%ld): sent shutdown notice", session->id);

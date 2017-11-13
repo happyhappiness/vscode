@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+die("sent error to the client: %s", buf.buf);

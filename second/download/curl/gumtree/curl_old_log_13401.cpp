@@ -1,10 +1,9 @@
 fputs(
-"              files.\n"
+"              Specify which config file to read curl arguments from. The  con-\n"
+"              fig  file  is a text file in which command line arguments can be\n"
+"              written which then will be used as if they were written  on  the\n"
+"              actual command line.\n"
 "\n"
-"       --keepalive-time <seconds>\n"
-"              This option sets the time a  connection  needs  to  remain  idle\n"
-"              before  sending keepalive probes and the time between individual\n"
-"              keepalive probes. It is currently effective on operating systems\n"
-"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
-"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
+"              Options  and their parameters must be specified on the same con-\n"
+"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
 , stdout);

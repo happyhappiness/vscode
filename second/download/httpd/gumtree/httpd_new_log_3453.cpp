@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01303)
-                      "LDAP: SSL trusted global cert - %s (type %s)",
-                       file, type);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server, APLOGNO(00798)
+                     "unable to open(%s, O_RDONLY), skipping", fspec);

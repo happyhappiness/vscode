@@ -1,10 +1,11 @@
 fputs(
-"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
-"              curl  does  the  conversion  by default to maintain consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
-"              a  redirection.  This  option  is meaningful only when using -L,\n"
-"              --location (Added in 7.19.1)\n"
+"              ten. The file will be written using  the  Netscape  cookie  file\n"
+"              format.  If  you  set  the  file name to a single dash, \"-\", the\n"
+"              cookies will be written to stdout.\n"
 "\n"
-"       --post303\n"
-"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
+"              This command line option will activate the  cookie  engine  that\n"
+"              makes curl record and use cookies. Another way to activate it is\n"
+"              to use the -b, --cookie option.\n"
+"\n"
+"              If the cookie jar can't be created or written to, the whole curl\n"
 , stdout);

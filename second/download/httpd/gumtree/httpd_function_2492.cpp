@@ -1,147 +1,128 @@
-static authn_status authn_ldap_check_password(request_rec *r, const char *user,
-                                              const char *password)
+static void output_html_results(void)
 {
-    int failures = 0;
-    char filtbuf[FILTER_LENGTH];
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    double timetaken = (double) (lasttime - start) / APR_USEC_PER_SEC;
 
-    util_ldap_connection_t *ldc = NULL;
-    int result = 0;
-    int remote_user_attribute_set = 0;
-    const char *dn = NULL;
-    const char *utfpassword;
+    printf("\n\n<table %s>\n", tablestring);
+    printf("<tr %s><th colspan=2 %s>Server Software:</th>"
+       "<td colspan=2 %s>%s</td></tr>\n",
+       trstring, tdstring, tdstring, servername);
+    printf("<tr %s><th colspan=2 %s>Server Hostname:</th>"
+       "<td colspan=2 %s>%s</td></tr>\n",
+       trstring, tdstring, tdstring, hostname);
+    printf("<tr %s><th colspan=2 %s>Server Port:</th>"
+       "<td colspan=2 %s>%hu</td></tr>\n",
+       trstring, tdstring, tdstring, port);
+    printf("<tr %s><th colspan=2 %s>Document Path:</th>"
+       "<td colspan=2 %s>%s</td></tr>\n",
+       trstring, tdstring, tdstring, path);
+    printf("<tr %s><th colspan=2 %s>Document Length:</th>"
+       "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, doclen);
+    printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
+       "<td colspan=2 %s>%d</td></tr>\n",
+       trstring, tdstring, tdstring, concurrency);
+    printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
+       "<td colspan=2 %s>%.3f seconds</td></tr>\n",
+       trstring, tdstring, tdstring, timetaken);
+    printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
+       "<td colspan=2 %s>%d</td></tr>\n",
+       trstring, tdstring, tdstring, done);
+    printf("<tr %s><th colspan=2 %s>Failed requests:</th>"
+       "<td colspan=2 %s>%d</td></tr>\n",
+       trstring, tdstring, tdstring, bad);
+    if (bad)
+        printf("<tr %s><td colspan=4 %s >   (Connect: %d, Length: %d, Exceptions: %d)</td></tr>\n",
+           trstring, tdstring, err_conn, err_length, err_except);
+    if (err_response)
+        printf("<tr %s><th colspan=2 %s>Non-2xx responses:</th>"
+           "<td colspan=2 %s>%d</td></tr>\n",
+           trstring, tdstring, tdstring, err_response);
+    if (keepalive)
+        printf("<tr %s><th colspan=2 %s>Keep-Alive requests:</th>"
+           "<td colspan=2 %s>%d</td></tr>\n",
+           trstring, tdstring, tdstring, doneka);
+    printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
+       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalread);
+    if (posting == 1)
+        printf("<tr %s><th colspan=2 %s>Total POSTed:</th>"
+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
+           trstring, tdstring, tdstring, totalposted);
+    if (posting == 2)
+        printf("<tr %s><th colspan=2 %s>Total PUT:</th>"
+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
+           trstring, tdstring, tdstring, totalposted);
+    printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
+       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalbread);
 
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)apr_pcalloc(r->pool, sizeof(authn_ldap_request_t));
-    ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-
-/*
-    if (!sec->enabled) {
-        return AUTH_USER_NOT_FOUND;
-    }
-*/
-
-    /*
-     * Basic sanity checks before any LDAP operations even happen.
-     */
-    if (!sec->have_ldap_url) {
-        return AUTH_GENERAL_ERROR;
-    }
-
-start_over:
-
-    /* There is a good AuthLDAPURL, right? */
-    if (sec->host) {
-        const char *binddn = sec->binddn;
-        const char *bindpw = sec->bindpw;
-        if (sec->initial_bind_as_user) {
-            bindpw = password;
-            binddn = ldap_determine_binddn(r, user);
-        }
-
-        ldc = util_ldap_connection_find(r, sec->host, sec->port,
-                                       binddn, bindpw,
-                                       sec->deref, sec->secure);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no sec->host - weird...?", getpid());
-        return AUTH_GENERAL_ERROR;
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: using URL %s", getpid(), sec->url);
-
-    /* Get the password that the client sent */
-    if (password == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no password specified", getpid());
-        util_ldap_connection_close(ldc);
-        return AUTH_GENERAL_ERROR;
-    }
-
-    if (user == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no user specified", getpid());
-        util_ldap_connection_close(ldc);
-        return AUTH_GENERAL_ERROR;
-    }
-
-    /* build the username filter */
-    authn_ldap_build_filter(filtbuf, r, user, NULL, sec);
-
-    /* convert password to utf-8 */
-    utfpassword = authn_ldap_xlate_password(r, password);
-
-    /* do the user search */
-    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
-                                         sec->attributes, filtbuf, utfpassword,
-                                         &dn, &(req->vals));
-    util_ldap_connection_close(ldc);
-
-    /* sanity check - if server is down, retry it up to 5 times */
-    if (AP_LDAP_IS_SERVER_DOWN(result)) {
-        if (failures++ <= 5) {
-            goto start_over;
+    /* avoid divide by zero */
+    if (timetaken) {
+        printf("<tr %s><th colspan=2 %s>Requests per second:</th>"
+           "<td colspan=2 %s>%.2f</td></tr>\n",
+           trstring, tdstring, tdstring, (double) done * 1000 / timetaken);
+        printf("<tr %s><th colspan=2 %s>Transfer rate:</th>"
+           "<td colspan=2 %s>%.2f kb/s received</td></tr>\n",
+           trstring, tdstring, tdstring, (double) totalread / timetaken);
+        if (posting > 0) {
+            printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s sent</td></tr>\n",
+               trstring, tdstring, tdstring,
+               (double) totalposted / timetaken);
+            printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
+               trstring, tdstring, tdstring,
+               (double) (totalread + totalposted) / timetaken);
         }
     }
+    {
+        /* work out connection times */
+        int i;
+        apr_interval_time_t totalcon = 0, total = 0;
+        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX;
+        apr_interval_time_t maxcon = 0, maxtot = 0;
 
-    /* handle bind failure */
-    if (result != LDAP_SUCCESS) {
-        if (!sec->bind_authoritative) {
-           ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
-                      "user %s authentication failed; URI %s [%s][%s] (not authoritative)",
-                      getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
-           return AUTH_USER_NOT_FOUND;
+        for (i = 0; i < done; i++) {
+            struct data *s = &stats[i];
+            mincon = ap_min(mincon, s->ctime);
+            mintot = ap_min(mintot, s->time);
+            maxcon = ap_max(maxcon, s->ctime);
+            maxtot = ap_max(maxtot, s->time);
+            totalcon += s->ctime;
+            total    += s->time;
         }
+        /*
+         * Reduce stats from apr time to milliseconds
+         */
+        mincon   = ap_round_ms(mincon);
+        mintot   = ap_round_ms(mintot);
+        maxcon   = ap_round_ms(maxcon);
+        maxtot   = ap_round_ms(maxtot);
+        totalcon = ap_round_ms(totalcon);
+        total    = ap_round_ms(total);
 
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
-                      "user %s authentication failed; URI %s [%s][%s]",
-                      getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
-
-        return (LDAP_NO_SUCH_OBJECT == result) ? AUTH_USER_NOT_FOUND
-#ifdef LDAP_SECURITY_ERROR
-                 : (LDAP_SECURITY_ERROR(result)) ? AUTH_DENIED
-#else
-                 : (LDAP_INAPPROPRIATE_AUTH == result) ? AUTH_DENIED
-                 : (LDAP_INVALID_CREDENTIALS == result) ? AUTH_DENIED
-#ifdef LDAP_INSUFFICIENT_ACCESS
-                 : (LDAP_INSUFFICIENT_ACCESS == result) ? AUTH_DENIED
-#endif
-#ifdef LDAP_INSUFFICIENT_RIGHTS
-                 : (LDAP_INSUFFICIENT_RIGHTS == result) ? AUTH_DENIED
-#endif
-#endif
-                 : AUTH_GENERAL_ERROR;
+        if (done > 0) { /* avoid division by zero (if 0 done) */
+            printf("<tr %s><th %s colspan=4>Connnection Times (ms)</th></tr>\n",
+               trstring, tdstring);
+            printf("<tr %s><th %s>&nbsp;</th> <th %s>min</th>   <th %s>avg</th>   <th %s>max</th></tr>\n",
+               trstring, tdstring, tdstring, tdstring, tdstring);
+            printf("<tr %s><th %s>Connect:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mincon, tdstring, totalcon / done, tdstring, maxcon);
+            printf("<tr %s><th %s>Processing:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mintot - mincon, tdstring,
+               (total / done) - (totalcon / done), tdstring, maxtot - maxcon);
+            printf("<tr %s><th %s>Total:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mintot, tdstring, total / done, tdstring, maxtot);
+        }
+        printf("</table>\n");
     }
-
-    /* mark the user and DN */
-    req->dn = apr_pstrdup(r->pool, dn);
-    req->user = apr_pstrdup(r->pool, user);
-    req->password = apr_pstrdup(r->pool, password);
-    if (sec->user_is_dn) {
-        r->user = req->dn;
-    }
-
-    /* add environment variables */
-    remote_user_attribute_set = set_request_vars(r, LDAP_AUTHN);
-
-    /* sanity check */
-    if (sec->remote_user_attribute && !remote_user_attribute_set) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
-                  "REMOTE_USER was to be set with attribute '%s', "
-                  "but this attribute was not requested for in the "
-                  "LDAP query for the user. REMOTE_USER will fall "
-                  "back to username or DN as appropriate.", getpid(),
-                  sec->remote_user_attribute);
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: accepting %s", getpid(), user);
-
-    return AUTH_GRANTED;
 }

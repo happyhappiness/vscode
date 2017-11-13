@@ -1,28 +1,51 @@
-static int task_print(void *ctx, void *val)
+static apr_status_t h2_conn_io_bucket_read(h2_conn_io *io,
+                                           apr_read_type_e block,
+                                           h2_conn_io_on_read_cb on_read_cb,
+                                           void *puser, int *pdone)
 {
-    h2_mplx *m = ctx;
-    h2_task *task = val;
+    apr_status_t status = APR_SUCCESS;
+    apr_size_t readlen = 0;
+    *pdone = 0;
+    
+    while (status == APR_SUCCESS && !*pdone
+           && !APR_BRIGADE_EMPTY(io->input)) {
+        
+        apr_bucket* bucket = APR_BRIGADE_FIRST(io->input);
+        if (APR_BUCKET_IS_METADATA(bucket)) {
+            /* we do nothing regarding any meta here */
+        }
+        else {
+            const char *bucket_data = NULL;
+            apr_size_t bucket_length = 0;
+            status = apr_bucket_read(bucket, &bucket_data,
+                                     &bucket_length, block);
+            
+            if (status == APR_SUCCESS && bucket_length > 0) {
+                apr_size_t consumed = 0;
 
-    if (task && task->request) {
-        h2_stream *stream = h2_ihash_get(m->streams, task->stream_id);
-
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
-                      "->03198: h2_stream(%s): %s %s %s -> %s %d"
-                      "[orph=%d/started=%d/done=%d]", 
-                      task->id, task->request->method, 
-                      task->request->authority, task->request->path,
-                      task->response? "http" : (task->rst_error? "reset" : "?"),
-                      task->response? task->response->http_status : task->rst_error,
-                      (stream? 0 : 1), task->worker_started, 
-                      task->worker_done);
+                if (APLOGctrace2(io->connection)) {
+                    char buffer[32];
+                    h2_util_hex_dump(buffer, sizeof(buffer)/sizeof(buffer[0]),
+                                     bucket_data, bucket_length);
+                    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
+                                  "h2_conn_io(%ld): read %d bytes: %s",
+                                  io->connection->id, (int)bucket_length, buffer);
+                }
+                
+                status = on_read_cb(bucket_data, bucket_length, &consumed, 
+                                    pdone, puser);
+                if (status == APR_SUCCESS && bucket_length > consumed) {
+                    /* We have data left in the bucket. Split it. */
+                    status = apr_bucket_split(bucket, consumed);
+                }
+                readlen += consumed;
+            }
+        }
+        apr_bucket_delete(bucket);
     }
-    else if (task) {
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
-                      "->03198: h2_stream(%ld-%d): NULL", m->id, task->stream_id);
+    
+    if (readlen == 0 && status == APR_SUCCESS && block == APR_NONBLOCK_READ) {
+        return APR_EAGAIN;
     }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
-                      "->03198: h2_stream(%ld-NULL): NULL", m->id);
-    }
-    return 1;
+    return status;
 }

@@ -1,101 +1,62 @@
-static int filter_lookup(ap_filter_t *f, ap_filter_rec_t *filter)
+int ssl_callback_SessionTicket(SSL *ssl,
+                               unsigned char *keyname,
+                               unsigned char *iv,
+                               EVP_CIPHER_CTX *cipher_ctx,
+                               HMAC_CTX *hctx,
+                               int mode)
 {
-    ap_filter_provider_t *provider;
-    const char *str = NULL;
-    char *str1;
-    int match;
-    int err = 0;
-    unsigned int proto_flags;
-    request_rec *r = f->r;
-    harness_ctx *ctx = f->ctx;
-    provider_ctx *pctx;
-    mod_filter_ctx *rctx = ap_get_module_config(r->request_config,
-                                                &filter_module);
+    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+    server_rec *s = mySrvFromConn(c);
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    SSLConnRec *sslconn = myConnConfig(c);
+    modssl_ctx_t *mctx = myCtxConfig(sslconn, sc);
+    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
 
-    /* Check registered providers in order */
-    for (provider = filter->providers; provider; provider = provider->next) {
-        match = ap_expr_eval(r, provider->expr, &err, NULL, ap_expr_string, NULL);
-        if (err) {
-            /* log error but accept match value ? */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Error evaluating filter dispatch condition");
+    if (mode == 1) {
+        /* 
+         * OpenSSL is asking for a key for encrypting a ticket,
+         * see s3_srvr.c:ssl3_send_newsession_ticket()
+         */
+
+        if (ticket_key == NULL) {
+            /* should never happen, but better safe than sorry */
+            return -1;
         }
 
-        if (match) {
-            /* condition matches this provider */
-#ifndef NO_PROTOCOL
-            /* check protocol
-             *
-             * FIXME:
-             * This is a quick hack and almost certainly buggy.
-             * The idea is that by putting this in mod_filter, we relieve
-             * filter implementations of the burden of fixing up HTTP headers
-             * for cases that are routinely affected by filters.
-             *
-             * Default is ALWAYS to do nothing, so as not to tread on the
-             * toes of filters which want to do it themselves.
-             *
-             */
-            proto_flags = provider->frec->proto_flags;
+        memcpy(keyname, ticket_key->key_name, 16);
+        RAND_pseudo_bytes(iv, EVP_MAX_IV_LENGTH);
+        EVP_EncryptInit_ex(cipher_ctx, EVP_aes_128_cbc(), NULL,
+                           ticket_key->aes_key, iv);
+        HMAC_Init_ex(hctx, ticket_key->hmac_secret, 16, tlsext_tick_md(), NULL);
 
-            /* some specific things can't happen in a proxy */
-            if (r->proxyreq) {
-                if (proto_flags & AP_FILTER_PROTO_NO_PROXY) {
-                    /* can't use this provider; try next */
-                    continue;
-                }
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "TLS session ticket key for %s successfully set, "
+                      "creating new session ticket", sc->vhost_id);
 
-                if (proto_flags & AP_FILTER_PROTO_TRANSFORM) {
-                    str = apr_table_get(r->headers_out, "Cache-Control");
-                    if (str) {
-                        str1 = apr_pstrdup(r->pool, str);
-                        ap_str_tolower(str1);
-                        if (strstr(str1, "no-transform")) {
-                            /* can't use this provider; try next */
-                            continue;
-                        }
-                    }
-                    apr_table_addn(r->headers_out, "Warning",
-                                   apr_psprintf(r->pool,
-                                                "214 %s Transformation applied",
-                                                r->hostname));
-                }
-            }
+        return 0;
+    }
+    else if (mode == 0) {
+        /* 
+         * OpenSSL is asking for the decryption key,
+         * see t1_lib.c:tls_decrypt_ticket()
+         */
 
-            /* things that are invalidated if the filter transforms content */
-            if (proto_flags & AP_FILTER_PROTO_CHANGE) {
-                apr_table_unset(r->headers_out, "Content-MD5");
-                apr_table_unset(r->headers_out, "ETag");
-                if (proto_flags & AP_FILTER_PROTO_CHANGE_LENGTH) {
-                    apr_table_unset(r->headers_out, "Content-Length");
-                }
-            }
-
-            /* no-cache is for a filter that has different effect per-hit */
-            if (proto_flags & AP_FILTER_PROTO_NO_CACHE) {
-                apr_table_unset(r->headers_out, "Last-Modified");
-                apr_table_addn(r->headers_out, "Cache-Control", "no-cache");
-            }
-
-            if (proto_flags & AP_FILTER_PROTO_NO_BYTERANGE) {
-                apr_table_unset(r->headers_out, "Accept-Ranges");
-            }
-            else if (rctx && rctx->range) {
-                /* restore range header we saved earlier */
-                apr_table_setn(r->headers_in, "Range", rctx->range);
-                rctx->range = NULL;
-            }
-#endif
-            for (pctx = ctx->init_ctx; pctx; pctx = pctx->next) {
-                if (pctx->provider == provider) {
-                    ctx->fctx = pctx->ctx ;
-                }
-            }
-            ctx->func = provider->frec->filter_func.out_func;
-            return 1;
+        /* check key name */
+        if (ticket_key == NULL || memcmp(keyname, ticket_key->key_name, 16)) {
+            return 0;
         }
+
+        EVP_DecryptInit_ex(cipher_ctx, EVP_aes_128_cbc(), NULL,
+                           ticket_key->aes_key, iv);
+        HMAC_Init_ex(hctx, ticket_key->hmac_secret, 16, tlsext_tick_md(), NULL);
+
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "TLS session ticket key for %s successfully set, "
+                      "decrypting existing session ticket", sc->vhost_id);
+
+        return 1;
     }
 
-    /* No provider matched */
-    return 0;
+    /* OpenSSL is not expected to call us with modes other than 1 or 0 */
+    return -1;
 }

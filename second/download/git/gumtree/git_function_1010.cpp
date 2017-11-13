@@ -1,75 +1,49 @@
-static int copy(int argc, const char **argv, const char *prefix)
+static void check_aliased_update(struct command *cmd, struct string_list *list)
 {
-	int retval = 0, force = 0, from_stdin = 0;
-	const unsigned char *from_note, *note;
-	const char *object_ref;
-	unsigned char object[20], from_obj[20];
-	struct notes_tree *t;
-	const char *rewrite_cmd = NULL;
-	struct option options[] = {
-		OPT__FORCE(&force, N_("replace existing notes")),
-		OPT_BOOL(0, "stdin", &from_stdin, N_("read objects from stdin")),
-		OPT_STRING(0, "for-rewrite", &rewrite_cmd, N_("command"),
-			   N_("load rewriting config for <command> (implies "
-			      "--stdin)")),
-		OPT_END()
-	};
+	struct strbuf buf = STRBUF_INIT;
+	const char *dst_name;
+	struct string_list_item *item;
+	struct command *dst_cmd;
+	unsigned char sha1[GIT_SHA1_RAWSZ];
+	int flag;
 
-	argc = parse_options(argc, argv, prefix, options, git_notes_copy_usage,
-			     0);
+	strbuf_addf(&buf, "%s%s", get_git_namespace(), cmd->ref_name);
+	dst_name = resolve_ref_unsafe(buf.buf, 0, sha1, &flag);
+	strbuf_release(&buf);
 
-	if (from_stdin || rewrite_cmd) {
-		if (argc) {
-			error(_("too many parameters"));
-			usage_with_options(git_notes_copy_usage, options);
-		} else {
-			return notes_copy_from_stdin(force, rewrite_cmd);
-		}
+	if (!(flag & REF_ISSYMREF))
+		return;
+
+	if (!dst_name) {
+		rp_error("refusing update to broken symref '%s'", cmd->ref_name);
+		cmd->skip_update = 1;
+		cmd->error_string = "broken symref";
+		return;
 	}
+	dst_name = strip_namespace(dst_name);
 
-	if (argc < 2) {
-		error(_("too few parameters"));
-		usage_with_options(git_notes_copy_usage, options);
-	}
-	if (2 < argc) {
-		error(_("too many parameters"));
-		usage_with_options(git_notes_copy_usage, options);
-	}
+	if ((item = string_list_lookup(list, dst_name)) == NULL)
+		return;
 
-	if (get_sha1(argv[0], from_obj))
-		die(_("failed to resolve '%s' as a valid ref."), argv[0]);
+	cmd->skip_update = 1;
 
-	object_ref = 1 < argc ? argv[1] : "HEAD";
+	dst_cmd = (struct command *) item->util;
 
-	if (get_sha1(object_ref, object))
-		die(_("failed to resolve '%s' as a valid ref."), object_ref);
+	if (!hashcmp(cmd->old_sha1, dst_cmd->old_sha1) &&
+	    !hashcmp(cmd->new_sha1, dst_cmd->new_sha1))
+		return;
 
-	t = init_notes_check("copy", NOTES_INIT_WRITABLE);
-	note = get_note(t, object);
+	dst_cmd->skip_update = 1;
 
-	if (note) {
-		if (!force) {
-			retval = error(_("Cannot copy notes. Found existing "
-				       "notes for object %s. Use '-f' to "
-				       "overwrite existing notes"),
-				       sha1_to_hex(object));
-			goto out;
-		}
-		fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
-	}
+	rp_error("refusing inconsistent update between symref '%s' (%s..%s) and"
+		 " its target '%s' (%s..%s)",
+		 cmd->ref_name,
+		 find_unique_abbrev(cmd->old_sha1, DEFAULT_ABBREV),
+		 find_unique_abbrev(cmd->new_sha1, DEFAULT_ABBREV),
+		 dst_cmd->ref_name,
+		 find_unique_abbrev(dst_cmd->old_sha1, DEFAULT_ABBREV),
+		 find_unique_abbrev(dst_cmd->new_sha1, DEFAULT_ABBREV));
 
-	from_note = get_note(t, from_obj);
-	if (!from_note) {
-		retval = error(_("missing notes on source object %s. Cannot "
-			       "copy."), sha1_to_hex(from_obj));
-		goto out;
-	}
-
-	if (add_note(t, object, from_note, combine_notes_overwrite))
-		die("BUG: combine_notes_overwrite failed");
-	commit_notes(t, "Notes added by 'git notes copy'");
-out:
-	free_notes(t);
-	return retval;
+	cmd->error_string = dst_cmd->error_string =
+		"inconsistent aliased update";
 }

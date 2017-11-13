@@ -1,1 +1,1 @@
-error_errno("cannot spawn %s", cmd->argv[0]);
+die("BUG: invalid value for shared_repository");

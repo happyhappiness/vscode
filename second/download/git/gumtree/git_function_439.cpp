@@ -1,15 +1,17 @@
-static int error_dirty_index(struct replay_opts *opts)
+static int merge_abort(struct notes_merge_options *o)
 {
-	if (read_cache_unmerged())
-		return error_resolve_conflict(action_name(opts));
+	int ret = 0;
 
-	/* Different translation strings for cherry-pick and revert */
-	if (opts->action == REPLAY_PICK)
-		error(_("Your local changes would be overwritten by cherry-pick."));
-	else
-		error(_("Your local changes would be overwritten by revert."));
+	/*
+	 * Remove .git/NOTES_MERGE_PARTIAL and .git/NOTES_MERGE_REF, and call
+	 * notes_merge_abort() to remove .git/NOTES_MERGE_WORKTREE.
+	 */
 
-	if (advice_commit_before_merge)
-		advise(_("Commit your changes or stash them to proceed."));
-	return -1;
+	if (delete_ref("NOTES_MERGE_PARTIAL", NULL, 0))
+		ret += error("Failed to delete ref NOTES_MERGE_PARTIAL");
+	if (delete_ref("NOTES_MERGE_REF", NULL, REF_NODEREF))
+		ret += error("Failed to delete ref NOTES_MERGE_REF");
+	if (notes_merge_abort(o))
+		ret += error("Failed to remove 'git notes merge' worktree");
+	return ret;
 }

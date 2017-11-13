@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01917)
-                     "Init: You should not use name-based "
-                     "virtual hosts in conjunction with SSL!!");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
+                              APLOGNO(03080)
+                              "h2_session(%ld): unknown state %d", session->id, session->state);

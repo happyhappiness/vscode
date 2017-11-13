@@ -1,1 +1,1 @@
-rprintf(FINFO,"%s ",args[i]);
+rprintf(FINFO,"excluding file %s\n",fname);

@@ -1,14 +1,29 @@
-static void exit_if_skipped_commits(struct commit_list *tried,
-				    const struct object_id *bad)
+int parse_commit_gently(struct commit *item, int quiet_on_missing)
 {
-	if (!tried)
-		return;
+	enum object_type type;
+	void *buffer;
+	unsigned long size;
+	int ret;
 
-	printf("There are only 'skip'ped commits left to test.\n"
-	       "The first %s commit could be any of:\n", term_bad);
-	print_commit_list(tried, "%s\n", "%s\n");
-	if (bad)
-		printf("%s\n", oid_to_hex(bad));
-	printf("We cannot bisect more!\n");
-	exit(2);
+	if (!item)
+		return -1;
+	if (item->object.parsed)
+		return 0;
+	buffer = read_sha1_file(item->object.sha1, &type, &size);
+	if (!buffer)
+		return quiet_on_missing ? -1 :
+			error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));
+	if (type != OBJ_COMMIT) {
+		free(buffer);
+		return error("Object %s not a commit",
+			     sha1_to_hex(item->object.sha1));
+	}
+	ret = parse_commit_buffer(item, buffer, size);
+	if (save_commit_buffer && !ret) {
+		set_commit_buffer(item, buffer, size);
+		return 0;
+	}
+	free(buffer);
+	return ret;
 }

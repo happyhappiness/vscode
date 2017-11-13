@@ -1,122 +1,92 @@
-void ssl_scache_shmcb_init(server_rec *s, apr_pool_t *p)
+static apr_status_t dummy_connection(ap_pod_t *pod)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    void *shm_segment;
-    apr_size_t shm_segsize;
+    const char *data;
     apr_status_t rv;
-    SHMCBHeader *header;
-    unsigned int num_subcache, num_idx, loop;
+    apr_socket_t *sock;
+    apr_pool_t *p;
+    apr_size_t len;
 
-    /* Create shared memory segment */
-    if (mc->szSessionCacheDataFile == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "SSLSessionCache required");
-        ssl_die();
-    }
-
-    /* Use anonymous shm by default, fall back on name-based. */
-    rv = apr_shm_create(&(mc->pSessionCacheDataMM), 
-                        mc->nSessionCacheDataSize, 
-                        NULL, mc->pPool);
-    if (APR_STATUS_IS_ENOTIMPL(rv)) {
-        /* For a name-based segment, remove it first in case of a
-         * previous unclean shutdown. */
-        apr_shm_remove(mc->szSessionCacheDataFile, mc->pPool);
-
-        rv = apr_shm_create(&(mc->pSessionCacheDataMM),
-                            mc->nSessionCacheDataSize,
-                            mc->szSessionCacheDataFile,
-                            mc->pPool);
-    }
-
+    /* create a temporary pool for the socket.  pconf stays around too long */
+    rv = apr_pool_create(&p, pod->p);
     if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "could not allocate shared memory for shmcb "
-                     "session cache");
-        ssl_die();
+        return rv;
     }
 
-    shm_segment = apr_shm_baseaddr_get(mc->pSessionCacheDataMM);
-    shm_segsize = apr_shm_size_get(mc->pSessionCacheDataMM);
-    if (shm_segsize < (5 * sizeof(SHMCBHeader))) {
-        /* the segment is ridiculously small, bail out */
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shared memory segment too small");
-        ssl_die();
+    rv = apr_socket_create(&sock, ap_listeners->bind_addr->family,
+                           SOCK_STREAM, 0, p);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                     "get socket to connect to listener");
+        apr_pool_destroy(p);
+        return rv;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "shmcb_init allocated %" APR_SIZE_T_FMT
-                 " bytes of shared memory",
-                 shm_segsize);
-    /* Discount the header */
-    shm_segsize -= sizeof(SHMCBHeader);
-    /* Select the number of subcaches to create and how many indexes each
-     * should contain based on the size of the memory (the header has already
-     * been subtracted). Typical non-client-auth sslv3/tlsv1 sessions are
-     * around 150 bytes, so erring to division by 120 helps ensure we would
-     * exhaust data storage before index storage (except sslv2, where it's
-     * *slightly* the other way). From there, we select the number of subcaches
-     * to be a power of two, such that the number of indexes per subcache at
-     * least twice the number of subcaches. */
-    num_idx = (shm_segsize) / 120;
-    num_subcache = 256;
-    while ((num_idx / num_subcache) < (2 * num_subcache))
-        num_subcache /= 2;
-    num_idx /= num_subcache;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "for %" APR_SIZE_T_FMT " bytes (%" APR_SIZE_T_FMT 
-                 " including header), recommending %u subcaches, "
-                 "%u indexes each", shm_segsize,
-                 shm_segsize + sizeof(SHMCBHeader), num_subcache, num_idx);
-    if (num_idx < 5) {
-        /* we're still too small, bail out */
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shared memory segment too small");
-        ssl_die();
-    }
-    /* OK, we're sorted */
-    header = shm_segment;
-    header->stat_stores = 0;
-    header->stat_expiries = 0;
-    header->stat_scrolled = 0;
-    header->stat_retrieves_hit = 0;
-    header->stat_retrieves_miss = 0;
-    header->stat_removes_hit = 0;
-    header->stat_removes_miss = 0;
-    header->subcache_num = num_subcache;
-    /* Convert the subcache size (in bytes) to a value that is suitable for
-     * structure alignment on the host platform, by rounding down if necessary.
-     * This assumes that sizeof(unsigned long) provides an appropriate
-     * alignment unit.  */
-    header->subcache_size = ((size_t)(shm_segsize / num_subcache) &
-                             ~(size_t)(sizeof(unsigned long) - 1));
-    header->subcache_data_offset = sizeof(SHMCBSubcache) +
-                                   num_idx * sizeof(SHMCBIndex);
-    header->subcache_data_size = header->subcache_size -
-                                 header->subcache_data_offset;
-    header->index_num = num_idx;
 
-    /* Output trace info */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "shmcb_init_memory choices follow");
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "subcache_num = %u", header->subcache_num);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "subcache_size = %u", header->subcache_size);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "subcache_data_offset = %u", header->subcache_data_offset);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "subcache_data_size = %u", header->subcache_data_size);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "index_num = %u", header->index_num);
-    /* The header is done, make the caches empty */
-    for (loop = 0; loop < header->subcache_num; loop++) {
-        SHMCBSubcache *subcache = SHMCB_SUBCACHE(header, loop);
-        subcache->idx_pos = subcache->idx_used = 0;
-        subcache->data_pos = subcache->data_used = 0;
+    /* on some platforms (e.g., FreeBSD), the kernel won't accept many
+     * queued connections before it starts blocking local connects...
+     * we need to keep from blocking too long and instead return an error,
+     * because the MPM won't want to hold up a graceful restart for a
+     * long time
+     */
+    rv = apr_socket_timeout_set(sock, apr_time_from_sec(3));
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                     "set timeout on socket to connect to listener");
+        apr_socket_close(sock);
+        apr_pool_destroy(p);
+        return rv;
     }
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                 "Shared memory session cache initialised");
-    /* Success ... */
-    mc->tSessionCacheDataTable = shm_segment;
+
+    rv = apr_socket_connect(sock, ap_listeners->bind_addr);
+    if (rv != APR_SUCCESS) {
+        int log_level = APLOG_WARNING;
+
+        if (APR_STATUS_IS_TIMEUP(rv)) {
+            /* probably some server processes bailed out already and there
+             * is nobody around to call accept and clear out the kernel
+             * connection queue; usually this is not worth logging
+             */
+            log_level = APLOG_DEBUG;
+        }
+
+        ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
+                     "connect to listener on %pI", ap_listeners->bind_addr);
+        apr_pool_destroy(p);
+        return rv;
+    }
+
+    if (ap_listeners->protocol && strcasecmp(ap_listeners->protocol, "https") == 0) {
+        /* Send a TLS 1.0 close_notify alert.  This is perhaps the
+         * "least wrong" way to open and cleanly terminate an SSL
+         * connection.  It should "work" without noisy error logs if
+         * the server actually expects SSLv3/TLSv1.  With
+         * SSLv23_server_method() OpenSSL's SSL_accept() fails
+         * ungracefully on receipt of this message, since it requires
+         * an 11-byte ClientHello message and this is too short. */
+        static const unsigned char tls10_close_notify[7] = {
+            '\x15',         /* TLSPlainText.type = Alert (21) */
+            '\x03', '\x01', /* TLSPlainText.version = {3, 1} */
+            '\x00', '\x02', /* TLSPlainText.length = 2 */
+            '\x01',         /* Alert.level = warning (1) */
+            '\x00'          /* Alert.description = close_notify (0) */
+        };
+        data = (const char *)tls10_close_notify;
+        len = sizeof(tls10_close_notify);
+    }
+    else /* ... XXX other request types here? */ {
+        /* Create an HTTP request string.  We include a User-Agent so
+         * that adminstrators can track down the cause of the
+         * odd-looking requests in their logs.  A complete request is
+         * used since kernel-level filtering may require that much
+         * data before returning from accept(). */
+        data = apr_pstrcat(p, "OPTIONS * HTTP/1.0\r\nUser-Agent: ",
+                           ap_get_server_banner(),
+                           " (internal dummy connection)\r\n\r\n", NULL);
+        len = strlen(data);
+    }
+
+    apr_socket_send(sock, data, &len);
+    apr_socket_close(sock);
+    apr_pool_destroy(p);
+
+    return rv;
 }

@@ -1,1 +1,2 @@
-die(_("Unusable instruction sheet: %s"), todo_file);
+error("Couldn't write %s",
+					lock->lk->filename.buf);

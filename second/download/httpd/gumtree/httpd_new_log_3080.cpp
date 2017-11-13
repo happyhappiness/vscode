@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02090)
-                             "Unable to listen for connections!");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "auth phase '%s' gave status %d: %s", phase,
+                      status, r->uri);

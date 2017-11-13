@@ -1,1 +1,1 @@
-ap_rputs("</td></tr>\n", r);
+ap_rvputs(r, "<td>", worker->hostname, "</td><td>", NULL);

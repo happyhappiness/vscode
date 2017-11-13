@@ -1,91 +1,86 @@
-struct file_list *send_file_list(int f,int recurse,int argc,char *argv[])
+static void hash_search(int f,struct sum_struct *s,char *buf,off_t len)
 {
-  int i,l;
-  struct stat st;
-  char *p,*dir;
-  char dbuf[MAXPATHLEN];
-  struct file_list *flist;
+  int offset,j,k;
+  int end;
+  char sum2[SUM_LENGTH];
+  uint32 s1, s2, sum;
 
-  if (verbose && recurse) {
-    fprintf(am_server?stderr:stdout,"building file list ... ");
-    fflush(am_server?stderr:stdout);
-  }
+  if (verbose > 2)
+    fprintf(stderr,"hash search b=%d len=%d\n",s->n,(int)len);
 
-  flist = (struct file_list *)malloc(sizeof(flist[0]));
-  if (!flist) out_of_memory("send_file_list");
+  k = MIN(len, s->n);
+  sum = get_checksum1(buf, k);
+  s1 = sum & 0xFFFF;
+  s2 = sum >> 16;
+  if (verbose > 3)
+    fprintf(stderr, "sum=%.8x k=%d\n", sum, k);
 
-  flist->count=0;
-  flist->malloced = 100;
-  flist->files = (struct file_struct *)malloc(sizeof(flist->files[0])*
-					      flist->malloced);
-  if (!flist->files) out_of_memory("send_file_list");
+  offset = 0;
 
-  for (i=0;i<argc;i++) {
-    char fname2[MAXPATHLEN];
-    char *fname = fname2;
+  end = len + 1 - s->sums[s->count-1].len;
 
-    strcpy(fname,argv[i]);
+  if (verbose > 3)
+    fprintf(stderr,"hash search s->n=%d len=%d count=%d\n",
+	    s->n,(int)len,s->count);
 
-    l = strlen(fname);
-    if (l != 1 && fname[l-1] == '/') {
-      strcat(fname,".");
+  do {
+    tag t = gettag2(s1,s2);
+    j = tag_table[t];
+    if (verbose > 4)
+      fprintf(stderr,"offset=%d sum=%08x\n",
+	      offset,sum);
+
+    if (j != NULL_TAG) {
+      int done_csum2 = 0;
+
+      sum = (s1 & 0xffff) | (s2 << 16);
+      tag_hits++;
+      do {
+	int i = targets[j].i;
+
+	if (sum == s->sums[i].sum1) {
+	  if (verbose > 3)
+	    fprintf(stderr,"potential match at %d target=%d %d sum=%08x\n",
+		    offset,j,i,sum);
+
+	  if (!done_csum2) {
+	    get_checksum2(buf+offset,MIN(s->n,len-offset),sum2);
+	    done_csum2 = 1;
+	  }
+	  if (memcmp(sum2,s->sums[i].sum2,SUM_LENGTH) == 0) {
+	    matched(f,s,buf,len,offset,i);
+	    offset += s->sums[i].len - 1;
+	    k = MIN((len-offset), s->n);
+	    sum = get_checksum1(buf+offset, k);
+	    s1 = sum & 0xFFFF;
+	    s2 = sum >> 16;
+	    ++matches;
+	    break;
+	  } else {
+	    false_alarms++;
+	  }
+	}
+	j++;
+      } while (j<s->count && targets[j].t == t);
     }
 
-    if (lstat(fname,&st) != 0) {
-      fprintf(stderr,"%s : %s\n",fname,strerror(errno));
-      continue;
+    /* Trim off the first byte from the checksum */
+    s1 -= buf[offset];
+    s2 -= k * buf[offset];
+
+    /* Add on the next byte (if there is one) to the checksum */
+    if (k < (len-offset)) {
+      s1 += buf[offset+k];
+      s2 += s1;
+    } else {
+      --k;
     }
 
-    if (S_ISDIR(st.st_mode) && !recurse) {
-      fprintf(stderr,"skipping directory %s\n",fname);
-      continue;
-    }
+    if (verbose > 3) 
+      fprintf(stderr,"s2:s1 = %.4x%.4x sum=%.8x k=%d offset=%d took %x added %x\n",
+	      s2&0xffff, s1&0xffff, get_checksum1(buf+offset+1,k),
+	      k, (int)offset, buf[offset], buf[offset+k]);
+  } while (++offset < end);
 
-    dir = NULL;
-    p = strrchr(fname,'/');
-    if (p) {
-      *p = 0;
-      dir = fname;
-      fname = p+1;      
-    }
-    if (!*fname)
-      fname = ".";
-
-    if (dir && *dir) {
-      if (getcwd(dbuf,MAXPATHLEN-1) == NULL) {
-	fprintf(stderr,"getwd : %s\n",strerror(errno));
-	exit_cleanup(1);
-      }
-      if (chdir(dir) != 0) {
-	fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
-	continue;
-      }
-      flist_dir = dir;
-      if (one_file_system)
-	set_filesystem(fname);
-      send_file_name(f,flist,recurse,fname);
-      flist_dir = NULL;
-      if (chdir(dbuf) != 0) {
-	fprintf(stderr,"chdir %s : %s\n",dbuf,strerror(errno));
-	exit_cleanup(1);
-      }
-      continue;
-    }
-
-    if (one_file_system)
-      set_filesystem(fname);
-    send_file_name(f,flist,recurse,fname);
-  }
-
-  if (f != -1) {
-    send_file_entry(NULL,f);
-    write_flush(f);
-  }
-
-  clean_flist(flist);
-
-  if (verbose && recurse)
-    fprintf(am_server?stderr:stdout,"done\n");
-
-  return flist;
+  matched(f,s,buf,len,len,-1);
 }

@@ -1,52 +1,20 @@
-static int proxy_balancer_post_request(proxy_worker *worker,
-                                       proxy_balancer *balancer,
-                                       request_rec *r,
-                                       proxy_server_conf *conf)
+static int proxy_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+                             apr_pool_t *ptemp, server_rec *s)
 {
-
-    apr_status_t rv;
-
-    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01173)
-                      "%s: Lock failed for post_request",
-                      balancer->s->name);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    apr_status_t rv = ap_global_mutex_create(&proxy_mutex, NULL,
+            proxy_id, NULL, s, pconf, 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02478)
+        "failed to create %s mutex", proxy_id);
+        return rv;
     }
 
-    if (!apr_is_empty_array(balancer->errstatuses)) {
-        int i;
-        for (i = 0; i < balancer->errstatuses->nelts; i++) {
-            int val = ((int *)balancer->errstatuses->elts)[i];
-            if (r->status == val) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01174)
-                              "%s: Forcing worker (%s) into error state " 
-                              "due to status code %d matching 'failonstatus' "
-                              "balancer parameter",
-                              balancer->s->name, worker->s->name, val);
-                worker->s->status |= PROXY_WORKER_IN_ERROR;
-                worker->s->error_time = apr_time_now();
-                break;
-            }
-        }
-    }
-
-    if (balancer->failontimeout
-        && (apr_table_get(r->notes, "proxy_timedout")) != NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
-                      "%s: Forcing worker (%s) into error state "
-                      "due to timeout and 'failonstatus' parameter being set",
-                       balancer->s->name, worker->s->name);
-        worker->s->status |= PROXY_WORKER_IN_ERROR;
-        worker->s->error_time = apr_time_now();
-
-    }
-
-    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01175)
-                      "%s: Unlock failed for post_request", balancer->s->name);
-    }
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01176)
-                  "proxy_balancer_post_request for (%s)", balancer->s->name);
+    proxy_ssl_enable = APR_RETRIEVE_OPTIONAL_FN(ssl_proxy_enable);
+    proxy_ssl_disable = APR_RETRIEVE_OPTIONAL_FN(ssl_engine_disable);
+    proxy_is_https = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
+    proxy_ssl_val = APR_RETRIEVE_OPTIONAL_FN(ssl_var_lookup);
+    ap_proxy_strmatch_path = apr_strmatch_precompile(pconf, "path=", 0);
+    ap_proxy_strmatch_domain = apr_strmatch_precompile(pconf, "domain=", 0);
 
     return OK;
 }

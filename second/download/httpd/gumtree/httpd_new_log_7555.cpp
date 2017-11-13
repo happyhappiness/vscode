@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "form parsed, but password field '%s' was missing or empty, unauthorized",
-                      password);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02617)
+                    "You must load mod_session to enable the mod_auth_form "
+                                       "functions");

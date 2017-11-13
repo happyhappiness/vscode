@@ -1,108 +1,95 @@
-apr_status_t mpm_service_start(apr_pool_t *ptemp, int argc,
-                               const char * const * argv)
+void mpm_signal_service(apr_pool_t *ptemp, int signal)
 {
-    apr_status_t rv;
+    int success = FALSE;
     SC_HANDLE   schService;
     SC_HANDLE   schSCManager;
 
-    fprintf(stderr, "Starting the '%s' service\n", mpm_display_name);
-
-    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+    schSCManager = OpenSCManager(NULL, NULL, /* default machine & database */
                                  SC_MANAGER_CONNECT);
+
     if (!schSCManager) {
-        rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                     apr_get_os_error(), NULL,
                      APLOGNO(00369)  "Failed to open the Windows service "
                      "manager, perhaps you forgot to log in as Adminstrator?");
-        return (rv);
+        return;
     }
 
 #if APR_HAS_UNICODE_FS
     IF_WIN_OS_IS_UNICODE
     {
         schService = OpenServiceW(schSCManager, mpm_service_name_w,
-                                  SERVICE_START | SERVICE_QUERY_STATUS);
+                                  SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
+                                  SERVICE_USER_DEFINED_CONTROL |
+                                  SERVICE_START | SERVICE_STOP);
     }
 #endif /* APR_HAS_UNICODE_FS */
 #if APR_HAS_ANSI_FS
     ELSE_WIN_OS_IS_ANSI
     {
         schService = OpenService(schSCManager, mpm_service_name,
-                                 SERVICE_START | SERVICE_QUERY_STATUS);
+                                 SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
+                                 SERVICE_USER_DEFINED_CONTROL |
+                                 SERVICE_START | SERVICE_STOP);
     }
 #endif
-    if (!schService) {
-        rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+    if (schService == NULL) {
+        /* Could not open the service */
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                     apr_get_os_error(), NULL,
                      APLOGNO(00373) "Failed to open the '%s' service",
                      mpm_display_name);
         CloseServiceHandle(schSCManager);
-        return (rv);
+        return;
     }
 
-    if (QueryServiceStatus(schService, &globdat.ssStatus)
-        && (globdat.ssStatus.dwCurrentState == SERVICE_RUNNING)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL,
-                     APLOGNO(00377) "The '%s' service is already started!",
+    if (!QueryServiceStatus(schService, &globdat.ssStatus)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                     apr_get_os_error(), NULL,
+                     APLOGNO(00381) "Query of the '%s' service failed",
                      mpm_display_name);
         CloseServiceHandle(schService);
         CloseServiceHandle(schSCManager);
-        return 0;
+        return;
     }
 
-    rv = APR_EINIT;
-#if APR_HAS_UNICODE_FS
-    IF_WIN_OS_IS_UNICODE
-    {
-        LPWSTR *start_argv_w = malloc((argc + 1) * sizeof(LPCWSTR));
-        int i;
-
-        for (i = 0; i < argc; ++i)
-        {
-            apr_size_t slen = strlen(argv[i]) + 1;
-            apr_size_t wslen = slen;
-            start_argv_w[i] = malloc(wslen * sizeof(WCHAR));
-            rv = apr_conv_utf8_to_ucs2(argv[i], &slen, start_argv_w[i], &wslen);
-            if (rv != APR_SUCCESS)
-                return rv;
-            else if (slen)
-                return APR_ENAMETOOLONG;
-        }
-        start_argv_w[argc] = NULL;
-
-        if (StartServiceW(schService, argc, start_argv_w)
-            && signal_service_transition(schService, 0, /* test only */
-                                         SERVICE_START_PENDING,
-                                         SERVICE_RUNNING))
-                rv = APR_SUCCESS;
+    if (!signal && (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED)) {
+        fprintf(stderr, "The '%s' service is not started.\n", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
     }
-#endif /* APR_HAS_UNICODE_FS */
-#if APR_HAS_ANSI_FS
-    ELSE_WIN_OS_IS_ANSI
-    {
-        char **start_argv = malloc((argc + 1) * sizeof(const char *));
-        memcpy(start_argv, argv, argc * sizeof(const char *));
-        start_argv[argc] = NULL;
 
-        if (StartService(schService, argc, start_argv)
-            && signal_service_transition(schService, 0, /* test only */
-                                         SERVICE_START_PENDING,
-                                         SERVICE_RUNNING))
-                rv = APR_SUCCESS;
+    fprintf(stderr, signal ? "The '%s' service is restarting.\n"
+                           : "The '%s' service is stopping.\n",
+                    mpm_display_name);
+
+    if (!signal)
+        success = signal_service_transition(schService,
+                                            SERVICE_CONTROL_STOP,
+                                            SERVICE_STOP_PENDING,
+                                            SERVICE_STOPPED);
+    else if (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED) {
+        mpm_service_start(ptemp, 0, NULL);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
     }
-#endif
-    if (rv != APR_SUCCESS)
-        rv = apr_get_os_error();
+    else
+        success = signal_service_transition(schService,
+                                            SERVICE_APACHE_RESTART,
+                                            SERVICE_START_PENDING,
+                                            SERVICE_RUNNING);
 
     CloseServiceHandle(schService);
     CloseServiceHandle(schSCManager);
 
-    if (rv == APR_SUCCESS)
-        fprintf(stderr, "The '%s' service is running.\n", mpm_display_name);
+    if (success)
+        fprintf(stderr, signal ? "The '%s' service has restarted.\n"
+                               : "The '%s' service has stopped.\n",
+                        mpm_display_name);
     else
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00378)
-                     "Failed to start the '%s' service",
-                     mpm_display_name);
-
-    return rv;
+        fprintf(stderr, signal ? "Failed to restart the '%s' service.\n"
+                               : "Failed to stop the '%s' service.\n",
+                        mpm_display_name);
 }

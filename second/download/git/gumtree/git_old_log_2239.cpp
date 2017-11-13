@@ -1,1 +1,1 @@
-fprintf(stderr, "Aborting\n");
+die("helper %s does not support --signed", data->name);

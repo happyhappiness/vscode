@@ -1,11 +1,9 @@
 fputs(
-"              tory as curl.exe, or in the Current Working Directory, or in any\n"
-"              folder along your PATH.\n"
+"              (iOS and macOS only) If curl is built against Secure  Transport,\n"
+"              then the certificate string can either be the name of a certifi-\n"
+"              cate/private key in the system or user keychain, or the path  to\n"
+"              a  PKCS#12-encoded  certificate  and private key. If you want to\n"
+"              use a file from the current directory, please  precede  it  with\n"
+"              \"./\" prefix, in order to avoid confusion with a nickname.\n"
 "\n"
-"              If  curl  is  built  against  the  NSS  SSL library, the NSS PEM\n"
-"              PKCS#11 module (libnsspem.so) needs to  be  available  for  this\n"
-"              option to work properly.\n"
-"\n"
-"              (iOS  and macOS only) If curl is built against Secure Transport,\n"
-"              then this option is supported for  backward  compatibility  with\n"
 , stdout);

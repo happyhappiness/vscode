@@ -1,241 +1,179 @@
-static int balancer_handler(request_rec *r)
+apr_status_t mpm_service_start(apr_pool_t *ptemp, int argc,
+                               const char * const * argv)
 {
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf = (proxy_server_conf *)
-        ap_get_module_config(sconf, &proxy_module);
-    proxy_balancer *balancer, *bsel = NULL;
-    proxy_worker *worker, *wsel = NULL;
-    apr_table_t *params = apr_table_make(r->pool, 10);
-    int access_status;
-    int i, n;
-    const char *name;
+    apr_status_t rv;
 
-    /* is this for us? */
-    if (strcmp(r->handler, "balancer-manager"))
-        return DECLINED;
-    r->allowed = (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
-        return DECLINED;
+    fprintf(stderr,"Starting the %s service\n", mpm_display_name);
 
-    if (r->args) {
-        char *args = apr_pstrdup(r->pool, r->args);
-        char *tok, *val;
-        while (args && *args) {
-            if ((val = ap_strchr(args, '='))) {
-                *val++ = '\0';
-                if ((tok = ap_strchr(val, '&')))
-                    *tok++ = '\0';
-                /*
-                 * Special case: workers are allowed path information
-                 */
-                if ((access_status = ap_unescape_url(val)) != OK)
-                    if (strcmp(args, "w") || (access_status !=  HTTP_NOT_FOUND))
-                        return access_status;
-                apr_table_setn(params, args, val);
-                args = tok;
-            }
-            else
-                return HTTP_BAD_REQUEST;
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+    {
+        SC_HANDLE   schService;
+        SC_HANDLE   schSCManager;
+
+        schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                     SC_MANAGER_CONNECT);
+        if (!schSCManager) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager");
+            return (rv);
         }
-    }
-    if ((name = apr_table_get(params, "b")))
-        bsel = ap_proxy_get_balancer(r->pool, conf,
-            apr_pstrcat(r->pool, "balancer://", name, NULL));
-    if ((name = apr_table_get(params, "w"))) {
-        proxy_worker *ws;
 
-        ws = ap_proxy_get_worker(r->pool, conf, name);
-        if (bsel && ws) {
-            worker = (proxy_worker *)bsel->workers->elts;
-            for (n = 0; n < bsel->workers->nelts; n++) {
-                if (strcasecmp(worker->name, ws->name) == 0) {
-                    wsel = worker;
+#if APR_HAS_UNICODE_FS
+        IF_WIN_OS_IS_UNICODE
+        {
+            schService = OpenServiceW(schSCManager, mpm_service_name_w,
+                                     SERVICE_START | SERVICE_QUERY_STATUS);
+        }
+#endif /* APR_HAS_UNICODE_FS */
+#if APR_HAS_ANSI_FS
+        ELSE_WIN_OS_IS_ANSI
+        {
+            schService = OpenService(schSCManager, mpm_service_name,
+                                     SERVICE_START | SERVICE_QUERY_STATUS);
+        }
+#endif
+        if (!schService) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "%s: Failed to open the service.", mpm_display_name);
+            CloseServiceHandle(schSCManager);
+            return (rv);
+        }
+
+        if (QueryServiceStatus(schService, &globdat.ssStatus)
+            && (globdat.ssStatus.dwCurrentState == SERVICE_RUNNING)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL,
+                         "Service %s is already started!", mpm_display_name);
+            CloseServiceHandle(schService);
+            CloseServiceHandle(schSCManager);
+            return 0;
+        }
+
+        rv = APR_EINIT;
+#if APR_HAS_UNICODE_FS
+        IF_WIN_OS_IS_UNICODE
+        {
+            LPWSTR *start_argv_w = malloc((argc + 1) * sizeof(LPCWSTR));
+            int i;
+
+            for (i = 0; i < argc; ++i)
+            {
+                apr_size_t slen = strlen(argv[i]) + 1;
+                apr_size_t wslen = slen;
+                start_argv_w[i] = malloc(wslen * sizeof(WCHAR));
+                rv = apr_conv_utf8_to_ucs2(argv[i], &slen, start_argv_w[i], &wslen);
+                if (rv != APR_SUCCESS)
+                    return rv;
+                else if (slen)
+                    return APR_ENAMETOOLONG;
+            }
+            start_argv_w[argc] = NULL;
+
+            if (StartServiceW(schService, argc, start_argv_w)
+                && signal_service_transition(schService, 0, /* test only */
+                                             SERVICE_START_PENDING,
+                                             SERVICE_RUNNING))
+                    rv = APR_SUCCESS;
+        }
+#endif /* APR_HAS_UNICODE_FS */
+#if APR_HAS_ANSI_FS
+        ELSE_WIN_OS_IS_ANSI
+        {
+            char **start_argv = malloc((argc + 1) * sizeof(const char *));
+            memcpy(start_argv, argv, argc * sizeof(const char *));
+            start_argv[argc] = NULL;
+
+            if (StartService(schService, argc, start_argv)
+                && signal_service_transition(schService, 0, /* test only */
+                                             SERVICE_START_PENDING,
+                                             SERVICE_RUNNING))
+                    rv = APR_SUCCESS;
+        }
+#endif
+        if (rv != APR_SUCCESS)
+            rv = apr_get_os_error();
+
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+    }
+    else /* osver.dwPlatformId != VER_PLATFORM_WIN32_NT */
+    {
+        STARTUPINFO si;           /* Filled in prior to call to CreateProcess */
+        PROCESS_INFORMATION pi;   /* filled in on call to CreateProcess */
+        char exe_path[MAX_PATH];
+        char exe_cmd[MAX_PATH * 4];
+        char *next_arg;
+        int i;
+
+        /* Locate the active top level window named service_name
+         * provided the class is ApacheWin95ServiceMonitor
+         */
+        if (FindWindow("ApacheWin95ServiceMonitor", mpm_service_name)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL,
+                         "Service %s is already started!", mpm_display_name);
+            return 0;
+        }
+
+        /* This may not appear intuitive, but Win9x will not allow a process
+         * to detach from the console without releasing the entire console.
+         * Ergo, we must spawn a new process for the service to get back our
+         * console window.
+         * The config is pre-flighted, so there should be no danger of failure.
+         */
+
+        if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
+        {
+            apr_status_t rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "GetModuleFileName failed");
+            return rv;
+        }
+
+        apr_snprintf(exe_cmd, sizeof(exe_cmd),
+                     "\"%s\" -n %s -k runservice",
+                     exe_path, mpm_service_name);
+        next_arg = strchr(exe_cmd, '\0');
+        for (i = 0; i < argc; ++i) {
+            apr_snprintf(next_arg, sizeof(exe_cmd) - (next_arg - exe_cmd),
+                         " \"%s\"", argv[i]);
+            next_arg = strchr(exe_cmd, '\0');
+        }
+
+        memset(&si, 0, sizeof(si));
+        memset(&pi, 0, sizeof(pi));
+        si.cb = sizeof(si);
+        si.dwFlags     = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;   /* This might be redundant */
+
+        rv = APR_EINIT;
+        if (CreateProcess(NULL, exe_cmd, NULL, NULL, FALSE,
+                           DETACHED_PROCESS, /* Creation flags */
+                           NULL, NULL, &si, &pi))
+        {
+            DWORD code;
+            while (GetExitCodeProcess(pi.hProcess, &code) == STILL_ACTIVE) {
+                if (FindWindow("ApacheWin95ServiceMonitor", mpm_service_name)) {
+                    rv = APR_SUCCESS;
                     break;
                 }
-                ++worker;
+                Sleep (1000);
             }
-        }
-    }
-    /* First set the params */
-    /*
-     * Note that it is not possible set the proxy_balancer because it is not
-     * in shared memory.
-     */
-    if (wsel) {
-        const char *val;
-        if ((val = apr_table_get(params, "lf"))) {
-            int ival = atoi(val);
-            if (ival >= 1 && ival <= 100) {
-                wsel->s->lbfactor = ival;
-                if (bsel)
-                    recalc_factors(bsel);
-            }
-        }
-        if ((val = apr_table_get(params, "wr"))) {
-            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
-                strcpy(wsel->s->route, val);
-            else
-                *wsel->s->route = '\0';
-        }
-        if ((val = apr_table_get(params, "rr"))) {
-            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
-                strcpy(wsel->s->redirect, val);
-            else
-                *wsel->s->redirect = '\0';
-        }
-        if ((val = apr_table_get(params, "dw"))) {
-            if (!strcasecmp(val, "Disable"))
-                wsel->s->status |= PROXY_WORKER_DISABLED;
-            else if (!strcasecmp(val, "Enable"))
-                wsel->s->status &= ~PROXY_WORKER_DISABLED;
-        }
-        if ((val = apr_table_get(params, "ls"))) {
-            int ival = atoi(val);
-            if (ival >= 0 && ival <= 99) {
-                wsel->s->lbset = ival;
-             }
         }
 
-    }
-    if (apr_table_get(params, "xml")) {
-        ap_set_content_type(r, "text/xml");
-        ap_rputs("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", r);
-        ap_rputs("<httpd:manager xmlns:httpd=\"http://httpd.apache.org\">\n", r);
-        ap_rputs("  <httpd:balancers>\n", r);
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++) {
-            ap_rputs("    <httpd:balancer>\n", r);
-            ap_rvputs(r, "      <httpd:name>", balancer->name, "</httpd:name>\n", NULL);
-            ap_rputs("      <httpd:workers>\n", r);
-            worker = (proxy_worker *)balancer->workers->elts;
-            for (n = 0; n < balancer->workers->nelts; n++) {
-                ap_rputs("        <httpd:worker>\n", r);
-                ap_rvputs(r, "          <httpd:scheme>", worker->scheme,
-                          "</httpd:scheme>\n", NULL);
-                ap_rvputs(r, "          <httpd:hostname>", worker->hostname,
-                          "</httpd:hostname>\n", NULL);
-               ap_rprintf(r, "          <httpd:loadfactor>%d</httpd:loadfactor>\n",
-                          worker->s->lbfactor);
-                ap_rputs("        </httpd:worker>\n", r);
-                ++worker;
-            }
-            ap_rputs("      </httpd:workers>\n", r);
-            ap_rputs("    </httpd:balancer>\n", r);
-            ++balancer;
-        }
-        ap_rputs("  </httpd:balancers>\n", r);
-        ap_rputs("</httpd:manager>", r);
-    }
-    else {
-        ap_set_content_type(r, "text/html; charset=ISO-8859-1");
-        ap_rputs(DOCTYPE_HTML_3_2
-                 "<html><head><title>Balancer Manager</title></head>\n", r);
-        ap_rputs("<body><h1>Load Balancer Manager for ", r);
-        ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
-        ap_rvputs(r, "<dl><dt>Server Version: ",
-                  ap_get_server_description(), "</dt>\n", NULL);
-        ap_rvputs(r, "<dt>Server Built: ",
-                  ap_get_server_built(), "\n</dt></dl>\n", NULL);
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++) {
+        if (rv != APR_SUCCESS)
+            rv = apr_get_os_error();
 
-            ap_rputs("<hr />\n<h3>LoadBalancer Status for ", r);
-            ap_rvputs(r, balancer->name, "</h3>\n\n", NULL);
-            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>StickySession</th><th>Timeout</th><th>FailoverAttempts</th><th>Method</th>"
-                "</tr>\n<tr>", r);
-            if (balancer->sticky) {
-                ap_rvputs(r, "<td>", balancer->sticky, NULL);
-            }
-            else {
-                ap_rputs("<td> - ", r);
-            }
-            ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
-                apr_time_sec(balancer->timeout));
-            ap_rprintf(r, "<td>%d</td>\n", balancer->max_attempts);
-            ap_rprintf(r, "<td>%s</td>\n",
-                       balancer->lbmethod->name);
-            ap_rputs("</table>\n<br />", r);
-            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>Worker URL</th>"
-                "<th>Route</th><th>RouteRedir</th>"
-                "<th>Factor</th><th>Set</th><th>Status</th>"
-                "<th>Elected</th><th>To</th><th>From</th>"
-                "</tr>\n", r);
-
-            worker = (proxy_worker *)balancer->workers->elts;
-            for (n = 0; n < balancer->workers->nelts; n++) {
-                char fbuf[50];
-                ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
-                          balancer->name + sizeof("balancer://") - 1, "&w=",
-                          ap_escape_uri(r->pool, worker->name),
-                          "\">", NULL);
-                ap_rvputs(r, worker->name, "</a></td>", NULL);
-                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
-                          NULL);
-                ap_rvputs(r, "</td><td>",
-                          ap_escape_html(r->pool, worker->s->redirect), NULL);
-                ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
-                ap_rprintf(r, "<td>%d</td><td>", worker->s->lbset);
-                if (worker->s->status & PROXY_WORKER_DISABLED)
-                   ap_rputs("Dis ", r);
-                if (worker->s->status & PROXY_WORKER_IN_ERROR)
-                   ap_rputs("Err ", r);
-                if (worker->s->status & PROXY_WORKER_STOPPED)
-                   ap_rputs("Stop ", r);
-                if (worker->s->status & PROXY_WORKER_HOT_STANDBY)
-                   ap_rputs("Stby ", r);
-                if (PROXY_WORKER_IS_USABLE(worker))
-                    ap_rputs("Ok", r);
-                if (!PROXY_WORKER_IS_INITIALIZED(worker))
-                    ap_rputs("-", r);
-                ap_rputs("</td>", r);
-                ap_rprintf(r, "<td>%" APR_SIZE_T_FMT "</td><td>", worker->s->elected);
-                ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
-                ap_rputs("</td><td>", r);
-                ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
-                ap_rputs("</td></tr>\n", r);
-
-                ++worker;
-            }
-            ap_rputs("</table>\n", r);
-            ++balancer;
-        }
-        ap_rputs("<hr />\n", r);
-        if (wsel && bsel) {
-            ap_rputs("<h3>Edit worker settings for ", r);
-            ap_rvputs(r, wsel->name, "</h3>\n", NULL);
-            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
-            ap_rvputs(r, r->uri, "\">\n<dl>", NULL);
-            ap_rputs("<table><tr><td>Load factor:</td><td><input name=\"lf\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbfactor);
-            ap_rputs("<tr><td>LB Set:</td><td><input name=\"ls\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbset);
-            ap_rputs("<tr><td>Route:</td><td><input name=\"wr\" type=text ", r);
-            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
-                      NULL);
-            ap_rputs("\"></td></tr>\n", r);
-            ap_rputs("<tr><td>Route Redirect:</td><td><input name=\"rr\" type=text ", r);
-            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
-                      NULL);
-            ap_rputs("\"></td></tr>\n", r);
-            ap_rputs("<tr><td>Status:</td><td>Disabled: <input name=\"dw\" value=\"Disable\" type=radio", r);
-            if (wsel->s->status & PROXY_WORKER_DISABLED)
-                ap_rputs(" checked", r);
-            ap_rputs("> | Enabled: <input name=\"dw\" value=\"Enable\" type=radio", r);
-            if (!(wsel->s->status & PROXY_WORKER_DISABLED))
-                ap_rputs(" checked", r);
-            ap_rputs("></td></tr>\n", r);
-            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
-            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
-            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
-            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
-            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
-                      "\">\n</form>\n", NULL);
-            ap_rputs("<hr />\n", r);
-        }
-        ap_rputs(ap_psignature("",r), r);
-        ap_rputs("</body></html>\n", r);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
     }
-    return OK;
+
+    if (rv == APR_SUCCESS)
+        fprintf(stderr,"The %s service is running.\n", mpm_display_name);
+    else
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "%s: Failed to start the service process.",
+                     mpm_display_name);
+
+    return rv;
 }

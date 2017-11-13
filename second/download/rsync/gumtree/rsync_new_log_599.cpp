@@ -1,2 +1,1 @@
-io_printf(fd,"@ERROR: failed to open lock file %s : %s\n",
-				  lp_lock_file(), strerror(errno));
+rprintf(FINFO,"calling match_sums %s\n",fname);

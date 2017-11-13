@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01225)
-                          "Error reading request entity data");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02124)
+                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());

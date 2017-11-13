@@ -1,3 +1,1 @@
-ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %lu %s",
-                         e, err);
+ap_rputs(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n", r);

@@ -1,1 +1,1 @@
-die("Could not create directory %s", rr_cache);
+printf("keep %s", message);

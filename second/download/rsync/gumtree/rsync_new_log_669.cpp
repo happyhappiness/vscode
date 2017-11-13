@@ -1,1 +1,1 @@
-fprintf(fp, "\n");
+io_printf(fd,"@ERROR: invalid uid %s\n", p);

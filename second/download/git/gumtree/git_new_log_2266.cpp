@@ -1,1 +1,1 @@
-die(_("base commit should be the ancestor of revision list"));
+die("unable to generate diffstat for %s", one->path);

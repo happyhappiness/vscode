@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                      "h2_workers: starting");
+log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(02810),
+                               "attempt to include NPH CGI script");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Illegal attempt to re-initialise SSL for server "
-                "(SSLEngine On should go in the VirtualHost, not in global scope.)");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Zlib: Invalid flags %02x", ctx->zlib_flags);

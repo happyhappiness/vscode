@@ -1,4 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                  "h2_session(%ld): starting on %s:%d", session->id,
-                  session->c->base_server->server_hostname,
-                  session->c->local_addr->port);
+ap_log_error(APLOG_MARK, APLOG_WARNING,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGTERM",
+                     pid);

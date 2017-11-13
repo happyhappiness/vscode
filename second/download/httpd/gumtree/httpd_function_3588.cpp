@@ -1,49 +1,23 @@
-static void mprint(request_rec *r, union VALUETYPE *p, struct magic *m)
+static apr_status_t dbd_check(apr_pool_t *pool, server_rec *s, ap_dbd_t *rec)
 {
-    char *pp;
-    unsigned long v;
-    char time_str[APR_CTIME_LEN];
+    svr_cfg *svr;
+    apr_status_t rv = apr_dbd_check_conn(rec->driver, pool, rec->handle);
+    const char *errmsg;
 
-    switch (m->type) {
-    case BYTE:
-        v = p->b;
-        break;
-
-    case SHORT:
-    case BESHORT:
-    case LESHORT:
-        v = p->h;
-        break;
-
-    case LONG:
-    case BELONG:
-    case LELONG:
-        v = p->l;
-        break;
-
-    case STRING:
-        if (m->reln == '=') {
-            (void) magic_rsl_printf(r, m->desc, m->value.s);
-        }
-        else {
-            (void) magic_rsl_printf(r, m->desc, p->s);
-        }
-        return;
-
-    case DATE:
-    case BEDATE:
-    case LEDATE:
-        apr_ctime(time_str, apr_time_from_sec(*(time_t *)&p->l));
-        pp = time_str;
-        (void) magic_rsl_printf(r, m->desc, pp);
-        return;
-    default:
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    MODNAME ": invalid m->type (%d) in mprint().",
-                    m->type);
-        return;
+    if ((rv == APR_SUCCESS) || (rv == APR_ENOTIMPL)) {
+        return APR_SUCCESS;
     }
 
-    v = signextend(r->server, m, v) & m->mask;
-    (void) magic_rsl_printf(r, m->desc, (unsigned long) v);
+    /* we don't have a driver-specific error code, so we'll just pass
+     * a "success" value and rely on the driver to ignore it
+     */
+    errmsg = apr_dbd_error(rec->driver, rec->handle, 0);
+    if (!errmsg) {
+        errmsg = "(unknown)";
+    }
+
+    svr = ap_get_module_config(s->module_config, &dbd_module);
+    ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                 "DBD [%s] Error: %s", svr->cfg->name, errmsg);
+    return rv;
 }

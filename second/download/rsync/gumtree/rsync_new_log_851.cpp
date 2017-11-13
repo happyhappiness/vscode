@@ -1,1 +1,1 @@
-out_of_memory("copy_section");
+out_of_memory("delete-delay");

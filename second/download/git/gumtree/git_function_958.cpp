@@ -1,37 +1,41 @@
-static int module_list(int argc, const char **argv, const char *prefix)
+static void all_attrs_init(struct attr_hashmap *map, struct attr_check *check)
 {
 	int i;
-	struct pathspec pathspec;
-	struct module_list list = MODULE_LIST_INIT;
 
-	struct option module_list_options[] = {
-		OPT_STRING(0, "prefix", &prefix,
-			   N_("path"),
-			   N_("alternative anchor for relative paths")),
-		OPT_END()
-	};
+	hashmap_lock(map);
 
-	const char *const git_submodule_helper_usage[] = {
-		N_("git submodule--helper list [--prefix=<path>] [<path>...]"),
-		NULL
-	};
+	if (map->map.size < check->all_attrs_nr)
+		die("BUG: interned attributes shouldn't be deleted");
 
-	argc = parse_options(argc, argv, prefix, module_list_options,
-			     git_submodule_helper_usage, 0);
+	/*
+	 * If the number of attributes in the global dictionary has increased
+	 * (or this attr_check instance doesn't have an initialized all_attrs
+	 * field), reallocate the provided attr_check instance's all_attrs
+	 * field and fill each entry with its corresponding git_attr.
+	 */
+	if (map->map.size != check->all_attrs_nr) {
+		struct attr_hash_entry *e;
+		struct hashmap_iter iter;
+		hashmap_iter_init(&map->map, &iter);
 
-	if (module_list_compute(argc, argv, prefix, &pathspec, &list) < 0)
-		return 1;
+		REALLOC_ARRAY(check->all_attrs, map->map.size);
+		check->all_attrs_nr = map->map.size;
 
-	for (i = 0; i < list.nr; i++) {
-		const struct cache_entry *ce = list.entries[i];
-
-		if (ce_stage(ce))
-			printf("%06o %s U\t", ce->ce_mode, sha1_to_hex(null_sha1));
-		else
-			printf("%06o %s %d\t", ce->ce_mode,
-			       oid_to_hex(&ce->oid), ce_stage(ce));
-
-		fprintf(stdout, "%s\n", ce->name);
+		while ((e = hashmap_iter_next(&iter))) {
+			const struct git_attr *a = e->value;
+			check->all_attrs[a->attr_nr].attr = a;
+		}
 	}
-	return 0;
+
+	hashmap_unlock(map);
+
+	/*
+	 * Re-initialize every entry in check->all_attrs.
+	 * This re-initialization can live outside of the locked region since
+	 * the attribute dictionary is no longer being accessed.
+	 */
+	for (i = 0; i < check->all_attrs_nr; i++) {
+		check->all_attrs[i].value = ATTR__UNKNOWN;
+		check->all_attrs[i].macro = NULL;
+	}
 }

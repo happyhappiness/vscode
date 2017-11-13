@@ -1,1 +1,1 @@
-rprintf(FERROR,"select error: %s\n", strerror(errno));
+rprintf(FERROR,"protocol version mismatch - is your shell clean?\n");

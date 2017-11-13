@@ -1,37 +1,57 @@
-static int update_info_file(char *path, int (*generate)(FILE *))
+static int handle_commit_msg(struct strbuf *line)
 {
-	char *tmp = mkpathdup("%s_XXXXXX", path);
-	int ret = -1;
-	int fd = -1;
-	FILE *fp = NULL;
+	static int still_looking = 1;
 
-	safe_create_leading_directories(path);
-	fd = git_mkstemp_mode(tmp, 0666);
-	if (fd < 0)
-		goto out;
-	fp = fdopen(fd, "w");
-	if (!fp)
-		goto out;
-	ret = generate(fp);
-	if (ret)
-		goto out;
-	if (fclose(fp))
-		goto out;
-	if (adjust_shared_perm(tmp) < 0)
-		goto out;
-	if (rename(tmp, path) < 0)
-		goto out;
-	ret = 0;
+	if (!cmitmsg)
+		return 0;
 
-out:
-	if (ret) {
-		error("unable to update %s: %s", path, strerror(errno));
-		if (fp)
-			fclose(fp);
-		else if (fd >= 0)
-			close(fd);
-		unlink(tmp);
+	if (still_looking) {
+		if (!line->len || (line->len == 1 && line->buf[0] == '\n'))
+			return 0;
 	}
-	free(tmp);
-	return ret;
+
+	if (use_inbody_headers && still_looking) {
+		still_looking = check_header(line, s_hdr_data, 0);
+		if (still_looking)
+			return 0;
+	} else
+		/* Only trim the first (blank) line of the commit message
+		 * when ignoring in-body headers.
+		 */
+		still_looking = 0;
+
+	/* normalize the log message to UTF-8. */
+	if (metainfo_charset)
+		convert_to_utf8(line, charset.buf);
+
+	if (use_scissors && is_scissors_line(line)) {
+		int i;
+		if (fseek(cmitmsg, 0L, SEEK_SET))
+			die_errno("Could not rewind output message file");
+		if (ftruncate(fileno(cmitmsg), 0))
+			die_errno("Could not truncate output message file at scissors");
+		still_looking = 1;
+
+		/*
+		 * We may have already read "secondary headers"; purge
+		 * them to give ourselves a clean restart.
+		 */
+		for (i = 0; header[i]; i++) {
+			if (s_hdr_data[i])
+				strbuf_release(s_hdr_data[i]);
+			s_hdr_data[i] = NULL;
+		}
+		return 0;
+	}
+
+	if (patchbreak(line)) {
+		if (message_id)
+			fprintf(cmitmsg, "Message-Id: %s\n", message_id);
+		fclose(cmitmsg);
+		cmitmsg = NULL;
+		return 1;
+	}
+
+	fputs(line->buf, cmitmsg);
+	return 0;
 }

@@ -1,11 +1,10 @@
 fputs(
-"              lows a Location: header. The \";auto\" string can be  used  alone,\n"
-"              even if you don't set an initial --referer.\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
+"              only such one.  (Added in 7.33.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -E, --cert <certificate[:password]>\n"
-"              (SSL)  Tells  curl  to use the specified client certificate file\n"
-"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
-"              col.  The  certificate must be in PKCS#12 format if using Secure\n"
+"       -e, --referer <URL>\n"
+"              (HTTP) Sends the \"Referer Page\" information to the HTTP  server.\n"
+"              This can also be set with the -H, --header flag of course.  When\n"
+"              used with -L, --location you can append \";auto\" to the --referer\n"
+"              URL to make curl automatically set the previous URL when it fol-\n"
 , stdout);

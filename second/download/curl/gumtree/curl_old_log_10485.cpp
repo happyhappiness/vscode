@@ -1,12 +1,8 @@
 fputs(
-"              # --- End of example file ---\n"
-"\n"
-"              This option can be used multiple times to load  multiple  config\n"
-"              files.\n"
-"\n"
-"       --keepalive-time <seconds>\n"
-"              This  option  sets  the  time  a connection needs to remain idle\n"
-"              before sending keepalive probes and the time between  individual\n"
-"              keepalive probes. It is currently effective on operating systems\n"
-"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              Options and their parameters must be specified on the same  con-\n"
+"              fig  file  line,  separated  by whitespace, colon, or the equals\n"
+"              sign. Long option names can optionally be given  in  the  config\n"
+"              file  without  the initial double dashes and if so, the colon or\n"
+"              equals characters can be used as separators. If  the  option  is\n"
+"              specified  with  one  or  two  dashes,  there can be no colon or\n"
 , stdout);

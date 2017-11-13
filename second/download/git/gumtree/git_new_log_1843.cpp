@@ -1,1 +1,1 @@
-die("unable to auto-detect name (got '%s')", name);
+die("unable to generate diff for %s", one->path);

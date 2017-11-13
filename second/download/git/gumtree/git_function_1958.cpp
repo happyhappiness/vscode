@@ -1,14 +1,19 @@
-static void show_worktree_porcelain(struct worktree *wt)
+static int add_info_ref(const char *path, const unsigned char *sha1, int flag, void *cb_data)
 {
-	printf("worktree %s\n", wt->path);
-	if (wt->is_bare)
-		printf("bare\n");
-	else {
-		printf("HEAD %s\n", sha1_to_hex(wt->head_sha1));
-		if (wt->is_detached)
-			printf("detached\n");
-		else
-			printf("branch %s\n", wt->head_ref);
+	FILE *fp = cb_data;
+	struct object *o = parse_object(sha1);
+	if (!o)
+		return -1;
+
+	if (fprintf(fp, "%s	%s\n", sha1_to_hex(sha1), path) < 0)
+		return -1;
+
+	if (o->type == OBJ_TAG) {
+		o = deref_tag(o, path, 0);
+		if (o)
+			if (fprintf(fp, "%s	%s^{}\n",
+				sha1_to_hex(o->sha1), path) < 0)
+				return -1;
 	}
-	printf("\n");
+	return 0;
 }

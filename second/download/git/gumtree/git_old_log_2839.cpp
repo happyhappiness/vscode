@@ -1,2 +1,2 @@
-error(_("could not open '%s' for reading: %s"),
-					*paths, strerror(errno));
+error(_("could not open '%s' for writing: %s"),
+					mail, strerror(errno));

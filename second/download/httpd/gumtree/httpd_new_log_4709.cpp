@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS,
-                             ap_server_conf, APLOGNO(00362)
-                             "Child: Waiting %d more seconds "
-                             "for %d worker threads to finish.",
-                             time_remains / 1000, threads_created);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c, APLOGNO(01996)
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");

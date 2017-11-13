@@ -1,1 +1,1 @@
-fprintf(f,"    --csum-length LENGTH set the checksum length\n");
+fprintf(stderr,"open %s : %s\n",fnametmp,strerror(errno));

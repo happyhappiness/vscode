@@ -1,11 +1,10 @@
 fputs(
-"              num_redirects  Number of redirects that  were  followed  in  the\n"
-"                             request. (Added in 7.12.3)\n"
+"              Use -s, --silent to make curl quiet.\n"
 "\n"
-"              redirect_url   When  an HTTP request was made without -L to fol-\n"
-"                             low redirects, this variable will show the actual\n"
-"                             URL  a  redirect  would  take  you  to. (Added in\n"
-"                             7.18.2)\n"
-"\n"
-"              remote_ip      The remote IP address of the most  recently  done\n"
+"       -w, --write-out <format>\n"
+"              Make curl display information on stdout after a completed trans-\n"
+"              fer.  The  format  is a string that may contain plain text mixed\n"
+"              with any number of variables. The format can be specified  as  a\n"
+"              literal  \"string\",  or  you can have curl read the format from a\n"
+"              file with \"@filename\" and to tell curl to read the  format  from\n"
 , stdout);

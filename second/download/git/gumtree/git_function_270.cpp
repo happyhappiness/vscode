@@ -1,75 +1,76 @@
-static int copy(int argc, const char **argv, const char *prefix)
+static int apply_binary(struct apply_state *state,
+			struct image *img,
+			struct patch *patch)
 {
-	int retval = 0, force = 0, from_stdin = 0;
-	const unsigned char *from_note, *note;
-	const char *object_ref;
-	unsigned char object[20], from_obj[20];
-	struct notes_tree *t;
-	const char *rewrite_cmd = NULL;
-	struct option options[] = {
-		OPT__FORCE(&force, N_("replace existing notes")),
-		OPT_BOOL(0, "stdin", &from_stdin, N_("read objects from stdin")),
-		OPT_STRING(0, "for-rewrite", &rewrite_cmd, N_("command"),
-			   N_("load rewriting config for <command> (implies "
-			      "--stdin)")),
-		OPT_END()
-	};
+	const char *name = patch->old_name ? patch->old_name : patch->new_name;
+	unsigned char sha1[20];
 
-	argc = parse_options(argc, argv, prefix, options, git_notes_copy_usage,
-			     0);
+	/*
+	 * For safety, we require patch index line to contain
+	 * full 40-byte textual SHA1 for old and new, at least for now.
+	 */
+	if (strlen(patch->old_sha1_prefix) != 40 ||
+	    strlen(patch->new_sha1_prefix) != 40 ||
+	    get_sha1_hex(patch->old_sha1_prefix, sha1) ||
+	    get_sha1_hex(patch->new_sha1_prefix, sha1))
+		return error("cannot apply binary patch to '%s' "
+			     "without full index line", name);
 
-	if (from_stdin || rewrite_cmd) {
-		if (argc) {
-			error(_("too many parameters"));
-			usage_with_options(git_notes_copy_usage, options);
-		} else {
-			return notes_copy_from_stdin(force, rewrite_cmd);
-		}
+	if (patch->old_name) {
+		/*
+		 * See if the old one matches what the patch
+		 * applies to.
+		 */
+		hash_sha1_file(img->buf, img->len, blob_type, sha1);
+		if (strcmp(sha1_to_hex(sha1), patch->old_sha1_prefix))
+			return error("the patch applies to '%s' (%s), "
+				     "which does not match the "
+				     "current contents.",
+				     name, sha1_to_hex(sha1));
+	}
+	else {
+		/* Otherwise, the old one must be empty. */
+		if (img->len)
+			return error("the patch applies to an empty "
+				     "'%s' but it is not empty", name);
 	}
 
-	if (argc < 2) {
-		error(_("too few parameters"));
-		usage_with_options(git_notes_copy_usage, options);
-	}
-	if (2 < argc) {
-		error(_("too many parameters"));
-		usage_with_options(git_notes_copy_usage, options);
+	get_sha1_hex(patch->new_sha1_prefix, sha1);
+	if (is_null_sha1(sha1)) {
+		clear_image(img);
+		return 0; /* deletion patch */
 	}
 
-	if (get_sha1(argv[0], from_obj))
-		die(_("Failed to resolve '%s' as a valid ref."), argv[0]);
+	if (has_sha1_file(sha1)) {
+		/* We already have the postimage */
+		enum object_type type;
+		unsigned long size;
+		char *result;
 
-	object_ref = 1 < argc ? argv[1] : "HEAD";
+		result = read_sha1_file(sha1, &type, &size);
+		if (!result)
+			return error("the necessary postimage %s for "
+				     "'%s' cannot be read",
+				     patch->new_sha1_prefix, name);
+		clear_image(img);
+		img->buf = result;
+		img->len = size;
+	} else {
+		/*
+		 * We have verified buf matches the preimage;
+		 * apply the patch data to it, which is stored
+		 * in the patch->fragments->{patch,size}.
+		 */
+		if (apply_binary_fragment(state, img, patch))
+			return error(_("binary patch does not apply to '%s'"),
+				     name);
 
-	if (get_sha1(object_ref, object))
-		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
-
-	t = init_notes_check("copy", NOTES_INIT_WRITABLE);
-	note = get_note(t, object);
-
-	if (note) {
-		if (!force) {
-			retval = error(_("Cannot copy notes. Found existing "
-				       "notes for object %s. Use '-f' to "
-				       "overwrite existing notes"),
-				       sha1_to_hex(object));
-			goto out;
-		}
-		fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
+		/* verify that the result matches */
+		hash_sha1_file(img->buf, img->len, blob_type, sha1);
+		if (strcmp(sha1_to_hex(sha1), patch->new_sha1_prefix))
+			return error(_("binary patch to '%s' creates incorrect result (expecting %s, got %s)"),
+				name, patch->new_sha1_prefix, sha1_to_hex(sha1));
 	}
 
-	from_note = get_note(t, from_obj);
-	if (!from_note) {
-		retval = error(_("Missing notes on source object %s. Cannot "
-			       "copy."), sha1_to_hex(from_obj));
-		goto out;
-	}
-
-	if (add_note(t, object, from_note, combine_notes_overwrite))
-		die("BUG: combine_notes_overwrite failed");
-	commit_notes(t, "Notes added by 'git notes copy'");
-out:
-	free_notes(t);
-	return retval;
+	return 0;
 }

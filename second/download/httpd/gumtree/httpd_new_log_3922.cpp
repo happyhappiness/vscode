@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01043)
-                                  "EPSV attempt to connect to %pI failed - "
-                                  "Firewall/NAT?", epsv_addr);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01292)
+                              "util_ldap: Couldn't retrieve group entry "
+                              "for %s from cache",
+                              dn);

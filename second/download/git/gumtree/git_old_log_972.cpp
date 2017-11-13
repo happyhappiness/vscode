@@ -1,1 +1,1 @@
-printf("author-time %lu\n", ci.author_time);
+die("git_all_attrs died");

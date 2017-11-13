@@ -1,100 +1,108 @@
-static void doRotate(rotate_config_t *config, rotate_status_t *status)
+static void usage(process_rec *process)
 {
+    const char *bin = process->argv[0];
+    int pad_len = strlen(bin);
 
-    int now = get_now(config);
-    int tLogStart;
-    apr_status_t rv;
-    struct logfile newlog;
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
 
-    status->rotateReason = ROTATE_NONE;
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-C \"directive\"] [-c \"directive\"]", pad_len, " ");
 
-    if (config->tRotation) {
-        int tLogEnd;
-        tLogStart = (now / config->tRotation) * config->tRotation;
-        tLogEnd = tLogStart + config->tRotation;
-        /*
-         * Check if rotation was forced and the last rotation
-         * interval is not yet over. Use the value of now instead
-         * of the time interval boundary for the file name then.
-         */
-        if (tLogStart < status->tLogEnd) {
-            tLogStart = now;
-        }
-        status->tLogEnd = tLogEnd;
-    }
-    else {
-        tLogStart = now;
-    }
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-w] [-k start|restart|stop|shutdown] [-n service_name]",
+                 pad_len, " ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k install|config|uninstall] [-n service_name]",
+                 pad_len, " ");
+#else
+/* XXX not all MPMs support signalling the server in general or graceful-stop
+ * in particular
+ */
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad_len, " ");
+#endif
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-v] [-V] [-h] [-l] [-L] [-t] [-T] [-S] [-X]",
+                 pad_len, " ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Options:");
 
-    if (config->use_strftime) {
-        apr_time_t tNow = apr_time_from_sec(tLogStart);
-        apr_time_exp_t e;
-        apr_size_t rs;
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -D name            : define a name for use in "
+                 "<IfDefine name> directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -d directory       : specify an alternate initial "
+                 "ServerRoot");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -f file            : specify an alternate ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -C \"directive\"     : process directive before reading "
+                 "config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"     : process directive after reading "
+                 "config files");
 
-        apr_time_exp_gmt(&e, tNow);
-        apr_strftime(newlog.name, &rs, sizeof(newlog.name), config->szLogRoot, &e);
-    }
-    else {
-        if (config->truncate) {
-            apr_snprintf(newlog.name, sizeof(newlog.name), "%s", config->szLogRoot);
-        }
-        else {
-            apr_snprintf(newlog.name, sizeof(newlog.name), "%s.%010d", config->szLogRoot,
-                         tLogStart);
-        }
-    }
-    apr_pool_create(&newlog.pool, status->pool);
-    if (config->verbose) {
-        fprintf(stderr, "Opening file %s\n", newlog.name);
-    }
-    rv = apr_file_open(&newlog.fd, newlog.name, APR_WRITE | APR_CREATE | APR_APPEND
-                       | (config->truncate ? APR_TRUNCATE : 0), APR_OS_DEFAULT, newlog.pool);
-    if (rv == APR_SUCCESS) {
-        /* Handle post-rotate processing. */
-        post_rotate(newlog.pool, &newlog, config, status);
+#ifdef NETWARE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set screen name");
+#endif
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set service name and use its "
+                 "ServerConfigFile and ServerRoot");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k start           : tell Apache to start");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k restart         : tell running Apache to do a graceful "
+                 "restart");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k stop|shutdown   : tell running Apache to shutdown");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k install         : install an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k config          : change startup Options of an Apache "
+                 "service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k uninstall       : uninstall an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -w                 : hold open the console window on error");
+#endif
 
-        /* Close out old (previously 'current') logfile, if any. */
-        if (status->current.fd) {
-            close_logfile(config, &status->current);
-        }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -e level           : show startup errors of level "
+                 "(see LogLevel)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -E file            : log startup errors to file");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -v                 : show version number");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -V                 : show compile settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -h                 : list available command line options "
+                 "(this page)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -l                 : list compiled in modules");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -L                 : list available configuration "
+                 "directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_VHOSTS  : show parsed settings (currently only "
+                 "vhost settings)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -S                 : a synonym for -t -D DUMP_VHOSTS");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_MODULES : show all loaded modules ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -M                 : a synonym for -t -D DUMP_MODULES");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                 : run syntax check for config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -T                 : start without DocumentRoot(s) check");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -X                 : debug mode (only one worker, do not detach)");
 
-        /* New log file is now 'current'. */
-        status->current = newlog;
-    }
-    else {
-        char error[120];
-        apr_size_t nWrite;
-
-        apr_strerror(rv, error, sizeof error);
-
-        /* Uh-oh. Failed to open the new log file. Try to clear
-         * the previous log file, note the lost log entries,
-         * and keep on truckin'. */
-        if (status->current.fd == NULL) {
-            fprintf(stderr, "Could not open log file '%s' (%s)\n", newlog.name, error);
-            exit(2);
-        }
-
-        /* Throw away new state; it isn't going to be used. */
-        apr_pool_destroy(newlog.pool);
-
-        /* Try to keep this error message constant length
-         * in case it occurs several times. */
-        apr_snprintf(status->errbuf, sizeof status->errbuf,
-                     "Resetting log file due to error opening "
-                     "new log file, %10d messages lost: %-25.25s\n",
-                     status->nMessCount, error);
-        nWrite = strlen(status->errbuf);
-
-        if (apr_file_trunc(status->current.fd, 0) != APR_SUCCESS) {
-            fprintf(stderr, "Error truncating the file %s\n", status->current.name);
-            exit(2);
-        }
-        if (apr_file_write(status->current.fd, status->errbuf, &nWrite) != APR_SUCCESS) {
-            fprintf(stderr, "Error writing to the file %s\n", status->current.name);
-            exit(2);
-        }
-    }
-
-    status->nMessCount = 0;
+    destroy_and_exit_process(process, 1);
 }

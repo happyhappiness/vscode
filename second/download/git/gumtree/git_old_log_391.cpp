@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports multi_ack\n");
+printf("%s\n", sha1_to_hex(commit_sha1));

@@ -1,49 +1,28 @@
-static int translate_alias_redir(request_rec *r)
+static apr_status_t socache_shmcb_remove(ap_socache_instance_t *ctx, 
+                                         server_rec *s, const unsigned char *id,
+                                         unsigned int idlen, apr_pool_t *p)
 {
-    ap_conf_vector_t *sconf = r->server->module_config;
-    alias_server_conf *serverconf = ap_get_module_config(sconf, &alias_module);
-    char *ret;
-    int status;
+    SHMCBHeader *header = ctx->header;
+    SHMCBSubcache *subcache = SHMCB_MASK(header, id);
+    apr_status_t rv;
 
-    if (r->uri[0] != '/' && r->uri[0] != '\0') {
-        return DECLINED;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "socache_shmcb_remove (0x%02x -> subcache %d)",
+                 SHMCB_MASK_DBG(header, id));
+    if (idlen < 4) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "unusably short id provided "
+                "(%u bytes)", idlen);
+        return APR_EINVAL;
     }
-
-    if ((ret = try_alias_list(r, serverconf->redirects, 1, &status)) != NULL) {
-        if (ap_is_HTTP_REDIRECT(status)) {
-            if (ret[0] == '/') {
-                char *orig_target = ret;
-
-                ret = ap_construct_url(r->pool, ret, r);
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "incomplete redirection target of '%s' for "
-                              "URI '%s' modified to '%s'",
-                              orig_target, r->uri, ret);
-            }
-            if (!ap_is_url(ret)) {
-                status = HTTP_INTERNAL_SERVER_ERROR;
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "cannot redirect '%s' to '%s'; "
-                              "target is not a valid absoluteURI or abs_path",
-                              r->uri, ret);
-            }
-            else {
-                /* append requested query only, if the config didn't
-                 * supply its own.
-                 */
-                if (r->args && !ap_strchr(ret, '?')) {
-                    ret = apr_pstrcat(r->pool, ret, "?", r->args, NULL);
-                }
-                apr_table_setn(r->headers_out, "Location", ret);
-            }
-        }
-        return status;
+    if (shmcb_subcache_remove(s, header, subcache, id, idlen) == 0) {
+        header->stat_removes_hit++;
+        rv = APR_SUCCESS;
+    } else {
+        header->stat_removes_miss++;
+        rv = APR_NOTFOUND;
     }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving socache_shmcb_remove successfully");
 
-    if ((ret = try_alias_list(r, serverconf->aliases, 0, &status)) != NULL) {
-        r->filename = ret;
-        return OK;
-    }
-
-    return DECLINED;
+    return rv;
 }

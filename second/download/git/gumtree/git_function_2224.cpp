@@ -1,54 +1,44 @@
-static int check_repository_format_gently(const char *gitdir, int *nongit_ok)
+void add_to_alternates_file(const char *reference)
 {
-	struct strbuf sb = STRBUF_INIT;
-	const char *repo_config;
-	config_fn_t fn;
-	int ret = 0;
+	struct lock_file *lock = xcalloc(1, sizeof(struct lock_file));
+	char *alts = git_pathdup("objects/info/alternates");
+	FILE *in, *out;
 
-	string_list_clear(&unknown_extensions, 0);
+	hold_lock_file_for_update(lock, alts, LOCK_DIE_ON_ERROR);
+	out = fdopen_lock_file(lock, "w");
+	if (!out)
+		die_errno("unable to fdopen alternates lockfile");
 
-	if (get_common_dir(&sb, gitdir))
-		fn = check_repo_format;
-	else
-		fn = check_repository_format_version;
-	strbuf_addstr(&sb, "/config");
-	repo_config = sb.buf;
+	in = fopen(alts, "r");
+	if (in) {
+		struct strbuf line = STRBUF_INIT;
+		int found = 0;
 
-	/*
-	 * git_config() can't be used here because it calls git_pathdup()
-	 * to get $GIT_CONFIG/config. That call will make setup_git_env()
-	 * set git_dir to ".git".
-	 *
-	 * We are in gitdir setup, no git dir has been found useable yet.
-	 * Use a gentler version of git_config() to check if this repo
-	 * is a good one.
-	 */
-	git_config_early(fn, NULL, repo_config);
-	if (GIT_REPO_VERSION_READ < repository_format_version) {
-		if (!nongit_ok)
-			die ("Expected git repo version <= %d, found %d",
-			     GIT_REPO_VERSION_READ, repository_format_version);
-		warning("Expected git repo version <= %d, found %d",
-			GIT_REPO_VERSION_READ, repository_format_version);
-		warning("Please upgrade Git");
-		*nongit_ok = -1;
-		ret = -1;
+		while (strbuf_getline(&line, in, '\n') != EOF) {
+			if (!strcmp(reference, line.buf)) {
+				found = 1;
+				break;
+			}
+			fprintf_or_die(out, "%s\n", line.buf);
+		}
+
+		strbuf_release(&line);
+		fclose(in);
+
+		if (found) {
+			rollback_lock_file(lock);
+			lock = NULL;
+		}
 	}
+	else if (errno != ENOENT)
+		die_errno("unable to read alternates file");
 
-	if (repository_format_version >= 1 && unknown_extensions.nr) {
-		int i;
-
-		if (!nongit_ok)
-			die("unknown repository extension: %s",
-			    unknown_extensions.items[0].string);
-
-		for (i = 0; i < unknown_extensions.nr; i++)
-			warning("unknown repository extension: %s",
-				unknown_extensions.items[i].string);
-		*nongit_ok = -1;
-		ret = -1;
+	if (lock) {
+		fprintf_or_die(out, "%s\n", reference);
+		if (commit_lock_file(lock))
+			die_errno("unable to move new alternates file into place");
+		if (alt_odb_tail)
+			link_alt_odb_entries(reference, strlen(reference), '\n', NULL, 0);
 	}
-
-	strbuf_release(&sb);
-	return ret;
+	free(alts);
 }

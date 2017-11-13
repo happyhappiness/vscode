@@ -1,1 +1,0 @@
-fprintf(out, "%d,%e\n", i, (double)t);

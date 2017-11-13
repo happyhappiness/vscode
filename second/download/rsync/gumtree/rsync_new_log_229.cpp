@@ -1,2 +1,2 @@
-fprintf(stderr,"protocol version mismatch %d %d\n",
-		remote_version,PROTOCOL_VERSION);
+fprintf(FERROR,"Failed to exec %s : %s\n",
+	      command[0],strerror(errno));

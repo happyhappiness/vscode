@@ -1,2 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                          "could not split line from buffered SSL brigade");
+ap_log_error(APLOG_MARK, APLOG_WARNING,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGTERM",
+                     pid);

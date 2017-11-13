@@ -1,43 +1,24 @@
-static int mpmt_os2_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                 apr_pool_t *ptemp, server_rec *s)
+static void menu_default(request_rec *r, const char *menu, const char *href, const char *text)
 {
-    static int restart_num = 0;
-    int startup = 0;
-
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
+    char *ehref, *etext;
+    if (!strcasecmp(href, "error") || !strcasecmp(href, "nocontent")) {
+        return;                 /* don't print such lines, these aren't
+                                   really href's */
     }
 
-    if (ap_daemons_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
-    }
+    ehref = ap_escape_uri(r->pool, href);
+    etext = ap_escape_html(r->pool, text);
 
-    if (ap_min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_min_spare_threads);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_min_spare_threads);
-        }
-        ap_min_spare_threads = 1;
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
+               "</a></pre>\n", NULL);
     }
-
-    return OK;
+    if (!strcasecmp(menu, "semiformatted")) {
+        ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
+               "</a></pre>\n", NULL);
+    }
+    if (!strcasecmp(menu, "unformatted")) {
+        ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);
+    }
+    return;
 }

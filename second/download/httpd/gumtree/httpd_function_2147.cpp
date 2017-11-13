@@ -1,105 +1,166 @@
-static void doRotate(rotate_config_t *config, rotate_status_t *status)
+static void show_compile_settings(void)
 {
+    printf("Server version: %s\n", ap_get_server_description());
+    printf("Server built:   %s\n", ap_get_server_built());
+    printf("Server's Module Magic Number: %u:%u\n",
+           MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
+    printf("Server loaded:  APR %s, APR-Util %s\n",
+           apr_version_string(), apu_version_string());
+    printf("Compiled using: APR %s, APR-Util %s\n",
+           APR_VERSION_STRING, APU_VERSION_STRING);
+    /* sizeof(foo) is long on some platforms so we might as well
+     * make it long everywhere to keep the printf format
+     * consistent
+     */
+    printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
 
-    int now = get_now(config);
-    int tLogStart;
-    apr_status_t rv;
+    show_mpm_settings();
 
-    status->rotateReason = ROTATE_NONE;
-    status->nLogFDprev = status->nLogFD;
-    status->nLogFD = NULL;
-    status->pfile_prev = status->pfile;
+    printf("Server compiled with....\n");
+#ifdef BIG_SECURITY_HOLE
+    printf(" -D BIG_SECURITY_HOLE\n");
+#endif
 
-    if (config->tRotation) {
-        int tLogEnd;
-        tLogStart = (now / config->tRotation) * config->tRotation;
-        tLogEnd = tLogStart + config->tRotation;
-        /*
-         * Check if rotation was forced and the last rotation
-         * interval is not yet over. Use the value of now instead
-         * of the time interval boundary for the file name then.
-         */
-        if (tLogStart < status->tLogEnd) {
-            tLogStart = now;
-        }
-        status->tLogEnd = tLogEnd;
-    }
-    else {
-        tLogStart = now;
-    }
+#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
+    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
+#endif
 
-    if (config->use_strftime) {
-        apr_time_t tNow = apr_time_from_sec(tLogStart);
-        apr_time_exp_t e;
-        apr_size_t rs;
+#ifdef OS
+    printf(" -D OS=\"" OS "\"\n");
+#endif
 
-        apr_time_exp_gmt(&e, tNow);
-        apr_strftime(status->filename, &rs, sizeof(status->filename), config->szLogRoot, &e);
-    }
-    else {
-        if (config->truncate) {
-            apr_snprintf(status->filename, sizeof(status->filename), "%s", config->szLogRoot);
-        }
-        else {
-            apr_snprintf(status->filename, sizeof(status->filename), "%s.%010d", config->szLogRoot,
-                    tLogStart);
-        }
-    }
-    apr_pool_create(&status->pfile, status->pool);
-    if (config->verbose) {
-        fprintf(stderr, "Opening file %s\n", status->filename);
-    }
-    rv = apr_file_open(&status->nLogFD, status->filename, APR_WRITE | APR_CREATE | APR_APPEND
-                       | (config->truncate ? APR_TRUNCATE : 0), APR_OS_DEFAULT, status->pfile);
-    if (rv != APR_SUCCESS) {
-        char error[120];
+#ifdef APACHE_MPM_DIR
+    printf(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n");
+#endif
 
-        apr_strerror(rv, error, sizeof error);
+#ifdef HAVE_SHMGET
+    printf(" -D HAVE_SHMGET\n");
+#endif
 
-        /* Uh-oh. Failed to open the new log file. Try to clear
-         * the previous log file, note the lost log entries,
-         * and keep on truckin'. */
-        if (status->nLogFDprev == NULL) {
-            fprintf(stderr, "Could not open log file '%s' (%s)\n", status->filename, error);
-            exit(2);
-        }
-        else {
-            apr_size_t nWrite;
-            status->nLogFD = status->nLogFDprev;
-            apr_pool_destroy(status->pfile);
-            status->pfile = status->pfile_prev;
-            /* Try to keep this error message constant length
-             * in case it occurs several times. */
-            apr_snprintf(status->errbuf, sizeof status->errbuf,
-                         "Resetting log file due to error opening "
-                         "new log file, %10d messages lost: %-25.25s\n",
-                         status->nMessCount, error);
-            nWrite = strlen(status->errbuf);
-            apr_file_trunc(status->nLogFD, 0);
-            if (apr_file_write(status->nLogFD, status->errbuf, &nWrite) != APR_SUCCESS) {
-                fprintf(stderr, "Error writing to the file %s\n", status->filename);
-                exit(2);
-            }
-        }
-    }
-    else {
-        closeFile(config, status->pfile_prev, status->nLogFDprev);
-        status->nLogFDprev = NULL;
-        status->pfile_prev = NULL;
-    }
-    status->nMessCount = 0;
-    if (config->linkfile) {
-        apr_file_remove(config->linkfile, status->pfile);
-        if (config->verbose) {
-            fprintf(stderr,"Linking %s to %s\n", status->filename, config->linkfile);
-        }
-        rv = apr_file_link(status->filename, config->linkfile);
-        if (rv != APR_SUCCESS) {
-            char error[120];
-            apr_strerror(rv, error, sizeof error);
-            fprintf(stderr, "Error linking file %s to %s (%s)\n",
-                    status->filename, config->linkfile, error);
-            exit(2);
-        }
-    }
+#if APR_FILE_BASED_SHM
+    printf(" -D APR_FILE_BASED_SHM\n");
+#endif
+
+#if APR_HAS_SENDFILE
+    printf(" -D APR_HAS_SENDFILE\n");
+#endif
+
+#if APR_HAS_MMAP
+    printf(" -D APR_HAS_MMAP\n");
+#endif
+
+#ifdef NO_WRITEV
+    printf(" -D NO_WRITEV\n");
+#endif
+
+#ifdef NO_LINGCLOSE
+    printf(" -D NO_LINGCLOSE\n");
+#endif
+
+#if APR_HAVE_IPV6
+    printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");
+#ifdef AP_ENABLE_V4_MAPPED
+    printf("enabled)\n");
+#else
+    printf("disabled)\n");
+#endif
+#endif
+
+#if APR_USE_FLOCK_SERIALIZE
+    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
+#endif
+
+#if APR_USE_SYSVSEM_SERIALIZE
+    printf(" -D APR_USE_SYSVSEM_SERIALIZE\n");
+#endif
+
+#if APR_USE_POSIXSEM_SERIALIZE
+    printf(" -D APR_USE_POSIXSEM_SERIALIZE\n");
+#endif
+
+#if APR_USE_FCNTL_SERIALIZE
+    printf(" -D APR_USE_FCNTL_SERIALIZE\n");
+#endif
+
+#if APR_USE_PROC_PTHREAD_SERIALIZE
+    printf(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n");
+#endif
+
+#if APR_USE_PTHREAD_SERIALIZE
+    printf(" -D APR_USE_PTHREAD_SERIALIZE\n");
+#endif
+
+#if APR_PROCESS_LOCK_IS_GLOBAL
+    printf(" -D APR_PROCESS_LOCK_IS_GLOBAL\n");
+#endif
+
+#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
+    printf(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n");
+#endif
+
+#if APR_HAS_OTHER_CHILD
+    printf(" -D APR_HAS_OTHER_CHILD\n");
+#endif
+
+#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
+    printf(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n");
+#endif
+
+#ifdef BUFFERED_LOGS
+    printf(" -D BUFFERED_LOGS\n");
+#ifdef PIPE_BUF
+    printf(" -D PIPE_BUF=%ld\n",(long)PIPE_BUF);
+#endif
+#endif
+
+    printf(" -D DYNAMIC_MODULE_LIMIT=%ld\n",(long)DYNAMIC_MODULE_LIMIT);
+
+#if APR_CHARSET_EBCDIC
+    printf(" -D APR_CHARSET_EBCDIC\n");
+#endif
+
+#ifdef NEED_HASHBANG_EMUL
+    printf(" -D NEED_HASHBANG_EMUL\n");
+#endif
+
+#ifdef SHARED_CORE
+    printf(" -D SHARED_CORE\n");
+#endif
+
+/* This list displays the compiled in default paths: */
+#ifdef HTTPD_ROOT
+    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
+#endif
+
+#ifdef SUEXEC_BIN
+    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
+#endif
+
+#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
+    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
+#endif
+
+#ifdef DEFAULT_PIDLOG
+    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
+#endif
+
+#ifdef DEFAULT_SCOREBOARD
+    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
+#endif
+
+#ifdef DEFAULT_LOCKFILE
+    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
+#endif
+
+#ifdef DEFAULT_ERRORLOG
+    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
+#endif
+
+#ifdef AP_TYPES_CONFIG_FILE
+    printf(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n");
+#endif
+
+#ifdef SERVER_CONFIG_FILE
+    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
+#endif
 }

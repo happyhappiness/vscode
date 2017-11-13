@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(02332)
-            "(re)loading lua file %s", spec->file);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_proxy_stream(%s-%d): resuming", 
+                  session->id, stream->id);

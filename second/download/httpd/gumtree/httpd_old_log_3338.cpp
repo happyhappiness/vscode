@@ -1,2 +1,2 @@
-log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno,
-                                       "unable to connect to cgi daemon after multiple tries");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, errno, ptemp,
+                      "priv_addset");

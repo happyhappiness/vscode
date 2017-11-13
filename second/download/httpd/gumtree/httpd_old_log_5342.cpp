@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, &env.c,
-                      APLOGNO(02957) "h2_task(%s): error setting up h2_task_env", 
-                      env.id);
+ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                     "apr_proc_mutex_%s failed "
+                     "before this child process served any requests.",
+                     func);

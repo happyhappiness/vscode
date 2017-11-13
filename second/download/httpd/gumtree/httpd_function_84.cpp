@@ -1,56 +1,127 @@
-static int mem_cache_post_config(apr_pool_t *p, apr_pool_t *plog,
-                                 apr_pool_t *ptemp, server_rec *s)
+static int create_entity(cache_handle_t *h, request_rec *r,
+                         const char *type, 
+                         const char *key, 
+                         apr_off_t len) 
 {
-    int threaded_mpm;
+    cache_object_t *obj, *tmp_obj;
+    mem_cache_object_t *mobj;
+    cache_type_e type_e;
+    apr_size_t key_len;
 
-    /* Sanity check the cache configuration */
-    if (sconf->min_cache_object_size >= sconf->max_cache_object_size) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
-                     "MCacheMaxObjectSize must be greater than MCacheMinObjectSize");
-        return DONE;
+    if (!strcasecmp(type, "mem")) {
+        type_e = CACHE_TYPE_HEAP;
+    } 
+    else if (!strcasecmp(type, "fd")) {
+        type_e = CACHE_TYPE_FILE;
     }
-    if (sconf->max_cache_object_size >= sconf->max_cache_size) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
-                     "MCacheSize must be greater than MCacheMaxObjectSize");
-        return DONE;
+    else {
+        return DECLINED;
     }
-    if (sconf->max_streaming_buffer_size > sconf->max_cache_object_size) {
-        /* Issue a notice only if something other than the default config 
-         * is being used */
-        if (sconf->max_streaming_buffer_size != DEFAULT_MAX_STREAMING_BUFFER_SIZE &&
-            sconf->max_cache_object_size != DEFAULT_MAX_CACHE_OBJECT_SIZE) {
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
-                         "MCacheMaxStreamingBuffer must be less than or equal to MCacheMaxObjectSize. "
-                         "Resetting MCacheMaxStreamingBuffer to MCacheMaxObjectSize.");
+
+    /* In principle, we should be able to dispense with the cache_size checks
+     * when caching open file descriptors.  However, code in cache_insert() and 
+     * other places does not make the distinction whether a file's content or
+     * descriptor is being cached. For now, just do all the same size checks
+     * regardless of what we are caching.
+     */
+    if (len < sconf->min_cache_object_size || 
+        len > sconf->max_cache_object_size) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache_mem: URL %s failed the size check, "
+                     "or is incomplete", 
+                     key);
+        return DECLINED;
+    }
+    if (type_e == CACHE_TYPE_FILE) {
+        /* CACHE_TYPE_FILE is only valid for local content handled by the 
+         * default handler. Need a better way to check if the file is
+         * local or not.
+         */
+        if (!r->filename) {
+            return DECLINED;
         }
-        sconf->max_streaming_buffer_size = sconf->max_cache_object_size;
-    }
-    if (sconf->max_streaming_buffer_size < sconf->min_cache_object_size) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "MCacheMaxStreamingBuffer must be greater than or equal to MCacheMinObjectSize. "
-                     "Resetting MCacheMaxStreamingBuffer to MCacheMinObjectSize.");
-        sconf->max_streaming_buffer_size = sconf->min_cache_object_size;
-    }
-    ap_mpm_query(AP_MPMQ_IS_THREADED, &threaded_mpm);
-    if (threaded_mpm) {
-        apr_thread_mutex_create(&sconf->lock, APR_THREAD_MUTEX_DEFAULT, p);
     }
 
-    sconf->cache_cache = cache_init(sconf->max_object_cnt,
-                                    sconf->max_cache_size,                                   
-                                    memcache_get_priority,
-                                    sconf->cache_remove_algorithm,
-                                    memcache_get_pos,
-                                    memcache_set_pos,
-                                    memcache_inc_frequency,
-                                    memcache_cache_get_size,
-                                    memcache_cache_get_key,
-                                    memcache_cache_free);
-    apr_pool_cleanup_register(p, sconf, cleanup_cache_mem, apr_pool_cleanup_null);
+    /* Allocate and initialize cache_object_t */
+    obj = calloc(1, sizeof(*obj));
+    if (!obj) {
+        return DECLINED;
+    }
+    key_len = strlen(key) + 1;
+    obj->key = malloc(key_len);
+    if (!obj->key) {
+        cleanup_cache_object(obj);
+        return DECLINED;
+    }
+    memcpy(obj->key, key, key_len);
+    obj->info.len = len;
 
-    if (sconf->cache_cache)
-        return OK;
 
-    return -1;
+    /* Allocate and init mem_cache_object_t */
+    mobj = calloc(1, sizeof(*mobj));
+    if (!mobj) {
+        cleanup_cache_object(obj);
+        return DECLINED;
+    }
 
+    /* Finish initing the cache object */
+#ifdef USE_ATOMICS
+    apr_atomic_set(&obj->refcount, 1);
+#else 
+    obj->refcount = 1;
+#endif
+    mobj->total_refs = 1;
+    obj->complete = 0;
+    obj->cleanup = 0;
+    obj->vobj = mobj;
+    mobj->m_len = len;
+    mobj->type = type_e;
+
+    /* Place the cache_object_t into the hash table.
+     * Note: Perhaps we should wait to put the object in the
+     * hash table when the object is complete?  I add the object here to
+     * avoid multiple threads attempting to cache the same content only
+     * to discover at the very end that only one of them will suceed.
+     * Furthermore, adding the cache object to the table at the end could
+     * open up a subtle but easy to exploit DoS hole: someone could request 
+     * a very large file with multiple requests. Better to detect this here
+     * rather than after the cache object has been completely built and
+     * initialized...
+     * XXX Need a way to insert into the cache w/o such coarse grained locking 
+     */
+    if (sconf->lock) {
+        apr_thread_mutex_lock(sconf->lock);
+    }
+    tmp_obj = (cache_object_t *) cache_find(sconf->cache_cache, key);
+
+    if (!tmp_obj) {
+        cache_insert(sconf->cache_cache, obj);     
+        sconf->object_cnt++;
+        sconf->cache_size += len;
+    }
+    if (sconf->lock) {
+        apr_thread_mutex_unlock(sconf->lock);
+    }
+
+    if (tmp_obj) {
+        /* This thread collided with another thread loading the same object
+         * into the cache at the same time. Defer to the other thread which 
+         * is further along.
+         */
+        cleanup_cache_object(obj);
+        return DECLINED;
+    }
+
+    apr_pool_cleanup_register(r->pool, obj, decrement_refcount, 
+                              apr_pool_cleanup_null);
+
+    /* Populate the cache handle */
+    h->cache_obj = obj;
+    h->read_body = &read_body;
+    h->read_headers = &read_headers;
+    h->write_body = &write_body;
+    h->write_headers = &write_headers;
+    h->remove_entity = &remove_entity;
+
+    return OK;
 }

@@ -1,1 +1,1 @@
-die("BUG: ref_update_reject_duplicates() received unsorted list");
+die("cannot handle pushes this big");

@@ -1,9 +1,11 @@
 fputs(
-"              commands as RFC 959 defines to FTP servers, or one of  the  com-\n"
-"              mands  listed  below  to  SFTP servers.  This option can be used\n"
-"              multiple times. When speaking to an FTP server, prefix the  com-\n"
-"              mand with an asterisk (*) to make curl continue even if the com-\n"
-"              mand fails as by default curl will stop at first failure.\n"
+"              The  only difference between this and the HTTP proxy option (-x,\n"
+"              --proxy), is that attempts to use CONNECT through the proxy will\n"
+"              specify an HTTP 1.0 protocol instead of the default HTTP 1.1.\n"
 "\n"
-"              SFTP is a binary protocol. Unlike for FTP, curl interprets  SFTP\n"
+"       --pubkey <key>\n"
+"              (SSH)  Public  key  file name. Allows you to provide your public\n"
+"              key in this separate file.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
 , stdout);

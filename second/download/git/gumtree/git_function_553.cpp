@@ -1,77 +1,108 @@
-static void wt_porcelain_v2_print_unmerged_entry(
-	struct string_list_item *it,
-	struct wt_status *s)
+static int get_pack(struct fetch_pack_args *args,
+		    int xd[2], char **pack_lockfile)
 {
-	struct wt_status_change_data *d = it->util;
-	const struct cache_entry *ce;
-	struct strbuf buf_index = STRBUF_INIT;
-	const char *path_index = NULL;
-	int pos, stage, sum;
-	struct {
-		int mode;
-		struct object_id oid;
-	} stages[3];
-	char *key;
-	char submodule_token[5];
-	char unmerged_prefix = 'u';
-	char eol_char = s->null_termination ? '\0' : '\n';
+	struct async demux;
+	int do_keep = args->keep_pack;
+	const char *cmd_name;
+	struct pack_header header;
+	int pass_header = 0;
+	struct child_process cmd = CHILD_PROCESS_INIT;
+	int ret;
 
-	wt_porcelain_v2_submodule_state(d, submodule_token);
-
-	switch (d->stagemask) {
-	case 1: key = "DD"; break; /* both deleted */
-	case 2: key = "AU"; break; /* added by us */
-	case 3: key = "UD"; break; /* deleted by them */
-	case 4: key = "UA"; break; /* added by them */
-	case 5: key = "DU"; break; /* deleted by us */
-	case 6: key = "AA"; break; /* both added */
-	case 7: key = "UU"; break; /* both modified */
-	default:
-		die("BUG: unhandled unmerged status %x", d->stagemask);
+	memset(&demux, 0, sizeof(demux));
+	if (use_sideband) {
+		/* xd[] is talking with upload-pack; subprocess reads from
+		 * xd[0], spits out band#2 to stderr, and feeds us band#1
+		 * through demux->out.
+		 */
+		demux.proc = sideband_demux;
+		demux.data = xd;
+		demux.out = -1;
+		demux.isolate_sigpipe = 1;
+		if (start_async(&demux))
+			die("fetch-pack: unable to fork off sideband"
+			    " demultiplexer");
 	}
-
-	/*
-	 * Disregard d.aux.porcelain_v2 data that we accumulated
-	 * for the head and index columns during the scans and
-	 * replace with the actual stage data.
-	 *
-	 * Note that this is a last-one-wins for each the individual
-	 * stage [123] columns in the event of multiple cache entries
-	 * for same stage.
-	 */
-	memset(stages, 0, sizeof(stages));
-	sum = 0;
-	pos = cache_name_pos(it->string, strlen(it->string));
-	assert(pos < 0);
-	pos = -pos-1;
-	while (pos < active_nr) {
-		ce = active_cache[pos++];
-		stage = ce_stage(ce);
-		if (strcmp(ce->name, it->string) || !stage)
-			break;
-		stages[stage - 1].mode = ce->ce_mode;
-		hashcpy(stages[stage - 1].oid.hash, ce->oid.hash);
-		sum |= (1 << (stage - 1));
-	}
-	if (sum != d->stagemask)
-		die("BUG: observed stagemask 0x%x != expected stagemask 0x%x", sum, d->stagemask);
-
-	if (s->null_termination)
-		path_index = it->string;
 	else
-		path_index = quote_path(it->string, s->prefix, &buf_index);
+		demux.out = xd[0];
 
-	fprintf(s->fp, "%c %s %s %06o %06o %06o %06o %s %s %s %s%c",
-			unmerged_prefix, key, submodule_token,
-			stages[0].mode, /* stage 1 */
-			stages[1].mode, /* stage 2 */
-			stages[2].mode, /* stage 3 */
-			d->mode_worktree,
-			oid_to_hex(&stages[0].oid), /* stage 1 */
-			oid_to_hex(&stages[1].oid), /* stage 2 */
-			oid_to_hex(&stages[2].oid), /* stage 3 */
-			path_index,
-			eol_char);
+	if (!args->keep_pack && unpack_limit) {
 
-	strbuf_release(&buf_index);
+		if (read_pack_header(demux.out, &header))
+			die("protocol error: bad pack header");
+		pass_header = 1;
+		if (ntohl(header.hdr_entries) < unpack_limit)
+			do_keep = 0;
+		else
+			do_keep = 1;
+	}
+
+	if (alternate_shallow_file) {
+		argv_array_push(&cmd.args, "--shallow-file");
+		argv_array_push(&cmd.args, alternate_shallow_file);
+	}
+
+	if (do_keep) {
+		if (pack_lockfile)
+			cmd.out = -1;
+		cmd_name = "index-pack";
+		argv_array_push(&cmd.args, cmd_name);
+		argv_array_push(&cmd.args, "--stdin");
+		if (!args->quiet && !args->no_progress)
+			argv_array_push(&cmd.args, "-v");
+		if (args->use_thin_pack)
+			argv_array_push(&cmd.args, "--fix-thin");
+		if (args->lock_pack || unpack_limit) {
+			char hostname[256];
+			if (gethostname(hostname, sizeof(hostname)))
+				xsnprintf(hostname, sizeof(hostname), "localhost");
+			argv_array_pushf(&cmd.args,
+					"--keep=fetch-pack %"PRIuMAX " on %s",
+					(uintmax_t)getpid(), hostname);
+		}
+		if (args->check_self_contained_and_connected)
+			argv_array_push(&cmd.args, "--check-self-contained-and-connected");
+	}
+	else {
+		cmd_name = "unpack-objects";
+		argv_array_push(&cmd.args, cmd_name);
+		if (args->quiet || args->no_progress)
+			argv_array_push(&cmd.args, "-q");
+		args->check_self_contained_and_connected = 0;
+	}
+
+	if (pass_header)
+		argv_array_pushf(&cmd.args, "--pack_header=%"PRIu32",%"PRIu32,
+				 ntohl(header.hdr_version),
+				 ntohl(header.hdr_entries));
+	if (fetch_fsck_objects >= 0
+	    ? fetch_fsck_objects
+	    : transfer_fsck_objects >= 0
+	    ? transfer_fsck_objects
+	    : 0)
+		argv_array_push(&cmd.args, "--strict");
+
+	cmd.in = demux.out;
+	cmd.git_cmd = 1;
+	if (start_command(&cmd))
+		die("fetch-pack: unable to fork off %s", cmd_name);
+	if (do_keep && pack_lockfile) {
+		*pack_lockfile = index_pack_lockfile(cmd.out);
+		close(cmd.out);
+	}
+
+	if (!use_sideband)
+		/* Closed by start_command() */
+		xd[0] = -1;
+
+	ret = finish_command(&cmd);
+	if (!ret || (args->check_self_contained_and_connected && ret == 1))
+		args->self_contained_and_connected =
+			args->check_self_contained_and_connected &&
+			ret == 0;
+	else
+		die("%s failed", cmd_name);
+	if (use_sideband && finish_async(&demux))
+		die("error in sideband demultiplexer");
+	return 0;
 }

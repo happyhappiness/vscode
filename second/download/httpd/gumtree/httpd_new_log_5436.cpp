@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03051)
-                          "h2_h2(%ld): tls protocol is indetermined", (long)c->id);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00564)
+                                  "Request header field is missing ':' "
+                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+                                  last_field);

@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, f->c,
-                              "h2_task(%s): eoc bucket passed", task->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(02980)
+                     "Watchdog: nothing configured?");

@@ -1,1 +1,2 @@
-print_rebase_state(s, state, color);
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "atomic push failed", porcelain);

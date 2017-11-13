@@ -1,9 +1,12 @@
 fputs(
-"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
-"              be  in  PEM  format,  and  if curl is built against OpenSSL, the\n"
-"              directory must have been processed using  the  c_rehash  utility\n"
-"              supplied  with OpenSSL. Using --capath can allow OpenSSL-powered\n"
-"              curl to make SSL-connections much more  efficiently  than  using\n"
-"              --cacert if the --cacert file contains many CA certificates.\n"
+"  included in recent versions of OpenSSL, and for older versions Dr Stephen\n"
+"  N. Henson has written a patch for SSLeay that adds this functionality. You\n"
+"  can get his patch (that requires an SSLeay installation) from his site at:\n"
+"  http://www.drh-consultancy.demon.co.uk/\n"
+"\n"
+"  Example on how to automatically retrieve a document using a certificate with\n"
+"  a personal password:\n"
+"\n"
+"        curl -E /path/to/cert.pem:password https://secure.site.com/\n"
 "\n"
 , stdout);

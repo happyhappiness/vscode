@@ -1,10 +1,10 @@
 fputs(
-"                             to a file  with  the  -O,  --remote-name  or  -o,\n"
-"                             --output  option. It's most useful in combination\n"
-"                             with the -J, --remote-header-name option.  (Added\n"
-"                             in 7.26.0)\n"
+"              with  '>'  means  \"header  data\" sent by curl, '<' means \"header\n"
+"              data\" received by curl that is hidden in  normal  cases,  and  a\n"
+"              line starting with '*' means additional info provided by curl.\n"
 "\n"
-"              ftp_entry_path The initial path curl ended up in when logging on\n"
-"                             to the remote FTP server. (Added in 7.15.4)\n"
+"              If you only want HTTP headers in the output, -i, --include might\n"
+"              be the option you're looking for.\n"
 "\n"
+"              If you think this option still doesn't give you enough  details,\n"
 , stdout);

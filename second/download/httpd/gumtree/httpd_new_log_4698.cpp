@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf, APLOGNO(00351)
-                     "Child: Failed to acquire the start_mutex. "
-                     "Process will exit.");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01917)
+                     "Init: You should not use name-based "
+                     "virtual hosts in conjunction with SSL!!");

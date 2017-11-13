@@ -1,1 +1,1 @@
-die("object '%s' is not a blob!", oid_to_hex(oid));
+error(_("Could not spawn pack-objects"));

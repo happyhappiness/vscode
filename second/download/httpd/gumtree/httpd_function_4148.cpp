@@ -1,33 +1,47 @@
-static void ssl_init_ctx_tls_extensions(server_rec *s,
-                                        apr_pool_t *p,
-                                        apr_pool_t *ptemp,
-                                        modssl_ctx_t *mctx)
+apr_status_t ajp_ilink_receive(apr_socket_t *sock, ajp_msg_t *msg)
 {
-    /*
-     * Configure TLS extensions support
-     */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring TLS extension handling");
+    apr_status_t status;
+    apr_size_t   hlen;
+    apr_size_t   blen;
 
-    /*
-     * Server name indication (SNI)
-     */
-    if (!SSL_CTX_set_tlsext_servername_callback(mctx->ssl_ctx,
-                          ssl_callback_ServerNameIndication) ||
-        !SSL_CTX_set_tlsext_servername_arg(mctx->ssl_ctx, mctx)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Unable to initialize TLS servername extension "
-                     "callback (incompatible OpenSSL version?)");
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        ssl_die();
+    if (sock == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_ilink_receive(): NULL socket provided");
+        return AJP_EINVAL;
     }
 
-#ifdef HAVE_OCSP_STAPLING
-    /*
-     * OCSP Stapling support, status_request extension
-     */
-    if ((mctx->pkp == FALSE) && (mctx->stapling_enabled == TRUE)) {
-        modssl_init_stapling(s, p, ptemp, mctx);
+    hlen = msg->header_len;
+
+    status = ilink_read(sock, msg->buf, hlen);
+
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
+                     "ajp_ilink_receive() can't receive header");
+        return AJP_ENO_HEADER;
     }
-#endif
+
+    status = ajp_msg_check_header(msg, &blen);
+
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_ilink_receive() received bad header");
+        return AJP_EBAD_HEADER;
+    }
+
+    status = ilink_read(sock, msg->buf + hlen, blen);
+
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
+                     "ajp_ilink_receive() error while receiving message body "
+                     "of length %" APR_SIZE_T_FMT,
+                     hlen);
+        return AJP_EBAD_MESSAGE;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                 "ajp_ilink_receive() received packet len=%" APR_SIZE_T_FMT
+                 "type=%d",
+                  blen, (int)msg->buf[hlen]);
+
+    return APR_SUCCESS;
 }

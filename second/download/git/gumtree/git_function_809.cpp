@@ -1,18 +1,8 @@
-static void check_ref_valid(unsigned char object[20],
-			    unsigned char prev[20],
-			    char *ref,
-			    int ref_size,
-			    int force)
+void relocate_gitdir(const char *path, const char *old_git_dir, const char *new_git_dir)
 {
-	if (snprintf(ref, ref_size,
-		     "%s%s", git_replace_ref_base,
-		     sha1_to_hex(object)) > ref_size - 1)
-		die("replace ref name too long: %.*s...", 50, ref);
-	if (check_refname_format(ref, 0))
-		die("'%s' is not a valid ref name.", ref);
+	if (rename(old_git_dir, new_git_dir) < 0)
+		die_errno(_("could not migrate git directory from '%s' to '%s'"),
+			old_git_dir, new_git_dir);
 
-	if (read_ref(ref, prev))
-		hashclr(prev);
-	else if (!force)
-		die("replace ref '%s' already exists", ref);
+	connect_work_tree_and_git_dir(path, new_git_dir);
 }

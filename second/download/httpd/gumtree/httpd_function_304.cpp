@@ -1,95 +1,59 @@
-int main(int argc, const char * const argv[])
+static const char *set_max_clients (cmd_parms *cmd, void *dummy,
+                                     const char *arg) 
 {
-    apr_file_t *f;
-    apr_status_t rv;
-    char tn[] = "htdigest.tmp.XXXXXX";
-    char user[MAX_STRING_LEN];
-    char realm[MAX_STRING_LEN];
-    char line[MAX_STRING_LEN];
-    char l[MAX_STRING_LEN];
-    char w[MAX_STRING_LEN];
-    char x[MAX_STRING_LEN];
-    char command[MAX_STRING_LEN];
-    int found;
-   
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate); 
-    apr_pool_create(&cntxt, NULL);
-
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, cntxt);
-    if (rv) {
-        fprintf(stderr, "apr_xlate_open(): %s (%d)\n",
-                apr_strerror(rv, line, sizeof(line)), rv);
-        exit(1);
-    }
-#endif
-    
-    apr_signal(SIGINT, (void (*)(int)) interrupted);
-    if (argc == 5) {
-	if (strcmp(argv[1], "-c"))
-	    usage();
-	rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE, -1, cntxt);
-        if (rv != APR_SUCCESS) {
-            char errmsg[120];
-
-	    fprintf(stderr, "Could not open passwd file %s for writing: %s\n",
-		    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
-	    exit(1);
-	}
-	printf("Adding password for %s in realm %s.\n", argv[4], argv[3]);
-	add_password(argv[4], argv[3], f);
-	apr_file_close(f);
-	exit(0);
-    }
-    else if (argc != 4)
-	usage();
-
-    if (apr_file_mktemp(&tfp, tn, 0, cntxt) != APR_SUCCESS) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
+    int max_clients;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
 
-    if (apr_file_open(&f, argv[1], APR_READ, -1, cntxt) != APR_SUCCESS) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	exit(1);
+    /* It is ok to use ap_threads_per_child here because we are
+     * sure that it gets set before MaxClients in the pre_config stage. */
+    max_clients = atoi(arg);
+    if (max_clients < ap_threads_per_child) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: MaxClients (%d) must be at least as large",
+                    max_clients);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " large as ThreadsPerChild (%d). Automatically",
+                    ap_threads_per_child);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " increasing MaxClients to %d.",
+                    ap_threads_per_child);
+       max_clients = ap_threads_per_child;
     }
-    strcpy(user, argv[3]);
-    strcpy(realm, argv[2]);
-
-    found = 0;
-    while (!(get_line(line, MAX_STRING_LEN, f))) {
-	if (found || (line[0] == '#') || (!line[0])) {
-	    putline(tfp, line);
-	    continue;
-	}
-	strcpy(l, line);
-	getword(w, l, ':');
-	getword(x, l, ':');
-	if (strcmp(user, w) || strcmp(realm, x)) {
-	    putline(tfp, line);
-	    continue;
-	}
-	else {
-	    printf("Changing password for user %s in realm %s\n", user, realm);
-	    add_password(user, realm, tfp);
-	    found = 1;
-	}
+    ap_daemons_limit = max_clients / ap_threads_per_child;
+    if ((max_clients > 0) && (max_clients % ap_threads_per_child)) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: MaxClients (%d) is not an integer multiple",
+                    max_clients);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " of ThreadsPerChild (%d), lowering MaxClients to %d",
+                    ap_threads_per_child,
+                    ap_daemons_limit * ap_threads_per_child);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " for a maximum of %d child processes,",
+                    ap_daemons_limit);
+       max_clients = ap_daemons_limit * ap_threads_per_child; 
     }
-    if (!found) {
-	printf("Adding user %s in realm %s\n", user, realm);
-	add_password(user, realm, tfp);
+    if (ap_daemons_limit > server_limit) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: MaxClients of %d would require %d servers,",
+                    max_clients, ap_daemons_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " and would exceed the ServerLimit value of %d.",
+                    server_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " Automatically lowering MaxClients to %d.  To increase,",
+                    server_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " please see the ServerLimit directive.");
+       ap_daemons_limit = server_limit;
+    } 
+    else if (ap_daemons_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require MaxClients > 0, setting to 1");
+        ap_daemons_limit = 1;
     }
-    apr_file_close(f);
-#if defined(OS2) || defined(WIN32)
-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
-#else
-    sprintf(command, "cp %s %s", tn, argv[1]);
-#endif
-    system(command);
-    apr_file_close(tfp);
-    return 0;
+    return NULL;
 }

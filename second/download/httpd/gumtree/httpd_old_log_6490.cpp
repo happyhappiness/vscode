@@ -1,1 +1,1 @@
-ap_rvputs(r, "</form>\n", NULL);
+ap_rputs("Standby", r);

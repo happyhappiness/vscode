@@ -1,1 +1,1 @@
-fprintf(stderr, _("Testing mtime in '%s' "), xgetcwd());
+die_errno("unable to dup file descriptor");

@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main, APLOGNO(00092)
-                         "unable to replace stderr with error_log");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "header only");

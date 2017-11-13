@@ -1,1 +1,1 @@
-die("no shallow found: %s", line);
+die("object %s disappeared", sha1_to_hex(sha1));

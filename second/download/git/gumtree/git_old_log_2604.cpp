@@ -1,1 +1,2 @@
-fputs("\\ No newline at end of file\n", stdout);
+warning("failed utime() on %s: %s",
+				tmp_file, strerror(errno));

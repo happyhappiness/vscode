@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01684)
-                      "Authn cache: no credentials found for %s", user);
+ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", 
+              ap_escape_html(r->pool, r->uri),
+              "</title>\n</head><body>\n", NULL);

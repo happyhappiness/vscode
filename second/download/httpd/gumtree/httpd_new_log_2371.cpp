@@ -1,2 +1,3 @@
-printf("                        %.2f kb/s sent\n",
-               (double) totalposted / timetaken / 1024);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d not allowed, "
+                         "increasing to 1.", threads_per_child);

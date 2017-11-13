@@ -1,1 +1,1 @@
-fprintf(stderr,"receive_sums failed\n");
+fprintf(stderr,"%s : not a regular file\n",fname);

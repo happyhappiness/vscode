@@ -1,2 +1,2 @@
-printf("    %-*s %s %s\n", show_info->width, "", also,
-		       merge->items[i].string);
+error("refname %s is a symbolic ref, renaming it is not supported",
+			oldrefname);

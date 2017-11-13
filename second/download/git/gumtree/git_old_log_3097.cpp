@@ -1,1 +1,1 @@
-error(_("corrupt index file"));
+fprintf(stderr, _("Checking connectivity... "));

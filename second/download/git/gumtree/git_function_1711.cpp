@@ -1,94 +1,57 @@
-int git_config_rename_section_in_file(const char *config_filename,
-				      const char *old_name, const char *new_name)
+static int handle_commit_msg(struct strbuf *line)
 {
-	int ret = 0, remove = 0;
-	char *filename_buf = NULL;
-	struct lock_file *lock;
-	int out_fd;
-	char buf[1024];
-	FILE *config_file;
-	struct stat st;
+	static int still_looking = 1;
 
-	if (new_name && !section_name_is_ok(new_name)) {
-		ret = error("invalid section name: %s", new_name);
-		goto out;
+	if (!cmitmsg)
+		return 0;
+
+	if (still_looking) {
+		if (!line->len || (line->len == 1 && line->buf[0] == '\n'))
+			return 0;
 	}
 
-	if (!config_filename)
-		config_filename = filename_buf = git_pathdup("config");
+	if (use_inbody_headers && still_looking) {
+		still_looking = check_header(line, s_hdr_data, 0);
+		if (still_looking)
+			return 0;
+	} else
+		/* Only trim the first (blank) line of the commit message
+		 * when ignoring in-body headers.
+		 */
+		still_looking = 0;
 
-	lock = xcalloc(1, sizeof(struct lock_file));
-	out_fd = hold_lock_file_for_update(lock, config_filename, 0);
-	if (out_fd < 0) {
-		ret = error("could not lock config file %s", config_filename);
-		goto out;
-	}
+	/* normalize the log message to UTF-8. */
+	if (metainfo_charset)
+		convert_to_utf8(line, charset.buf);
 
-	if (!(config_file = fopen(config_filename, "rb"))) {
-		/* no config file means nothing to rename, no error */
-		goto unlock_and_out;
-	}
-
-	fstat(fileno(config_file), &st);
-
-	if (chmod(lock->filename.buf, st.st_mode & 07777) < 0) {
-		ret = error("chmod on %s failed: %s",
-				lock->filename.buf, strerror(errno));
-		goto out;
-	}
-
-	while (fgets(buf, sizeof(buf), config_file)) {
+	if (use_scissors && is_scissors_line(line)) {
 		int i;
-		int length;
-		char *output = buf;
-		for (i = 0; buf[i] && isspace(buf[i]); i++)
-			; /* do nothing */
-		if (buf[i] == '[') {
-			/* it's a section */
-			int offset = section_name_match(&buf[i], old_name);
-			if (offset > 0) {
-				ret++;
-				if (new_name == NULL) {
-					remove = 1;
-					continue;
-				}
-				store.baselen = strlen(new_name);
-				if (!store_write_section(out_fd, new_name)) {
-					ret = write_error(lock->filename.buf);
-					goto out;
-				}
-				/*
-				 * We wrote out the new section, with
-				 * a newline, now skip the old
-				 * section's length
-				 */
-				output += offset + i;
-				if (strlen(output) > 0) {
-					/*
-					 * More content means there's
-					 * a declaration to put on the
-					 * next line; indent with a
-					 * tab
-					 */
-					output -= 1;
-					output[0] = '\t';
-				}
-			}
-			remove = 0;
+		if (fseek(cmitmsg, 0L, SEEK_SET))
+			die_errno("Could not rewind output message file");
+		if (ftruncate(fileno(cmitmsg), 0))
+			die_errno("Could not truncate output message file at scissors");
+		still_looking = 1;
+
+		/*
+		 * We may have already read "secondary headers"; purge
+		 * them to give ourselves a clean restart.
+		 */
+		for (i = 0; header[i]; i++) {
+			if (s_hdr_data[i])
+				strbuf_release(s_hdr_data[i]);
+			s_hdr_data[i] = NULL;
 		}
-		if (remove)
-			continue;
-		length = strlen(output);
-		if (write_in_full(out_fd, output, length) != length) {
-			ret = write_error(lock->filename.buf);
-			goto out;
-		}
+		return 0;
 	}
-	fclose(config_file);
-unlock_and_out:
-	if (commit_lock_file(lock) < 0)
-		ret = error("could not commit config file %s", config_filename);
-out:
-	free(filename_buf);
-	return ret;
+
+	if (patchbreak(line)) {
+		if (message_id)
+			fprintf(cmitmsg, "Message-Id: %s\n", message_id);
+		fclose(cmitmsg);
+		cmitmsg = NULL;
+		return 1;
+	}
+
+	fputs(line->buf, cmitmsg);
+	return 0;
 }

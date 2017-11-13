@@ -1,2 +1,1 @@
-printf("broken link from %7s %s\n",
-			   typename(parent->type), describe_object(parent));
+die("BUG: pack_name does not end in .pack");

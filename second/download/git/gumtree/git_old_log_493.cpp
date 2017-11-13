@@ -1,1 +1,4 @@
-packet_write(fd, "shallow %s\n", oid_to_hex(&graft->oid));
+packet_write(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);

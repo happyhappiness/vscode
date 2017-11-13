@@ -1,1 +1,2 @@
-die ("Could not run rsync to get refs");
+warning ("Error removing temporary directory %s.",
+				temp_dir.buf);

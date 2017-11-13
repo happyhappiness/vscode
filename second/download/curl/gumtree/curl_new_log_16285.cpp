@@ -1,11 +1,10 @@
 fputs(
-"              See  also  --dns-ipv4-addr  and --dns-ipv6-addr. --dns-interface\n"
-"              requires that the underlying libcurl was  built  to  support  c-\n"
-"              ares. Added in 7.33.0.\n"
+"                     appended, resulting in name=urlencoded-file-content. Note\n"
+"                     that the name is expected to be URL-encoded already.\n"
+"       See also -d, --data and --data-raw. Added in 7.18.0.\n"
 "\n"
-"       --dns-ipv4-addr <address>\n"
-"              (DNS)  Tell  curl  to  bind to <ip-address> when making IPv4 DNS\n"
-"              requests, so that the DNS requests originate from this  address.\n"
-"              The argument should be a single IPv4 address.\n"
-"\n"
+"       -d, --data <data>\n"
+"              (HTTP) Sends the specified data in a POST request  to  the  HTTP\n"
+"              server,  in  the  same  way  that a browser does when a user has\n"
+"              filled in an HTML form and presses the submit button. This  will\n"
 , stdout);

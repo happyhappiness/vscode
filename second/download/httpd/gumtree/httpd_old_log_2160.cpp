@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache_disk: URL %s failed the size check "
-                         "(%" APR_OFF_T_FMT "<%" APR_SIZE_T_FMT ")",
-                         h->cache_obj->key, dobj->file_size, conf->minfs);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                "AcceptMutex: %s (default: %s)",
+                apr_proc_mutex_name(accept_mutex),
+                apr_proc_mutex_defname());

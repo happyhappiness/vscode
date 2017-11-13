@@ -1,1 +1,1 @@
-status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);
+error(_("reading from '%s' beyond a symbolic link"), name);

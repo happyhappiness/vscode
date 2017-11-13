@@ -1,2 +1,2 @@
-error("Could not get patch ID for %s",
-			oid_to_hex(&a->commit->object.oid));
+error("--show-origin is only applicable to --get, --get-all, "
+			  "--get-regexp, and --list.");

@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                              "SSL Proxy: Peer certificate CN mismatch:"
-                              " Certificate CN: %s Requested hostname: %s",
-                              hostname, hostname_note);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "proxy: error processing body.%s",
+                                      r->connection->aborted ?
+                                      " Client aborted connection." : "");

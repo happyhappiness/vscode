@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s\n",fname);
+fprintf(FERROR,"bad option -%c\n",opt);

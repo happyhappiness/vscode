@@ -1,3 +1,2 @@
 ap_log_rerror(
-                APLOG_MARK, APLOG_ERR, APR_EGENERAL, r, APLOGNO(00697) "cache: No cache request information available for key"
-                " generation");
+                APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02468) "cache: Attempted to invalidate cached entity with key: %s", cache->key);

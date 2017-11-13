@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
-                         "select/accept error (%d)", status);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "Response from AP_FILTER_ERROR");

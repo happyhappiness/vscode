@@ -1,1 +1,1 @@
-fputs ("X-Mutt-SMIME: ", msg->fp);
+(fputs ("\n ", fp);

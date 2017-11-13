@@ -1,1 +1,1 @@
-rprintf(FERROR,"getwd : %s\n",strerror(errno));
+fprintf(FINFO,"send files finished\n");

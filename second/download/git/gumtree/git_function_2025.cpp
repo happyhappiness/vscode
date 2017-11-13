@@ -1,18 +1,15 @@
-static const unsigned char *match_points_at(struct sha1_array *points_at,
-					    const unsigned char *sha1,
-					    const char *refname)
+void set_git_work_tree(const char *new_work_tree)
 {
-	const unsigned char *tagged_sha1 = NULL;
-	struct object *obj;
-
-	if (sha1_array_lookup(points_at, sha1) >= 0)
-		return sha1;
-	obj = parse_object(sha1);
-	if (!obj)
-		die(_("malformed object at '%s'"), refname);
-	if (obj->type == OBJ_TAG)
-		tagged_sha1 = ((struct tag *)obj)->tagged->oid.hash;
-	if (tagged_sha1 && sha1_array_lookup(points_at, tagged_sha1) >= 0)
-		return tagged_sha1;
-	return NULL;
+	if (git_work_tree_initialized) {
+		new_work_tree = real_path(new_work_tree);
+		if (strcmp(new_work_tree, work_tree))
+			die("internal error: work tree has already been set\n"
+			    "Current worktree: %s\nNew worktree: %s",
+			    work_tree, new_work_tree);
+		return;
+	}
+	git_work_tree_initialized = 1;
+	work_tree = xstrdup(real_path(new_work_tree));
+	if (setenv(GIT_WORK_TREE_ENVIRONMENT, work_tree, 1))
+		die("could not set GIT_WORK_TREE to '%s'", work_tree);
 }

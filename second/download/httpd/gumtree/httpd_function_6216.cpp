@@ -1,34 +1,45 @@
-static apr_status_t session_cleanup(h2_session *session, const char *trigger)
+static int proxy_connect_transfer(request_rec *r, conn_rec *c_i, conn_rec *c_o,
+                                  apr_bucket_brigade *bb, char *name)
 {
-    conn_rec *c = session->c;
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  H2_SSSN_MSG(session, "pool_cleanup"));
-    
-    if (session->state != H2_SESSION_ST_DONE
-        && session->state != H2_SESSION_ST_INIT) {
-        /* Not good. The connection is being torn down and we have
-         * not sent a goaway. This is considered a protocol error and
-         * the client has to assume that any streams "in flight" may have
-         * been processed and are not safe to retry.
-         * As clients with idle connection may only learn about a closed
-         * connection when sending the next request, this has the effect
-         * that at least this one request will fail.
-         */
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c,
-                      H2_SSSN_LOG(APLOGNO(03199), session, 
-                      "connection disappeared without proper "
-                      "goodbye, clients will be confused, should not happen"));
+    int rv;
+#ifdef DEBUGGING
+    apr_off_t len;
+#endif
+
+    do {
+        apr_brigade_cleanup(bb);
+        rv = ap_get_brigade(c_i->input_filters, bb, AP_MODE_READBYTES,
+                            APR_NONBLOCK_READ, CONN_BLKSZ);
+        if (rv == APR_SUCCESS) {
+            if (c_o->aborted)
+                return APR_EPIPE;
+            if (APR_BRIGADE_EMPTY(bb))
+                break;
+#ifdef DEBUGGING
+            len = -1;
+            apr_brigade_length(bb, 0, &len);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01016)
+                          "read %" APR_OFF_T_FMT
+                          " bytes from %s", len, name);
+#endif
+            rv = ap_pass_brigade(c_o->output_filters, bb);
+            if (rv == APR_SUCCESS) {
+                ap_fflush(c_o->output_filters, bb);
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01017)
+                              "error on %s - ap_pass_brigade",
+                              name);
+            }
+        } else if (!APR_STATUS_IS_EAGAIN(rv)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(01018)
+                          "error on %s - ap_get_brigade",
+                          name);
+        }
+    } while (rv == APR_SUCCESS);
+
+    if (APR_STATUS_IS_EAGAIN(rv)) {
+        rv = APR_SUCCESS;
     }
-
-    transit(session, trigger, H2_SESSION_ST_CLEANUP);
-    h2_mplx_release_and_join(session->mplx, session->iowait);
-    session->mplx = NULL;
-
-    ap_assert(session->ngh2);
-    nghttp2_session_del(session->ngh2);
-    session->ngh2 = NULL;
-    h2_ctx_clear(c);
-    
-    
-    return APR_SUCCESS;
+    return rv;
 }

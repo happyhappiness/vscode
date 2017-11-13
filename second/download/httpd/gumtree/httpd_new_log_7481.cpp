@@ -1,5 +1,5 @@
-ap_log_error(APLOG_MARK, rv == APR_SUCCESS ? APLOG_DEBUG : APLOG_ERR,
-                     rv, ap_server_conf, APLOGNO(02611)
-                     "create: apr_shm_create(%s) %s",
-                     fname ? fname : "",
-                     rv == APR_SUCCESS ? "succeeded" : "failed");
+ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_STARTUP, 0, cmd->server,
+                 APLOGNO(02559)
+                 "The SSLCertificateChainFile directive (%s:%d) is deprecated, "
+                 "SSLCertificateFile should be used instead",
+                 cmd->directive->filename, cmd->directive->line_num);

@@ -1,1 +1,1 @@
-die("protocol error: bad pack header");
+die(_("reference repository '%s' is grafted"), item->string);

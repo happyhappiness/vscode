@@ -1,1 +1,0 @@
-die(_("No such ref: %s"), "HEAD");

@@ -1,91 +1,121 @@
-static int CommandLineInterpreter(scr_t screenID, const char *commandLine)
+static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    char *szCommand = "APACHE2 ";
-    int iCommandLen = 8;
-    char szcommandLine[256];
-    char *pID;
-    screenID = screenID;
+    int startup = 0;
 
-
-    if (commandLine == NULL)
-        return NOTMYCOMMAND;
-    if (strlen(commandLine) <= strlen(szCommand))
-        return NOTMYCOMMAND;
-
-    strncpy (szcommandLine, commandLine, sizeof(szcommandLine)-1);
-
-    /*  All added commands begin with "APACHE2 " */
-
-    if (!strnicmp(szCommand, szcommandLine, iCommandLen)) {
-        ActivateScreen (getscreenhandle());
-
-        /* If an instance id was not given but the nlm is loaded in
-            protected space, then the the command belongs to the
-            OS address space instance to pass it on. */
-        pID = strstr (szcommandLine, "-p");
-        if ((pID == NULL) && nlmisloadedprotected())
-            return NOTMYCOMMAND;
-
-        /* If we got an instance id but it doesn't match this
-            instance of the nlm, pass it on. */
-        if (pID) {
-            pID = &pID[2];
-            while (*pID && (*pID == ' '))
-                pID++;
-        }
-        if (pID && ap_my_addrspace && strnicmp(pID, ap_my_addrspace, strlen(ap_my_addrspace)))
-            return NOTMYCOMMAND;
-
-        /* If we have determined that this command belongs to this
-            instance of the nlm, then handle it. */
-        if (!strnicmp("RESTART",&szcommandLine[iCommandLen],3)) {
-            printf("Restart Requested...\n");
-            restart();
-        }
-        else if (!strnicmp("VERSION",&szcommandLine[iCommandLen],3)) {
-            printf("Server version: %s\n", ap_get_server_version());
-            printf("Server built:   %s\n", ap_get_server_built());
-        }
-        else if (!strnicmp("MODULES",&szcommandLine[iCommandLen],3)) {
-            ap_show_modules();
-        }
-        else if (!strnicmp("DIRECTIVES",&szcommandLine[iCommandLen],3)) {
-                ap_show_directives();
-        }
-        else if (!strnicmp("SHUTDOWN",&szcommandLine[iCommandLen],3)) {
-            printf("Shutdown Requested...\n");
-            shutdown_pending = 1;
-        }
-        else if (!strnicmp("SETTINGS",&szcommandLine[iCommandLen],3)) {
-            if (show_settings) {
-                show_settings = 0;
-                ClearScreen (getscreenhandle());
-                show_server_data();
-            }
-            else {
-                show_settings = 1;
-                display_settings();
-            }
-        }
-        else {
-            show_settings = 0;
-            if (strnicmp("HELP",&szcommandLine[iCommandLen],3))
-                printf("Unknown APACHE2 command %s\n", &szcommandLine[iCommandLen]);
-            printf("Usage: APACHE2 [command] [-p <instance ID>]\n");
-            printf("Commands:\n");
-            printf("\tDIRECTIVES - Show directives\n");
-            printf("\tHELP       - Display this help information\n");
-            printf("\tMODULES    - Show a list of the loaded modules\n");
-            printf("\tRESTART    - Reread the configuration file and restart Apache\n");
-            printf("\tSETTINGS   - Show current thread status\n");
-            printf("\tSHUTDOWN   - Shutdown Apache\n");
-            printf("\tVERSION    - Display the server version information\n");
-        }
-
-        /*  Tell NetWare we handled the command */
-        return HANDLEDCOMMAND;
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->module_loads == 1) {
+        startup = 1;
     }
 
-    /*  Tell NetWare that the command isn't mine */
-    return NOTMYCOMMAND;
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
+        }
+        server_limit = MAX_SERVER_LIMIT;
+    }
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
+        }
+        server_limit = 1;
+    }
+
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
+     */
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
+    }
+
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d exceeds ServerLimit "
+                         "value of", ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing MaxClients to %d.",
+                         server_limit, server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d exceeds ServerLimit value "
+                         "of %d, decreasing to match",
+                         ap_daemons_limit, server_limit);
+        }
+        ap_daemons_limit = server_limit;
+    }
+    else if (ap_daemons_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d not allowed, "
+                         "increasing to 1.", ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d not allowed, increasing to 1",
+                         ap_daemons_limit);
+        }
+        ap_daemons_limit = 1;
+    }
+
+    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
+
+    if (ap_daemons_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareServers of %d not allowed, "
+                         "increasing to 1", ap_daemons_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareServers of %d not allowed, increasing to 1",
+                         ap_daemons_min_free);
+        }
+        ap_daemons_min_free = 1;
+    }
+
+    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
+
+    return OK;
 }

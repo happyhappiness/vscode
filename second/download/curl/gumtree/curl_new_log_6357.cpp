@@ -1,8 +1,11 @@
 fputs(
-"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
-"              moved to a different location (indicated with a Location: header\n"
-"              and a 3XX response code), this option will make  curl  redo  the\n"
-"              request on the new place. If used together with -i, --include or\n"
-"              -I, --head, headers from all requested pages will be shown. When\n"
-"              authentication  is  used, curl only sends its credentials to the\n"
+"              only view.  Especially useful if you want to  machine-parse  the\n"
+"              contents  of  an  FTP  directory since the normal directory view\n"
+"              doesn't use a standard look or format.\n"
+"\n"
+"              This option causes an FTP NLST command to  be  sent.   Some  FTP\n"
+"              servers  list  only files in their response to NLST; they do not\n"
+"              include subdirectories and symbolic links.\n"
+"\n"
+"       -L, --location\n"
 , stdout);

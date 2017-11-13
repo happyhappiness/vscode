@@ -1,2 +1,2 @@
-die(_("Invalid pathspec magic '%.*s' in '%s'"),
-			    (int) len, pos, elem);
+error(_("git %s: failed to read the index"),
+			_(action_name(opts)));

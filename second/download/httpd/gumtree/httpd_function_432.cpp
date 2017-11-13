@@ -1,202 +1,211 @@
-static int create_process(apr_pool_t *p, HANDLE *child_proc, HANDLE *child_exit_event, 
-                          DWORD *child_pid)
+char *util_ald_cache_display(request_rec *r, util_ldap_state_t *st)
 {
-    /* These NEVER change for the lifetime of this parent 
-     */
-    static char **args = NULL;
-    static char **env = NULL;
-    static char pidbuf[28];
+    unsigned long i,j;
+    char *buf, *t1, *t2, *t3;
+    char *id1, *id2, *id3;
+    char *argfmt = "cache=%s&id=%d&off=%d";
+    char *scanfmt = "cache=%4s&id=%u&off=%u%1s";
+    apr_pool_t *pool = r->pool;
+    util_cache_node_t *p = NULL;
+    util_url_node_t *n = NULL;
 
-    apr_status_t rv;
-    apr_pool_t *ptemp;
-    apr_procattr_t *attr;
-    apr_file_t *child_out;
-    apr_file_t *child_err;
-    apr_proc_t new_child;
-    HANDLE hExitEvent;
-    HANDLE waitlist[2];  /* see waitlist_e */
-    char *cmd;
-    char *cwd;
+    util_ald_cache_t *util_ldap_cache = st->util_ldap_cache;
 
-    apr_pool_sub_make(&ptemp, p, NULL);
 
-    /* Build the command line. Should look something like this:
-     * C:/apache/bin/apache.exe -f ap_server_confname 
-     * First, get the path to the executable...
-     */
-    apr_procattr_create(&attr, ptemp);
-    apr_procattr_cmdtype_set(attr, APR_PROGRAM);
-    apr_procattr_detach_set(attr, 1);
-    if (((rv = apr_filepath_get(&cwd, 0, ptemp)) != APR_SUCCESS)
-           || ((rv = apr_procattr_dir_set(attr, cwd)) != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Failed to get the current path");
+    if (!util_ldap_cache) {
+        return "<tr valign='top'><td nowrap colspan=7>Cache has not been enabled/initialised.</td></tr>";
     }
 
-    if (!args) {
-        /* Build the args array, only once since it won't change 
-         * for the lifetime of this parent process.
-         */
-        if ((rv = ap_os_proc_filepath(&cmd, ptemp))
-                != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, ERROR_BAD_PATHNAME, ap_server_conf,
-                         "Parent: Failed to get full path of %s", 
-                         ap_server_conf->process->argv[0]);
-            apr_pool_destroy(ptemp);
-            return -1;
+    if (r->args && strlen(r->args)) {
+        char cachetype[5], lint[2];
+        unsigned int id, off;
+        char date_str[APR_CTIME_LEN+1];
+
+        if ((3 == sscanf(r->args, scanfmt, cachetype, &id, &off, lint)) &&
+            (id < util_ldap_cache->size)) {
+
+            if ((p = util_ldap_cache->nodes[id]) != NULL) {
+                n = (util_url_node_t *)p->payload;
+                buf = (char*)n->url;
+            }
+            else {
+                buf = "";
+            }
+
+            ap_rputs(apr_psprintf(r->pool, 
+                     "<p>\n"
+                     "<table border='0'>\n"
+                     "<tr>\n"
+                     "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Cache Name:</b></font></td>"
+                     "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%s (%s)</b></font></td>"
+                     "</tr>\n"
+                     "</table>\n</p>\n",
+                 buf,
+                 cachetype[0] == 'm'? "Main" : 
+                                  (cachetype[0] == 's' ? "Search" : 
+                                   (cachetype[0] == 'c' ? "Compares" : "DNCompares"))), r);
+            
+            switch (cachetype[0]) {
+                case 'm':
+                    if (util_ldap_cache->marktime) {
+                        apr_ctime(date_str, util_ldap_cache->marktime);
+                    }
+                    else
+                        date_str[0] = 0;
+
+                    ap_rputs(apr_psprintf(r->pool, 
+                            "<p>\n"
+                            "<table border='0'>\n"
+                            "<tr>\n"
+                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Size:</b></font></td>"
+                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
+                            "</tr>\n"
+                            "<tr>\n"
+                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Max Entries:</b></font></td>"
+                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
+                            "</tr>\n"
+                            "<tr>\n"
+                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b># Entries:</b></font></td>"
+                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
+                            "</tr>\n"
+                            "<tr>\n"
+                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark:</b></font></td>"
+                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
+                            "</tr>\n"
+                            "<tr>\n"
+                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark Time:</b></font></td>"
+                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%s</b></font></td>"
+                            "</tr>\n"
+                            "</table>\n</p>\n",
+                        util_ldap_cache->size,
+                        util_ldap_cache->maxentries,
+                        util_ldap_cache->numentries,
+                        util_ldap_cache->fullmark,
+                        date_str), r);
+
+                    ap_rputs("<p>\n"
+                             "<table border='0'>\n"
+                             "<tr bgcolor='#000000'>\n"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>LDAP URL</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Size</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Max Entries</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b># Entries</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark Time</b></font></td>"
+                             "</tr>\n", r
+                            );
+                    for (i=0; i < util_ldap_cache->size; ++i) {
+                        for (p = util_ldap_cache->nodes[i]; p != NULL; p = p->next) {
+
+                            (*util_ldap_cache->display)(r, util_ldap_cache, p->payload);
+                        }
+                    }
+                    ap_rputs("</table>\n</p>\n", r);
+                    
+
+                    break;
+                case 's':
+                    ap_rputs("<p>\n"
+                             "<table border='0'>\n"
+                             "<tr bgcolor='#000000'>\n"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>LDAP Filter</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>User Name</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Last Bind</b></font></td>"
+                             "</tr>\n", r
+                            );
+                    for (i=0; i < n->search_cache->size; ++i) {
+                        for (p = n->search_cache->nodes[i]; p != NULL; p = p->next) {
+
+                            (*n->search_cache->display)(r, n->search_cache, p->payload);
+                        }
+                    }
+                    ap_rputs("</table>\n</p>\n", r);
+                    break;
+                case 'c':
+                    ap_rputs("<p>\n"
+                             "<table border='0'>\n"
+                             "<tr bgcolor='#000000'>\n"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>DN</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Attribute</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Value</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Last Compare</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Result</b></font></td>"
+                             "</tr>\n", r
+                            );
+                    for (i=0; i < n->compare_cache->size; ++i) {
+                        for (p = n->compare_cache->nodes[i]; p != NULL; p = p->next) {
+
+                            (*n->compare_cache->display)(r, n->compare_cache, p->payload);
+                        }
+                    }
+                    ap_rputs("</table>\n</p>\n", r);
+                    break;
+                case 'd':
+                    ap_rputs("<p>\n"
+                             "<table border='0'>\n"
+                             "<tr bgcolor='#000000'>\n"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Require DN</b></font></td>"
+                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Actual DN</b></font></td>"
+                             "</tr>\n", r
+                            );
+                    for (i=0; i < n->dn_compare_cache->size; ++i) {
+                        for (p = n->dn_compare_cache->nodes[i]; p != NULL; p = p->next) {
+
+                            (*n->dn_compare_cache->display)(r, n->dn_compare_cache, p->payload);
+                        }
+                    }
+                    ap_rputs("</table>\n</p>\n", r);
+                    break;
+                default:
+                    break;
+            }
+
         }
-        
-        args = malloc((ap_server_conf->process->argc + 1) * sizeof (char*));
-        memcpy(args + 1, ap_server_conf->process->argv + 1, 
-               (ap_server_conf->process->argc - 1) * sizeof (char*));
-        args[0] = malloc(strlen(cmd) + 1);
-        strcpy(args[0], cmd);
-        args[ap_server_conf->process->argc] = NULL;
     }
     else {
-        cmd = args[0];
-    }
+        ap_rputs("<p>\n"
+                 "<table border='0'>\n"
+                 "<tr bgcolor='#000000'>\n"
+                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Cache Name</b></font></td>"
+                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Entries</b></font></td>"
+                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Avg. Chain Len.</b></font></td>"
+                 "<td colspan='2'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Hits</b></font></td>"
+                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Ins/Rem</b></font></td>"
+                 "<td colspan='2'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Purges</b></font></td>"
+                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Avg Purge Time</b></font></td>"
+                 "</tr>\n", r
+                );
 
-    /* Create a pipe to send handles to the child */
-    if ((rv = apr_procattr_io_set(attr, APR_FULL_BLOCK, 
-                                  APR_NO_PIPE, APR_NO_PIPE)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to create child stdin pipe.\n");
-        apr_pool_destroy(ptemp);
-        return -1;
-    }
 
-    /* Open a null handle to soak info from the child */
-    if (((rv = apr_file_open(&child_out, "NUL", APR_READ | APR_WRITE, 
-                             APR_OS_DEFAULT, ptemp)) != APR_SUCCESS)
-        || ((rv = apr_procattr_child_out_set(attr, child_out, NULL)) 
-                != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to connect child stdout to NUL.\n");
-        apr_pool_destroy(ptemp);
-        return -1;
-    }
-
-    /* Connect the child's initial stderr to our main server error log 
-     * or share our own stderr handle.
-     */
-    if (ap_server_conf->error_log) {
-        child_err = ap_server_conf->error_log;
-    }
-    else {
-        rv = apr_file_open_stderr(&child_err, ptemp);
-    }
-    if (rv == APR_SUCCESS) {
-        if ((rv = apr_procattr_child_err_set(attr, child_err, NULL))
-                != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                            "Parent: Unable to connect child stderr.\n");
-            apr_pool_destroy(ptemp);
-            return -1;
+        id1 = apr_psprintf(pool, argfmt, "main", 0, 0);
+        buf = util_ald_cache_display_stats(r, st->util_ldap_cache, "LDAP URL Cache", id1);
+    
+        for (i=0; i < util_ldap_cache->size; ++i) {
+            for (p = util_ldap_cache->nodes[i],j=0; p != NULL; p = p->next,j++) {
+    
+                n = (util_url_node_t *)p->payload;
+    
+                t1 = apr_psprintf(pool, "%s (Searches)", n->url);
+                t2 = apr_psprintf(pool, "%s (Compares)", n->url);
+                t3 = apr_psprintf(pool, "%s (DNCompares)", n->url);
+                id1 = apr_psprintf(pool, argfmt, "srch", i, j);
+                id2 = apr_psprintf(pool, argfmt, "cmpr", i, j);
+                id3 = apr_psprintf(pool, argfmt, "dncp", i, j);
+    
+                buf = apr_psprintf(pool, "%s\n\n"
+                                         "%s\n\n"
+                                         "%s\n\n"
+                                         "%s\n\n",
+                                         buf,
+                                         util_ald_cache_display_stats(r, n->search_cache, t1, id1),
+                                         util_ald_cache_display_stats(r, n->compare_cache, t2, id2),
+                                         util_ald_cache_display_stats(r, n->dn_compare_cache, t3, id3)
+                                  );
+            }
         }
+        ap_rputs(buf, r);
+        ap_rputs("</table>\n</p>\n", r);
     }
 
-    /* Create the child_ready_event */
-    waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!waitlist[waitlist_ready]) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Could not create ready event for child process");
-        apr_pool_destroy (ptemp);
-        return -1;
-    }
-
-    /* Create the child_exit_event */
-    hExitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!hExitEvent) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Could not create exit event for child process");
-        apr_pool_destroy(ptemp);
-        CloseHandle(waitlist[waitlist_ready]);
-        return -1;
-    }
-
-    if (!env) 
-    {
-        /* Build the env array, only once since it won't change 
-         * for the lifetime of this parent process.
-         */
-        int envc;
-        for (envc = 0; _environ[envc]; ++envc) {
-            ;
-        }
-        env = malloc((envc + 2) * sizeof (char*));
-        memcpy(env, _environ, envc * sizeof (char*));
-        apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%i", parent_pid);
-        env[envc] = pidbuf;
-        env[envc + 1] = NULL;
-    }
-
-    rv = apr_proc_create(&new_child, cmd, args, env, attr, ptemp);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Failed to create the child process.");
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(waitlist[waitlist_ready]);
-        CloseHandle(new_child.hproc);
-        return -1;
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Parent: Created child process %d", new_child.pid);
-
-    if (send_handles_to_child(ptemp, waitlist[waitlist_ready], hExitEvent,
-                              start_mutex, ap_scoreboard_shm,
-                              new_child.hproc, new_child.in)) {
-        /*
-         * This error is fatal, mop up the child and move on
-         * We toggle the child's exit event to cause this child 
-         * to quit even as it is attempting to start.
-         */
-        SetEvent(hExitEvent);
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(waitlist[waitlist_ready]);
-        CloseHandle(new_child.hproc);
-        return -1;
-    }
-
-    /* Important:
-     * Give the child process a chance to run before dup'ing the sockets.
-     * We have already set the listening sockets noninheritable, but if 
-     * WSADuplicateSocket runs before the child process initializes
-     * the listeners will be inherited anyway.
-     */
-    waitlist[waitlist_term] = new_child.hproc;
-    rv = WaitForMultipleObjects(2, waitlist, FALSE, INFINITE);
-    CloseHandle(waitlist[waitlist_ready]);
-    if (rv != WAIT_OBJECT_0) {
-        /* 
-         * Outch... that isn't a ready signal. It's dead, Jim!
-         */
-        SetEvent(hExitEvent);
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(new_child.hproc);
-        return -1;
-    }
-
-    if (send_listeners_to_child(ptemp, new_child.pid, new_child.in)) {
-        /*
-         * This error is fatal, mop up the child and move on
-         * We toggle the child's exit event to cause this child 
-         * to quit even as it is attempting to start.
-         */
-        SetEvent(hExitEvent);
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(new_child.hproc);
-        return -1;
-    }
-
-    *child_exit_event = hExitEvent;
-    *child_proc = new_child.hproc;
-    *child_pid = new_child.pid;
-
-    return 0;
+    return buf;
 }

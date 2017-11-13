@@ -1,42 +1,34 @@
-static int authn_cache_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                                   apr_pool_t *ptmp, server_rec *s)
+static int filter_init(ap_filter_t *f)
 {
-    apr_status_t rv;
-    const char *errmsg;
-    static struct ap_socache_hints authn_cache_hints = {64, 32, 60000000};
+    ap_filter_provider_t *p;
+    provider_ctx *pctx;
+    int err;
+    ap_filter_rec_t *filter = f->frec;
 
-    if (!configured) {
-        return OK;    /* don't waste the overhead of creating mutex & cache */
+    harness_ctx *fctx = apr_pcalloc(f->r->pool, sizeof(harness_ctx));
+    for (p = filter->providers; p; p = p->next) {
+        if (p->frec->filter_init_func == filter_init) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c,
+                          "Chaining of FilterProviders not supported");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        else if (p->frec->filter_init_func) {
+            f->ctx = NULL;
+            if ((err = p->frec->filter_init_func(f)) != OK) {
+                ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c,
+                              "filter_init for %s failed", p->frec->name);
+                return err;   /* if anyone errors out here, so do we */
+            }
+            if (f->ctx != NULL) {
+                /* the filter init function set a ctx - we need to record it */
+                pctx = apr_pcalloc(f->r->pool, sizeof(provider_ctx));
+                pctx->provider = p;
+                pctx->ctx = f->ctx;
+                pctx->next = fctx->init_ctx;
+                fctx->init_ctx = pctx;
+            }
+        }
     }
-    if (socache_provider == NULL) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog,
-                      "Please select a socache provider with AuthnCacheSOCache "
-                      "(no default found on this platform)");
-        return 500; /* An HTTP status would be a misnomer! */
-    }
-
-    rv = ap_global_mutex_create(&authn_cache_mutex, NULL,
-                                authn_cache_id, NULL, s, pconf, 0);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog,
-                      "failed to create %s mutex", authn_cache_id);
-        return 500; /* An HTTP status would be a misnomer! */
-    }
-    apr_pool_cleanup_register(pconf, NULL, remove_lock, apr_pool_cleanup_null);
-
-    errmsg = socache_provider->create(&socache_instance, NULL, ptmp, pconf);
-    if (errmsg) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, "%s", errmsg);
-        return 500; /* An HTTP status would be a misnomer! */
-    }
-
-    rv = socache_provider->init(socache_instance, authn_cache_id,
-                                &authn_cache_hints, s, pconf);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog,
-                      "failed to initialise %s cache", authn_cache_id);
-        return 500; /* An HTTP status would be a misnomer! */
-    }
-    apr_pool_cleanup_register(pconf, (void*)s, destroy_cache, apr_pool_cleanup_null);
+    f->ctx = fctx;
     return OK;
 }

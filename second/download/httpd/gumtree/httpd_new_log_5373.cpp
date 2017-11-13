@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03355)
-                              "access check for %s as '%s': %s",
-                              r->useragent_ip, w, match? "yes": "no");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00298)
+                    "SIGHUP received.  Attempting to restart");

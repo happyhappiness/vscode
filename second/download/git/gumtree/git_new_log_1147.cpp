@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+die (_("BUG: returned path string doesn't match cwd?"));

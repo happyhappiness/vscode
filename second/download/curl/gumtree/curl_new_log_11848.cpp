@@ -1,8 +1,9 @@
 fputs(
-"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
-"              2388. This enables uploading of binary files etc. To  force  the\n"
-"              'content'  part  to  be  a  file, prefix the file name with an @\n"
-"              sign. To just get the content part from a file, prefix the  file\n"
-"              name  with  the symbol <. The difference between @ and < is then\n"
-"              that @ makes a file get attached in the post as a  file  upload,\n"
+"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
+"              certificate  indicating  its identity. A public key is extracted\n"
+"              from this certificate and if it does not exactly match the  pub-\n"
+"              lic  key provided to this option, curl will abort the connection\n"
+"              before sending or receiving any data.\n"
+"\n"
+"              Added in 7.39.0 for OpenSSL, GnuTLS and GSKit. Added  in  7.43.0\n"
 , stdout);

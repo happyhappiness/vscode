@@ -1,9 +1,10 @@
 fputs(
-"              used. This is because undoing a GET doesn't make sense, but  you\n"
-"              should then instead enforce the alternative method you prefer.\n"
+"              command  for  directory  listings as well as up and downloads in\n"
+"              PASV mode.  (Added in 7.20.x)\n"
 "\n"
-"       -H, --header <header>\n"
-"              (HTTP)  Extra header to include in the request when sending HTTP\n"
-"              to a server. You may specify any number of extra  headers.  Note\n"
-"              that if you should add a custom header that has the same name as\n"
+"       --ftp-ssl-ccc\n"
+"              (FTP) Use CCC (Clear Command Channel)  Shuts  down  the  SSL/TLS\n"
+"              layer after authenticating. The rest of the control channel com-\n"
+"              munication will be unencrypted. This allows NAT routers to  fol-\n"
+"              low the FTP transaction. The default mode is passive. See --ftp-\n"
 , stdout);

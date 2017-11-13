@@ -1,1 +1,2 @@
-not_found(hdr, "Cannot open '%s': %s", p, strerror(errno));
+die("Failed to simplify parents of commit %s",
+			    oid_to_hex(&commit->object.oid));

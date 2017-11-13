@@ -1,167 +1,153 @@
-static apr_status_t ap_cgi_build_command(const char **cmd, const char ***argv,
-                                         request_rec *r, apr_pool_t *p,
-                                         cgi_exec_info_t *e_info)
+static apr_status_t make_sock(apr_pool_t *p, ap_listen_rec *server)
 {
-    const apr_array_header_t *elts_arr = apr_table_elts(r->subprocess_env);
-    const apr_table_entry_t *elts = (apr_table_entry_t *) elts_arr->elts;
-    const char *ext = NULL;
-    const char *interpreter = NULL;
-    win32_dir_conf *d;
-    apr_file_t *fh;
-    const char *args = "";
-    int i;
+    apr_socket_t *s = server->sd;
+    int one = 1;
+#if APR_HAVE_IPV6
+#ifdef AP_ENABLE_V4_MAPPED
+    int v6only_setting = 0;
+#else
+    int v6only_setting = 1;
+#endif
+#endif
+    apr_status_t stat;
 
-    d = (win32_dir_conf *)ap_get_module_config(r->per_dir_config,
-                                               &win32_module);
+#ifndef WIN32
+    stat = apr_socket_opt_set(s, APR_SO_REUSEADDR, one);
+    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                      "make_sock: for address %pI, apr_socket_opt_set: (SO_REUSEADDR)",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+#endif
 
-    if (e_info->cmd_type) {
-        /* We have to consider that the client gets any QUERY_ARGS
-         * without any charset interpretation, use prep_string to
-         * create a string of the literal QUERY_ARGS bytes.
-         */
-        *cmd = r->filename;
-        if (r->args && r->args[0] && !ap_strchr_c(r->args, '=')) {
-            args = r->args;
+    stat = apr_socket_opt_set(s, APR_SO_KEEPALIVE, one);
+    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                      "make_sock: for address %pI, apr_socket_opt_set: (SO_KEEPALIVE)",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+
+#if APR_HAVE_IPV6
+    if (server->bind_addr->family == APR_INET6) {
+        stat = apr_socket_opt_set(s, APR_IPV6_V6ONLY, v6only_setting);
+        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+            ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                          "make_sock: for address %pI, apr_socket_opt_set: "
+                          "(IPV6_V6ONLY)",
+                          server->bind_addr);
+            apr_socket_close(s);
+            return stat;
         }
     }
-    /* Handle the complete file name, we DON'T want to follow suexec, since
-     * an unrooted command is as predictable as shooting craps in Win32.
-     * Notice that unlike most mime extension parsing, we have to use the
-     * win32 parsing here, therefore the final extension is the only one
-     * we will consider.
+#endif
+
+    /*
+     * To send data over high bandwidth-delay connections at full
+     * speed we must force the TCP window to open wide enough to keep the
+     * pipe full.  The default window size on many systems
+     * is only 4kB.  Cross-country WAN connections of 100ms
+     * at 1Mb/s are not impossible for well connected sites.
+     * If we assume 100ms cross-country latency,
+     * a 4kB buffer limits throughput to 40kB/s.
+     *
+     * To avoid this problem I've added the SendBufferSize directive
+     * to allow the web master to configure send buffer size.
+     *
+     * The trade-off of larger buffers is that more kernel memory
+     * is consumed.  YMMV, know your customers and your network!
+     *
+     * -John Heidemann <johnh@isi.edu> 25-Oct-96
+     *
+     * If no size is specified, use the kernel default.
      */
-    ext = strrchr(apr_filepath_name_get(*cmd), '.');
+    if (send_buffer_size) {
+        stat = apr_socket_opt_set(s, APR_SO_SNDBUF,  send_buffer_size);
+        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
+                          "make_sock: failed to set SendBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);
+            /* not a fatal error */
+        }
+    }
+    if (receive_buffer_size) {
+        stat = apr_socket_opt_set(s, APR_SO_RCVBUF, receive_buffer_size);
+        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
+                          "make_sock: failed to set ReceiveBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);
+            /* not a fatal error */
+        }
+    }
 
-    /* If the file has an extension and it is not .com and not .exe and
-     * we've been instructed to search the registry, then do so.
-     * Let apr_proc_create do all of the .bat/.cmd dirty work.
+#if APR_TCP_NODELAY_INHERITED
+    ap_sock_disable_nagle(s);
+#endif
+
+    if ((stat = apr_bind(s, server->bind_addr)) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, stat, p,
+                      "make_sock: could not bind to address %pI",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+
+    if ((stat = apr_listen(s, ap_listenbacklog)) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, stat, p,
+                      "make_sock: unable to listen for connections "
+                      "on address %pI",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+
+#ifdef WIN32
+    /* I seriously doubt that this would work on Unix; I have doubts that
+     * it entirely solves the problem on Win32.  However, since setting
+     * reuseaddr on the listener -prior- to binding the socket has allowed
+     * us to attach to the same port as an already running instance of
+     * Apache, or even another web server, we cannot identify that this
+     * port was exclusively granted to this instance of Apache.
+     *
+     * So set reuseaddr, but do not attempt to do so until we have the
+     * parent listeners successfully bound.
      */
-    if (ext && (!strcasecmp(ext,".exe") || !strcasecmp(ext,".com")
-                || !strcasecmp(ext,".bat") || !strcasecmp(ext,".cmd"))) {
-        interpreter = "";
+    stat = apr_socket_opt_set(s, APR_SO_REUSEADDR, one);
+    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                    "make_sock: for address %pI, apr_socket_opt_set: (SO_REUSEADDR)", 
+                     server->bind_addr);
+        apr_socket_close(s);
+        return stat;
     }
-    if (!interpreter && ext
-          && (d->script_interpreter_source
-                     == INTERPRETER_SOURCE_REGISTRY
-           || d->script_interpreter_source
-                     == INTERPRETER_SOURCE_REGISTRY_STRICT)) {
-         /* Check the registry */
-        int strict = (d->script_interpreter_source
-                      == INTERPRETER_SOURCE_REGISTRY_STRICT);
-        interpreter = get_interpreter_from_win32_registry(r->pool, ext,
-                                                          strict);
-        if (interpreter && e_info->cmd_type != APR_SHELLCMD) {
-            e_info->cmd_type = APR_PROGRAM_PATH;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 strict ? "No ExecCGI verb found for files of type '%s'."
-                        : "No ExecCGI or Open verb found for files of type '%s'.",
-                 ext);
-        }
-    }
-    if (!interpreter) {
-        apr_status_t rv;
-        char buffer[1024];
-        apr_size_t bytes = sizeof(buffer);
-        apr_size_t i;
+#endif
 
-        /* Need to peek into the file figure out what it really is...
-         * ### aught to go back and build a cache for this one of these days.
-         */
-        if ((rv = apr_file_open(&fh, *cmd, APR_READ | APR_BUFFERED,
-                                 APR_OS_DEFAULT, r->pool)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Failed to open cgi file %s for testing", *cmd);
-            return rv;
-        }
-        if ((rv = apr_file_read(fh, buffer, &bytes)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Failed to read cgi file %s for testing", *cmd);
-            return rv;
-        }
-        apr_file_close(fh);
+#if APR_HAS_SO_ACCEPTFILTER
+#ifndef ACCEPT_FILTER_NAME
+#define ACCEPT_FILTER_NAME "httpready"
+#ifdef __FreeBSD_version
+#if __FreeBSD_version < 411000 /* httpready was broken before 4.1.1 */
+#undef ACCEPT_FILTER_NAME
+#define ACCEPT_FILTER_NAME "dataready"
+#endif
+#endif
+#endif
+    apr_socket_accept_filter(s, ACCEPT_FILTER_NAME, "");
+#endif
 
-        /* Some twisted character [no pun intended] at MS decided that a
-         * zero width joiner as the lead wide character would be ideal for
-         * describing Unicode text files.  This was further convoluted to
-         * another MSism that the same character mapped into utf-8, EF BB BF
-         * would signify utf-8 text files.
-         *
-         * Since MS configuration files are all protecting utf-8 encoded
-         * Unicode path, file and resource names, we already have the correct
-         * WinNT encoding.  But at least eat the stupid three bytes up front.
-         *
-         * ### A more thorough check would also allow UNICODE text in buf, and
-         * convert it to UTF-8 for invoking unicode scripts.  Those are few
-         * and far between, so leave that code an enterprising soul with a need.
-         */
-        if ((bytes >= 3) && memcmp(buffer, "\xEF\xBB\xBF", 3) == 0) {
-            memmove(buffer, buffer + 3, bytes -= 3);
-        }
+    server->sd = s;
+    server->active = 1;
 
-        /* Script or executable, that is the question... */
-        if ((bytes >= 2) && (buffer[0] == '#') && (buffer[1] == '!')) {
-            /* Assuming file is a script since it starts with a shebang */
-            for (i = 2; i < bytes; i++) {
-                if ((buffer[i] == '\r') || (buffer[i] == '\n')) {
-                    buffer[i] = '\0';
-                    break;
-                }
-            }
-            if (i < bytes) {
-                interpreter = buffer + 2;
-                while (apr_isspace(*interpreter)) {
-                    ++interpreter;
-                }
-                if (e_info->cmd_type != APR_SHELLCMD) {
-                    e_info->cmd_type = APR_PROGRAM_PATH;
-                }
-            }
-        }
-        else if (bytes >= sizeof(IMAGE_DOS_HEADER)) {
-            /* Not a script, is it an executable? */
-            IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)buffer;
-            if (hdr->e_magic == IMAGE_DOS_SIGNATURE) {
-                if (hdr->e_lfarlc < 0x40) {
-                    /* Ought to invoke this 16 bit exe by a stub, (cmd /c?) */
-                    interpreter = "";
-                }
-                else {
-                    interpreter = "";
-                }
-            }
-        }
-    }
-    if (!interpreter) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "%s is not executable; ensure interpreted scripts have "
-                      "\"#!\" first line", *cmd);
-        return APR_EBADF;
-    }
+#ifdef MPM_ACCEPT_FUNC
+    server->accept_func = MPM_ACCEPT_FUNC;
+#else
+    server->accept_func = NULL;
+#endif
 
-    *argv = (const char **)(split_argv(p, interpreter, *cmd,
-                                       args)->elts);
-    *cmd = (*argv)[0];
-
-    e_info->detached = 1;
-
-    /* XXX: Must fix r->subprocess_env to follow utf-8 conventions from
-     * the client's octets so that win32 apr_proc_create is happy.
-     * The -best- way is to determine if the .exe is unicode aware
-     * (using 0x0080-0x00ff) or is linked as a command or windows
-     * application (following the OEM or Ansi code page in effect.)
-     */
-    for (i = 0; i < elts_arr->nelts; ++i) {
-        if (win_nt && elts[i].key && *elts[i].key
-                && (strncmp(elts[i].key, "HTTP_", 5) == 0
-                 || strncmp(elts[i].key, "SERVER_", 7) == 0
-                 || strncmp(elts[i].key, "REQUEST_", 8) == 0
-                 || strcmp(elts[i].key, "QUERY_STRING") == 0
-                 || strcmp(elts[i].key, "PATH_INFO") == 0
-                 || strcmp(elts[i].key, "PATH_TRANSLATED") == 0)) {
-            prep_string((const char**) &elts[i].val, r->pool);
-        }
-    }
     return APR_SUCCESS;
 }

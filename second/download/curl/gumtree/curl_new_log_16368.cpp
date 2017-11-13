@@ -1,10 +1,9 @@
 fputs(
-"              requests,  each  with  their  own specific options, for example,\n"
-"              such as different user names or custom requests for each.\n"
+"              Specify the maximum size (in bytes) of a file  to  download.  If\n"
+"              the  file requested is larger than this value, the transfer will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"              -:, --next will reset all local options  and  only  global  ones\n"
-"              will  have  their values survive over to the operation following\n"
-"              the -:, --next instruction. Global options  include  -v,  --ver-\n"
-"              bose, --trace, --trace-ascii and --fail-early.\n"
-"\n"
+"              NOTE: The file size is not always known prior to  download,  and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
 , stdout);

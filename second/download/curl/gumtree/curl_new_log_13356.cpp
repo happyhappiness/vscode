@@ -1,10 +1,11 @@
 fputs(
-"              --cacert if the --cacert file contains many CA certificates.\n"
+"    'Konqueror/1.0'             KDE File Manager desktop client\n"
+"    'Lynx/2.7.1 libwww-FM/2.14' Lynx command line browser\n"
 "\n"
-"              If this option is set, the default capath value will be ignored,\n"
-"              and if it is used several times, the last one will be used.\n"
+"COOKIES\n"
 "\n"
-"       --pinnedpubkey <pinned public key (hashes)>\n"
-"              (SSL) Tells curl to  use  the  specified  public  key  file  (or\n"
-"              hashes)  to  verify the peer. This can be a path to a file which\n"
+"  Cookies are generally used by web servers to keep state information at the\n"
+"  client's side. The server sets cookies by sending a response line in the\n"
+"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
+"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
 , stdout);

@@ -1,29 +1,29 @@
-int parse_commit_gently(struct commit *item, int quiet_on_missing)
+void connect_work_tree_and_git_dir(const char *work_tree, const char *git_dir)
 {
-	enum object_type type;
-	void *buffer;
-	unsigned long size;
-	int ret;
+	struct strbuf file_name = STRBUF_INIT;
+	struct strbuf rel_path = STRBUF_INIT;
+	const char *real_work_tree = xstrdup(real_path(work_tree));
+	FILE *fp;
 
-	if (!item)
-		return -1;
-	if (item->object.parsed)
-		return 0;
-	buffer = read_sha1_file(item->object.sha1, &type, &size);
-	if (!buffer)
-		return quiet_on_missing ? -1 :
-			error("Could not read %s",
-			     sha1_to_hex(item->object.sha1));
-	if (type != OBJ_COMMIT) {
-		free(buffer);
-		return error("Object %s not a commit",
-			     sha1_to_hex(item->object.sha1));
-	}
-	ret = parse_commit_buffer(item, buffer, size);
-	if (save_commit_buffer && !ret) {
-		set_commit_buffer(item, buffer, size);
-		return 0;
-	}
-	free(buffer);
-	return ret;
+	/* Update gitfile */
+	strbuf_addf(&file_name, "%s/.git", work_tree);
+	fp = fopen(file_name.buf, "w");
+	if (!fp)
+		die(_("Could not create git link %s"), file_name.buf);
+	fprintf(fp, "gitdir: %s\n", relative_path(git_dir, real_work_tree,
+						  &rel_path));
+	fclose(fp);
+
+	/* Update core.worktree setting */
+	strbuf_reset(&file_name);
+	strbuf_addf(&file_name, "%s/config", git_dir);
+	if (git_config_set_in_file(file_name.buf, "core.worktree",
+				   relative_path(real_work_tree, git_dir,
+						 &rel_path)))
+		die(_("Could not set core.worktree in %s"),
+		    file_name.buf);
+
+	strbuf_release(&file_name);
+	strbuf_release(&rel_path);
+	free((void *)real_work_tree);
 }

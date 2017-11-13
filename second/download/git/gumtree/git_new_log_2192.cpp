@@ -1,1 +1,1 @@
-printf("%s\n", local_repo_env[i]);
+die("BUG: initial ref transaction called with existing refs");

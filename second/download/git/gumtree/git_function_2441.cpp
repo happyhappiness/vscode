@@ -1,25 +1,21 @@
-int error_resolve_conflict(const char *me)
+static void show_worktree(struct worktree *wt, int path_maxlen, int abbrev_len)
 {
-	if (!strcmp(me, "cherry-pick"))
-		error(_("Cherry-picking is not possible because you have unmerged files."));
-	else if (!strcmp(me, "commit"))
-		error(_("Committing is not possible because you have unmerged files."));
-	else if (!strcmp(me, "merge"))
-		error(_("Merging is not possible because you have unmerged files."));
-	else if (!strcmp(me, "pull"))
-		error(_("Pulling is not possible because you have unmerged files."));
-	else if (!strcmp(me, "revert"))
-		error(_("Reverting is not possible because you have unmerged files."));
-	else
-		error(_("It is not possible to %s because you have unmerged files."),
-			me);
+	struct strbuf sb = STRBUF_INIT;
+	int cur_path_len = strlen(wt->path);
+	int path_adj = cur_path_len - utf8_strwidth(wt->path);
 
-	if (advice_resolve_conflict)
-		/*
-		 * Message used both when 'git commit' fails and when
-		 * other commands doing a merge do.
-		 */
-		advise(_("Fix them up in the work tree, and then use 'git add/rm <file>'\n"
-			 "as appropriate to mark resolution and make a commit."));
-	return -1;
+	strbuf_addf(&sb, "%-*s ", 1 + path_maxlen + path_adj, wt->path);
+	if (wt->is_bare)
+		strbuf_addstr(&sb, "(bare)");
+	else {
+		strbuf_addf(&sb, "%-*s ", abbrev_len,
+				find_unique_abbrev(wt->head_sha1, DEFAULT_ABBREV));
+		if (!wt->is_detached)
+			strbuf_addf(&sb, "[%s]", shorten_unambiguous_ref(wt->head_ref, 0));
+		else
+			strbuf_addstr(&sb, "(detached HEAD)");
+	}
+	printf("%s\n", sb.buf);
+
+	strbuf_release(&sb);
 }

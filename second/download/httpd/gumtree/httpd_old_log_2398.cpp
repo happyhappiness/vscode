@@ -1,1 +1,4 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.146 $");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " of ThreadsPerChild (%d), lowering MaxClients to %d",
+                    ap_threads_per_child,
+                    ap_daemons_limit * ap_threads_per_child);

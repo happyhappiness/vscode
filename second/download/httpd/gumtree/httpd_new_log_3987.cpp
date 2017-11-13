@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00863)
-                          "File subrequest to %s", req_conf->location);
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01477)
+                              "lua: Failed to obtain lua interpreter for %s %s",
+                              hook_spec->function_name, hook_spec->file_name);

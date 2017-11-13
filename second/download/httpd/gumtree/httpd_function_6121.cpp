@@ -1,23 +1,23 @@
-static apr_status_t initialize_secret(server_rec *s)
+static apr_status_t h2_sos_mplx_prepare(h2_sos *sos, apr_off_t *plen, int *peos)
 {
-    apr_status_t status;
-
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01757)
-                 "generating secret for digest authentication ...");
-
-#if APR_HAS_RANDOM
-    status = apr_generate_random_bytes(secret, sizeof(secret));
-#else
-#error APR random number support is missing; you probably need to install the truerand library.
-#endif
-
-    if (status != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, status, s, APLOGNO(01758)
-                     "error generating secret");
-        return status;
+    h2_sos_mplx *msos = sos->ctx;
+    apr_status_t status = APR_SUCCESS;
+    
+    H2_SOS_MPLX_OUT(APLOG_TRACE2, msos, "h2_sos_mplx prepare_pre");
+    
+    if (APR_BRIGADE_EMPTY(msos->bb)) {
+        status = mplx_transfer(msos, sos->stream->id, sos->stream->pool);
     }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01759) "done");
-
-    return APR_SUCCESS;
+    h2_util_bb_avail(msos->bb, plen, peos);
+    
+    H2_SOS_MPLX_OUT(APLOG_TRACE2, msos, "h2_sos_mplx prepare_post");
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, msos->m->c,
+                  "h2_stream(%ld-%d): prepare, len=%ld eos=%d, trailers=%s",
+                  msos->m->id, sos->stream->id, (long)*plen, *peos,
+                  msos->trailers? "yes" : "no");
+    if (!*peos && !*plen) {
+        status = APR_EAGAIN;
+    }
+    
+    return status;
 }

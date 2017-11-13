@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), 
-                     ap_server_conf,
-                     "Child %d: Failed to create a qwait event.", my_pid);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "proxy: CONNECT: error on %s - ap_pass_brigade",
+                              name);

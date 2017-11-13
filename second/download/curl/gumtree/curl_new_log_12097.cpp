@@ -1,10 +1,10 @@
 fputs(
-"                             --remote-header-name option. (Added in 7.25.1)\n"
+"              will be used. Since 7.45.0 guessing can be disabled by setting a\n"
+"              default protocol, see --proto-default for details.\n"
 "\n"
-"              ftp_entry_path The initial path curl ended up in when logging on\n"
-"                             to the remote FTP server. (Added in 7.15.4)\n"
-"\n"
-"              http_code      The numerical response code that was found in the\n"
-"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
-"                             7.18.2 the alias response_code was added to  show\n"
+"              This option may be used any number of times.  To  control  where\n"
+"              this  URL  is written, use the -o, --output or the -O, --remote-\n"
+"              name options.\n"
+"       -v, --verbose\n"
+"              Be more  verbose/talkative  during  the  operation.  Useful  for\n"
 , stdout);

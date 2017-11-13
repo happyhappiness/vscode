@@ -1,1 +1,0 @@
-ap_rputs(ap_escape_html(r->pool, cmd->errmsg), r);

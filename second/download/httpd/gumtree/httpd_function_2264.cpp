@@ -1,252 +1,350 @@
-static void output_results(void)
+void child_main(apr_pool_t *pconf)
 {
-    apr_interval_time_t timetakenusec;
-    float timetaken;
+    apr_status_t status;
+    apr_hash_t *ht;
+    ap_listen_rec *lr;
+    HANDLE child_events[2];
+    HANDLE *child_handles;
+    int listener_started = 0;
+    int threads_created = 0;
+    int watch_thread;
+    int time_remains;
+    int cld;
+    unsigned tid;
+    int rv;
+    int i;
 
-    endtime = apr_time_now();
-    timetakenusec = endtime - start;
-    timetaken = ((float)apr_time_sec(timetakenusec)) +
-        ((float)apr_time_usec(timetakenusec)) / 1000000.0F;
+    apr_pool_create(&pchild, pconf);
+    apr_pool_tag(pchild, "pchild");
 
-    printf("\n\n");
-    printf("Server Software:        %s\n", servername);
-    printf("Server Hostname:        %s\n", hostname);
-    printf("Server Port:            %hd\n", port);
-#ifdef USE_SSL
-    if (is_ssl && ssl_info) {
-        printf("SSL/TLS Protocol:       %s\n", ssl_info);
+    ap_run_child_init(pchild, ap_server_conf);
+    ht = apr_hash_make(pchild);
+
+    /* Initialize the child_events */
+    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!max_requests_per_child_event) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %lu: Failed to create a max_requests event.", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
+    child_events[0] = exit_event;
+    child_events[1] = max_requests_per_child_event;
+
+    allowed_globals.jobsemaphore = CreateSemaphore(NULL, 0, 1000000, NULL);
+    apr_thread_mutex_create(&allowed_globals.jobmutex,
+                            APR_THREAD_MUTEX_DEFAULT, pchild);
+
+    /*
+     * Wait until we have permission to start accepting connections.
+     * start_mutex is used to ensure that only one child ever
+     * goes into the listen/accept loop at once.
+     */
+    status = apr_proc_mutex_lock(start_mutex);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK,APLOG_ERR, status, ap_server_conf,
+                     "Child %lu: Failed to acquire the start_mutex. Process will exit.", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %lu: Acquired the start mutex.", my_pid);
+
+    /*
+     * Create the worker thread dispatch IOCompletionPort
+     * on Windows NT/2000
+     */
+    if (use_acceptex) {
+        /* Create the worker thread dispatch IOCP */
+        ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
+                                                    NULL,
+                                                    0,
+                                                    0); /* CONCURRENT ACTIVE THREADS */
+        apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
+        qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+        if (!qwait_event) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "Child %lu: Failed to create a qwait event.", my_pid);
+            exit(APEXIT_CHILDINIT);
+        }
+    }
+
+    /*
+     * Create the pool of worker threads
+     */
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %lu: Starting %d worker threads.", my_pid, ap_threads_per_child);
+    child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child * sizeof(HANDLE));
+    apr_thread_mutex_create(&child_lock, APR_THREAD_MUTEX_DEFAULT, pchild);
+
+    while (1) {
+        for (i = 0; i < ap_threads_per_child; i++) {
+            int *score_idx;
+            int status = ap_scoreboard_image->servers[0][i].status;
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
+            }
+            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
+            child_handles[i] = (HANDLE) _beginthreadex(NULL, (unsigned)ap_thread_stacksize,
+                                                       worker_main, (void *) i, 0, &tid);
+            if (child_handles[i] == 0) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                             "Child %lu: _beginthreadex failed. Unable to create all worker threads. "
+                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.",
+                             my_pid, threads_created, ap_threads_per_child);
+                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
+                goto shutdown;
+            }
+            threads_created++;
+            /* Save the score board index in ht keyed to the thread handle. We need this
+             * when cleaning up threads down below...
+             */
+            apr_thread_mutex_lock(child_lock);
+            score_idx = apr_pcalloc(pchild, sizeof(int));
+            *score_idx = i;
+            apr_hash_set(ht, &child_handles[i], sizeof(HANDLE), score_idx);
+            apr_thread_mutex_unlock(child_lock);
+        }
+        /* Start the listener only when workers are available */
+        if (!listener_started && threads_created) {
+            create_listener_thread();
+            listener_started = 1;
+            winnt_mpm_state = AP_MPMQ_RUNNING;
+        }
+        if (threads_created == ap_threads_per_child) {
+            break;
+        }
+        /* Check to see if the child has been told to exit */
+        if (WaitForSingleObject(exit_event, 0) != WAIT_TIMEOUT) {
+            break;
+        }
+        /* wait for previous generation to clean up an entry in the scoreboard */
+        apr_sleep(1 * APR_USEC_PER_SEC);
+    }
+
+    /* Wait for one of three events:
+     * exit_event:
+     *    The exit_event is signaled by the parent process to notify
+     *    the child that it is time to exit.
+     *
+     * max_requests_per_child_event:
+     *    This event is signaled by the worker threads to indicate that
+     *    the process has handled MaxRequestsPerChild connections.
+     *
+     * TIMEOUT:
+     *    To do periodic maintenance on the server (check for thread exits,
+     *    number of completion contexts, etc.)
+     *
+     * XXX: thread exits *aren't* being checked.
+     *
+     * XXX: other_child - we need the process handles to the other children
+     *      in order to map them to apr_proc_other_child_read (which is not
+     *      named well, it's more like a_p_o_c_died.)
+     *
+     * XXX: however - if we get a_p_o_c handle inheritance working, and
+     *      the parent process creates other children and passes the pipes
+     *      to our worker processes, then we have no business doing such
+     *      things in the child_main loop, but should happen in master_main.
+     */
+    while (1) {
+#if !APR_HAS_OTHER_CHILD
+        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, INFINITE);
+        cld = rv - WAIT_OBJECT_0;
+#else
+        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, 1000);
+        cld = rv - WAIT_OBJECT_0;
+        if (rv == WAIT_TIMEOUT) {
+            apr_proc_other_child_refresh_all(APR_OC_REASON_RUNNING);
+        }
+        else
 #endif
-    printf("\n");
-    printf("Document Path:          %s\n", path);
-    printf("Document Length:        %" APR_SIZE_T_FMT " bytes\n", doclen);
-    printf("\n");
-    printf("Concurrency Level:      %d\n", concurrency);
-    printf("Time taken for tests:   %ld.%03ld seconds\n",
-           (long) apr_time_sec(timetakenusec),
-           (long) apr_time_usec(timetakenusec));
-    printf("Complete requests:      %ld\n", done);
-    printf("Failed requests:        %ld\n", bad);
-    if (bad)
-        printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-            err_conn, err_length, err_except);
-    printf("Write errors:           %ld\n", epipe);
-    if (err_response)
-        printf("Non-2xx responses:      %d\n", err_response);
-    if (keepalive)
-        printf("Keep-Alive requests:    %ld\n", doneka);
-    printf("Total transferred:      %ld bytes\n", totalread);
-    if (posting > 0)
-        printf("Total POSTed:           %ld\n", totalposted);
-    printf("HTML transferred:       %ld bytes\n", totalbread);
-
-    /* avoid divide by zero */
-    if (timetaken) {
-        printf("Requests per second:    %.2f [#/sec] (mean)\n",
-               (float) (done / timetaken));
-        printf("Time per request:       %.3f [ms] (mean)\n",
-               (float) (1000 * concurrency * timetaken / done));
-        printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
-           (float) (1000 * timetaken / done));
-        printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
-           (float) (totalread / 1024 / timetaken));
-        if (posting > 0) {
-            printf("                        %.2f kb/s sent\n",
-               (float) (totalposted / timetaken / 1024));
-            printf("                        %.2f kb/s total\n",
-               (float) ((totalread + totalposted) / timetaken / 1024));
+            if (rv == WAIT_FAILED) {
+            /* Something serious is wrong */
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "Child %lu: WAIT_FAILED -- shutting down server", my_pid);
+            break;
         }
-    }
-
-    if (requests) {
-        /* work out connection times */
-        long i;
-        apr_time_t totalcon = 0, total = 0, totald = 0, totalwait = 0;
-        apr_time_t meancon, meantot, meand, meanwait;
-        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX, mind = AB_MAX,
-                            minwait = AB_MAX;
-        apr_interval_time_t maxcon = 0, maxtot = 0, maxd = 0, maxwait = 0;
-        apr_interval_time_t mediancon = 0, mediantot = 0, mediand = 0, medianwait = 0;
-        double sdtot = 0, sdcon = 0, sdd = 0, sdwait = 0;
-
-        for (i = 0; i < requests; i++) {
-            struct data s = stats[i];
-            mincon = ap_min(mincon, s.ctime);
-            mintot = ap_min(mintot, s.time);
-            mind = ap_min(mind, s.time - s.ctime);
-            minwait = ap_min(minwait, s.waittime);
-
-            maxcon = ap_max(maxcon, s.ctime);
-            maxtot = ap_max(maxtot, s.time);
-            maxd = ap_max(maxd, s.time - s.ctime);
-            maxwait = ap_max(maxwait, s.waittime);
-
-            totalcon += s.ctime;
-            total += s.time;
-            totald += s.time - s.ctime;
-            totalwait += s.waittime;
-        }
-        meancon = totalcon / requests;
-        meantot = total / requests;
-        meand = totald / requests;
-        meanwait = totalwait / requests;
-
-        /* calculating the sample variance: the sum of the squared deviations, divided by n-1 */
-        for (i = 0; i < requests; i++) {
-            struct data s = stats[i];
-            double a;
-            a = ((double)s.time - meantot);
-            sdtot += a * a;
-            a = ((double)s.ctime - meancon);
-            sdcon += a * a;
-            a = ((double)s.time - (double)s.ctime - meand);
-            sdd += a * a;
-            a = ((double)s.waittime - meanwait);
-            sdwait += a * a;
-        }
-
-        sdtot = (requests > 1) ? sqrt(sdtot / (requests - 1)) : 0;
-        sdcon = (requests > 1) ? sqrt(sdcon / (requests - 1)) : 0;
-        sdd = (requests > 1) ? sqrt(sdd / (requests - 1)) : 0;
-        sdwait = (requests > 1) ? sqrt(sdwait / (requests - 1)) : 0;
-
-        if (gnuplot) {
-            FILE *out = fopen(gnuplot, "w");
-            long i;
-            apr_time_t sttime;
-            char tmstring[1024];/* XXXX */
-            if (!out) {
-                perror("Cannot open gnuplot output file");
-                exit(1);
-            }
-            fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");
-            for (i = 0; i < requests; i++) {
-                apr_time_t diff = stats[i].time - stats[i].ctime;
-
-                sttime = stats[i].starttime;
-                (void) apr_ctime(tmstring, sttime);
-                fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\n",
-                tmstring,
-                sttime,
-                stats[i].ctime,
-                diff,
-                stats[i].time,
-                stats[i].waittime);
-            }
-            fclose(out);
-        }
-        /*
-         * XXX: what is better; this hideous cast of the compradre function; or
-         * the four warnings during compile ? dirkx just does not know and
-         * hates both/
-         */
-        qsort(stats, requests, sizeof(struct data),
-              (int (*) (const void *, const void *)) compradre);
-        if ((requests > 1) && (requests % 2))
-            mediancon = (stats[requests / 2].ctime + stats[requests / 2 + 1].ctime) / 2;
-        else
-            mediancon = stats[requests / 2].ctime;
-
-        qsort(stats, requests, sizeof(struct data),
-              (int (*) (const void *, const void *)) compri);
-        if ((requests > 1) && (requests % 2))
-            mediand = (stats[requests / 2].time + stats[requests / 2 + 1].time \
-            -stats[requests / 2].ctime - stats[requests / 2 + 1].ctime) / 2;
-        else
-            mediand = stats[requests / 2].time - stats[requests / 2].ctime;
-
-        qsort(stats, requests, sizeof(struct data),
-              (int (*) (const void *, const void *)) compwait);
-        if ((requests > 1) && (requests % 2))
-            medianwait = (stats[requests / 2].waittime + stats[requests / 2 + 1].waittime) / 2;
-        else
-            medianwait = stats[requests / 2].waittime;
-
-        qsort(stats, requests, sizeof(struct data),
-              (int (*) (const void *, const void *)) comprando);
-        if ((requests > 1) && (requests % 2))
-            mediantot = (stats[requests / 2].time + stats[requests / 2 + 1].time) / 2;
-        else
-            mediantot = stats[requests / 2].time;
-
-        printf("\nConnection Times (ms)\n");
-
-        if (confidence) {
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4d %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
-            printf("              min  mean[+/-sd] median   max\n");
-            printf("Connect:    " CONF_FMT_STRING,
-                       mincon, (int) (meancon + 0.5), sdcon, mediancon, maxcon);
-            printf("Processing: " CONF_FMT_STRING,
-               mind, (int) (meand + 0.5), sdd, mediand, maxd);
-            printf("Waiting:    " CONF_FMT_STRING,
-                   minwait, (int) (meanwait + 0.5), sdwait, medianwait, maxwait);
-            printf("Total:      " CONF_FMT_STRING,
-               mintot, (int) (meantot + 0.5), sdtot, mediantot, maxtot);
-#undef CONF_FMT_STRING
-
-#define     SANE(what,mean,median,sd) \
-              { \
-                double d = (double)mean - median; \
-                if (d < 0) d = -d; \
-                if (d > 2 * sd ) \
-                    printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
-                           "       deviation apart. These results are NOT reliable.\n"); \
-                else if (d > sd ) \
-                    printf("WARNING: The median and mean for " what " are not within a normal deviation\n" \
-                           "        These results are probably not that reliable.\n"); \
-            }
-            SANE("the initial connection time", meancon, mediancon, sdcon);
-            SANE("the processing time", meand, mediand, sdd);
-            SANE("the waiting time", meanwait, medianwait, sdwait);
-            SANE("the total time", meantot, mediantot, sdtot);
+        else if (cld == 0) {
+            /* Exit event was signaled */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %lu: Exit event signaled. Child process is ending.", my_pid);
+            break;
         }
         else {
-            printf("              min   avg   max\n");
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
-            printf("Connect:    " CONF_FMT_STRING,
-                mincon, meancon, maxcon);
-            printf("Processing: " CONF_FMT_STRING,
-                mintot - mincon, meantot - meancon,  maxtot - maxcon);
-            printf("Total:      " CONF_FMT_STRING,
-                mintot, meantot, maxtot);
-#undef CONF_FMT_STRING
+            /* MaxRequestsPerChild event set by the worker threads.
+             * Signal the parent to restart
+             */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %lu: Process exiting because it reached "
+                         "MaxRequestsPerChild. Signaling the parent to "
+                         "restart a new child process.", my_pid);
+            ap_signal_parent(SIGNAL_PARENT_RESTART);
+            break;
         }
-
-
-        /* Sorted on total connect times */
-        if (percentile && (requests > 1)) {
-            printf("\nPercentage of the requests served within a certain time (ms)\n");
-            for (i = 0; i < sizeof(percs) / sizeof(int); i++) {
-                if (percs[i] <= 0)
-                    printf(" 0%%  <0> (never)\n");
-                else if (percs[i] >= 100)
-                    printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
-                           stats[requests - 1].time);
-                else
-                    printf("  %d%%  %5" APR_TIME_T_FMT "\n", percs[i],
-                           stats[(int) (requests * percs[i] / 100)].time);
-            }
-        }
-        if (csvperc) {
-            FILE *out = fopen(csvperc, "w");
-            int i;
-            if (!out) {
-                perror("Cannot open CSV output file");
-                exit(1);
-            }
-            fprintf(out, "" "Percentage served" "," "Time in ms" "\n");
-            for (i = 0; i < 100; i++) {
-                apr_time_t t;
-                if (i == 0)
-                    t = stats[0].time;
-                else if (i == 100)
-                    t = stats[requests - 1].time;
-                else
-                    t = stats[(int) (0.5 + requests * i / 100.0)].time;
-                fprintf(out, "%d,%e\n", i, (double)t);
-            }
-            fclose(out);
-        }
-
     }
+
+    /*
+     * Time to shutdown the child process
+     */
+
+ shutdown:
+
+    winnt_mpm_state = AP_MPMQ_STOPPING;
+    /* Setting is_graceful will cause threads handling keep-alive connections
+     * to close the connection after handling the current request.
+     */
+    is_graceful = 1;
+
+    /* Close the listening sockets. Note, we must close the listeners
+     * before closing any accept sockets pending in AcceptEx to prevent
+     * memory leaks in the kernel.
+     */
+    for (lr = ap_listeners; lr ; lr = lr->next) {
+        apr_socket_close(lr->sd);
+    }
+
+    /* Shutdown listener threads and pending AcceptEx socksts
+     * but allow the worker threads to continue consuming from
+     * the queue of accepted connections.
+     */
+    shutdown_in_progress = 1;
+
+    Sleep(1000);
+
+    /* Tell the worker threads to exit */
+    workers_may_exit = 1;
+
+    /* Release the start_mutex to let the new process (in the restart
+     * scenario) a chance to begin accepting and servicing requests
+     */
+    rv = apr_proc_mutex_unlock(start_mutex);
+    if (rv == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, rv, ap_server_conf,
+                     "Child %lu: Released the start mutex", my_pid);
+    }
+    else {
+        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %lu: Failure releasing the start mutex", my_pid);
+    }
+
+    /* Shutdown the worker threads */
+    if (!use_acceptex) {
+        for (i = 0; i < threads_created; i++) {
+            add_job(INVALID_SOCKET);
+        }
+    }
+    else { /* Windows NT/2000 */
+        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */
+        while (g_blocked_threads > 0) {
+            ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                         "Child %lu: %d threads blocked on the completion port", my_pid, g_blocked_threads);
+            for (i=g_blocked_threads; i > 0; i--) {
+                PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_SHUTDOWN, NULL);
+            }
+            Sleep(1000);
+        }
+        /* Empty the accept queue of completion contexts */
+        apr_thread_mutex_lock(qlock);
+        while (qhead) {
+            CloseHandle(qhead->Overlapped.hEvent);
+            closesocket(qhead->accept_socket);
+            qhead = qhead->next;
+        }
+        apr_thread_mutex_unlock(qlock);
+    }
+
+    /* Give busy threads a chance to service their connections,
+     * (no more than the global server timeout period which 
+     * we track in msec remaining).
+     */
+    watch_thread = 0;
+    time_remains = (int)(ap_server_conf->timeout / APR_TIME_C(1000));
+
+    while (threads_created)
+    {
+        int nFailsafe = MAXIMUM_WAIT_OBJECTS;
+        DWORD dwRet;
+
+        /* Every time we roll over to wait on the first group
+         * of MAXIMUM_WAIT_OBJECTS threads, take a breather,
+         * and infrequently update the error log.
+         */
+        if (watch_thread >= threads_created) {
+            if ((time_remains -= 100) < 0)
+                break;
+
+            /* Every 30 seconds give an update */
+            if ((time_remains % 30000) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
+                             ap_server_conf,
+                             "Child %lu: Waiting %d more seconds "
+                             "for %d worker threads to finish.", 
+                             my_pid, time_remains / 1000, threads_created);
+            }
+            /* We'll poll from the top, 10 times per second */
+            Sleep(100);
+            watch_thread = 0;
+        }
+
+        /* Fairness, on each iteration we will pick up with the thread
+         * after the one we just removed, even if it's a single thread.
+         * We don't block here.
+         */
+        dwRet = WaitForMultipleObjects(min(threads_created - watch_thread,
+                                           MAXIMUM_WAIT_OBJECTS),
+                                       child_handles + watch_thread, 0, 0);
+
+        if (dwRet == WAIT_FAILED) {
+            break;
+        }
+        if (dwRet == WAIT_TIMEOUT) {
+            /* none ready */
+            watch_thread += MAXIMUM_WAIT_OBJECTS;
+            continue;
+        }
+        else if (dwRet >= WAIT_ABANDONED_0) {
+            /* We just got the ownership of the object, which
+             * should happen at most MAXIMUM_WAIT_OBJECTS times.
+             * It does NOT mean that the object is signaled.
+             */
+            if ((nFailsafe--) < 1)
+                break;
+        }
+        else {
+            watch_thread += (dwRet - WAIT_OBJECT_0);
+            if (watch_thread >= threads_created)
+                break;
+            cleanup_thread(child_handles, &threads_created, watch_thread);
+        }
+    }
+ 
+    /* Kill remaining threads off the hard way */
+    if (threads_created) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %lu: Terminating %d threads that failed to exit.",
+                     my_pid, threads_created);
+    }
+    for (i = 0; i < threads_created; i++) {
+        int *score_idx;
+        TerminateThread(child_handles[i], 1);
+        CloseHandle(child_handles[i]);
+        /* Reset the scoreboard entry for the thread we just whacked */
+        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
+        if (score_idx) {
+            ap_update_child_status_from_indexes(0, *score_idx,
+                                                SERVER_DEAD, NULL);
+        }
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %lu: All worker threads have exited.", my_pid);
+
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    apr_thread_mutex_destroy(child_lock);
+
+    if (use_acceptex) {
+        apr_thread_mutex_destroy(qlock);
+        CloseHandle(qwait_event);
+    }
+
+    apr_pool_destroy(pchild);
+    CloseHandle(exit_event);
 }

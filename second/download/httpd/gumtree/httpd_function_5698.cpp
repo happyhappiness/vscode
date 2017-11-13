@@ -1,82 +1,157 @@
-static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static int proxy_wstunnel_request(apr_pool_t *p, request_rec *r,
+                                proxy_conn_rec *conn,
+                                proxy_worker *worker,
+                                proxy_server_conf *conf,
+                                apr_uri_t *uri,
+                                char *url, char *server_portstr)
 {
-    static int restart_num = 0;
-    int startup = 0;
+    apr_status_t rv;
+    apr_pollset_t *pollset;
+    apr_pollfd_t pollfd;
+    const apr_pollfd_t *signalled;
+    apr_int32_t pollcnt, pi;
+    apr_int16_t pollevent;
+    conn_rec *c = r->connection;
+    apr_socket_t *sock = conn->sock;
+    conn_rec *backconn = conn->connection;
+    char *buf;
+    apr_bucket_brigade *header_brigade;
+    apr_bucket *e;
+    char *old_cl_val = NULL;
+    char *old_te_val = NULL;
+    apr_bucket_brigade *bb = apr_brigade_create(p, c->bucket_alloc);
+    apr_socket_t *client_socket = ap_get_conn_socket(c);
+    int done = 0, replied = 0;
 
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
+    header_brigade = apr_brigade_create(p, backconn->bucket_alloc);
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "sending request");
+
+    rv = ap_proxy_create_hdrbrgd(p, header_brigade, r, conn,
+                                 worker, conf, uri, url, server_portstr,
+                                 &old_cl_val, &old_te_val);
+    if (rv != OK) {
+        return rv;
     }
 
-    if (ap_threads_limit > HARD_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00228)
-                         "WARNING: MaxThreads of %d exceeds compile-time "
-                         "limit of", ap_threads_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the HARD_THREAD_LIMIT"
-                         "define in");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00229)
-                         "MaxThreads of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         ap_threads_limit, HARD_THREAD_LIMIT);
+    buf = apr_pstrdup(p, "Upgrade: WebSocket" CRLF "Connection: Upgrade" CRLF CRLF);
+    ap_xlate_proto_to_ascii(buf, strlen(buf));
+    e = apr_bucket_pool_create(buf, strlen(buf), p, c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(header_brigade, e);
+
+    if ((rv = ap_proxy_pass_brigade(c->bucket_alloc, r, conn, backconn,
+                                    header_brigade, 1)) != OK)
+        return rv;
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "setting up poll()");
+
+    if ((rv = apr_pollset_create(&pollset, 2, p, 0)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02443)
+                      "error apr_pollset_create()");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+#if 0
+    apr_socket_opt_set(sock, APR_SO_NONBLOCK, 1);
+    apr_socket_opt_set(sock, APR_SO_KEEPALIVE, 1);
+    apr_socket_opt_set(client_socket, APR_SO_NONBLOCK, 1);
+    apr_socket_opt_set(client_socket, APR_SO_KEEPALIVE, 1);
+#endif
+
+    pollfd.p = p;
+    pollfd.desc_type = APR_POLL_SOCKET;
+    pollfd.reqevents = APR_POLLIN | APR_POLLHUP;
+    pollfd.desc.s = sock;
+    pollfd.client_data = NULL;
+    apr_pollset_add(pollset, &pollfd);
+
+    pollfd.desc.s = client_socket;
+    apr_pollset_add(pollset, &pollfd);
+
+    ap_remove_input_filter_byhandle(c->input_filters, "reqtimeout");
+
+    r->output_filters = c->output_filters;
+    r->proto_output_filters = c->output_filters;
+    r->input_filters = c->input_filters;
+    r->proto_input_filters = c->input_filters;
+
+    /* This handler should take care of the entire connection; make it so that
+     * nothing else is attempted on the connection after returning. */
+    c->keepalive = AP_CONN_CLOSE;
+
+    do { /* Loop until done (one side closes the connection, or an error) */
+        rv = apr_pollset_poll(pollset, -1, &pollcnt, &signalled);
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_EINTR(rv)) {
+                continue;
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02444) "error apr_poll()");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
-        ap_threads_limit = HARD_THREAD_LIMIT;
-    }
-    else if (ap_threads_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         APLOGNO(00230) "WARNING: MaxThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(02661)
-                         "MaxThreads of %d not allowed, increasing to 1",
-                         ap_threads_limit);
-        }
-        ap_threads_limit = 1;
-    }
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02445)
+                      "woke from poll(), i=%d", pollcnt);
 
-    /* ap_threads_to_start > ap_threads_limit effectively checked in
-     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
-     */
-    if (ap_threads_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00231)
-                         "WARNING: StartThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00232)
-                         "StartThreads of %d not allowed, increasing to 1",
-                         ap_threads_to_start);
-        }
-        ap_threads_to_start = 1;
-    }
+        for (pi = 0; pi < pollcnt; pi++) {
+            const apr_pollfd_t *cur = &signalled[pi];
 
-    if (ap_threads_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00233)
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_threads_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00234)
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_threads_min_free);
-        }
-        ap_threads_min_free = 1;
-    }
+            if (cur->desc.s == sock) {
+                pollevent = cur->rtnevents;
+                if (pollevent & (APR_POLLIN | APR_POLLHUP)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02446)
+                                  "sock was readable");
+                    done |= proxy_wstunnel_transfer(r, backconn, c, bb,
+                                                    "sock", NULL) != APR_SUCCESS;
+                }
+                else if (pollevent & APR_POLLERR) {
+                    ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02447)
+                            "error on backconn");
+                    backconn->aborted = 1;
+                    done = 1;
+                }
+                else { 
+                    ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02605)
+                            "unknown event on backconn %d", pollevent);
+                    done = 1;
+                }
+            }
+            else if (cur->desc.s == client_socket) {
+                pollevent = cur->rtnevents;
+                if (pollevent & (APR_POLLIN | APR_POLLHUP)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02448)
+                                  "client was readable");
+                    done |= proxy_wstunnel_transfer(r, c, backconn, bb,
+                                                    "client", &replied) != APR_SUCCESS;
+                }
+                else if (pollevent & APR_POLLERR) {
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02607)
+                            "error on client conn");
+                    c->aborted = 1;
+                    done = 1;
+                }
+                else { 
+                    ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02606)
+                            "unknown event on client conn %d", pollevent);
+                    done = 1;
+                }
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02449)
+                              "unknown socket in pollset");
+                done = 1;
+            }
 
-    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
+        }
+    } while (!done);
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                  "finished with poll() - cleaning up");
+
+    if (!replied) {
+        return HTTP_BAD_GATEWAY;
+    }
+    else {
+        return OK;
+    }
 
     return OK;
 }

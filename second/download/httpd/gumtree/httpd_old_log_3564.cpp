@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                MODNAME ": bad state %d (ws)", state);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "Heartmonitor: Failed to create watchdog "
+                     "instance (%s)", HM_WATHCHDOG_NAME);

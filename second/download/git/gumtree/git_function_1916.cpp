@@ -1,57 +1,42 @@
-static int handle_commit_msg(struct strbuf *line)
+static void show_raw_diff(struct combine_diff_path *p, int num_parent, struct rev_info *rev)
 {
-	static int still_looking = 1;
+	struct diff_options *opt = &rev->diffopt;
+	int line_termination, inter_name_termination, i;
+	const char *line_prefix = diff_line_prefix(opt);
 
-	if (!cmitmsg)
-		return 0;
+	line_termination = opt->line_termination;
+	inter_name_termination = '\t';
+	if (!line_termination)
+		inter_name_termination = 0;
 
-	if (still_looking) {
-		if (!line->len || (line->len == 1 && line->buf[0] == '\n'))
-			return 0;
+	if (rev->loginfo && !rev->no_commit_id)
+		show_log(rev);
+
+
+	if (opt->output_format & DIFF_FORMAT_RAW) {
+		printf("%s", line_prefix);
+
+		/* As many colons as there are parents */
+		for (i = 0; i < num_parent; i++)
+			putchar(':');
+
+		/* Show the modes */
+		for (i = 0; i < num_parent; i++)
+			printf("%06o ", p->parent[i].mode);
+		printf("%06o", p->mode);
+
+		/* Show sha1's */
+		for (i = 0; i < num_parent; i++)
+			printf(" %s", diff_unique_abbrev(p->parent[i].sha1,
+							 opt->abbrev));
+		printf(" %s ", diff_unique_abbrev(p->sha1, opt->abbrev));
 	}
 
-	if (use_inbody_headers && still_looking) {
-		still_looking = check_header(line, s_hdr_data, 0);
-		if (still_looking)
-			return 0;
-	} else
-		/* Only trim the first (blank) line of the commit message
-		 * when ignoring in-body headers.
-		 */
-		still_looking = 0;
-
-	/* normalize the log message to UTF-8. */
-	if (metainfo_charset)
-		convert_to_utf8(line, charset.buf);
-
-	if (use_scissors && is_scissors_line(line)) {
-		int i;
-		if (fseek(cmitmsg, 0L, SEEK_SET))
-			die_errno("Could not rewind output message file");
-		if (ftruncate(fileno(cmitmsg), 0))
-			die_errno("Could not truncate output message file at scissors");
-		still_looking = 1;
-
-		/*
-		 * We may have already read "secondary headers"; purge
-		 * them to give ourselves a clean restart.
-		 */
-		for (i = 0; header[i]; i++) {
-			if (s_hdr_data[i])
-				strbuf_release(s_hdr_data[i]);
-			s_hdr_data[i] = NULL;
-		}
-		return 0;
+	if (opt->output_format & (DIFF_FORMAT_RAW | DIFF_FORMAT_NAME_STATUS)) {
+		for (i = 0; i < num_parent; i++)
+			putchar(p->parent[i].status);
+		putchar(inter_name_termination);
 	}
 
-	if (patchbreak(line)) {
-		if (message_id)
-			fprintf(cmitmsg, "Message-Id: %s\n", message_id);
-		fclose(cmitmsg);
-		cmitmsg = NULL;
-		return 1;
-	}
-
-	fputs(line->buf, cmitmsg);
-	return 0;
+	write_name_quoted(p->path, stdout, line_termination);
 }

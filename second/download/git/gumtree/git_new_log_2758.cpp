@@ -1,1 +1,1 @@
-die(_("file %s is not writable by user"), file);
+die_errno(_("could not open temporary file"));

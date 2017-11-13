@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-#ifndef OPENSSL_NO_EC
-                "Oops, no RSA, DSA or ECC server private key found?!");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                      "lb_heartbeat: No server for worker %s", (*worker)->name);

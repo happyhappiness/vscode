@@ -1,2 +1,2 @@
-error("cannot stat '%s': %s", path,
-					strerror(errno));
+error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));

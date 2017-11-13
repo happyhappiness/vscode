@@ -1,9 +1,10 @@
 fputs(
-"              to a asterisk '*' only, it matches all hosts.\n"
+"                             verification was successful. (Added in 7.52.0)\n"
 "\n"
-"              Since 7.53.0, this environment variable disable the  proxy  even\n"
-"              if  specify  -x,  --proxy  option. That is NO_PROXY=direct.exam-\n"
-"              ple.com  curl  -x  http://proxy.example.com  http://direct.exam-\n"
-"              ple.com     accesses    the    target    URL    directly,    and\n"
-"              NO_PROXY=direct.example.com  curl  -x   http://proxy.example.com\n"
+"              redirect_url   When an HTTP request was made without -L, --loca-\n"
+"                             tion  to follow redirects (or when --max-redir is\n"
+"                             met), this variable will show the  actual  URL  a\n"
+"                             redirect would have gone to. (Added in 7.18.2)\n"
+"\n"
+"              remote_ip      The  remote  IP address of the most recently done\n"
 , stdout);

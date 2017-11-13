@@ -1,22 +1,61 @@
-apr_array_header_t *h2_push_collect_update(h2_stream *stream, 
-                                           const struct h2_request *req, 
-                                           const struct h2_headers *res)
+void ap_lua_rstack_dump(lua_State *L, request_rec *r, const char *msg)
 {
-    h2_session *session = stream->session;
-    const char *cache_digest = apr_table_get(req->headers, "Cache-Digest");
-    apr_array_header_t *pushes;
-    apr_status_t status;
-    
-    if (cache_digest && session->push_diary) {
-        status = h2_push_diary_digest64_set(session->push_diary, req->authority, 
-                                            cache_digest, stream->pool);
-        if (status != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                          APLOGNO(03057)
-                          "h2_session(%ld): push diary set from Cache-Digest: %s", 
-                          session->id, cache_digest);
+    int i;
+    int top = lua_gettop(L);
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01484) "Lua Stack Dump: [%s]", msg);
+    for (i = 1; i <= top; i++) {
+        int t = lua_type(L, i);
+        switch (t) {
+        case LUA_TSTRING:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  '%s'", i, lua_tostring(L, i));
+                break;
+            }
+        case LUA_TUSERDATA:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%d:  userdata",
+                              i);
+                break;
+            }
+        case LUA_TLIGHTUSERDATA:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  lightuserdata", i);
+                break;
+            }
+        case LUA_TNIL:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%d:  NIL", i);
+                break;
+            }
+        case LUA_TNONE:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%d:  None", i);
+                break;
+            }
+        case LUA_TBOOLEAN:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  %s", i, lua_toboolean(L,
+                                                          i) ? "true" :
+                              "false");
+                break;
+            }
+        case LUA_TNUMBER:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  %g", i, lua_tonumber(L, i));
+                break;
+            }
+        case LUA_TTABLE:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  <table>", i);
+                break;
+            }
+        case LUA_TFUNCTION:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  <function>", i);
+                break;
+            }
+        default:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  unknown: -[%s]-", i, lua_typename(L, i));
+                break;
+            }
         }
     }
-    pushes = h2_push_collect(stream->pool, req, stream->push_policy, res);
-    return h2_push_diary_update(stream->session, pushes);
 }

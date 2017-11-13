@@ -1,1 +1,1 @@
-fprintf(stderr,"\n");
+fprintf(stderr, "    %-32s Comment\n", "Username");

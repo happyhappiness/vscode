@@ -1,1 +1,2 @@
-die("usage: git-credential-cache--daemon <socket_path>");
+die(_("failed to finish 'show' for object '%s'"),
+		    sha1_to_hex(object));

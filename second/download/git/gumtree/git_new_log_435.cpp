@@ -1,1 +1,1 @@
-die("BUG: %s called for a submodule", caller);
+die(_("failed to resolve '%s' as a valid ref."), object_ref);

@@ -1,30 +1,52 @@
-static const char *apply_command(const char *command, const char *arg)
+int log_ref_setup(const char *refname, struct strbuf *sb_logfile)
 {
-	struct strbuf cmd = STRBUF_INIT;
-	struct strbuf buf = STRBUF_INIT;
-	struct child_process cp = CHILD_PROCESS_INIT;
-	const char *argv[] = {NULL, NULL};
-	const char *result;
+	int logfd, oflags = O_APPEND | O_WRONLY;
+	char *logfile;
 
-	strbuf_addstr(&cmd, command);
-	if (arg)
-		strbuf_replace(&cmd, TRAILER_ARG_STRING, arg);
-
-	argv[0] = cmd.buf;
-	cp.argv = argv;
-	cp.env = local_repo_env;
-	cp.no_stdin = 1;
-	cp.use_shell = 1;
-
-	if (capture_command(&cp, &buf, 1024)) {
-		error("running trailer command '%s' failed", cmd.buf);
-		strbuf_release(&buf);
-		result = xstrdup("");
-	} else {
-		strbuf_trim(&buf);
-		result = strbuf_detach(&buf, NULL);
+	strbuf_git_path(sb_logfile, "logs/%s", refname);
+	logfile = sb_logfile->buf;
+	/* make sure the rest of the function can't change "logfile" */
+	sb_logfile = NULL;
+	if (log_all_ref_updates &&
+	    (starts_with(refname, "refs/heads/") ||
+	     starts_with(refname, "refs/remotes/") ||
+	     starts_with(refname, "refs/notes/") ||
+	     !strcmp(refname, "HEAD"))) {
+		if (safe_create_leading_directories(logfile) < 0) {
+			int save_errno = errno;
+			error("unable to create directory for %s", logfile);
+			errno = save_errno;
+			return -1;
+		}
+		oflags |= O_CREAT;
 	}
 
-	strbuf_release(&cmd);
-	return result;
+	logfd = open(logfile, oflags, 0666);
+	if (logfd < 0) {
+		if (!(oflags & O_CREAT) && (errno == ENOENT || errno == EISDIR))
+			return 0;
+
+		if (errno == EISDIR) {
+			if (remove_empty_directories(logfile)) {
+				int save_errno = errno;
+				error("There are still logs under '%s'",
+				      logfile);
+				errno = save_errno;
+				return -1;
+			}
+			logfd = open(logfile, oflags, 0666);
+		}
+
+		if (logfd < 0) {
+			int save_errno = errno;
+			error("Unable to append to %s: %s", logfile,
+			      strerror(errno));
+			errno = save_errno;
+			return -1;
+		}
+	}
+
+	adjust_shared_perm(logfile);
+	close(logfd);
+	return 0;
 }

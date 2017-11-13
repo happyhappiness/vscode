@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02401)
-                          "HTTP Request Line; Rejected HTTP/0.9 request");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                                  "h2_session: wait for data, %ld micros", 
+                                  (long)session->wait_us);

@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s\n",fname);
+fprintf(FINFO,"hash search b=%d len=%d\n",s->n,(int)len);

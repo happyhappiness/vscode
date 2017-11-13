@@ -1,2 +1,1 @@
-fprintf(stderr, "Corrupt %s xattr attached to %s: \"%s\"\n",
-			XSTAT_ATTR, fname, buf);
+out_of_memory("msg_list_add");

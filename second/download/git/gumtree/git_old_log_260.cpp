@@ -1,1 +1,1 @@
-die(_("Failed to read object '%s'."), arg);
+error(_("invalid start of line: '%c'"), first);

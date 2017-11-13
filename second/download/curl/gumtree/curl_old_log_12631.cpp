@@ -1,9 +1,9 @@
 fputs(
-"              This  command  line  option will activate the cookie engine that\n"
-"              makes curl record and use cookies. Another way to activate it is\n"
-"              to use the -b, --cookie option.\n"
+"              should  be used in this session if they match. Using this method\n"
+"              also activates the cookie engine which  will  make  curl  record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination with the -L, --location option. The file  format  of\n"
+"              the file to read cookies from should be plain HTTP headers (Set-\n"
+"              Cookie style) or the Netscape/Mozilla cookie file format.\n"
 "\n"
-"              If the cookie jar can't be created or written to, the whole curl\n"
-"              operation won't fail or even report an error clearly.  Using  -v\n"
-"              will get a warning displayed, but that is the only visible feed-\n"
 , stdout);

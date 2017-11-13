@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00927)
-                     "initializing worker %s local",
-                     ap_proxy_worker_name(p, worker));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02545)
+                         "%s: has determined UDS as %s",
+                         proxy_function, (*conn)->uds_path);

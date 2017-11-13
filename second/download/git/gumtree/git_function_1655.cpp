@@ -1,69 +1,34 @@
-static void combine_diff(const struct object_id *parent, unsigned int mode,
-			 mmfile_t *result_file,
-			 struct sline *sline, unsigned int cnt, int n,
-			 int num_parent, int result_deleted,
-			 struct userdiff_driver *textconv,
-			 const char *path, long flags)
+int ref_transaction_update(struct ref_transaction *transaction,
+			   const char *refname,
+			   const unsigned char *new_sha1,
+			   const unsigned char *old_sha1,
+			   int flags, int have_old, const char *msg,
+			   struct strbuf *err)
 {
-	unsigned int p_lno, lno;
-	unsigned long nmask = (1UL << n);
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	mmfile_t parent_file;
-	struct combine_diff_state state;
-	unsigned long sz;
+	struct ref_update *update;
 
-	if (result_deleted)
-		return; /* result deleted */
+	assert(err);
 
-	parent_file.ptr = grab_blob(parent, mode, &sz, textconv, path);
-	parent_file.size = sz;
-	memset(&xpp, 0, sizeof(xpp));
-	xpp.flags = flags;
-	memset(&xecfg, 0, sizeof(xecfg));
-	memset(&state, 0, sizeof(state));
-	state.nmask = nmask;
-	state.sline = sline;
-	state.lno = 1;
-	state.num_parent = num_parent;
-	state.n = n;
+	if (transaction->state != REF_TRANSACTION_OPEN)
+		die("BUG: update called for transaction that is not open");
 
-	if (xdi_diff_outf(&parent_file, result_file, consume_line, &state,
-			  &xpp, &xecfg))
-		die("unable to generate combined diff for %s",
-		    oid_to_hex(parent));
-	free(parent_file.ptr);
+	if (have_old && !old_sha1)
+		die("BUG: have_old is true but old_sha1 is NULL");
 
-	/* Assign line numbers for this parent.
-	 *
-	 * sline[lno].p_lno[n] records the first line number
-	 * (counting from 1) for parent N if the final hunk display
-	 * started by showing sline[lno] (possibly showing the lost
-	 * lines attached to it first).
-	 */
-	for (lno = 0,  p_lno = 1; lno <= cnt; lno++) {
-		struct lline *ll;
-		sline[lno].p_lno[n] = p_lno;
-
-		/* Coalesce new lines */
-		if (sline[lno].plost.lost_head) {
-			struct sline *sl = &sline[lno];
-			sl->lost = coalesce_lines(sl->lost, &sl->lenlost,
-						  sl->plost.lost_head,
-						  sl->plost.len, n, flags);
-			sl->plost.lost_head = sl->plost.lost_tail = NULL;
-			sl->plost.len = 0;
-		}
-
-		/* How many lines would this sline advance the p_lno? */
-		ll = sline[lno].lost;
-		while (ll) {
-			if (ll->parent_map & nmask)
-				p_lno++; /* '-' means parent had it */
-			ll = ll->next;
-		}
-		if (lno < cnt && !(sline[lno].flag & nmask))
-			p_lno++; /* no '+' means parent had it */
+	if (!is_null_sha1(new_sha1) &&
+	    check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
+		strbuf_addf(err, "refusing to update ref with bad name %s",
+			    refname);
+		return -1;
 	}
-	sline[lno].p_lno[n] = p_lno; /* trailer */
+
+	update = add_update(transaction, refname);
+	hashcpy(update->new_sha1, new_sha1);
+	update->flags = flags;
+	update->have_old = have_old;
+	if (have_old)
+		hashcpy(update->old_sha1, old_sha1);
+	if (msg)
+		update->msg = xstrdup(msg);
+	return 0;
 }

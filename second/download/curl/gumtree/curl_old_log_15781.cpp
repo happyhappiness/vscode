@@ -1,11 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              with  '>'  means  \"header  data\" sent by curl, '<' means \"header\n"
+"              data\" received by curl that is hidden in  normal  cases,  and  a\n"
+"              line starting with '*' means additional info provided by curl.\n"
 "\n"
-"              See also -r, --range.\n"
+"              If you only want HTTP headers in the output, -i, --include might\n"
+"              be the option you're looking for.\n"
 "\n"
-"       -c, --cookie-jar <filename>\n"
-"              (HTTP) Specify to which file you want curl to write all  cookies\n"
-"              after  a  completed  operation. Curl writes all cookies from its\n"
-"              in-memory cookie storage to the given file at the end of  opera-\n"
-"              tions.  If  no  cookies  are known, no data will be written. The\n"
+"              If you think this option still doesn't give you enough  details,\n"
 , stdout);

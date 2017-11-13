@@ -1,303 +1,114 @@
-int main(int argc,char *argv[])
-{
-    int pid, status, status2;
-    int opt;
-    int option_index;
-    char *shell_cmd = NULL;
-    char *shell_machine = NULL;
-    char *shell_path = NULL;
-    char *shell_user = NULL;
-    char *p;
-    int f_in,f_out;
-    struct file_list *flist;
-    char *local_name = NULL;
+int recv_files(int f_in,struct file_list *flist,char *local_name)
+{  
+  int fd1,fd2;
+  struct stat st;
+  char *fname;
+  char fnametmp[MAXPATHLEN];
+  char *buf;
+  int i;
 
-    starttime = time(NULL);
+  if (verbose > 2) {
+    fprintf(stderr,"recv_files(%d) starting\n",flist->count);
+  }
 
-    checksum_init();
+  if (recurse && delete_mode && !local_name && flist->count>0) {
+    delete_files(flist);
+  }
 
-    while ((opt = getopt_long(argc, argv, 
-			      short_options, long_options, &option_index)) 
-	   != -1) {
-      switch (opt) 
-	{
-	case OPT_VERSION:
-	  printf("rsync version %s  protocol version %d\n",
-		 VERSION,PROTOCOL_VERSION);
-	  exit_cleanup(0);
+  while (1) 
+    {
+      i = read_int(f_in);
+      if (i == -1) break;
 
-	case OPT_SUFFIX:
-	  backup_suffix = optarg;
-	  break;
+      fname = flist->files[i].name;
 
-	case OPT_RSYNC_PATH:
-	  rsync_path = optarg;
-	  break;
+      if (local_name)
+	fname = local_name;
 
-	case OPT_CSUM_LENGTH:
-	  csum_length = atoi(optarg);
-	  csum_length = MIN(csum_length,SUM_LENGTH);
-	  break;
+      if (dry_run) {
+	if (!am_server && verbose)
+	  printf("%s\n",fname);
+	continue;
+      }
 
-	case 'I':
-	  ignore_times = 1;
-	  break;
+      if (verbose > 2)
+	fprintf(stderr,"recv_files(%s)\n",fname);
 
-	case 'x':
-	  one_file_system=1;
-	  break;
+      /* open the file */  
+      fd1 = open(fname,O_RDONLY);
 
-	case OPT_DELETE:
-	  delete_mode = 1;
-	  break;
+      if (fd1 != -1 && fstat(fd1,&st) != 0) {
+	fprintf(stderr,"fstat %s : %s\n",fname,strerror(errno));
+	close(fd1);
+	return -1;
+      }
 
-	case OPT_EXCLUDE:
-	  add_exclude(optarg);
-	  break;
+      if (fd1 != -1 && !S_ISREG(st.st_mode)) {
+	fprintf(stderr,"%s : not a regular file\n",fname);
+	close(fd1);
+	return -1;
+      }
 
-	case OPT_EXCLUDE_FROM:
-	  add_exclude_file(optarg,1);
-	  break;
+      if (fd1 != -1 && st.st_size > 0) {
+	buf = map_file(fd1,st.st_size);
+      } else {
+	buf = NULL;
+      }
 
-	case 'h':
-	  usage(FINFO);
-	  exit_cleanup(0);
+      if (verbose > 2)
+	fprintf(stderr,"mapped %s of size %d\n",fname,(int)st.st_size);
 
-	case 'b':
-	  make_backups=1;
-	  break;
+      /* open tmp file */
+      sprintf(fnametmp,"%s.XXXXXX",fname);
+      if (NULL == mktemp(fnametmp)) {
+	fprintf(stderr,"mktemp %s failed\n",fnametmp);
+	return -1;
+      }
+      fd2 = open(fnametmp,O_WRONLY|O_CREAT,flist->files[i].mode);
+      if (fd2 == -1) {
+	fprintf(stderr,"open %s : %s\n",fnametmp,strerror(errno));
+	return -1;
+      }
+      
+      cleanup_fname = fnametmp;
 
-	case 'n':
-	  dry_run=1;
-	  break;
+      if (!am_server && verbose)
+	printf("%s\n",fname);
 
-	case 'S':
-	  sparse_files=1;
-	  break;
+      /* recv file data */
+      receive_data(f_in,buf,fd2,fname);
 
-	case 'C':
-	  cvs_exclude=1;
-	  break;
+      if (fd1 != -1) {
+	unmap_file(buf,st.st_size);
+	close(fd1);
+      }
+      close(fd2);
 
-	case 'u':
-	  update_only=1;
-	  break;
+      if (verbose > 2)
+	fprintf(stderr,"renaming %s to %s\n",fnametmp,fname);
 
-	case 'l':
-#if SUPPORT_LINKS
-	  preserve_links=1;
-#endif
-	  break;
-
-	case 'H':
-#if SUPPORT_HARD_LINKS
-	  preserve_hard_links=1;
-#endif
-	  break;
-
-	case 'p':
-	  preserve_perms=1;
-	  break;
-
-	case 'o':
-	  if (getuid() == 0) {
-	    preserve_uid=1;
-	  } else {
-	    fprintf(FERROR,"-o only allowed for root\n");
-	    exit_cleanup(1);
-	  }
-	  break;
-
-	case 'g':
-	  preserve_gid=1;
-	  break;
-
-	case 'D':
-	  if (getuid() == 0) {
-	    preserve_devices=1;
-	  } else {
-	    fprintf(FERROR,"-D only allowed for root\n");
-	    exit_cleanup(1);
-	  }
-	  break;
-
-	case 't':
-	  preserve_times=1;
-	  break;
-
-	case 'c':
-	  always_checksum=1;
-	  break;
-
-	case 'v':
-	  verbose++;
-	  break;
-
-	case 'a':
-	  recurse=1;
-#if SUPPORT_LINKS
-	  preserve_links=1;
-#endif
-	  preserve_perms=1;
-	  preserve_times=1;
-	  preserve_gid=1;
-	  if (getuid() == 0) {
-	    preserve_devices=1;
-	    preserve_uid=1;
-	  }	    
-	  break;
-
-	case OPT_SERVER:
-	  am_server = 1;
-	  break;
-
-	case OPT_SENDER:
-	  if (!am_server) {
-	    usage(FERROR);
-	    exit_cleanup(1);
-	  }
-	  sender = 1;
-	  break;
-
-	case 'r':
-	  recurse = 1;
-	  break;
-
-	case 'e':
-	  shell_cmd = optarg;
-	  break;
-
-	case 'B':
-	  block_size = atoi(optarg);
-	  break;
-
-	default:
-	  fprintf(FERROR,"bad option -%c\n",opt);
+      if (make_backups) {
+	char fnamebak[MAXPATHLEN];
+	sprintf(fnamebak,"%s%s",fname,backup_suffix);
+	if (rename(fname,fnamebak) != 0 && errno != ENOENT) {
+	  fprintf(stderr,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
 	  exit_cleanup(1);
 	}
-    }
-
-    while (optind--) {
-      argc--;
-      argv++;
-    }
-
-    signal(SIGCHLD,SIG_IGN);
-    signal(SIGINT,SIGNAL_CAST sig_int);
-    signal(SIGPIPE,SIGNAL_CAST sig_int);
-    signal(SIGHUP,SIGNAL_CAST sig_int);
-
-    if (dry_run)
-      verbose = MAX(verbose,1);
-
-    if (am_server) {
-      setup_protocol(STDOUT_FILENO,STDIN_FILENO);
-	
-      if (sender) {
-	recv_exclude_list(STDIN_FILENO);
-	if (cvs_exclude)
-	  add_cvs_excludes();
-	do_server_sender(argc,argv);
-      } else {
-	do_server_recv(argc,argv);
-      }
-      exit_cleanup(0);
-    }
-
-    if (argc < 2) {
-      usage(FERROR);
-      exit_cleanup(1);
-    }
-
-    p = strchr(argv[0],':');
-
-    if (p) {
-      sender = 0;
-      *p = 0;
-      shell_machine = argv[0];
-      shell_path = p+1;
-      argc--;
-      argv++;
-    } else {
-      sender = 1;
-
-      p = strchr(argv[argc-1],':');
-      if (!p) {
-	local_server = 1;
       }
 
-      if (local_server) {
-	shell_machine = NULL;
-	shell_path = argv[argc-1];
-      } else {
-	*p = 0;
-	shell_machine = argv[argc-1];
-	shell_path = p+1;
+      /* move tmp file over real file */
+      if (rename(fnametmp,fname) != 0) {
+	fprintf(stderr,"rename %s -> %s : %s\n",
+		fnametmp,fname,strerror(errno));
       }
-      argc--;
+
+      cleanup_fname = NULL;
+
+      set_perms(fname,&flist->files[i],NULL,0);
     }
 
-    if (shell_machine) {
-      p = strchr(shell_machine,'@');
-      if (p) {
-	*p = 0;
-	shell_user = shell_machine;
-	shell_machine = p+1;
-      }
-    }
-
-    if (verbose > 3) {
-      fprintf(FERROR,"cmd=%s machine=%s user=%s path=%s\n",
-	      shell_cmd?shell_cmd:"",
-	      shell_machine?shell_machine:"",
-	      shell_user?shell_user:"",
-	      shell_path?shell_path:"");
-    }
-    
-    if (!sender && argc != 1) {
-      usage(FERROR);
-      exit_cleanup(1);
-    }
-
-    pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
-
-    setup_protocol(f_out,f_in);
-
-    if (verbose > 3) 
-      fprintf(FERROR,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,sender,recurse);
-
-    if (sender) {
-      if (cvs_exclude)
-	add_cvs_excludes();
-      if (delete_mode) 
-	send_exclude_list(f_out);
-      flist = send_file_list(f_out,recurse,argc,argv);
-      if (verbose > 3) 
-	fprintf(FERROR,"file list sent\n");
-      send_files(flist,f_out,f_in);
-      if (verbose > 3)
-	fprintf(FERROR,"waiting on %d\n",pid);
-      waitpid(pid, &status, 0);
-      report(-1);
-      exit_cleanup(status);
-    }
-
-    send_exclude_list(f_out);
-
-    flist = recv_file_list(f_in);
-    if (!flist || flist->count == 0) {
-      fprintf(FERROR,"nothing to do\n");
-      exit_cleanup(0);
-    }
-
-    local_name = get_local_name(flist,argv[0]);
-
-    status2 = do_recv(f_in,f_out,flist,local_name);
-
-    report(f_in);
-
-    waitpid(pid, &status, 0);
-
-    return status | status2;
+  if (verbose > 2)
+    fprintf(stderr,"recv_files finished\n");
+  
+  return 0;
 }

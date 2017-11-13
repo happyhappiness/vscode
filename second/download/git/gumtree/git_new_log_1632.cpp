@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+die("unable to lookup %s", sha1_to_hex(sha1));

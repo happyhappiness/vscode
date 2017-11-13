@@ -1,298 +1,156 @@
-apr_status_t h2_session_process(h2_session *session, int async)
+static void *APR_THREAD_FUNC start_threads(apr_thread_t * thd, void *dummy)
 {
-    apr_status_t status = APR_SUCCESS;
-    conn_rec *c = session->c;
-    int rv, mpm_state, trace = APLOGctrace3(c);
+    thread_starter *ts = dummy;
+    apr_thread_t **threads = ts->threads;
+    apr_threadattr_t *thread_attr = ts->threadattr;
+    int child_num_arg = ts->child_num_arg;
+    int my_child_num = child_num_arg;
+    proc_info *my_info;
+    apr_status_t rv;
+    int i;
+    int threads_created = 0;
+    int listener_started = 0;
+    int loops;
+    int prev_threads_created;
+    int max_recycled_pools = -1;
+    int good_methods[] = {APR_POLLSET_KQUEUE, APR_POLLSET_PORT, APR_POLLSET_EPOLL};
 
-    if (trace) {
-        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                      "h2_session(%ld): process start, async=%d", 
-                      session->id, async);
+    /* We must create the fd queues before we start up the listener
+     * and worker threads. */
+    worker_queue = apr_pcalloc(pchild, sizeof(*worker_queue));
+    rv = ap_queue_init(worker_queue, threads_per_child, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "ap_queue_init() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-                  
-    if (c->cs) {
-        c->cs->state = CONN_STATE_WRITE_COMPLETION;
-    }
-    
-    while (session->state != H2_SESSION_ST_DONE) {
-        trace = APLOGctrace3(c);
-        session->have_read = session->have_written = 0;
 
-        if (session->local.accepting 
-            && !ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state)) {
-            if (mpm_state == AP_MPMQ_STOPPING) {
-                dispatch_event(session, H2_SESSION_EV_MPM_STOPPING, 0, NULL);
+    if (ap_max_mem_free != APR_ALLOCATOR_MAX_FREE_UNLIMITED) {
+        /* If we want to conserve memory, let's not keep an unlimited number of
+         * pools & allocators.
+         * XXX: This should probably be a separate config directive
+         */
+        max_recycled_pools = threads_per_child * 3 / 4 ;
+    }
+    rv = ap_queue_info_create(&worker_queue_info, pchild,
+                              threads_per_child, max_recycled_pools);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "ap_queue_info_create() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
+
+    /* Create the timeout mutex and main pollset before the listener
+     * thread starts.
+     */
+    rv = apr_thread_mutex_create(&timeout_mutex, APR_THREAD_MUTEX_DEFAULT,
+                                 pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "creation of the timeout mutex failed.");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
+
+    /* Create the main pollset */
+    for (i = 0; i < sizeof(good_methods) / sizeof(void*); i++) {
+        rv = apr_pollset_create_ex(&event_pollset,
+                            threads_per_child*2, /* XXX don't we need more, to handle
+                                                * connections in K-A or lingering
+                                                * close?
+                                                */
+                            pchild, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY | APR_POLLSET_NODEFAULT,
+                            good_methods[i]);
+        if (rv == APR_SUCCESS) {
+            break;
+        }
+    }
+    if (rv != APR_SUCCESS) {
+        rv = apr_pollset_create(&event_pollset,
+                               threads_per_child*2, /* XXX don't we need more, to handle
+                                                     * connections in K-A or lingering
+                                                     * close?
+                                                     */
+                               pchild, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
+    }
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "apr_pollset_create with Thread Safety failed.");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02471)
+                 "start_threads: Using %s", apr_pollset_method_name(event_pollset));
+    worker_sockets = apr_pcalloc(pchild, threads_per_child
+                                 * sizeof(apr_socket_t *));
+
+    loops = prev_threads_created = 0;
+    while (1) {
+        /* threads_per_child does not include the listener thread */
+        for (i = 0; i < threads_per_child; i++) {
+            int status =
+                ap_scoreboard_image->servers[child_num_arg][i].status;
+
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
             }
-        }
-        
-        session->status[0] = '\0';
-        
-        switch (session->state) {
-            case H2_SESSION_ST_INIT:
-                ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_READ, c);
-                if (!h2_is_acceptable_connection(c, 1)) {
-                    update_child_status(session, SERVER_BUSY_READ, "inadequate security");
-                    h2_session_shutdown(session, NGHTTP2_INADEQUATE_SECURITY, NULL, 1);
-                } 
-                else {
-                    update_child_status(session, SERVER_BUSY_READ, "init");
-                    status = h2_session_start(session, &rv);
-                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03079)
-                                  "h2_session(%ld): started on %s:%d", session->id,
-                                  session->s->server_hostname,
-                                  c->local_addr->port);
-                    if (status != APR_SUCCESS) {
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
-                    }
-                    dispatch_event(session, H2_SESSION_EV_INIT, 0, NULL);
-                }
-                break;
-                
-            case H2_SESSION_ST_IDLE:
-                /* make certain, we send everything before we idle */
-                h2_conn_io_flush(&session->io);
-                if (!session->keep_sync_until && async && !session->open_streams
-                    && !session->r && session->remote.emitted_count) {
-                    if (trace) {
-                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): async idle, nonblock read, "
-                                      "%d streams open", session->id, 
-                                      session->open_streams);
-                    }
-                    /* We do not return to the async mpm immediately, since under
-                     * load, mpms show the tendency to throw keep_alive connections
-                     * away very rapidly.
-                     * So, if we are still processing streams, we wait for the
-                     * normal timeout first and, on timeout, close.
-                     * If we have no streams, we still wait a short amount of
-                     * time here for the next frame to arrive, before handing
-                     * it to keep_alive processing of the mpm.
-                     */
-                    status = h2_session_read(session, 0);
-                    
-                    if (status == APR_SUCCESS) {
-                        session->have_read = 1;
-                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
-                    }
-                    else if (APR_STATUS_IS_EAGAIN(status) || APR_STATUS_IS_TIMEUP(status)) {
-                        if (apr_time_now() > session->idle_until) {
-                            dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, NULL);
-                        }
-                        else {
-                            status = APR_EAGAIN;
-                            goto out;
-                        }
-                    }
-                    else {
-                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
-				      APLOGNO(03403)
-                                      "h2_session(%ld): idle, no data, error", 
-                                      session->id);
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, "timeout");
-                    }
-                }
-                else {
-                    if (trace) {
-                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): sync idle, stutter 1-sec, "
-                                      "%d streams open", session->id,
-                                      session->open_streams);
-                    }
-                    /* We wait in smaller increments, using a 1 second timeout.
-                     * That gives us the chance to check for MPMQ_STOPPING often. 
-                     */
-                    status = h2_mplx_idle(session->mplx);
-                    if (status != APR_SUCCESS) {
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
-                                       H2_ERR_ENHANCE_YOUR_CALM, "less is more");
-                    }
-                    h2_filter_cin_timeout_set(session->cin, apr_time_from_sec(1));
-                    status = h2_session_read(session, 1);
-                    if (status == APR_SUCCESS) {
-                        session->have_read = 1;
-                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
-                    }
-                    else if (status == APR_EAGAIN) {
-                        /* nothing to read */
-                    }
-                    else if (APR_STATUS_IS_TIMEUP(status)) {
-                        apr_time_t now = apr_time_now();
-                        if (now > session->keep_sync_until) {
-                            /* if we are on an async mpm, now is the time that
-                             * we may dare to pass control to it. */
-                            session->keep_sync_until = 0;
-                        }
-                        if (now > session->idle_until) {
-                            if (trace) {
-                                ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                              "h2_session(%ld): keepalive timeout",
-                                              session->id);
-                            }
-                            dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, "timeout");
-                        }
-                        else if (trace) {                        
-                            ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                          "h2_session(%ld): keepalive, %f sec left",
-                                          session->id, (session->idle_until - now) / 1000000.0f);
-                        }
-                        /* continue reading handling */
-                    }
-                    else if (APR_STATUS_IS_ECONNABORTED(status)
-                             || APR_STATUS_IS_ECONNRESET(status)
-                             || APR_STATUS_IS_EOF(status)
-                             || APR_STATUS_IS_EBADF(status)) {
-                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): input gone", session->id);
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
-                    }
-                    else {
-                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): idle(1 sec timeout) "
-                                      "read failed", session->id);
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, "error");
-                    }
-                }
-                
-                break;
-                
-            case H2_SESSION_ST_BUSY:
-                if (nghttp2_session_want_read(session->ngh2)) {
-                    ap_update_child_status(session->c->sbh, SERVER_BUSY_READ, NULL);
-                    h2_filter_cin_timeout_set(session->cin, session->s->timeout);
-                    status = h2_session_read(session, 0);
-                    if (status == APR_SUCCESS) {
-                        session->have_read = 1;
-                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
-                    }
-                    else if (status == APR_EAGAIN) {
-                        /* nothing to read */
-                    }
-                    else if (APR_STATUS_IS_TIMEUP(status)) {
-                        dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, NULL);
-                        break;
-                    }
-                    else {
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
-                    }
-                }
-                
-                /* trigger window updates, stream resumes and submits */
-                status = h2_mplx_dispatch_master_events(session->mplx, 
-                                                        on_stream_resume,
-                                                        session);
-                if (status != APR_SUCCESS) {
-                    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, c,
-                                  "h2_session(%ld): dispatch error", 
-                                  session->id);
-                    dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
-                                   H2_ERR_INTERNAL_ERROR, 
-                                   "dispatch error");
-                    break;
-                }
-                
-                if (nghttp2_session_want_write(session->ngh2)) {
-                    ap_update_child_status(session->c->sbh, SERVER_BUSY_WRITE, NULL);
-                    status = h2_session_send(session);
-                    if (status != APR_SUCCESS) {
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
-                                       H2_ERR_INTERNAL_ERROR, "writing");
-                        break;
-                    }
-                }
-                
-                if (session->have_read || session->have_written) {
-                    if (session->wait_us) {
-                        session->wait_us = 0;
-                    }
-                }
-                else if (!nghttp2_session_want_write(session->ngh2)) {
-                    dispatch_event(session, H2_SESSION_EV_NO_IO, 0, NULL);
-                }
-                break;
-                
-            case H2_SESSION_ST_WAIT:
-                if (session->wait_us <= 0) {
-                    session->wait_us = 10;
-                    if (h2_conn_io_flush(&session->io) != APR_SUCCESS) {
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
-                        break;
-                    }
-                }
-                else {
-                    /* repeating, increase timer for graceful backoff */
-                    session->wait_us = H2MIN(session->wait_us*2, MAX_WAIT_MICROS);
-                }
 
-                if (trace) {
-                    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                                  "h2_session: wait for data, %ld micros", 
-                                  (long)session->wait_us);
-                }
-                status = h2_mplx_out_trywait(session->mplx, session->wait_us, 
-                                             session->iowait);
-                if (status == APR_SUCCESS) {
-                    session->wait_us = 0;
-                    dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
-                }
-                else if (APR_STATUS_IS_TIMEUP(status)) {
-                    /* go back to checking all inputs again */
-                    transit(session, "wait cycle", session->local.accepting? 
-                            H2_SESSION_ST_BUSY : H2_SESSION_ST_DONE);
-                }
-                else if (APR_STATUS_IS_ECONNRESET(status) 
-                         || APR_STATUS_IS_ECONNABORTED(status)) {
-                    dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
-                }
-                else {
-                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
-				  APLOGNO(03404)
-                                  "h2_session(%ld): waiting on conditional",
-                                  session->id);
-                    h2_session_shutdown(session, H2_ERR_INTERNAL_ERROR, 
-                                        "cond wait error", 0);
-                }
-                break;
-                
-            default:
-                ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
-                              APLOGNO(03080)
-                              "h2_session(%ld): unknown state %d", session->id, session->state);
-                dispatch_event(session, H2_SESSION_EV_PROTO_ERROR, 0, NULL);
-                break;
+            my_info = (proc_info *) ap_malloc(sizeof(proc_info));
+            my_info->pid = my_child_num;
+            my_info->tid = i;
+            my_info->sd = 0;
+
+            /* We are creating threads right now */
+            ap_update_child_status_from_indexes(my_child_num, i,
+                                                SERVER_STARTING, NULL);
+            /* We let each thread update its own scoreboard entry.  This is
+             * done because it lets us deal with tid better.
+             */
+            rv = apr_thread_create(&threads[i], thread_attr,
+                                   worker_thread, my_info, pchild);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                             "apr_thread_create: unable to create worker thread");
+                /* let the parent decide how bad this really is */
+                clean_child_exit(APEXIT_CHILDSICK);
+            }
+            threads_created++;
         }
 
-        if (!nghttp2_session_want_read(session->ngh2) 
-                 && !nghttp2_session_want_write(session->ngh2)) {
-            dispatch_event(session, H2_SESSION_EV_NGH2_DONE, 0, NULL); 
+        /* Start the listener only when there are workers available */
+        if (!listener_started && threads_created) {
+            create_listener_thread(ts);
+            listener_started = 1;
         }
-        if (session->reprioritize) {
-            h2_mplx_reprioritize(session->mplx, stream_pri_cmp, session);
-            session->reprioritize = 0;
+
+
+        if (start_thread_may_exit || threads_created == threads_per_child) {
+            break;
         }
-    }
-    
-out:
-    if (trace) {
-        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                      "h2_session(%ld): [%s] process returns", 
-                      session->id, state_name(session->state));
-    }
-    
-    if ((session->state != H2_SESSION_ST_DONE)
-        && (APR_STATUS_IS_EOF(status)
-            || APR_STATUS_IS_ECONNRESET(status) 
-            || APR_STATUS_IS_ECONNABORTED(status))) {
-        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+        /* wait for previous generation to clean up an entry */
+        apr_sleep(apr_time_from_sec(1));
+        ++loops;
+        if (loops % 120 == 0) { /* every couple of minutes */
+            if (prev_threads_created == threads_created) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                             "child %" APR_PID_T_FMT " isn't taking over "
+                             "slots very quickly (%d of %d)",
+                             ap_my_pid, threads_created,
+                             threads_per_child);
+            }
+            prev_threads_created = threads_created;
+        }
     }
 
-    status = APR_SUCCESS;
-    if (session->state == H2_SESSION_ST_DONE) {
-        status = APR_EOF;
-        if (!session->eoc_written) {
-            session->eoc_written = 1;
-            h2_conn_io_write_eoc(&session->io, session);
-        }
-    }
-    
-    return status;
+    /* What state should this child_main process be listed as in the
+     * scoreboard...?
+     *  ap_update_child_status_from_indexes(my_child_num, i, SERVER_STARTING,
+     *                                      (request_rec *) NULL);
+     *
+     *  This state should be listed separately in the scoreboard, in some kind
+     *  of process_status, not mixed in with the worker threads' status.
+     *  "life_status" is almost right, but it's in the worker's structure, and
+     *  the name could be clearer.   gla
+     */
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
 }

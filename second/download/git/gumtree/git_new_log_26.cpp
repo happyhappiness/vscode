@@ -1,1 +1,1 @@
-die(_("Malformed ident string: '%s'"), buf->buf);
+die("internal error in blame::blame_chunk_cb");

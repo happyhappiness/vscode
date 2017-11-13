@@ -1,2 +1,3 @@
-printf(" %s", diff_unique_abbrev(p->parent[i].oid.hash,
-							 opt->abbrev));
+printf(" %s %.*s{%s => %s} (%d%%)\n", renamecopy,
+		       (int)(old - p->old_name), p->old_name,
+		       old, new, p->score);

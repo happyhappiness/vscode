@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: return code %d from HttpExtensionProc() "
-                           "was not not recognized", rv);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
+                     "apr_socket_timeout_set");

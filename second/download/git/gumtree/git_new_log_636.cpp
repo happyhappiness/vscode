@@ -1,1 +1,1 @@
-die(_("Unknown action: %d"), opts->action);
+error(_("cannot cherry-pick during a revert."));

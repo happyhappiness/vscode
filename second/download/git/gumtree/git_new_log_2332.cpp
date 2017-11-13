@@ -1,1 +1,2 @@
-error_errno("could not read file '%s'", path);
+warning ("Exporting signed tag %s",
+					 oid_to_hex(&tag->object.oid));

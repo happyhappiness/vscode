@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00195)
-                     "caught exception in worker thread, initiating child shutdown pid=%d", getpid());
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01837)
+                    "apr_crypto_block_decrypt_init failed");

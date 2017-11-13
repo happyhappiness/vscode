@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, LOG_PREFIX
-                "encryption not configured, "
-                "no passphrase set");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    MODNAME ": mcheck: can't happen: invalid relation %d.",
+                    m->reln);

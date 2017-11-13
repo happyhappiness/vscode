@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving ssl_scache_shmcb_remove successfully");
+ap_run_mpm_note_child_killed(childnum);

@@ -1,1 +1,1 @@
-die("cannot load shell32.dll");
+die("cannot run browser");

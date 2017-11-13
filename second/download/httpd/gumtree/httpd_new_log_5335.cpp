@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): found %d push candidates",
-                      stream->session->id, stream->id, pushes->nelts);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00265)
+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");

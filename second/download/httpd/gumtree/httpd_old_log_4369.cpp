@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "stapling_renew_response: responder error");
+ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r,
+                                       "proxy: CONNECT: err/hup on backconn");

@@ -1,1 +1,1 @@
-fprintf(f, "%s\n", sha1_to_hex(sha1));
+error("Unable to update %s", ref_name.buf);

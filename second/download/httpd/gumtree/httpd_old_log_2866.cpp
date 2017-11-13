@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                         "getpwuid: couldn't determine user name from uid %ld, "
-                         "you probably need to modify the User directive",
-                         (long)uid);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Cannot allocate shared memory: (%d)%s", rv,
+                     apr_strerror(rv, buf, sizeof(buf)));

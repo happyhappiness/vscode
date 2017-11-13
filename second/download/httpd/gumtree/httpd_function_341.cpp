@@ -1,390 +1,241 @@
-static int cache_in_filter(ap_filter_t *f, apr_bucket_brigade *in)
+static void test(void)
 {
-    int rv;
-    int date_in_errhdr = 0;
-    request_rec *r = f->r;
-    cache_request_rec *cache;
-    cache_server_conf *conf;
-    char *url = r->unparsed_uri;
-    const char *cc_out, *cl;
-    const char *exps, *lastmods, *dates, *etag;
-    apr_time_t exp, date, lastmod, now;
-    apr_off_t size;
-    cache_info *info;
-    char *reason;
-    apr_pool_t *p;
+    apr_time_t now;
+    apr_int16_t rv;
+    long i;
+    apr_status_t status;
+#ifdef NOT_ASCII
+    apr_size_t inbytes_left, outbytes_left;
+#endif
 
-    /* check first whether running this filter has any point or not */
-    if(r->no_cache) {
-        ap_remove_output_filter(f);
-        return ap_pass_brigade(f->next, in);
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "cache: running CACHE_IN filter");
-
-    /* Setup cache_request_rec */
-    cache = (cache_request_rec *) ap_get_module_config(r->request_config, &cache_module);
-    if (!cache) {
-        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
-        ap_set_module_config(r->request_config, &cache_module, cache);
-    }
-
-    reason = NULL;
-    p = r->pool;
-    /*
-     * Pass Data to Cache
-     * ------------------
-     * This section passes the brigades into the cache modules, but only
-     * if the setup section (see below) is complete.
-     */
-
-    /* have we already run the cachability check and set up the
-     * cached file handle? 
-     */
-    if (cache->in_checked) {
-        /* pass the brigades into the cache, then pass them
-         * up the filter stack
-         */
-        rv = cache_write_entity_body(cache->handle, r, in);
-        if (rv != APR_SUCCESS) {
-            ap_remove_output_filter(f);
-        }
-        return ap_pass_brigade(f->next, in);
-    }
-
-    /*
-     * Setup Data in Cache
-     * -------------------
-     * This section opens the cache entity and sets various caching
-     * parameters, and decides whether this URL should be cached at
-     * all. This section is* run before the above section.
-     */
-    info = apr_pcalloc(r->pool, sizeof(cache_info));
-
-    /* read expiry date; if a bad date, then leave it so the client can
-     * read it 
-     */
-    exps = apr_table_get(r->err_headers_out, "Expires");
-    if (exps == NULL) {
-        exps = apr_table_get(r->headers_out, "Expires");
-    }
-    if (exps != NULL) {
-        if (APR_DATE_BAD == (exp = apr_date_parse_http(exps))) {
-            exps = NULL;
-        }
+    if (isproxy) {
+	connecthost = apr_pstrdup(cntxt, proxyhost);
+	connectport = proxyport;
     }
     else {
-        exp = APR_DATE_BAD;
+	connecthost = apr_pstrdup(cntxt, hostname);
+	connectport = port;
     }
 
-    /* read the last-modified date; if the date is bad, then delete it */
-    lastmods = apr_table_get(r->err_headers_out, "Last-Modified");
-    if (lastmods ==NULL) {
-        lastmods = apr_table_get(r->headers_out, "Last-Modified");
-    }
-    if (lastmods != NULL) {
-        if (APR_DATE_BAD == (lastmod = apr_date_parse_http(lastmods))) {
-            lastmods = NULL;
-        }
-    }
-    else {
-        lastmod = APR_DATE_BAD;
-    }
-
-    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config, &cache_module);
-    /* read the etag and cache-control from the entity */
-    etag = apr_table_get(r->err_headers_out, "Etag");
-    if (etag == NULL) {
-        etag = apr_table_get(r->headers_out, "Etag");
-    }
-    cc_out = apr_table_get(r->err_headers_out, "Cache-Control");
-    if (cc_out == NULL) {
-        cc_out = apr_table_get(r->headers_out, "Cache-Control");
-    }
-
-    /*
-     * what responses should we not cache?
-     *
-     * At this point we decide based on the response headers whether it
-     * is appropriate _NOT_ to cache the data from the server. There are
-     * a whole lot of conditions that prevent us from caching this data.
-     * They are tested here one by one to be clear and unambiguous. 
-     */
-    if (r->status != HTTP_OK && r->status != HTTP_NON_AUTHORITATIVE
-        && r->status != HTTP_MULTIPLE_CHOICES
-        && r->status != HTTP_MOVED_PERMANENTLY
-        && r->status != HTTP_NOT_MODIFIED) {
-        /* RFC2616 13.4 we are allowed to cache 200, 203, 206, 300, 301 or 410
-         * We don't cache 206, because we don't (yet) cache partial responses.
-         * We include 304 Not Modified here too as this is the origin server
-         * telling us to serve the cached copy.
-         */
-        reason = apr_psprintf(p, "Response status %d", r->status);
-    } 
-    else if (exps != NULL && exp == APR_DATE_BAD) {
-        /* if a broken Expires header is present, don't cache it */
-        reason = apr_pstrcat(p, "Broken expires header: ", exps, NULL);
-    }
-    else if (r->args && exps == NULL) {
-        /* if query string present but no expiration time, don't cache it
-         * (RFC 2616/13.9)
-         */
-        reason = "Query string present but no expires header";
-    }
-    else if (r->status == HTTP_NOT_MODIFIED && (NULL == cache->handle)) {
-        /* if the server said 304 Not Modified but we have no cache
-         * file - pass this untouched to the user agent, it's not for us.
-         */
-        reason = "HTTP Status 304 Not Modified";
-    }
-    else if (r->status == HTTP_OK && lastmods == NULL && etag == NULL 
-             && (exps == NULL) && (conf->no_last_mod_ignore ==0)) {
-        /* 200 OK response from HTTP/1.0 and up without Last-Modified,
-         * Etag, or Expires headers.
-         */
-        /* Note: mod-include clears last_modified/expires/etags - this
-         * is why we have an optional function for a key-gen ;-) 
-         */
-        reason = "No Last-Modified, Etag, or Expires headers";
-    }
-    else if (r->header_only) {
-        /* HEAD requests */
-        reason = "HTTP HEAD request";
-    }
-    else if (ap_cache_liststr(NULL, cc_out, "no-store", NULL)) {
-        /* RFC2616 14.9.2 Cache-Control: no-store response
-         * indicating do not cache, or stop now if you are
-         * trying to cache it */
-        reason = "Cache-Control: no-store present";
-    }
-    else if (ap_cache_liststr(NULL, cc_out, "private", NULL)) {
-        /* RFC2616 14.9.1 Cache-Control: private
-         * this object is marked for this user's eyes only. Behave
-         * as a tunnel.
-         */
-        reason = "Cache-Control: private present";
-    }
-    else if (apr_table_get(r->headers_in, "Authorization") != NULL
-             && !(ap_cache_liststr(NULL, cc_out, "s-maxage", NULL)
-                  || ap_cache_liststr(NULL, cc_out, "must-revalidate", NULL)
-                  || ap_cache_liststr(NULL, cc_out, "public", NULL))) {
-        /* RFC2616 14.8 Authorisation:
-         * if authorisation is included in the request, we don't cache,
-         * but we can cache if the following exceptions are true:
-         * 1) If Cache-Control: s-maxage is included
-         * 2) If Cache-Control: must-revalidate is included
-         * 3) If Cache-Control: public is included
-         */
-        reason = "Authorization required";
-    }
-    else if (r->no_cache) {
-        /* or we've been asked not to cache it above */
-        reason = "no_cache present";
-    }
-
-    if (reason) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "cache: %s not cached. Reason: %s", url, reason);
-        /* remove this object from the cache 
-         * BillS Asks.. Why do we need to make this call to remove_url?
-         * leave it in for now..
-         */
-        cache_remove_url(r, cache->types, url);
-
-        /* remove this filter from the chain */
-        ap_remove_output_filter(f);
-
-        /* ship the data up the stack */
-        return ap_pass_brigade(f->next, in);
-    }
-    cache->in_checked = 1;
-
-    /* Set the content length if known. 
-     */
-    cl = apr_table_get(r->err_headers_out, "Content-Length");
-    if (cl == NULL) {
-        cl = apr_table_get(r->headers_out, "Content-Length");
-    }
-    if (cl) {
-        size = apr_atoi64(cl);
-    }
-    else {
-        /* if we don't get the content-length, see if we have all the 
-         * buckets and use their length to calculate the size 
-         */
-        apr_bucket *e;
-        int all_buckets_here=0;
-        int unresolved_length = 0;
-        size=0;
-        APR_BRIGADE_FOREACH(e, in) {
-            if (APR_BUCKET_IS_EOS(e)) {
-                all_buckets_here=1;
-                break;
-            }
-            if (APR_BUCKET_IS_FLUSH(e)) {
-                unresolved_length = 1;
-                continue;
-            }
-            if (e->length == (apr_size_t)-1) {
-                break;
-            }
-            size += e->length;
-        }
-        if (!all_buckets_here) {
-            size = -1;
-        }
-    }
-
-    /* It's safe to cache the response.
-     *
-     * There are two possiblities at this point:
-     * - cache->handle == NULL. In this case there is no previously
-     * cached entity anywhere on the system. We must create a brand
-     * new entity and store the response in it.
-     * - cache->handle != NULL. In this case there is a stale
-     * entity in the system which needs to be replaced by new
-     * content (unless the result was 304 Not Modified, which means
-     * the cached entity is actually fresh, and we should update
-     * the headers).
-     */
-    /* no cache handle, create a new entity */
-    if (!cache->handle) {
-        rv = cache_create_entity(r, cache->types, url, size);
-    }
-    /* pre-existing cache handle and 304, make entity fresh */
-    else if (r->status == HTTP_NOT_MODIFIED) {
-        /* update headers: TODO */
-
-        /* remove this filter ??? */
-
-        /* XXX is this right?  we must set rv to something other than OK 
-         * in this path
-         */
-        rv = HTTP_NOT_MODIFIED;
-    }
-    /* pre-existing cache handle and new entity, replace entity
-     * with this one
-     */
-    else {
-        cache_remove_entity(r, cache->types, cache->handle);
-        rv = cache_create_entity(r, cache->types, url, size);
-    }
-    
-    if (rv != OK) {
-        /* Caching layer declined the opportunity to cache the response */
-        ap_remove_output_filter(f);
-        return ap_pass_brigade(f->next, in);
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "cache: Caching url: %s", url);
-
-    /*
-     * We now want to update the cache file header information with
-     * the new date, last modified, expire and content length and write
-     * it away to our cache file. First, we determine these values from
-     * the response, using heuristics if appropriate.
-     *
-     * In addition, we make HTTP/1.1 age calculations and write them away
-     * too.
-     */
-
-    /* Read the date. Generate one if one is not supplied */
-    dates = apr_table_get(r->err_headers_out, "Date");
-    if (dates != NULL) {
-        date_in_errhdr = 1;
-    }
-    else {
-        dates = apr_table_get(r->headers_out, "Date");
-    }
-    if (dates != NULL) {
-        info->date = apr_date_parse_http(dates);
-    }
-    else {
-        info->date = APR_DATE_BAD;
+    if (!use_html) {
+	printf("Benchmarking %s ", hostname);
+	if (isproxy)
+	    printf("[through %s:%d] ", proxyhost, proxyport);
+	printf("(be patient)%s",
+	       (heartbeatres ? "\n" : "..."));
+	fflush(stdout);
     }
 
     now = apr_time_now();
-    if (info->date == APR_DATE_BAD) {  /* No, or bad date */
-        char *dates;
-        /* no date header (or bad header)! */
-        /* add one; N.B. use the time _now_ rather than when we were checking
-         * the cache 
-         */
-        if (date_in_errhdr == 1) {
-            apr_table_unset(r->err_headers_out, "Date");
-        }
-        date = now;
-        dates = apr_pcalloc(r->pool, MAX_STRING_LEN);
-        apr_rfc822_date(dates, now);
-        apr_table_set(r->headers_out, "Date", dates);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "cache: Added date header");
-        info->date = date;
+
+    con = calloc(concurrency * sizeof(struct connection), 1);
+    
+    stats = calloc(requests * sizeof(struct data), 1);
+
+    if ((status = apr_pollset_create(&readbits, concurrency, cntxt, 0)) != APR_SUCCESS) {
+        apr_err("apr_pollset_create failed", status);
+    }
+
+    /* setup request */
+    if (posting <= 0) {
+	sprintf(request, "%s %s HTTP/1.0\r\n"
+		"User-Agent: ApacheBench/%s\r\n"
+		"%s" "%s" "%s"
+		"Host: %s%s\r\n"
+		"Accept: */*\r\n"
+		"%s" "\r\n",
+		(posting == 0) ? "GET" : "HEAD",
+		(isproxy) ? fullurl : path,
+		AP_AB_BASEREVISION,
+		keepalive ? "Connection: Keep-Alive\r\n" : "",
+		cookie, auth, host_field, colonhost, hdrs);
     }
     else {
-        date = info->date;
+	sprintf(request, "POST %s HTTP/1.0\r\n"
+		"User-Agent: ApacheBench/%s\r\n"
+		"%s" "%s" "%s"
+		"Host: %s%s\r\n"
+		"Accept: */*\r\n"
+		"Content-length: %" APR_SIZE_T_FMT "\r\n"
+		"Content-type: %s\r\n"
+		"%s"
+		"\r\n",
+		(isproxy) ? fullurl : path,
+		AP_AB_BASEREVISION,
+		keepalive ? "Connection: Keep-Alive\r\n" : "",
+		cookie, auth,
+		host_field, colonhost, postlen,
+		(content_type[0]) ? content_type : "text/plain", hdrs);
     }
 
-    /* set response_time for HTTP/1.1 age calculations */
-    info->response_time = now;
+    if (verbosity >= 2)
+	printf("INFO: POST header == \n---\n%s\n---\n", request);
 
-    /* get the request time */
-    info->request_time = r->request_time;
-
-    /* check last-modified date */
-    if (lastmod != APR_DATE_BAD && lastmod > date) {
-        /* if it's in the future, then replace by date */
-        lastmod = date;
-        lastmods = dates;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                     r->server,
-                     "cache: Last modified is in the future, "
-                     "replacing with now");
-    }
-    info->lastmod = lastmod;
-
-    /* if no expiry date then
-     *   if lastmod
-     *      expiry date = date + min((date - lastmod) * factor, maxexpire)
-     *   else
-     *      expire date = date + defaultexpire
-     */
-    if (exp == APR_DATE_BAD) {
-        /* if lastmod == date then you get 0*conf->factor which results in
-         *   an expiration time of now. This causes some problems with
-         *   freshness calculations, so we choose the else path...
-         */
-        if ((lastmod != APR_DATE_BAD) && (lastmod < date)) {
-            apr_time_t x = (apr_time_t) ((date - lastmod) * conf->factor);
-
-            if (x > conf->maxex) {
-                x = conf->maxex;
-            }
-            exp = date + x;
-        }
-        else {
-            exp = date + conf->defex;
-        }
-    }
-    info->expire = exp;
-
-    info->content_type = apr_pstrdup(r->pool, r->content_type);
-    info->etag = apr_pstrdup(r->pool, etag);
-    info->lastmods = apr_pstrdup(r->pool, lastmods);
-    info->filename = apr_pstrdup(r->pool, r->filename );
+    reqlen = strlen(request);
 
     /*
-     * Write away header information to cache.
+     * Combine headers and (optional) post file into one contineous buffer
      */
-    rv = cache_write_entity_headers(cache->handle, r, info);
-    if (rv == APR_SUCCESS) {
-        rv = cache_write_entity_body(cache->handle, r, in);
-    }
-    if (rv != APR_SUCCESS) {
-        ap_remove_output_filter(f);
+    if (posting == 1) {
+	char *buff = (char *) malloc(postlen + reqlen + 1);
+	strcpy(buff, request);
+	strcpy(buff + reqlen, postdata);
+	request = buff;
     }
 
-    return ap_pass_brigade(f->next, in);
+#ifdef NOT_ASCII
+    inbytes_left = outbytes_left = reqlen;
+    status = apr_xlate_conv_buffer(to_ascii, request, &inbytes_left,
+				   request, &outbytes_left);
+    if (status || inbytes_left || outbytes_left) {
+	fprintf(stderr, "only simple translation is supported (%d/%u/%u)\n",
+		status, inbytes_left, outbytes_left);
+	exit(1);
+    }
+#endif				/* NOT_ASCII */
+
+    /* This only needs to be done once */
+#ifdef USE_SSL
+    if (ssl != 1)
+#endif
+    if ((rv = apr_sockaddr_info_get(&destsa, connecthost, APR_UNSPEC, connectport, 0, cntxt))
+	!= APR_SUCCESS) {
+	char buf[120];
+	apr_snprintf(buf, sizeof(buf),
+		     "apr_sockaddr_info_get() for %s", connecthost);
+	apr_err(buf, rv);
+    }
+
+    /* ok - lets start */
+    start = apr_time_now();
+
+    /* initialise lots of requests */
+    for (i = 0; i < concurrency; i++) {
+	con[i].socknum = i;
+	start_connect(&con[i]);
+    }
+
+    while (done < requests) {
+	apr_int32_t n;
+	apr_int32_t timed;
+        const apr_pollfd_t *pollresults;
+
+	/* check for time limit expiry */
+	now = apr_time_now();
+	timed = (apr_int32_t)apr_time_sec(now - start);
+	if (tlimit && timed >= tlimit) {
+	    requests = done;	/* so stats are correct */
+	    break;		/* no need to do another round */
+	}
+
+	n = concurrency;
+#ifdef USE_SSL
+        if (ssl == 1)
+            status = APR_SUCCESS;
+        else
+#endif
+	status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+	if (status != APR_SUCCESS)
+	    apr_err("apr_poll", status);
+
+	if (!n) {
+	    err("\nServer timed out\n\n");
+	}
+
+	for (i = 0; i < n; i++) {
+            const apr_pollfd_t *next_fd = &(pollresults[i]);
+            struct connection *c = next_fd->client_data;
+
+	    /*
+	     * If the connection isn't connected how can we check it?
+	     */
+	    if (c->state == STATE_UNCONNECTED)
+		continue;
+
+#ifdef USE_SSL
+            if (ssl == 1)
+                rv = APR_POLLIN;
+            else
+#endif
+            rv = next_fd->rtnevents;
+
+	    /*
+	     * Notes: APR_POLLHUP is set after FIN is received on some
+	     * systems, so treat that like APR_POLLIN so that we try to read
+	     * again.
+	     *
+	     * Some systems return APR_POLLERR with APR_POLLHUP.  We need to
+	     * call read_connection() for APR_POLLHUP, so check for
+	     * APR_POLLHUP first so that a closed connection isn't treated
+	     * like an I/O error.  If it is, we never figure out that the
+	     * connection is done and we loop here endlessly calling
+	     * apr_poll().
+	     */
+	    if ((rv & APR_POLLIN) || (rv & APR_POLLPRI) || (rv & APR_POLLHUP))
+		read_connection(c);
+	    if ((rv & APR_POLLERR) || (rv & APR_POLLNVAL)) {
+		bad++;
+		err_except++;
+		start_connect(c);
+		continue;
+	    }
+	    if (rv & APR_POLLOUT) {
+                if (c->state == STATE_CONNECTING) {
+                    apr_pollfd_t remove_pollfd;
+                    rv = apr_connect(c->aprsock, destsa);
+                    remove_pollfd.desc_type = APR_POLL_SOCKET;
+                    remove_pollfd.desc.s = c->aprsock;
+                    apr_pollset_remove(readbits, &remove_pollfd);
+                    if (rv != APR_SUCCESS) {
+                        apr_socket_close(c->aprsock);
+                        err_conn++;
+                        if (bad++ > 10) {
+                            fprintf(stderr,
+                                    "\nTest aborted after 10 failures\n\n");
+                            apr_err("apr_connect()", rv);
+                        }
+                        c->state = STATE_UNCONNECTED;
+                        start_connect(c);
+                        continue;
+                    }
+                    else {
+                        c->state = STATE_CONNECTED;
+                        write_request(c);
+                    }
+                }
+                else {
+                    write_request(c);
+                }
+            }
+
+	    /*
+	     * When using a select based poll every time we check the bits
+	     * are reset. In 1.3's ab we copied the FD_SET's each time
+	     * through, but here we're going to check the state and if the
+	     * connection is in STATE_READ or STATE_CONNECTING we'll add the
+	     * socket back in as APR_POLLIN.
+	     */
+#ifdef USE_SSL
+            if (ssl != 1)
+#endif
+                if (c->state == STATE_READ) {
+                    apr_pollfd_t new_pollfd;
+                    new_pollfd.desc_type = APR_POLL_SOCKET;
+                    new_pollfd.reqevents = APR_POLLIN;
+                    new_pollfd.desc.s = c->aprsock;
+                    new_pollfd.client_data = c;
+                    apr_pollset_add(readbits, &new_pollfd);
+                }
+	}
+    }
+
+    if (heartbeatres)
+	fprintf(stderr, "Finished %ld requests\n", done);
+    else
+	printf("..done\n");
+
+    if (use_html)
+	output_html_results();
+    else
+	output_results();
 }

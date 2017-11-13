@@ -1,1 +1,1 @@
-die("Invalid search pattern: %s", prefix);
+fputs(v->s, stdout);

@@ -1,282 +1,34 @@
-int main(int argc,char *argv[])
+static char *get_local_name(struct file_list *flist,char *name)
 {
-    int pid, status, pid2, status2;
-    int opt;
-    int option_index;
-    char *shell_cmd = NULL;
-    char *shell_machine = NULL;
-    char *shell_path = NULL;
-    char *shell_user = NULL;
-    char *p;
-    int f_in,f_out;
-    struct file_list *flist;
-    char *local_name = NULL;
+  struct stat st;
 
-    starttime = time(NULL);
-
-    while ((opt = getopt_long(argc, argv, 
-			      short_options, long_options, &option_index)) 
-	   != -1)
-      switch (opt) 
-	{
-	case OPT_VERSION:
-	  printf("rsync version %s  protocol version %d\n",
-		 VERSION,PROTOCOL_VERSION);
-	  exit(0);
-
-	case OPT_SUFFIX:
-	  backup_suffix = optarg;
-	  exit(0);
-
-	case OPT_EXCLUDE:
-	  add_exclude(optarg);
-	  break;
-
-	case OPT_EXCLUDE_FROM:
-	  add_exclude_file(optarg);
-	  break;
-
-	case 'h':
-	  usage(stdout);
-	  exit(0);
-
-	case 'b':
-	  make_backups=1;
-	  break;
-
-	case 'n':
-	  dry_run=1;
-	  break;
-
-	case 'C':
-	  cvs_exclude=1;
-	  break;
-
-	case 'u':
-	  update_only=1;
-	  break;
-
-#if SUPPORT_LINKS
-	case 'l':
-	  preserve_links=1;
-	  break;
-#endif
-
-	case 'p':
-	  preserve_perms=1;
-	  break;
-
-	case 'o':
-	  if (getuid() == 0) {
-	    preserve_uid=1;
-	  } else {
-	    fprintf(stderr,"-o only allowed for root\n");
-	    exit(1);
-	  }
-	  break;
-
-	case 'g':
-	  preserve_gid=1;
-	  break;
-
-	case 'D':
-	  if (getuid() == 0) {
-	    preserve_devices=1;
-	  } else {
-	    fprintf(stderr,"-D only allowed for root\n");
-	    exit(1);
-	  }
-	  break;
-
-	case 't':
-	  preserve_times=1;
-	  break;
-
-	case 'c':
-	  always_checksum=1;
-	  break;
-
-	case 'v':
-	  verbose++;
-	  break;
-
-	case 'a':
-	  recurse=1;
-#if SUPPORT_LINKS
-	  preserve_links=1;
-#endif
-	  preserve_perms=1;
-	  preserve_times=1;
-	  preserve_gid=1;
-	  if (getuid() == 0) {
-	    preserve_devices=1;
-	    preserve_uid=1;
-	  }	    
-	  break;
-
-	case OPT_SERVER:
-	  am_server = 1;
-	  break;
-
-	case OPT_SENDER:
-	  if (!am_server) {
-	    usage(stderr);
-	    exit(1);
-	  }
-	  sender = 1;
-	  break;
-
-	case 'r':
-	  recurse = 1;
-	  break;
-
-	case 'e':
-	  shell_cmd = optarg;
-	  break;
-
-	case 'B':
-	  block_size = atoi(optarg);
-	  break;
-
-	default:
-	  fprintf(stderr,"bad option -%c\n",opt);
-	  exit(1);
-	}
-
-    while (optind--) {
-      argc--;
-      argv++;
-    }
-
-    if (dry_run)
-      verbose = MAX(verbose,1);
-
-    if (am_server) {
-      int version = read_int(STDIN_FILENO);
-      if (version != PROTOCOL_VERSION) {
-	fprintf(stderr,"protocol version mismatch %d %d\n",
-		version,PROTOCOL_VERSION);
+  if (stat(name,&st) == 0) {
+    if (S_ISDIR(st.st_mode)) {
+      if (chdir(name) != 0) {
+	fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
 	exit(1);
       }
-      write_int(STDOUT_FILENO,PROTOCOL_VERSION);
-      write_flush(STDOUT_FILENO);
-	
-      if (sender) {
-	recv_exclude_list(STDIN_FILENO);
-	if (cvs_exclude)
-	  add_cvs_excludes();
-	do_server_sender(argc,argv);
-      } else {
-	do_server_recv(argc,argv);
-      }
-      exit(0);
+      return NULL;
     }
-
-    if (argc < 2) {
-      usage(stderr);
+    if (flist->count > 1) {
+      fprintf(stderr,"ERROR: destination must be a diirectory when copying more than 1 file\n");
       exit(1);
     }
+    return name;
+  }
 
-    p = strchr(argv[0],':');
+  if (flist->count == 1)
+    return name;
 
-    if (p) {
-      sender = 0;
-      *p = 0;
-      shell_machine = argv[0];
-      shell_path = p+1;
-      argc--;
-      argv++;
-    } else {
-      sender = 1;
+  if (mkdir(name,0777) != 0) {
+    fprintf(stderr,"mkdir %s : %s\n",name,strerror(errno));
+    exit(1);
+  }
 
-      p = strchr(argv[argc-1],':');
-      if (!p) {
-	usage(stderr);
-	exit(1);
-      }
+  if (chdir(name) != 0) {
+    fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
+    exit(1);
+  }
 
-      *p = 0;
-      shell_machine = argv[argc-1];
-      shell_path = p+1;
-      argc--;
-    }
-
-    p = strchr(shell_machine,'@');
-    if (p) {
-      *p = 0;
-      shell_user = shell_machine;
-      shell_machine = p+1;
-    }
-
-    if (verbose > 3) {
-      fprintf(stderr,"cmd=%s machine=%s user=%s path=%s\n",
-	      shell_cmd?shell_cmd:"",
-	      shell_machine?shell_machine:"",
-	      shell_user?shell_user:"",
-	      shell_path?shell_path:"");
-    }
-    
-    signal(SIGCHLD,SIG_IGN);
-
-    if (!sender && argc != 1) {
-      usage(stderr);
-      exit(1);
-    }
-
-    pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
-
-    write_int(f_out,PROTOCOL_VERSION);
-    write_flush(f_out);
-    {
-      int version = read_int(f_in);
-      if (version != PROTOCOL_VERSION) {
-	fprintf(stderr,"protocol version mismatch\n");
-	exit(1);
-      }	
-    }
-
-    if (verbose > 3) 
-      fprintf(stderr,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,sender,recurse);
-
-    if (sender) {
-      if (cvs_exclude)
-	add_cvs_excludes();
-      flist = send_file_list(f_out,recurse,argc,argv);
-      if (verbose > 3) 
-	fprintf(stderr,"file list sent\n");
-      send_files(flist,f_out,f_in);
-      if (verbose > 3)
-	fprintf(stderr,"waiting on %d\n",pid);
-      waitpid(pid, &status, 0);
-      report(-1);
-      exit(status);
-    }
-
-    send_exclude_list(f_out);
-
-    flist = recv_file_list(f_in);
-    if (!flist || flist->count == 0) {
-      fprintf(stderr,"nothing to do\n");
-      exit(0);
-    }
-
-    local_name = get_local_name(flist,argv[0]);
-
-    if ((pid2=fork()) == 0) {
-      recv_files(f_in,flist,local_name);
-      if (verbose > 1)
-	fprintf(stderr,"receiver read %d\n",read_total());
-      exit(0);
-    }
-
-    generate_files(f_out,flist,local_name);
-
-    waitpid(pid2, &status2, 0);
-
-    report(f_in);
-
-    waitpid(pid, &status, 0);
-
-    return status | status2;
+  return NULL;
 }

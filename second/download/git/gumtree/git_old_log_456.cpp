@@ -1,1 +1,1 @@
-die(_("git %s: failed to read the index"), action_name(opts));
+rp_error("%s", refuse_unconfigured_deny_msg[i]);

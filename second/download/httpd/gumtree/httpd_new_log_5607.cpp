@@ -1,2 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03007)
-                              "%d:  %g", i, lua_tonumber(L, i));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02823)
+                         "%s: connection established with Unix domain socket "
+                         "%s (%s)",
+                         proxy_function,
+                         conn->uds_path,
+                         worker->s->hostname);

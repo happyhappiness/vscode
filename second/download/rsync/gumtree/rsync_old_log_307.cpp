@@ -1,1 +1,1 @@
-fprintf(FERROR,"nothing to do\n");
+fprintf(FERROR,"clearing exclude list\n");

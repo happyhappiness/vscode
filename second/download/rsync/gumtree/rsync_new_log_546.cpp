@@ -1,1 +1,2 @@
-rprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));
+rprintf(FERROR,"mkdir %s : %s (2)\n",
+			    fname,strerror(errno));

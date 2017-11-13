@@ -1,2 +1,4 @@
-ap_rvputs(r, (*worker->s->uds_path ? "<i>" : ""), ap_proxy_worker_name(r->pool, worker),
-                          (*worker->s->uds_path ? "</i>" : ""), "</a></td>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02430)
+                              "Response header '%s' value of '%s' contains "
+                              "invalid characters, aborting request",
+                              name, pos);

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "Failed to cache authn credentials for %s in %s",
-                      module, dcfg->context);
+ap_rvputs(r, xhtml ? DOCTYPE_XHTML_1_0T : DOCTYPE_HTML_3_2,
+              "<html>\n <head>\n  <title>Index of ", title,
+              "</title>\n", NULL);

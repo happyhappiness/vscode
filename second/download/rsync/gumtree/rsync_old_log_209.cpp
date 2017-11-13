@@ -1,1 +1,1 @@
-fprintf(FERROR,"bad option -%c\n",opt);
+fprintf(stderr,"renaming %s to %s\n",fnametmp,fname);

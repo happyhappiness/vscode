@@ -1,228 +1,374 @@
-static int ssl_io_filter_connect(ssl_filter_ctx_t *filter_ctx)
+static int authz_ldap_check_user_access(request_rec *r)
 {
-    conn_rec *c         = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
-    SSLConnRec *sslconn = myConnConfig(c);
-    SSLSrvConfigRec *sc;
-    X509 *cert;
-    int n;
-    int ssl_err;
-    long verify_result;
-    server_rec *server;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    if (SSL_is_init_finished(filter_ctx->pssl)) {
-        return APR_SUCCESS;
+    util_ldap_connection_t *ldc = NULL;
+    int m = r->method_number;
+
+    const apr_array_header_t *reqs_arr = ap_requires(r);
+    require_line *reqs = reqs_arr ? (require_line *)reqs_arr->elts : NULL;
+
+    register int x;
+    const char *t;
+    char *w, *value;
+    int method_restricted = 0;
+    int required_ldap = 0;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+    const char **vals = NULL;
+
+/*
+    if (!sec->enabled) {
+        return DECLINED;
+    }
+*/
+
+    if (!sec->have_ldap_url) {
+        return DECLINED;
     }
 
-    server = sslconn->server;
-    if (sslconn->is_proxy) {
-#ifndef OPENSSL_NO_TLSEXT
-        apr_ipsubnet_t *ip;
-#endif
-        const char *hostname_note = apr_table_get(c->notes,
-                                                  "proxy-request-hostname");
-        sc = mySrvConfig(server);
-
-#ifndef OPENSSL_NO_TLSEXT
-        /*
-         * Enable SNI for backend requests. Make sure we don't do it for
-         * pure SSLv2 or SSLv3 connections, and also prevent IP addresses
-         * from being included in the SNI extension. (OpenSSL would simply
-         * pass them on, but RFC 6066 is quite clear on this: "Literal
-         * IPv4 and IPv6 addresses are not permitted".)
-         */
-        if (hostname_note &&
-            sc->proxy->protocol != SSL_PROTOCOL_SSLV2 &&
-            sc->proxy->protocol != SSL_PROTOCOL_SSLV3 &&
-            apr_ipsubnet_create(&ip, hostname_note, NULL,
-                                c->pool) != APR_SUCCESS) {
-            if (SSL_set_tlsext_host_name(filter_ctx->pssl, hostname_note)) {
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                              "SNI extension for SSL Proxy request set to '%s'",
-                              hostname_note);
-            } else {
-                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c,
-                              "Failed to set SNI extension for SSL Proxy "
-                              "request to '%s'", hostname_note);
-                ssl_log_ssl_error(APLOG_MARK, APLOG_WARNING, server);
-            }
-	}
-#endif
-
-        if ((n = SSL_connect(filter_ctx->pssl)) <= 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                          "SSL Proxy connect failed");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
-            /* ensure that the SSL structures etc are freed, etc: */
-            ssl_filter_io_shutdown(filter_ctx, c, 1);
-            apr_table_set(c->notes, "SSL_connect_rv", "err");
-            return HTTP_BAD_GATEWAY;
+    /* pre-scan for ldap-* requirements so we can get out of the way early */
+    for(x=0; x < reqs_arr->nelts; x++) {
+        if (! (reqs[x].method_mask & (AP_METHOD_BIT << m))) {
+            continue;
         }
 
-        if (sc->proxy_ssl_check_peer_expire == SSL_ENABLED_TRUE) {
-            cert = SSL_get_peer_certificate(filter_ctx->pssl);
-            if (!cert
-                || (X509_cmp_current_time(
-                     X509_get_notBefore(cert)) >= 0)
-                || (X509_cmp_current_time(
-                     X509_get_notAfter(cert)) <= 0)) {
-                ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                              "SSL Proxy: Peer certificate is expired");
-                if (cert) {
-                    X509_free(cert);
+        t = reqs[x].requirement;
+        w = ap_getword_white(r->pool, &t);
+
+        if (strncmp(w, "ldap-",5) == 0) {
+            required_ldap = 1;
+            break;
+        }
+    }
+
+    if (!required_ldap) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise (no ldap requirements)", getpid());
+        return DECLINED;
+    }
+
+
+
+    if (sec->host) {
+        ldc = util_ldap_connection_find(r, sec->host, sec->port,
+                                       sec->binddn, sec->bindpw, sec->deref,
+                                       sec->secure);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: no sec->host - weird...?", getpid());
+        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+    }
+
+    /*
+     * If there are no elements in the group attribute array, the default should be
+     * member and uniquemember; populate the array now.
+     */
+    if (sec->groupattr->nelts == 0) {
+        struct mod_auth_ldap_groupattr_entry_t *grp;
+#if APR_HAS_THREADS
+        apr_thread_mutex_lock(sec->lock);
+#endif
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "member";
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "uniquemember";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
+    }
+
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
+
+    /* Check that we have a userid to start with */
+    if ((!r->user) || (strlen(r->user) == 0)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
+
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &vals);
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+        }
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
+
+    /* Loop through the requirements array until there's no elements
+     * left, or something causes a return from inside the loop */
+    for(x=0; x < reqs_arr->nelts; x++) {
+        if (! (reqs[x].method_mask & (AP_METHOD_BIT << m))) {
+            continue;
+        }
+        method_restricted = 1;
+
+        t = reqs[x].requirement;
+        w = ap_getword_white(r->pool, &t);
+
+        if (strcmp(w, "ldap-user") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require user: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+            /*
+             * First do a whole-line compare, in case it's something like
+             *   require user Babs Jensen
+             */
+            result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, t);
+            switch(result) {
+                case LDAP_COMPARE_TRUE: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                  "require user: authorisation successful", getpid());
+                    return OK;
                 }
-                /* ensure that the SSL structures etc are freed, etc: */
-                ssl_filter_io_shutdown(filter_ctx, c, 1);
-                apr_table_set(c->notes, "SSL_connect_rv", "err");
-                return HTTP_BAD_GATEWAY;
+                default: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: require user: "
+                                  "authorisation failed [%s][%s]", getpid(),
+                                  ldc->reason, ldap_err2string(result));
+                }
             }
-            X509_free(cert);
-        }
-        if ((sc->proxy_ssl_check_peer_cn == SSL_ENABLED_TRUE)
-            && hostname_note) {
-            const char *hostname;
-
-            hostname = ssl_var_lookup(NULL, server, c, NULL,
-                                      "SSL_CLIENT_S_DN_CN");
-            apr_table_unset(c->notes, "proxy-request-hostname");
-            if (strcasecmp(hostname, hostname_note)) {
-                ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                              "SSL Proxy: Peer certificate CN mismatch:"
-                              " Certificate CN: %s Requested hostname: %s",
-                              hostname, hostname_note);
-                /* ensure that the SSL structures etc are freed, etc: */
-                ssl_filter_io_shutdown(filter_ctx, c, 1);
-                apr_table_set(c->notes, "SSL_connect_rv", "err");
-                return HTTP_BAD_GATEWAY;
+            /*
+             * Now break apart the line and compare each word on it
+             */
+            while (t[0]) {
+                w = ap_getword_conf(r->pool, &t);
+                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, w);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require user: authorisation successful", getpid());
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require user: authorisation failed [%s][%s]",
+                                      getpid(), ldc->reason, ldap_err2string(result));
+                    }
+                }
             }
         }
+        else if (strcmp(w, "ldap-dn") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require dn: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
 
-        apr_table_set(c->notes, "SSL_connect_rv", "ok");
-        return APR_SUCCESS;
+            result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, t, sec->compare_dn_on_server);
+            switch(result) {
+                case LDAP_COMPARE_TRUE: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                  "require dn: authorisation successful", getpid());
+                    return OK;
+                }
+                default: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                  "require dn \"%s\": LDAP error [%s][%s]",
+                                  getpid(), t, ldc->reason, ldap_err2string(result));
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-group") == 0) {
+            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+            int i;
+
+            if (sec->group_attrib_is_dn) {
+                if (req->dn == NULL || strlen(req->dn) == 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                                  "user's DN has not been defined; failing authorisation",
+                                  getpid());
+                    return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+                }
+            }
+            else {
+                if (req->user == NULL || strlen(req->user) == 0) {
+                    /* We weren't called in the authentication phase, so we didn't have a
+                     * chance to set the user field. Do so now. */
+                    req->user = r->user;
+                }
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                          "testing for group membership in \"%s\"",
+                          getpid(), t);
+
+            for (i = 0; i < sec->groupattr->nelts; i++) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                              "testing for %s: %s (%s)", getpid(),
+                              ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
+
+                result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
+                                     sec->group_attrib_is_dn ? req->dn : req->user);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                                      "authorisation successful (attribute %s) [%s][%s]",
+                                      getpid(), ent[i].name, ldc->reason, ldap_err2string(result));
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "[%" APR_PID_T_FMT "] auth_ldap authorise: require group \"%s\": "
+                                      "authorisation failed [%s][%s]",
+                                      getpid(), t, ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-attribute") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require ldap-attribute: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+            while (t[0]) {
+                w = ap_getword(r->pool, &t, '=');
+                value = ap_getword_conf(r->pool, &t);
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: checking attribute"
+                              " %s has value %s", getpid(), w, value);
+                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn,
+                                                 w, value);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "successful", getpid());
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "failed [%s][%s]", getpid(),
+                                      ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-filter") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require ldap-filter: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+            if (t[0]) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: checking filter %s",
+                              getpid(), t);
+
+                /* Build the username filter */
+                authn_ldap_build_filter(filtbuf, r, req->user, t, sec);
+
+                /* Search for the user DN */
+                result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+                     sec->scope, sec->attributes, filtbuf, &dn, &vals);
+
+                /* Make sure that the filtered search returned the correct user dn */
+                if (result == LDAP_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: checking dn match %s",
+                                  getpid(), dn);
+                    result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, dn,
+                         sec->compare_dn_on_server);
+                }
+
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require ldap-filter: authorisation "
+                                      "successful", getpid());
+                        return OK;
+                    }
+                    case LDAP_FILTER_ERROR: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require ldap-filter: %s authorisation "
+                                      "failed [%s][%s]", getpid(),
+                                      filtbuf, ldc->reason, ldap_err2string(result));
+                        break;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require ldap-filter: authorisation "
+                                      "failed [%s][%s]", getpid(),
+                                      ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
     }
 
-    if ((n = SSL_accept(filter_ctx->pssl)) <= 0) {
-        bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)
-                                     (filter_ctx->pbioRead->ptr);
-        bio_filter_out_ctx_t *outctx = (bio_filter_out_ctx_t *)
-                                       (filter_ctx->pbioWrite->ptr);
-        apr_status_t rc = inctx->rc ? inctx->rc : outctx->rc ;
-        ssl_err = SSL_get_error(filter_ctx->pssl, n);
-
-        if (ssl_err == SSL_ERROR_ZERO_RETURN) {
-            /*
-             * The case where the connection was closed before any data
-             * was transferred. That's not a real error and can occur
-             * sporadically with some clients.
-             */
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
-                         "SSL handshake stopped: connection was closed");
-        }
-        else if (ssl_err == SSL_ERROR_WANT_READ) {
-            /*
-             * This is in addition to what was present earlier. It is
-             * borrowed from openssl_state_machine.c [mod_tls].
-             * TBD.
-             */
-            outctx->rc = APR_EAGAIN;
-            return SSL_ERROR_WANT_READ;
-        }
-        else if (ERR_GET_LIB(ERR_peek_error()) == ERR_LIB_SSL &&
-                 ERR_GET_REASON(ERR_peek_error()) == SSL_R_HTTP_REQUEST) {
-            /*
-             * The case where OpenSSL has recognized a HTTP request:
-             * This means the client speaks plain HTTP on our HTTPS port.
-             * ssl_io_filter_error will disable the ssl filters when it
-             * sees this status code.
-             */
-            return HTTP_BAD_REQUEST;
-        }
-        else if (ssl_err == SSL_ERROR_SYSCALL) {
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
-                          "SSL handshake interrupted by system "
-                          "[Hint: Stop button pressed in browser?!]");
-        }
-        else /* if (ssl_err == SSL_ERROR_SSL) */ {
-            /*
-             * Log SSL errors and any unexpected conditions.
-             */
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
-                          "SSL library error %d in handshake "
-                          "(server %s)", ssl_err,
-                          ssl_util_vhostid(c->pool, server));
-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
-
-        }
-        if (inctx->rc == APR_SUCCESS) {
-            inctx->rc = APR_EGENERAL;
-        }
-
-        return ssl_filter_io_shutdown(filter_ctx, c, 1);
-    }
-    sc = mySrvConfig(sslconn->server);
-
-    /*
-     * Check for failed client authentication
-     */
-    verify_result = SSL_get_verify_result(filter_ctx->pssl);
-
-    if ((verify_result != X509_V_OK) ||
-        sslconn->verify_error)
-    {
-        if (ssl_verify_error_is_optional(verify_result) &&
-            (sc->server->auth.verify_mode == SSL_CVERIFY_OPTIONAL_NO_CA))
-        {
-            /* leaving this log message as an error for the moment,
-             * according to the mod_ssl docs:
-             * "level optional_no_ca is actually against the idea
-             *  of authentication (but can be used to establish
-             * SSL test pages, etc.)"
-             * optional_no_ca doesn't appear to work as advertised
-             * in 1.x
-             */
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                          "SSL client authentication failed, "
-                          "accepting certificate based on "
-                          "\"SSLVerifyClient optional_no_ca\" "
-                          "configuration");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
-        }
-        else {
-            const char *error = sslconn->verify_error ?
-                sslconn->verify_error :
-                X509_verify_cert_error_string(verify_result);
-
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                         "SSL client authentication failed: %s",
-                         error ? error : "unknown");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
-
-            return ssl_filter_io_shutdown(filter_ctx, c, 1);
-        }
+    if (!method_restricted) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: agreeing because non-restricted",
+                      getpid());
+        return OK;
     }
 
-    /*
-     * Remember the peer certificate's DN
-     */
-    if ((cert = SSL_get_peer_certificate(filter_ctx->pssl))) {
-        if (sslconn->client_cert) {
-            X509_free(sslconn->client_cert);
-        }
-        sslconn->client_cert = cert;
-        sslconn->client_dn = NULL;
+    if (!sec->auth_authoritative) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise (not authoritative)", getpid());
+        return DECLINED;
     }
 
-    /*
-     * Make really sure that when a peer certificate
-     * is required we really got one... (be paranoid)
-     */
-    if ((sc->server->auth.verify_mode == SSL_CVERIFY_REQUIRE) &&
-        !sslconn->client_cert)
-    {
-        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                      "No acceptable peer certificate available");
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorise: authorisation denied", getpid());
+    ap_note_basic_auth_failure (r);
 
-        return ssl_filter_io_shutdown(filter_ctx, c, 1);
-    }
-
-    return APR_SUCCESS;
+    return HTTP_UNAUTHORIZED;
 }

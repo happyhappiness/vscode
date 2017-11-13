@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01960) "OCSP stapling initialized");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01072)
+                              "Got bogus record %d", type);

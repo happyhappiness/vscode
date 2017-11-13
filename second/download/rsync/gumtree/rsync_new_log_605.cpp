@@ -1,1 +1,1 @@
-fprintf(stderr,"ERROR: data in read buffer at mplx start\n");
+rprintf(FINFO,"generator wrote %ld\n",(long)write_total());

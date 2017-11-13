@@ -1,11 +1,10 @@
 fputs(
-"              specify  alternative proxy protocols. Use socks4://, socks4a://,\n"
-"              socks5:// or socks5h:// to request the specific SOCKS version to\n"
-"              be  used.  No protocol specified, http:// and all others will be\n"
-"              treated as HTTP proxies. (The protocol support was added in curl\n"
-"              7.21.7)\n"
+"              ssl_verify_result\n"
+"                             The result of the SSL peer certificate  verifica-\n"
+"                             tion that was requested. 0 means the verification\n"
+"                             was successful. (Added in 7.19.0)\n"
 "\n"
-"              If  the  port number is not specified in the proxy string, it is\n"
-"              assumed to be 1080.\n"
-"\n"
+"              time_appconnect\n"
+"                             The time, in seconds,  it  took  from  the  start\n"
+"                             until  the  SSL/SSH/etc  connect/handshake to the\n"
 , stdout);

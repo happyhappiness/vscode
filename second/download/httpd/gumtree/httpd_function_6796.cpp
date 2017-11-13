@@ -1,56 +1,49 @@
-static apr_status_t ssl_init_ticket_key(server_rec *s,
-                                        apr_pool_t *p,
-                                        apr_pool_t *ptemp,
-                                        modssl_ctx_t *mctx)
+static h2_task *next_stream_task(h2_mplx *m)
 {
-    apr_status_t rv;
-    apr_file_t *fp;
-    apr_size_t len;
-    char buf[TLSEXT_TICKET_KEY_LEN];
-    char *path;
-    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
+    h2_stream *stream;
+    int sid;
+    while (!m->aborted && (m->tasks_active < m->limit_active)
+           && (sid = h2_iq_shift(m->q)) > 0) {
+        
+        stream = h2_ihash_get(m->streams, sid);
+        if (stream) {
+            conn_rec *slave, **pslave;
 
-    if (!ticket_key->file_path) {
-        return APR_SUCCESS;
+            pslave = (conn_rec **)apr_array_pop(m->spare_slaves);
+            if (pslave) {
+                slave = *pslave;
+                slave->aborted = 0;
+            }
+            else {
+                slave = h2_slave_create(m->c, stream->id, m->pool);
+            }
+            
+            if (!stream->task) {
+
+                if (sid > m->max_stream_started) {
+                    m->max_stream_started = sid;
+                }
+                if (stream->input) {
+                    h2_beam_on_consumed(stream->input, stream_input_ev, 
+                                        stream_input_consumed, stream);
+                }
+                
+                stream->task = h2_task_create(slave, stream->id, 
+                                              stream->request, m, stream->input, 
+                                              stream->session->s->timeout,
+                                              m->stream_max_mem);
+                if (!stream->task) {
+                    ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, slave,
+                                  H2_STRM_LOG(APLOGNO(02941), stream, 
+                                  "create task"));
+                    return NULL;
+                }
+                
+            }
+            
+            ++m->tasks_active;
+            return stream->task;
+        }
     }
-
-    path = ap_server_root_relative(p, ticket_key->file_path);
-
-    rv = apr_file_open(&fp, path, APR_READ|APR_BINARY,
-                       APR_OS_DEFAULT, ptemp);
-
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02286)
-                     "Failed to open ticket key file %s: (%d) %pm",
-                     path, rv, &rv);
-        return ssl_die(s);
-    }
-
-    rv = apr_file_read_full(fp, &buf[0], TLSEXT_TICKET_KEY_LEN, &len);
-
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02287)
-                     "Failed to read %d bytes from %s: (%d) %pm",
-                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);
-        return ssl_die(s);
-    }
-
-    memcpy(ticket_key->key_name, buf, 16);
-    memcpy(ticket_key->hmac_secret, buf + 16, 16);
-    memcpy(ticket_key->aes_key, buf + 32, 16);
-
-    if (!SSL_CTX_set_tlsext_ticket_key_cb(mctx->ssl_ctx,
-                                          ssl_callback_SessionTicket)) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01913)
-                     "Unable to initialize TLS session ticket key callback "
-                     "(incompatible OpenSSL version?)");
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-        return ssl_die(s);
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02288)
-                 "TLS session ticket key for %s successfully loaded from %s",
-                 (mySrvConfig(s))->vhost_id, path);
-
-    return APR_SUCCESS;
+    return NULL;
 }

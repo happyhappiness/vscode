@@ -1,38 +1,50 @@
-static void align_atom_parser(struct used_atom *atom, const char *arg)
+int parse_ref_filter_atom(const char *atom, const char *ep)
 {
-	struct align *align = &atom->u.align;
-	struct string_list params = STRING_LIST_INIT_DUP;
-	int i;
-	unsigned int width = ~0U;
+	const char *sp;
+	int i, at;
 
-	if (!arg)
-		die(_("expected format: %%(align:<width>,<position>)"));
+	sp = atom;
+	if (*sp == '*' && sp < ep)
+		sp++; /* deref */
+	if (ep <= sp)
+		die("malformed field name: %.*s", (int)(ep-atom), atom);
 
-	align->position = ALIGN_LEFT;
-
-	string_list_split(&params, arg, ',', -1);
-	for (i = 0; i < params.nr; i++) {
-		const char *s = params.items[i].string;
-		int position;
-
-		if (skip_prefix(s, "position=", &s)) {
-			position = parse_align_position(s);
-			if (position < 0)
-				die(_("unrecognized position:%s"), s);
-			align->position = position;
-		} else if (skip_prefix(s, "width=", &s)) {
-			if (strtoul_ui(s, 10, &width))
-				die(_("unrecognized width:%s"), s);
-		} else if (!strtoul_ui(s, 10, &width))
-			;
-		else if ((position = parse_align_position(s)) >= 0)
-			align->position = position;
-		else
-			die(_("unrecognized %%(align) argument: %s"), s);
+	/* Do we have the atom already used elsewhere? */
+	for (i = 0; i < used_atom_cnt; i++) {
+		int len = strlen(used_atom[i]);
+		if (len == ep - atom && !memcmp(used_atom[i], atom, len))
+			return i;
 	}
 
-	if (width == ~0U)
-		die(_("positive width expected with the %%(align) atom"));
-	align->width = width;
-	string_list_clear(&params, 0);
+	/* Is the atom a valid one? */
+	for (i = 0; i < ARRAY_SIZE(valid_atom); i++) {
+		int len = strlen(valid_atom[i].name);
+		/*
+		 * If the atom name has a colon, strip it and everything after
+		 * it off - it specifies the format for this entry, and
+		 * shouldn't be used for checking against the valid_atom
+		 * table.
+		 */
+		const char *formatp = strchr(sp, ':');
+		if (!formatp || ep < formatp)
+			formatp = ep;
+		if (len == formatp - sp && !memcmp(valid_atom[i].name, sp, len))
+			break;
+	}
+
+	if (ARRAY_SIZE(valid_atom) <= i)
+		die("unknown field name: %.*s", (int)(ep-atom), atom);
+
+	/* Add it in, including the deref prefix */
+	at = used_atom_cnt;
+	used_atom_cnt++;
+	REALLOC_ARRAY(used_atom, used_atom_cnt);
+	REALLOC_ARRAY(used_atom_type, used_atom_cnt);
+	used_atom[at] = xmemdupz(atom, ep - atom);
+	used_atom_type[at] = valid_atom[i].cmp_type;
+	if (*atom == '*')
+		need_tagged = 1;
+	if (!strcmp(used_atom[at], "symref"))
+		need_symref = 1;
+	return at;
 }

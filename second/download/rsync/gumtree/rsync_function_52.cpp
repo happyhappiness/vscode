@@ -1,23 +1,46 @@
-static void delete_files(struct file_list *flist)
+void do_server_recv(int argc,char *argv[])
 {
-  struct file_list *local_file_list;
-  char *dot=".";
-  int i;
+  int pid,status;
+  char *dir = NULL;
+  struct file_list *flist;
+  char *local_name=NULL;
+  
+  if (verbose > 2)
+    fprintf(stderr,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
 
-  if (!(local_file_list = send_file_list(-1,recurse,1,&dot)))
-    return;
-
-  for (i=0;i<local_file_list->count;i++) {
-    if (!local_file_list->files[i].name) continue;
-    if (S_ISDIR(local_file_list->files[i].mode)) continue;
-    if (-1 == flist_find(flist,&local_file_list->files[i])) {
-      if (verbose)
-	fprintf(stderr,"deleting %s\n",local_file_list->files[i].name);
-      if (!dry_run) {
-	if (unlink(local_file_list->files[i].name) != 0)
-	  fprintf(stderr,"unlink %s : %s\n",
-		  local_file_list->files[i].name,strerror(errno));
-      }
+  if (argc > 0) {
+    dir = argv[0];
+    argc--;
+    argv++;
+    if (chdir(dir) != 0) {
+      fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+      exit(1);
     }    
   }
+
+  flist = recv_file_list(STDIN_FILENO);
+  if (!flist || flist->count == 0) {
+    fprintf(stderr,"nothing to do\n");
+    exit(1);
+  }
+
+  if (argc > 0) {    
+    if (strcmp(dir,".")) {
+      argv[0] += strlen(dir);
+      if (argv[0][0] == '/') argv[0]++;
+    }
+    local_name = get_local_name(flist,argv[0]);
+  }
+
+  if ((pid=fork()) == 0) {
+    recv_files(STDIN_FILENO,flist,local_name);
+    if (verbose > 2)
+      fprintf(stderr,"receiver read %d\n",read_total());
+    exit(0);
+  }
+
+  generate_files(STDOUT_FILENO,flist,local_name);
+
+  waitpid(pid, &status, 0);
+  exit(status);
 }

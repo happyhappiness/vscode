@@ -1,1 +1,2 @@
-die("submodule--helper is-active takes exactly 1 argument");
+die(_("Pathspec '%s' is in submodule '%.*s'"),
+			    item->original, ce_len, ce->name);

@@ -1,1 +1,1 @@
-fprintf(stderr,"fstat failed : %s\n",strerror(errno));
+set_perms(fname,&flist->files[i],&st,1);

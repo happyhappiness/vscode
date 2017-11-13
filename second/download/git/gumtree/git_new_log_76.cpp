@@ -1,2 +1,1 @@
-die("%s %s: expected SP but got: %s",
-			    command, refname, *next);
+error(_("unsupported sort specification '%s'"), arg);

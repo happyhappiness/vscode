@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                     "ajp_msg_copy(): destination buffer too "
-                     "small %" APR_SIZE_T_FMT ", max size is %d",
-                     smsg->len, AJP_MSG_BUFFER_SZ);
+ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_netos_error(), ap_server_conf,
+                    "winnt_accept: getsockname error on listening socket, is IPv6 available?");

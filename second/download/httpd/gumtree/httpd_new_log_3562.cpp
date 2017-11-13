@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, r, APLOGNO(01507)
-                    MODNAME ": request config should not be NULL");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02284)
+                             "failed to lookup provider 'shm' for '%s', "
+                             "maybe you need to load mod_slotmem_shm?",
+                             AP_SLOTMEM_PROVIDER_GROUP);

@@ -1,42 +1,45 @@
-static int add_one_reference(struct string_list_item *item, void *cb_data)
+static int curate_packed_ref_fn(struct ref_entry *entry, void *cb_data)
 {
-	char *ref_git;
-	const char *repo;
-	struct strbuf alternate = STRBUF_INIT;
+	struct string_list *refs_to_delete = cb_data;
 
-	/* Beware: read_gitfile(), real_path() and mkpath() return static buffer */
-	ref_git = xstrdup(real_path(item->string));
+	if (entry->flag & REF_ISBROKEN) {
+		/* This shouldn't happen to packed refs. */
+		error("%s is broken!", entry->name);
+		string_list_append(refs_to_delete, entry->name);
+		return 0;
+	}
+	if (!has_sha1_file(entry->u.value.sha1)) {
+		unsigned char sha1[20];
+		int flags;
 
-	repo = read_gitfile(ref_git);
-	if (!repo)
-		repo = read_gitfile(mkpath("%s/.git", ref_git));
-	if (repo) {
-		free(ref_git);
-		ref_git = xstrdup(repo);
+		if (read_ref_full(entry->name, 0, sha1, &flags))
+			/* We should at least have found the packed ref. */
+			die("Internal error");
+		if ((flags & REF_ISSYMREF) || !(flags & REF_ISPACKED)) {
+			/*
+			 * This packed reference is overridden by a
+			 * loose reference, so it is OK that its value
+			 * is no longer valid; for example, it might
+			 * refer to an object that has been garbage
+			 * collected.  For this purpose we don't even
+			 * care whether the loose reference itself is
+			 * invalid, broken, symbolic, etc.  Silently
+			 * remove the packed reference.
+			 */
+			string_list_append(refs_to_delete, entry->name);
+			return 0;
+		}
+		/*
+		 * There is no overriding loose reference, so the fact
+		 * that this reference doesn't refer to a valid object
+		 * indicates some kind of repository corruption.
+		 * Report the problem, then omit the reference from
+		 * the output.
+		 */
+		error("%s does not point to a valid object!", entry->name);
+		string_list_append(refs_to_delete, entry->name);
+		return 0;
 	}
 
-	if (!repo && is_directory(mkpath("%s/.git/objects", ref_git))) {
-		char *ref_git_git = mkpathdup("%s/.git", ref_git);
-		free(ref_git);
-		ref_git = ref_git_git;
-	} else if (!is_directory(mkpath("%s/objects", ref_git))) {
-		struct strbuf sb = STRBUF_INIT;
-		if (get_common_dir(&sb, ref_git))
-			die(_("reference repository '%s' as a linked checkout is not supported yet."),
-			    item->string);
-		die(_("reference repository '%s' is not a local repository."),
-		    item->string);
-	}
-
-	if (!access(mkpath("%s/shallow", ref_git), F_OK))
-		die(_("reference repository '%s' is shallow"), item->string);
-
-	if (!access(mkpath("%s/info/grafts", ref_git), F_OK))
-		die(_("reference repository '%s' is grafted"), item->string);
-
-	strbuf_addf(&alternate, "%s/objects", ref_git);
-	add_to_alternates_file(alternate.buf);
-	strbuf_release(&alternate);
-	free(ref_git);
 	return 0;
 }

@@ -1,1 +1,2 @@
-ap_add_output_filter("H1_TO_H2_RESP", task, r, r->connection);
+ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
+                  "h2_session(%ld): done", session->id);

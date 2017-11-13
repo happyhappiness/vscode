@@ -1,1 +1,1 @@
-fprintf(fp, " %s\n", con->otherHelp);
+io_printf(fd,"@ERROR: invalid gid %s\n", p);

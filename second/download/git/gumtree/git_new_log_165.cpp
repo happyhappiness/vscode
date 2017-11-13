@@ -1,1 +1,1 @@
-fputs("~\n", o->file);
+hashcpy(cb->sha1, nsha1);

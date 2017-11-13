@@ -1,31 +1,33 @@
-h2_task *h2_task_create(conn_rec *c, const h2_request *req, 
-                        h2_bucket_beam *input, h2_mplx *mplx)
+static apr_status_t session_pool_cleanup(void *data)
 {
-    apr_pool_t *pool;
-    h2_task *task;
+    h2_session *session = data;
+    /* On a controlled connection shutdown, this gets never
+     * called as we deregister and destroy our pool manually.
+     * However when we have an async mpm, and handed it our idle
+     * connection, it will just cleanup once the connection is closed
+     * from the other side (and sometimes even from out side) and
+     * here we arrive then.
+     */
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                  "session(%ld): pool_cleanup", session->id);
     
-    apr_pool_create(&pool, c->pool);
-    task = apr_pcalloc(pool, sizeof(h2_task));
-    if (task == NULL) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, c,
-                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
-                      c->id, req->id);
-        return NULL;
+    if (session->state != H2_SESSION_ST_DONE 
+        && session->state != H2_SESSION_ST_LOCAL_SHUTDOWN) {
+        /* Not good. The connection is being torn down and we have
+         * not sent a goaway. This is considered a protocol error and
+         * the client has to assume that any streams "in flight" may have
+         * been processed and are not safe to retry.
+         * As clients with idle connection may only learn about a closed
+         * connection when sending the next request, this has the effect
+         * that at least this one request will fail.
+         */
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, session->c, APLOGNO(03199)
+                      "session(%ld): connection disappeared without proper "
+                      "goodbye, clients will be confused, should not happen", 
+                      session->id);
     }
-    
-    task->id          = apr_psprintf(pool, "%ld-%d", c->id, req->id);
-    task->stream_id   = req->id;
-    task->c           = c;
-    task->mplx        = mplx;
-    task->c->keepalives = mplx->c->keepalives;
-    task->pool        = pool;
-    task->request     = req;
-    task->ser_headers = req->serialize;
-    task->blocking    = 1;
-    task->input.beam  = input;
-    
-    apr_thread_cond_create(&task->cond, pool);
-
-    h2_ctx_create_for(c, task);
-    return task;
+    /* keep us from destroying the pool, since that is already ongoing. */
+    session->pool = NULL;
+    h2_session_destroy(session);
+    return APR_SUCCESS;
 }

@@ -1,43 +1,78 @@
-static void print_smime_keyinfo (const char* msg, gpgme_signature_t sig,
-                                 gpgme_key_t key, STATE *s)
+int mutt_write_one_header (FILE *fp, const char *tag, const char *value,
+			   const char *pfx, int wraplen, int flags)
 {
-  size_t msglen;
-  gpgme_user_id_t uids = NULL;
-  int i, aka = 0;
+  char *p = (char *)value, *last, *line;
+  int max = 0, w, rc = -1;
+  int pfxw = mutt_strwidth (pfx);
+  char *v = safe_strdup (value);
 
-  state_attach_puts (msg, s);
-  state_attach_puts (" ", s);
-  /* key is NULL when not present in the user's keyring */
-  if (key)
+  if (!(flags & CH_DISPLAY) || option (OPTWEED))
+    v = unfold_header (v);
+
+  /* when not displaying, use sane wrap value */
+  if (!(flags & CH_DISPLAY))
   {
-    for (uids = key->uids; uids; uids = uids->next)
-    {
-      if (uids->revoked)
-	continue;
-      if (aka)
-      {
-	msglen = mutt_strlen (msg) - 4;
-	for (i = 0; i < msglen; i++)
-	  state_attach_puts(" ", s);
-	state_attach_puts(_("aka: "), s);
-      }
-      state_attach_puts (uids->uid, s);
-      state_attach_puts ("\n", s);
+    if (WrapHeaders < 78 || WrapHeaders > 998)
+      wraplen = 78;
+    else
+      wraplen = WrapHeaders;
+  }
+  else if (wraplen <= 0 || wraplen > COLS)
+    wraplen = COLS;
 
-      aka = 1;
+  if (tag)
+  {
+    /* if header is short enough, simply print it */
+    if (!(flags & CH_DISPLAY) && mutt_strwidth (tag) + 2 + pfxw +
+	mutt_strwidth (v) <= wraplen)
+    {
+      dprint(4,(debugfile,"mwoh: buf[%s%s: %s] is short enough\n",
+		NONULL(pfx), tag, v));
+      if (fprintf (fp, "%s%s: %s\n", NONULL(pfx), tag, v) <= 0)
+	goto out;
+      rc = 0;
+      goto out;
+    }
+    else
+    {
+      rc = fold_one_header (fp, tag, v, pfx, wraplen, flags);
+      goto out;
     }
   }
-  else
+
+  p = last = line = (char *)v;
+  while (p && *p)
   {
-    state_attach_puts (_("KeyID "), s);
-    state_attach_puts (sig->fpr, s);
-    state_attach_puts ("\n", s);
+    p = strchr (p, '\n');
+
+    /* find maximum line width in current header */
+    if (p)
+      *p = 0;
+    if ((w = my_width (line, 0, flags)) > max)
+      max = w;
+    if (p)
+      *p = '\n';
+
+    if (!p)
+      break;
+
+    line = ++p;
+    if (*p != ' ' && *p != '\t')
+    {
+      if (write_one_header (fp, pfxw, max, wraplen, pfx, last, p, flags) < 0)
+	goto out;
+      last = p;
+      max = 0;
+    }
   }
 
-  msglen = mutt_strlen (msg) - 8;
-  for (i = 0; i < msglen; i++)
-    state_attach_puts(" ", s);
-  state_attach_puts (_("created: "), s);
-  print_time (sig->timestamp, s);
-  state_attach_puts ("\n", s);  
+  if (last && *last)
+    if (write_one_header (fp, pfxw, max, wraplen, pfx, last, p, flags) < 0)
+      goto out;
+
+  rc = 0;
+
+out:
+  FREE (&v);
+  return rc;
 }

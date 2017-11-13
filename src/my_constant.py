@@ -6,7 +6,7 @@
 """
 repository
 """
-REPOS = 'httpd'
+REPOS = 'git'
 """
 stroed file name prefix
 """
@@ -148,7 +148,8 @@ LOG_FEATURE_MODIFY = 4
 LOG_OTHER_LOG_FEATURE_MODIFY = 6
 LOG_OTHER_LOG_MODIFY = 2
 LOG_NO_MODIFY = 0
-LOG_DELETE_CHECK = 8
+LOG_DELETE_CHECK = 9
+LOG_DDG_MODIFY = 10
 LOG_LOG_MODIFY = 3
 LOG_LOG_FEATURE_MODIFY = 7
 

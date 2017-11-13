@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(02292)
-                     "Init: Name-based SSL virtual hosts only "
-                     "work for clients with TLS server name indication "
-                     "support (RFC 4366)");
+ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                      "h2_session(%ld): [%s] process returns", 
+                      session->id, state_name(session->state));

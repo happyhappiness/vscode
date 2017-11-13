@@ -1,1 +1,1 @@
-warning("--use-curl not supported in this build");
+die("BUG: ref_update_reject_duplicates() received unsorted list");

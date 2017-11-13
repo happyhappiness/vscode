@@ -1,50 +1,104 @@
-static void show_ce_entry(const char *tag, const struct cache_entry *ce)
+static int parse_fragment(struct apply_state *state,
+			  const char *line,
+			  unsigned long size,
+			  struct patch *patch,
+			  struct fragment *fragment)
 {
-	int len = max_prefix_len;
+	int added, deleted;
+	int len = linelen(line, size), offset;
+	unsigned long oldlines, newlines;
+	unsigned long leading, trailing;
 
-	if (len >= ce_namelen(ce))
-		die("git ls-files: internal error - cache entry not superset of prefix");
+	offset = parse_fragment_header(line, len, fragment);
+	if (offset < 0)
+		return -1;
+	if (offset > 0 && patch->recount)
+		recount_diff(line + offset, size - offset, fragment);
+	oldlines = fragment->oldlines;
+	newlines = fragment->newlines;
+	leading = 0;
+	trailing = 0;
 
-	if (!match_pathspec(&pathspec, ce->name, ce_namelen(ce),
-			    len, ps_matched,
-			    S_ISDIR(ce->ce_mode) || S_ISGITLINK(ce->ce_mode)))
-		return;
+	/* Parse the thing.. */
+	line += len;
+	size -= len;
+	state->linenr++;
+	added = deleted = 0;
+	for (offset = len;
+	     0 < size;
+	     offset += len, size -= len, line += len, state->linenr++) {
+		if (!oldlines && !newlines)
+			break;
+		len = linelen(line, size);
+		if (!len || line[len-1] != '\n')
+			return -1;
+		switch (*line) {
+		default:
+			return -1;
+		case '\n': /* newer GNU diff, an empty context line */
+		case ' ':
+			oldlines--;
+			newlines--;
+			if (!deleted && !added)
+				leading++;
+			trailing++;
+			if (!state->apply_in_reverse &&
+			    state->ws_error_action == correct_ws_error)
+				check_whitespace(state, line, len, patch->ws_rule);
+			break;
+		case '-':
+			if (state->apply_in_reverse &&
+			    state->ws_error_action != nowarn_ws_error)
+				check_whitespace(state, line, len, patch->ws_rule);
+			deleted++;
+			oldlines--;
+			trailing = 0;
+			break;
+		case '+':
+			if (!state->apply_in_reverse &&
+			    state->ws_error_action != nowarn_ws_error)
+				check_whitespace(state, line, len, patch->ws_rule);
+			added++;
+			newlines--;
+			trailing = 0;
+			break;
 
-	if (tag && *tag && show_valid_bit &&
-	    (ce->ce_flags & CE_VALID)) {
-		static char alttag[4];
-		memcpy(alttag, tag, 3);
-		if (isalpha(tag[0]))
-			alttag[0] = tolower(tag[0]);
-		else if (tag[0] == '?')
-			alttag[0] = '!';
-		else {
-			alttag[0] = 'v';
-			alttag[1] = tag[0];
-			alttag[2] = ' ';
-			alttag[3] = 0;
+		/*
+		 * We allow "\ No newline at end of file". Depending
+                 * on locale settings when the patch was produced we
+                 * don't know what this line looks like. The only
+                 * thing we do know is that it begins with "\ ".
+		 * Checking for 12 is just for sanity check -- any
+		 * l10n of "\ No newline..." is at least that long.
+		 */
+		case '\\':
+			if (len < 12 || memcmp(line, "\\ ", 2))
+				return -1;
+			break;
 		}
-		tag = alttag;
 	}
+	if (oldlines || newlines)
+		return -1;
+	if (!deleted && !added)
+		return -1;
 
-	if (!show_stage) {
-		fputs(tag, stdout);
-	} else {
-		printf("%s%06o %s %d\t",
-		       tag,
-		       ce->ce_mode,
-		       find_unique_abbrev(ce->sha1,abbrev),
-		       ce_stage(ce));
-	}
-	write_eolinfo(ce, ce->name);
-	write_name(ce->name);
-	if (debug_mode) {
-		const struct stat_data *sd = &ce->ce_stat_data;
+	fragment->leading = leading;
+	fragment->trailing = trailing;
 
-		printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);
-		printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);
-		printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
-		printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
-		printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
-	}
+	/*
+	 * If a fragment ends with an incomplete line, we failed to include
+	 * it in the above loop because we hit oldlines == newlines == 0
+	 * before seeing it.
+	 */
+	if (12 < size && !memcmp(line, "\\ ", 2))
+		offset += linelen(line, size);
+
+	patch->lines_added += added;
+	patch->lines_deleted += deleted;
+
+	if (0 < patch->is_new && oldlines)
+		return error(_("new file depends on old contents"));
+	if (0 < patch->is_delete && newlines)
+		return error(_("deleted file still has contents"));
+	return offset;
 }

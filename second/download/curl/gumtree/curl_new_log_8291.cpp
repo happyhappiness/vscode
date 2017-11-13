@@ -1,10 +1,10 @@
 fputs(
-"              stdin you write \"@-\".\n"
+"              Use -s, --silent to make curl quiet.\n"
 "\n"
-"              The variables present in the output format will  be  substituted\n"
-"              by  the  value or text that curl thinks fit, as described below.\n"
-"              All variables are specified as %{variable_name} and to output  a\n"
-"              normal  % you just write them as %%. You can output a newline by\n"
-"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
-"\n"
+"       -w, --write-out <format>\n"
+"              Defines what to display on stdout after a completed and success-\n"
+"              ful operation. The format is a string  that  may  contain  plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
+"              ified as \"string\", to get read from a particular file you  spec-\n"
+"              ify  it  \"@filename\"  and  to  tell curl to read the format from\n"
 , stdout);

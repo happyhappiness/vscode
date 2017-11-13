@@ -1,1 +1,1 @@
-die(_("malformed object at '%s'"), refname);
+die("could not set GIT_WORK_TREE to '%s'", work_tree);

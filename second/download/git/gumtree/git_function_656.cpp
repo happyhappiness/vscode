@@ -1,24 +1,44 @@
-static int error_with_patch(struct commit *commit,
-	const char *subject, int subject_len,
-	struct replay_opts *opts, int exit_code, int to_amend)
+static int link_alt_odb_entry(const char *entry, const char *relative_base,
+	int depth, const char *normalized_objdir)
 {
-	if (make_patch(commit, opts))
+	struct alternate_object_database *ent;
+	struct strbuf pathbuf = STRBUF_INIT;
+
+	if (!is_absolute_path(entry) && relative_base) {
+		strbuf_addstr(&pathbuf, real_path(relative_base));
+		strbuf_addch(&pathbuf, '/');
+	}
+	strbuf_addstr(&pathbuf, entry);
+
+	if (strbuf_normalize_path(&pathbuf) < 0 && relative_base) {
+		error("unable to normalize alternate object path: %s",
+		      pathbuf.buf);
+		strbuf_release(&pathbuf);
 		return -1;
+	}
 
-	if (to_amend) {
-		if (intend_to_amend())
-			return -1;
+	/*
+	 * The trailing slash after the directory name is given by
+	 * this function at the end. Remove duplicates.
+	 */
+	while (pathbuf.len && pathbuf.buf[pathbuf.len - 1] == '/')
+		strbuf_setlen(&pathbuf, pathbuf.len - 1);
 
-		fprintf(stderr, "You can amend the commit now, with\n"
-			"\n"
-			"  git commit --amend %s\n"
-			"\n"
-			"Once you are satisfied with your changes, run\n"
-			"\n"
-			"  git rebase --continue\n", gpg_sign_opt_quoted(opts));
-	} else if (exit_code)
-		fprintf(stderr, "Could not apply %s... %.*s\n",
-			short_commit_name(commit), subject_len, subject);
+	if (!alt_odb_usable(&pathbuf, normalized_objdir)) {
+		strbuf_release(&pathbuf);
+		return -1;
+	}
 
-	return exit_code;
+	ent = alloc_alt_odb(pathbuf.buf);
+
+	/* add the alternate entry */
+	*alt_odb_tail = ent;
+	alt_odb_tail = &(ent->next);
+	ent->next = NULL;
+
+	/* recursively add alternates */
+	read_info_alternates(pathbuf.buf, depth + 1);
+
+	strbuf_release(&pathbuf);
+	return 0;
 }

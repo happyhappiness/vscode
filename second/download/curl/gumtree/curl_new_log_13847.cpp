@@ -1,9 +1,11 @@
 fputs(
-"              See -E, --cert and --key to specify them independently.\n"
+"              then this option is supported for  backward  compatibility  with\n"
+"              other  SSL  engines,  but it should not be set. If the option is\n"
+"              not set, then curl will use the certificates in the  system  and\n"
+"              user  Keychain to verify the peer, which is the preferred method\n"
+"              of verifying the peer's certificate chain.\n"
 "\n"
-"              If  curl  is  built against the NSS SSL library then this option\n"
-"              can tell curl the nickname of the certificate to use within  the\n"
-"              NSS  database defined by the environment variable SSL_DIR (or by\n"
-"              default /etc/pki/nssdb). If the NSS  PEM  PKCS#11  module  (lib-\n"
-"              nsspem.so)  is  available  then  PEM files may be loaded. If you\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --capath <dir>\n"
 , stdout);

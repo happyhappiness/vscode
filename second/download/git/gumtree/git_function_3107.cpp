@@ -1,40 +1,17 @@
-static int mark_object(struct object *obj, int type, void *data, struct fsck_options *options)
+static void check_reachable_object(struct object *obj)
 {
-	struct object *parent = data;
-
 	/*
-	 * The only case data is NULL or type is OBJ_ANY is when
-	 * mark_object_reachable() calls us.  All the callers of
-	 * that function has non-NULL obj hence ...
+	 * We obviously want the object to be parsed,
+	 * except if it was in a pack-file and we didn't
+	 * do a full fsck
 	 */
-	if (!obj) {
-		/* ... these references to parent->fld are safe here */
-		printf("broken link from %7s %s\n",
-			   typename(parent->type), oid_to_hex(&parent->oid));
-		printf("broken link from %7s %s\n",
-			   (type == OBJ_ANY ? "unknown" : typename(type)), "unknown");
-		errors_found |= ERROR_REACHABLE;
-		return 1;
-	}
-
-	if (type != OBJ_ANY && obj->type != type)
-		/* ... and the reference to parent is safe here */
-		objerror(parent, "wrong object type in link");
-
-	if (obj->flags & REACHABLE)
-		return 0;
-	obj->flags |= REACHABLE;
 	if (!(obj->flags & HAS_OBJ)) {
-		if (parent && !has_object_file(&obj->oid)) {
-			printf("broken link from %7s %s\n",
-				 typename(parent->type), oid_to_hex(&parent->oid));
-			printf("              to %7s %s\n",
-				 typename(obj->type), oid_to_hex(&obj->oid));
-			errors_found |= ERROR_REACHABLE;
-		}
-		return 1;
+		if (has_sha1_pack(obj->oid.hash))
+			return; /* it is in pack - forget about it */
+		if (connectivity_only && has_object_file(&obj->oid))
+			return;
+		printf("missing %s %s\n", typename(obj->type), oid_to_hex(&obj->oid));
+		errors_found |= ERROR_REACHABLE;
+		return;
 	}
-
-	add_object_array(obj, NULL, &pending);
-	return 0;
 }

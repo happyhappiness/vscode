@@ -1,76 +1,82 @@
-static int find_file(request_rec *r, const char *directive, const char *tag,
-                     char *tag_val, apr_finfo_t *finfo)
+static int authnz_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
 {
-    char *to_send = tag_val;
-    request_rec *rr = NULL;
-    int ret=0;
-    char *error_fmt = NULL;
-    apr_status_t rv = APR_SUCCESS;
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    const char *charset_confname = ap_get_module_config(s->module_config,
+                                                      &authnz_ldap_module);
+    apr_status_t status;
 
-    if (!strcmp(tag, "file")) {
-        char *newpath;
+    /*
+    authn_ldap_config_t *sec = (authn_ldap_config_t *)
+                                    ap_get_module_config(s->module_config,
+                                                         &authnz_ldap_module);
 
-        /* be safe; only files in this directory or below allowed */
-        rv = apr_filepath_merge(&newpath, NULL, tag_val,
-                                APR_FILEPATH_SECUREROOTTEST |
-                                APR_FILEPATH_NOTABSOLUTE, r->pool);
-
-        if (rv != APR_SUCCESS) {
-            error_fmt = "unable to access file \"%s\" "
-                        "in parsed file %s";
-        }
-        else {
-            /* note: it is okay to pass NULL for the "next filter" since
-               we never attempt to "run" this sub request. */
-            rr = ap_sub_req_lookup_file(newpath, r, NULL);
-
-            if (rr->status == HTTP_OK && rr->finfo.filetype != APR_NOFILE) {
-                to_send = rr->filename;
-                if ((rv = apr_stat(finfo, to_send,
-                    APR_FINFO_GPROT | APR_FINFO_MIN, rr->pool)) != APR_SUCCESS
-                    && rv != APR_INCOMPLETE) {
-                    error_fmt = "unable to get information about \"%s\" "
-                        "in parsed file %s";
-                }
-            }
-            else {
-                error_fmt = "unable to lookup information about \"%s\" "
-                            "in parsed file %s";
-            }
-        }
-
-        if (error_fmt) {
-            ret = -1;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR,
-                          rv, r, error_fmt, to_send, r->filename);
-        }
-
-        if (rr) ap_destroy_sub_req(rr);
-
-        return ret;
-    }
-    else if (!strcmp(tag, "virtual")) {
-        /* note: it is okay to pass NULL for the "next filter" since
-           we never attempt to "run" this sub request. */
-        rr = ap_sub_req_lookup_uri(tag_val, r, NULL);
-
-        if (rr->status == HTTP_OK && rr->finfo.filetype != APR_NOFILE) {
-            memcpy((char *) finfo, (const char *) &rr->finfo,
-                   sizeof(rr->finfo));
-            ap_destroy_sub_req(rr);
-            return 0;
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unable to get "
-                          "information about \"%s\" in parsed file %s",
-                          tag_val, r->filename);
-            ap_destroy_sub_req(rr);
-            return -1;
+    if (sec->secure)
+    {
+        if (!util_ldap_ssl_supported(s))
+        {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
+                     "LDAP: SSL connections (ldaps://) not supported by utilLDAP");
+            return(!OK);
         }
     }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter \"%s\" "
-                      "to tag %s in %s", tag, directive, r->filename);
-        return -1;
+    */
+
+    /* make sure that mod_ldap (util_ldap) is loaded */
+    if (ap_find_linked_module("util_ldap.c") == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Module mod_ldap missing. Mod_ldap (aka. util_ldap) "
+                     "must be loaded in order for mod_authnz_ldap to function properly");
+        return HTTP_INTERNAL_SERVER_ERROR;
+
     }
+
+    if (!charset_confname) {
+        return OK;
+    }
+
+    charset_confname = ap_server_root_relative(p, charset_confname);
+    if (!charset_confname) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                     "Invalid charset conversion config path %s",
+                     (const char *)ap_get_module_config(s->module_config,
+                                                        &authnz_ldap_module));
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if ((status = ap_pcfg_openfile(&f, ptemp, charset_confname))
+                != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not open charset conversion config file %s.",
+                     charset_confname);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    charset_conversions = apr_hash_make(p);
+
+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
+        const char *ll = l;
+        char *lang;
+
+        if (l[0] == '#') {
+            continue;
+        }
+        lang = ap_getword_conf(p, &ll);
+        ap_str_tolower(lang);
+
+        if (ll[0]) {
+            char *charset = ap_getword_conf(p, &ll);
+            apr_hash_set(charset_conversions, lang, APR_HASH_KEY_STRING, charset);
+        }
+    }
+    ap_cfg_closefile(f);
+
+    to_charset = derive_codepage_from_lang (p, "utf-8");
+    if (to_charset == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not find the UTF-8 charset in the file %s.",
+                     charset_confname);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    return OK;
 }

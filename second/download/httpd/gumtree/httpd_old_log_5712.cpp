@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ThreadLimit "
-                         "directive.");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01955)
+                         "stapling_cb: fatal error");

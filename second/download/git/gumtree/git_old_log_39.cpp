@@ -1,2 +1,5 @@
-usage_msg_opt("-f cannot be used with -d or -l",
-			      git_replace_usage, options);
+status_printf_ln(s, GIT_COLOR_NORMAL,
+				_("%s"
+				"Committer: %s"),
+				ident_shown++ ? "" : "\n",
+				committer_ident.buf);

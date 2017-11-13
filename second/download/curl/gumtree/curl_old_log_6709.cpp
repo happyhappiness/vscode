@@ -1,8 +1,10 @@
 fputs(
-"       --capath <CA certificate directory>\n"
-"              (SSL)  Tells  curl to use the specified certificate directory to\n"
-"              verify the peer. The certificates must be in PEM format, and  if\n"
-"              curl is built against OpenSSL, the directory must have been pro-\n"
-"              cessed using the c_rehash utility supplied with  OpenSSL.  Using\n"
-"              --capath  can allow OpenSSL-powered curl to make SSL-connections\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
+"              tells curl the nickname of the CA certificate to use within  the\n"
+"              NSS  database defined by the environment variable SSL_DIR (or by\n"
+"              default /etc/pki/nssdb).  If the NSS PEM  PKCS#11  module  (lib-\n"
+"              nsspem.so) is available then PEM files may be loaded.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
 , stdout);

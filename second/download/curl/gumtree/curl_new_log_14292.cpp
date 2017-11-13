@@ -1,11 +1,10 @@
 fputs(
-"              -c, --cookie-jar in the same command line is common.\n"
+"              makes curl record and use cookies. Another way to activate it is\n"
+"              to use the -b, --cookie option.\n"
 "\n"
-"       --create-dirs\n"
-"              When used in conjunction with the -o, --output option, curl will\n"
-"              create the necessary local directory hierarchy as  needed.  This\n"
-"              option  creates the dirs mentioned with the -o, --output option,\n"
-"              nothing else. If the --output file name uses no dir  or  if  the\n"
-"              dirs it mentions already exist, no dir will be created.\n"
+"              If the cookie jar can't be created or written to, the whole curl\n"
+"              operation  won't fail or even report an error clearly. Using -v,\n"
+"              --verbose will get a warning displayed, but  that  is  the  only\n"
+"              visible feedback you get about this possibly lethal situation.\n"
 "\n"
 , stdout);

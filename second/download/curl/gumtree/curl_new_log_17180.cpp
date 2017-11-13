@@ -1,13 +1,7 @@
-puts(
-"          HTTP protocols to attempt to tunnel through  the  proxy\n"
-"          instead  of merely using it to do HTTP-like operations.\n"
-"          The tunnel approach is made with the HTTP proxy CONNECT\n"
-"          request  and requires that the proxy allows direct con�\n"
-"          nect to the remote port number  curl  wants  to  tunnel\n"
-"          through to.\n"
-"\n"
-"          If  this  option  is  used twice, the second will again\n"
-"          disable proxy tunnel.\n"
-"\n"
-"     -P/--ftpport <address>\n"
-);
+puts(" -E/--cert <cert[:passwd]> Specifies your certificate file and password (HTTPS)\n"
+       "    --cacert <file> CA certifciate to verify peer against (HTTPS)\n"
+       "    --connect-timeout <seconds> Maximum time allowed for connection\n"
+       " -f/--fail          Fail silently (no output at all) on errors (H)\n"
+       " -F/--form <name=content> Specify HTTP POST data (H)\n"
+       " -g/--globoff       Disable URL sequences and ranges using {} and []\n"
+       " -G/--get           Send the -d data with a HTTP GET (H)\n");

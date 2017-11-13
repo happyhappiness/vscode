@@ -1,116 +1,148 @@
-static const char *setup_git_directory_gently_1(int *nongit_ok)
+struct child_process *git_connect(int fd[2], const char *url,
+				  const char *prog, int flags)
 {
-	const char *env_ceiling_dirs = getenv(CEILING_DIRECTORIES_ENVIRONMENT);
-	struct string_list ceiling_dirs = STRING_LIST_INIT_DUP;
-	static struct strbuf cwd = STRBUF_INIT;
-	const char *gitdirenv, *ret;
-	char *gitfile;
-	int offset, offset_parent, ceil_offset = -1;
-	dev_t current_device = 0;
-	int one_filesystem = 1;
+	char *hostandport, *path;
+	struct child_process *conn = &no_fork;
+	enum protocol protocol;
+	struct strbuf cmd = STRBUF_INIT;
 
-	/*
-	 * We may have read an incomplete configuration before
-	 * setting-up the git directory. If so, clear the cache so
-	 * that the next queries to the configuration reload complete
-	 * configuration (including the per-repo config file that we
-	 * ignored previously).
+	/* Without this we cannot rely on waitpid() to tell
+	 * what happened to our children.
 	 */
-	git_config_clear();
+	signal(SIGCHLD, SIG_DFL);
 
-	/*
-	 * Let's assume that we are in a git repository.
-	 * If it turns out later that we are somewhere else, the value will be
-	 * updated accordingly.
-	 */
-	if (nongit_ok)
-		*nongit_ok = 0;
+	protocol = parse_connect_url(url, &hostandport, &path);
+	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
+		printf("Diag: url=%s\n", url ? url : "NULL");
+		printf("Diag: protocol=%s\n", prot_name(protocol));
+		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
+		printf("Diag: path=%s\n", path ? path : "NULL");
+		conn = NULL;
+	} else if (protocol == PROTO_GIT) {
+		/*
+		 * Set up virtual host information based on where we will
+		 * connect, unless the user has overridden us in
+		 * the environment.
+		 */
+		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
+		if (target_host)
+			target_host = xstrdup(target_host);
+		else
+			target_host = xstrdup(hostandport);
 
-	if (strbuf_getcwd(&cwd))
-		die_errno("Unable to read current working directory");
-	offset = cwd.len;
+		transport_check_allowed("git");
 
-	/*
-	 * If GIT_DIR is set explicitly, we're not going
-	 * to do any discovery, but we still do repository
-	 * validation.
-	 */
-	gitdirenv = getenv(GIT_DIR_ENVIRONMENT);
-	if (gitdirenv)
-		return setup_explicit_git_dir(gitdirenv, &cwd, nongit_ok);
+		/* These underlying connection commands die() if they
+		 * cannot connect.
+		 */
+		if (git_use_proxy(hostandport))
+			conn = git_proxy_connect(fd, hostandport);
+		else
+			git_tcp_connect(fd, hostandport, flags);
+		/*
+		 * Separate original protocol components prog and path
+		 * from extended host header with a NUL byte.
+		 *
+		 * Note: Do not add any other headers here!  Doing so
+		 * will cause older git-daemon servers to crash.
+		 */
+		packet_write(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);
+		free(target_host);
+	} else {
+		conn = xmalloc(sizeof(*conn));
+		child_process_init(conn);
 
-	if (env_ceiling_dirs) {
-		int empty_entry_found = 0;
+		if (looks_like_command_line_option(path))
+			die("strange pathname '%s' blocked", path);
 
-		string_list_split(&ceiling_dirs, env_ceiling_dirs, PATH_SEP, -1);
-		filter_string_list(&ceiling_dirs, 0,
-				   canonicalize_ceiling_entry, &empty_entry_found);
-		ceil_offset = longest_ancestor_length(cwd.buf, &ceiling_dirs);
-		string_list_clear(&ceiling_dirs, 0);
-	}
+		strbuf_addstr(&cmd, prog);
+		strbuf_addch(&cmd, ' ');
+		sq_quote_buf(&cmd, path);
 
-	if (ceil_offset < 0 && has_dos_drive_prefix(cwd.buf))
-		ceil_offset = 1;
+		/* remove repo-local variables from the environment */
+		conn->env = local_repo_env;
+		conn->use_shell = 1;
+		conn->in = conn->out = -1;
+		if (protocol == PROTO_SSH) {
+			const char *ssh;
+			int putty = 0, tortoiseplink = 0;
+			char *ssh_host = hostandport;
+			const char *port = NULL;
+			transport_check_allowed("ssh");
+			get_host_and_port(&ssh_host, &port);
 
-	/*
-	 * Test in the following order (relative to the cwd):
-	 * - .git (file containing "gitdir: <path>")
-	 * - .git/
-	 * - ./ (bare)
-	 * - ../.git
-	 * - ../.git/
-	 * - ../ (bare)
-	 * - ../../.git/
-	 *   etc.
-	 */
-	one_filesystem = !git_env_bool("GIT_DISCOVERY_ACROSS_FILESYSTEM", 0);
-	if (one_filesystem)
-		current_device = get_device_or_die(".", NULL, 0);
-	for (;;) {
-		gitfile = (char*)read_gitfile(DEFAULT_GIT_DIR_ENVIRONMENT);
-		if (gitfile)
-			gitdirenv = gitfile = xstrdup(gitfile);
-		else {
-			if (is_git_directory(DEFAULT_GIT_DIR_ENVIRONMENT))
-				gitdirenv = DEFAULT_GIT_DIR_ENVIRONMENT;
-		}
+			if (!port)
+				port = get_port(ssh_host);
 
-		if (gitdirenv) {
-			ret = setup_discovered_git_dir(gitdirenv,
-						       &cwd, offset,
-						       nongit_ok);
-			free(gitfile);
-			return ret;
-		}
-		free(gitfile);
+			if (flags & CONNECT_DIAG_URL) {
+				printf("Diag: url=%s\n", url ? url : "NULL");
+				printf("Diag: protocol=%s\n", prot_name(protocol));
+				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+				printf("Diag: port=%s\n", port ? port : "NONE");
+				printf("Diag: path=%s\n", path ? path : "NULL");
 
-		if (is_git_directory("."))
-			return setup_bare_git_dir(&cwd, offset, nongit_ok);
-
-		offset_parent = offset;
-		while (--offset_parent > ceil_offset && cwd.buf[offset_parent] != '/');
-		if (offset_parent <= ceil_offset)
-			return setup_nongit(cwd.buf, nongit_ok);
-		if (one_filesystem) {
-			dev_t parent_device = get_device_or_die("..", cwd.buf,
-								offset);
-			if (parent_device != current_device) {
-				if (nongit_ok) {
-					if (chdir(cwd.buf))
-						die_errno("Cannot come back to cwd");
-					*nongit_ok = 1;
-					return NULL;
-				}
-				strbuf_setlen(&cwd, offset);
-				die("Not a git repository (or any parent up to mount point %s)\n"
-				"Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).",
-				    cwd.buf);
+				free(hostandport);
+				free(path);
+				free(conn);
+				return NULL;
 			}
+
+			if (looks_like_command_line_option(ssh_host))
+				die("strange hostname '%s' blocked", ssh_host);
+
+			ssh = getenv("GIT_SSH_COMMAND");
+			if (!ssh) {
+				const char *base;
+				char *ssh_dup;
+
+				/*
+				 * GIT_SSH is the no-shell version of
+				 * GIT_SSH_COMMAND (and must remain so for
+				 * historical compatibility).
+				 */
+				conn->use_shell = 0;
+
+				ssh = getenv("GIT_SSH");
+				if (!ssh)
+					ssh = "ssh";
+
+				ssh_dup = xstrdup(ssh);
+				base = basename(ssh_dup);
+
+				tortoiseplink = !strcasecmp(base, "tortoiseplink") ||
+					!strcasecmp(base, "tortoiseplink.exe");
+				putty = tortoiseplink ||
+					!strcasecmp(base, "plink") ||
+					!strcasecmp(base, "plink.exe");
+
+				free(ssh_dup);
+			}
+
+			argv_array_push(&conn->args, ssh);
+			if (tortoiseplink)
+				argv_array_push(&conn->args, "-batch");
+			if (port) {
+				/* P is for PuTTY, p is for OpenSSH */
+				argv_array_push(&conn->args, putty ? "-P" : "-p");
+				argv_array_push(&conn->args, port);
+			}
+			argv_array_push(&conn->args, ssh_host);
+		} else {
+			transport_check_allowed("file");
 		}
-		if (chdir("..")) {
-			strbuf_setlen(&cwd, offset);
-			die_errno("Cannot change to '%s/..'", cwd.buf);
-		}
-		offset = offset_parent;
+		argv_array_push(&conn->args, cmd.buf);
+
+		if (start_command(conn))
+			die("unable to fork");
+
+		fd[0] = conn->out; /* read from child's stdout */
+		fd[1] = conn->in;  /* write to child's stdin */
+		strbuf_release(&cmd);
 	}
+	free(hostandport);
+	free(path);
+	return conn;
 }

@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, stream->session->c, 
-                      "h2_stream(%ld-%d): input drain returned", 
-                      stream->session->id, stream->id);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,
+                                  "h2_mplx(%ld): task(%s) has not-shutdown "
+                                  "engine(%s)", m->id, task->id, 
+                                  h2_req_engine_get_id(task->engine));

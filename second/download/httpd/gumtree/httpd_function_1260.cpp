@@ -1,77 +1,28 @@
-void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
-                             apr_proc_mutex_t **child_start_mutex,
-                             apr_shm_t **scoreboard_shm)
+static void emit_preamble(request_rec *r, int xhtml, const char *title)
 {
-    HANDLE hScore;
-    HANDLE ready_event;
-    HANDLE os_start;
-    DWORD BytesRead;
-    void *sb_shared;
-    apr_status_t rv;
+    autoindex_config_rec *d;
 
-    /* *** We now do this was back in winnt_rewrite_args
-     * pipe = GetStdHandle(STD_INPUT_HANDLE);
-     */
-    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(HANDLE))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
+    d = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config,
+                                                      &autoindex_module);
+
+    if (xhtml) {
+        ap_rvputs(r, DOCTYPE_XHTML_1_0T,
+                  "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
+                  " <head>\n  <title>Index of ", title,
+                  "</title>\n", NULL);
+    } else {
+        ap_rvputs(r, DOCTYPE_HTML_3_2,
+                  "<html>\n <head>\n"
+                  "  <title>Index of ", title,
+                  "</title>\n", NULL);
     }
 
-    SetEvent(ready_event);
-    CloseHandle(ready_event);
-
-    if (!ReadFile(pipe, child_exit_event, sizeof(HANDLE),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(HANDLE))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the exit event from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
+    if (d->style_sheet != NULL) {
+        ap_rvputs(r, "  <link rel=\"stylesheet\" href=\"", d->style_sheet,
+                "\" type=\"text/css\"", xhtml ? " />\n" : ">\n", NULL);
     }
-
-    if (!ReadFile(pipe, &os_start, sizeof(os_start),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(os_start))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the start_mutex from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
+    if (d->head_insert != NULL) {
+        ap_rputs(d->head_insert, r);
     }
-    *child_start_mutex = NULL;
-    if ((rv = apr_os_proc_mutex_put(child_start_mutex, &os_start, s->process->pool))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Child %d: Unable to access the start_mutex from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-
-    if (!ReadFile(pipe, &hScore, sizeof(hScore),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(hScore))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    *scoreboard_shm = NULL;
-    if ((rv = apr_os_shm_put(scoreboard_shm, &hScore, s->process->pool))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-
-    rv = ap_reopen_scoreboard(s->process->pool, scoreboard_shm, 1);
-    if (rv || !(sb_shared = apr_shm_baseaddr_get(*scoreboard_shm))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    /* We must 'initialize' the scoreboard to relink all the
-     * process-local pointer arrays into the shared memory block.
-     */
-    ap_init_scoreboard(sb_shared);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
+    ap_rvputs(r, " </head>\n <body>\n", NULL);
 }

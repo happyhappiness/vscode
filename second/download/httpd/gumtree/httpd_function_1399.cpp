@@ -1,62 +1,22 @@
-int ssl_callback_SessionTicket(SSL *ssl,
-                               unsigned char *keyname,
-                               unsigned char *iv,
-                               EVP_CIPHER_CTX *cipher_ctx,
-                               HMAC_CTX *hctx,
-                               int mode)
+static void log_pid(apr_pool_t *pool, const char *pidfilename, apr_file_t **pidfile)
 {
-    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-    server_rec *s = mySrvFromConn(c);
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-    SSLConnRec *sslconn = myConnConfig(c);
-    modssl_ctx_t *mctx = myCtxConfig(sslconn, sc);
-    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
+    apr_status_t status;
+    char errmsg[120];
+    pid_t mypid = getpid();
 
-    if (mode == 1) {
-        /* 
-         * OpenSSL is asking for a key for encrypting a ticket,
-         * see s3_srvr.c:ssl3_send_newsession_ticket()
-         */
-
-        if (ticket_key == NULL) {
-            /* should never happen, but better safe than sorry */
-            return -1;
-        }
-
-        memcpy(keyname, ticket_key->key_name, 16);
-        RAND_pseudo_bytes(iv, EVP_MAX_IV_LENGTH);
-        EVP_EncryptInit_ex(cipher_ctx, EVP_aes_128_cbc(), NULL,
-                           ticket_key->aes_key, iv);
-        HMAC_Init_ex(hctx, ticket_key->hmac_secret, 16, tlsext_tick_md(), NULL);
-
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "TLS session ticket key for %s successfully set, "
-                      "creating new session ticket", sc->vhost_id);
-
-        return 0;
+    if (APR_SUCCESS == (status = apr_file_open(pidfile, pidfilename,
+                APR_FOPEN_WRITE | APR_FOPEN_CREATE | APR_FOPEN_TRUNCATE |
+                APR_FOPEN_DELONCLOSE, APR_FPROT_UREAD | APR_FPROT_UWRITE |
+                APR_FPROT_GREAD | APR_FPROT_WREAD, pool))) {
+        apr_file_printf(*pidfile, "%" APR_PID_T_FMT APR_EOL_STR, mypid);
     }
-    else if (mode == 0) {
-        /* 
-         * OpenSSL is asking for the decryption key,
-         * see t1_lib.c:tls_decrypt_ticket()
-         */
-
-        /* check key name */
-        if (ticket_key == NULL || memcmp(keyname, ticket_key->key_name, 16)) {
-            return 0;
+    else {
+        if (errfile) {
+            apr_file_printf(errfile,
+                            "Could not write the pid file '%s': %s" APR_EOL_STR,
+                            pidfilename, 
+                            apr_strerror(status, errmsg, sizeof errmsg));
         }
-
-        EVP_DecryptInit_ex(cipher_ctx, EVP_aes_128_cbc(), NULL,
-                           ticket_key->aes_key, iv);
-        HMAC_Init_ex(hctx, ticket_key->hmac_secret, 16, tlsext_tick_md(), NULL);
-
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "TLS session ticket key for %s successfully set, "
-                      "decrypting existing session ticket", sc->vhost_id);
-
-        return 1;
+        exit(1);
     }
-
-    /* OpenSSL is not expected to call us with modes other than 1 or 0 */
-    return -1;
 }

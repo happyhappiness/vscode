@@ -1,10 +1,11 @@
 fputs(
-"       is a recommended separator. The long  \"double-dash\"  form,  --data  for\n"
-"       example, requires a space between it and its value.\n"
+"       ple,  for  host names starting with \"ftp.\" curl will assume you want to\n"
+"       speak FTP.\n"
 "\n"
-"       Short version options that don't need any additional values can be used\n"
-"       immediately next to each other, like for example you  can  specify  all\n"
-"       the options -O, -L and -v at once as -OLv.\n"
+"       curl will do its best to use what you pass to it as a URL.  It  is  not\n"
+"       trying  to  validate it as a syntactically correct URL by any means but\n"
+"       is instead very liberal with what it accepts.\n"
 "\n"
-"       In general, all boolean options are enabled with --option and yet again\n"
+"       curl will attempt to re-use connections for multiple file transfers, so\n"
+"       that  getting many files from the same server will not do multiple con-\n"
 , stdout);

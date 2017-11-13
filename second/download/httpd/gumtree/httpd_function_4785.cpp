@@ -1,35 +1,80 @@
-static void winnt_child_init(apr_pool_t *pchild, struct server_rec *s)
+static void ssl_log_cert_error(const char *file, int line, int level,
+                               apr_status_t rv, const server_rec *s,
+                               const conn_rec *c, const request_rec *r,
+                               apr_pool_t *p, X509 *cert, const char *format,
+                               va_list ap)
 {
-    apr_status_t rv;
+    char buf[HUGE_STRING_LEN];
+    int msglen, n;
+    char *name;
 
-    setup_signal_names(apr_psprintf(pchild,"ap%d", parent_pid));
+    apr_vsnprintf(buf, sizeof buf, format, ap);
 
-    /* This is a child process, not in single process mode */
-    if (!one_process) {
-        /* Set up events and the scoreboard */
-        get_handles_from_parent(s, &exit_event, &start_mutex,
-                                &ap_scoreboard_shm);
+    msglen = strlen(buf);
 
-        /* Set up the listeners */
-        get_listeners_from_parent(s);
+    if (cert) {
+        BIO *bio = BIO_new(BIO_s_mem());
 
-        /* Done reading from the parent, close that channel */
-        CloseHandle(pipe);
+        if (bio) {
+            /*
+             * Limit the maximum length of the subject and issuer DN strings
+             * in the log message. 300 characters should always be sufficient
+             * for holding both the timestamp, module name, pid etc. stuff
+             * at the beginning of the line and the trailing information about
+             * serial, notbefore and notafter.
+             */
+            int maxdnlen = (HUGE_STRING_LEN - msglen - 300) / 2;
 
-        my_generation = ap_scoreboard_image->global->running_generation;
+            BIO_puts(bio, " [subject: ");
+            name = SSL_X509_NAME_to_string(p, X509_get_subject_name(cert),
+                                           maxdnlen);
+            if (!strIsEmpty(name)) {
+                BIO_puts(bio, name);
+            } else {
+                BIO_puts(bio, "-empty-");
+            }
+
+            BIO_puts(bio, " / issuer: ");
+            name = SSL_X509_NAME_to_string(p, X509_get_issuer_name(cert),
+                                           maxdnlen);
+            if (!strIsEmpty(name)) {
+                BIO_puts(bio, name);
+            } else {
+                BIO_puts(bio, "-empty-");
+            }
+
+            BIO_puts(bio, " / serial: ");
+            if (i2a_ASN1_INTEGER(bio, X509_get_serialNumber(cert)) == -1)
+                BIO_puts(bio, "(ERROR)");
+
+            BIO_puts(bio, " / notbefore: ");
+            ASN1_TIME_print(bio, X509_get_notBefore(cert));
+
+            BIO_puts(bio, " / notafter: ");
+            ASN1_TIME_print(bio, X509_get_notAfter(cert));
+
+            BIO_puts(bio, "]");
+
+            n = BIO_read(bio, buf + msglen, sizeof buf - msglen - 1);
+            if (n > 0)
+               buf[msglen + n] = '\0';
+
+            BIO_free(bio);
+        }
     }
     else {
-        /* Single process mode - this lock doesn't even need to exist */
-        rv = apr_proc_mutex_create(&start_mutex, signal_name_prefix,
-                                   APR_LOCK_DEFAULT, s->process->pool);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
-                         "%s child %d: Unable to init the start_mutex.",
-                         service_name, my_pid);
-            exit(APEXIT_CHILDINIT);
-        }
-
-        /* Borrow the shutdown_even as our _child_ loop exit event */
-        exit_event = shutdown_event;
+        apr_snprintf(buf + msglen, sizeof buf - msglen,
+                     " [certificate: -not available-]");
     }
+
+    if (r) {
+        ap_log_rerror(file, line, APLOG_MODULE_INDEX, level, rv, r, "%s", buf);
+    }
+    else if (c) {
+        ap_log_cerror(file, line, APLOG_MODULE_INDEX, level, rv, c, "%s", buf);
+    }
+    else if (s) {
+        ap_log_error(file, line, APLOG_MODULE_INDEX, level, rv, s, "%s", buf);
+    }
+
 }

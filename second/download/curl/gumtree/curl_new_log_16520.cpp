@@ -1,13 +1,14 @@
-puts(
-"          phase, once curl has connected this  option  is  of  no\n"
-"          more  use.  This  option doesn't work in win32 systems.\n"
-"          See also the --max-time option.\n"
+fputs(
+"       31     FTP couldn't use REST. The REST command failed. This command  is\n"
+"              used for resumed FTP transfers.\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
-"          will be used.\n"
+"       33     HTTP range error. The range \"command\" didn't work.\n"
 "\n"
-"     -c/--continue\n"
-"          Deprecated. Use '-C -' instead.  Continue/Resume a pre�\n"
-"          vious file transfer. This instructs  curl  to  continue\n"
-"          appending  data  on  the  file  where it was previously\n"
-);
+"       34     HTTP post error. Internal post-request generation error.\n"
+"\n"
+"       35     SSL connect error. The SSL handshaking failed.\n"
+"\n"
+"       36     Bad  download resume. Couldn't continue an earlier aborted down-\n"
+"              load.\n"
+"\n"
+, stdout);

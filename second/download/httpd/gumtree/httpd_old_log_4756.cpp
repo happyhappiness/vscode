@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
-                     "Parent: Received restart signal -- Restarting the server.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                             "SSL cipher suite not renegotiated: "
+                             "access to %s denied using cipher %s",
+                              r->filename,
+                              SSL_CIPHER_get_name(cipher));

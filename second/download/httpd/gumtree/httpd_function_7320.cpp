@@ -1,112 +1,65 @@
-static BOOL stapling_renew_response(server_rec *s, modssl_ctx_t *mctx, SSL *ssl,
-                                    certinfo *cinf, OCSP_RESPONSE **prsp,
-                                    apr_pool_t *pool)
+static const char *set_error_document(cmd_parms *cmd, void *conf_,
+                                      const char *errno_str, const char *msg)
 {
-    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
-    apr_pool_t *vpool;
-    OCSP_REQUEST *req = NULL;
-    OCSP_CERTID *id = NULL;
-    STACK_OF(X509_EXTENSION) *exts;
-    int i;
-    BOOL ok = FALSE;
-    BOOL rv = TRUE;
-    const char *ocspuri;
-    apr_uri_t uri;
+    core_dir_config *conf = conf_;
+    int error_number, index_number, idx500;
+    enum { MSG, LOCAL_PATH, REMOTE_PATH } what = MSG;
 
-    *prsp = NULL;
-    /* Build up OCSP query from server certificate info */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01938)
-                 "stapling_renew_response: querying responder");
+    /* 1st parameter should be a 3 digit number, which we recognize;
+     * convert it into an array index
+     */
+    error_number = atoi(errno_str);
+    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
 
-    req = OCSP_REQUEST_new();
-    if (!req)
-        goto err;
-    id = OCSP_CERTID_dup(cinf->cid);
-    if (!id)
-        goto err;
-    if (!OCSP_request_add0_id(req, id))
-        goto err;
-    id = NULL;
-    /* Add any extensions to the request */
-    SSL_get_tlsext_status_exts(ssl, &exts);
-    for (i = 0; i < sk_X509_EXTENSION_num(exts); i++) {
-        X509_EXTENSION *ext = sk_X509_EXTENSION_value(exts, i);
-        if (!OCSP_REQUEST_add_ext(req, ext, -1))
-            goto err;
+    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
+        index_number = idx500;
+    }
+    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
+        return apr_pstrcat(cmd->pool, "Unsupported HTTP response code ",
+                           errno_str, NULL);
     }
 
-    if (mctx->stapling_force_url)
-        ocspuri = mctx->stapling_force_url;
+    /* Heuristic to determine second argument. */
+    if (ap_strchr_c(msg,' '))
+        what = MSG;
+    else if (msg[0] == '/')
+        what = LOCAL_PATH;
+    else if (ap_is_url(msg))
+        what = REMOTE_PATH;
     else
-        ocspuri = cinf->uri;
+        what = MSG;
 
-    /* Create a temporary pool to constrain memory use */
-    apr_pool_create(&vpool, conn->pool);
+    /* The entry should be ignored if it is a full URL for a 401 error */
 
-    ok = apr_uri_parse(vpool, ocspuri, &uri);
-    if (ok != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01939)
-                     "stapling_renew_response: Error parsing uri %s",
-                      ocspuri);
-        rv = FALSE;
-        goto done;
+    if (error_number == 401 && what == REMOTE_PATH) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(00113)
+                     "cannot use a full URL in a 401 ErrorDocument "
+                     "directive --- ignoring!");
     }
-    else if (strcmp(uri.scheme, "http")) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01940)
-                     "stapling_renew_response: Unsupported uri %s", ocspuri);
-        rv = FALSE;
-        goto done;
-    }
+    else { /* Store it... */
+        if (conf->response_code_strings == NULL) {
+            conf->response_code_strings =
+                apr_pcalloc(cmd->pool,
+                            sizeof(*conf->response_code_strings) *
+                            RESPONSE_CODES);
+        }
 
-    if (!uri.port) {
-        uri.port = apr_uri_port_of_scheme(uri.scheme);
-    }
-
-    *prsp = modssl_dispatch_ocsp_request(&uri, mctx->stapling_responder_timeout,
-                                         req, conn, vpool);
-
-    apr_pool_destroy(vpool);
-
-    if (!*prsp) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01941)
-                     "stapling_renew_response: responder error");
-        if (mctx->stapling_fake_trylater) {
-            *prsp = OCSP_response_create(OCSP_RESPONSE_STATUS_TRYLATER, NULL);
+        if (strcmp(msg, "default") == 0) {
+            /* special case: ErrorDocument 404 default restores the
+             * canned server error response
+             */
+            conf->response_code_strings[index_number] = &errordocument_default;
         }
         else {
-            goto done;
+            /* hack. Prefix a " if it is a msg; as that is what
+             * http_protocol.c relies on to distinguish between
+             * a msg and a (local) path.
+             */
+            conf->response_code_strings[index_number] = (what == MSG) ?
+                    apr_pstrcat(cmd->pool, "\"", msg, NULL) :
+                    apr_pstrdup(cmd->pool, msg);
         }
-    }
-    else {
-        int response_status = OCSP_response_status(*prsp);
-
-        if (response_status == OCSP_RESPONSE_STATUS_SUCCESSFUL) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01942)
-                        "stapling_renew_response: query response received");
-            stapling_check_response(s, mctx, cinf, *prsp, &ok);
-            if (ok == FALSE) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
-                             "stapling_renew_response: error in retreived response!");
-            }
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01944)
-                         "stapling_renew_response: responder error %s",
-                         OCSP_response_status_str(response_status));
-        }
-    }
-    if (stapling_cache_response(s, mctx, *prsp, cinf, ok, pool) == FALSE) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01945)
-                     "stapling_renew_response: error caching response!");
     }
 
-done:
-    if (id)
-        OCSP_CERTID_free(id);
-    if (req)
-        OCSP_REQUEST_free(req);
-    return rv;
-err:
-    rv = FALSE;
-    goto done;
+    return NULL;
 }

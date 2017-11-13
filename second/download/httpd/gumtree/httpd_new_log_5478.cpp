@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
-                  "h2_push_diary_digest64_set: digest=%s, dlen=%d", 
-                  data64url, (int)len);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00010) LOG_PREFIX
+                  "user '%s' removed cookie2: '%s'", r->user, rfc2965);

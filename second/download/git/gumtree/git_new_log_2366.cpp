@@ -1,1 +1,0 @@
-error_errno("waitpid for %s failed", argv0);

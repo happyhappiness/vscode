@@ -1,62 +1,111 @@
-static void worker_main(void *vpArg)
+static apr_status_t decrypt_string(request_rec * r, const apr_crypto_t *f,
+        session_crypto_dir_conf *dconf, const char *in, char **out)
 {
-    long conn_id;
-    conn_rec *current_conn;
-    apr_pool_t *pconn;
-    apr_allocator_t *allocator;
-    apr_bucket_alloc_t *bucket_alloc;
-    worker_args_t *worker_args;
-    HQUEUE workq;
-    PID owner;
-    int rc;
-    REQUESTDATA rd;
-    ULONG len;
-    BYTE priority;
-    int thread_slot = (int)vpArg;
-    EXCEPTIONREGISTRATIONRECORD reg_rec = { NULL, thread_exception_handler };
-    ap_sb_handle_t *sbh;
+    apr_status_t res;
+    apr_crypto_key_t *key = NULL;
+    apr_size_t ivSize = 0;
+    apr_crypto_block_t *block = NULL;
+    unsigned char *decrypted = NULL;
+    apr_size_t decryptedlen, tlen;
+    apr_size_t decodedlen;
+    char *decoded;
+    apr_size_t blockSize = 0;
+    apr_crypto_block_key_type_e *cipher;
+    int i = 0;
 
-    /* Trap exceptions in this thread so we don't take down the whole process */
-    DosSetExceptionHandler( &reg_rec );
+    /* strip base64 from the string */
+    decoded = apr_palloc(r->pool, apr_base64_decode_len(in));
+    decodedlen = apr_base64_decode(decoded, in);
+    decoded[decodedlen] = '\0';
 
-    rc = DosOpenQueue(&owner, &workq,
-                      apr_psprintf(pchild, "/queues/httpd/work.%d", getpid()));
-
-    if (rc) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf,
-                     "unable to open work queue, exiting");
-        ap_scoreboard_image->servers[child_slot][thread_slot].tid = 0;
+    res = crypt_init(r, f, &cipher, dconf);
+    if (res != APR_SUCCESS) {
+        return res;
     }
 
-    conn_id = ID_FROM_CHILD_THREAD(child_slot, thread_slot);
-    ap_update_child_status_from_indexes(child_slot, thread_slot, SERVER_READY,
-                                        NULL);
+    /* try each passphrase in turn */
+    for (; i < dconf->passphrases->nelts; i++) {
+        const char *passphrase = APR_ARRAY_IDX(dconf->passphrases, i, char *);
+        apr_size_t len = decodedlen;
+        char *slider = decoded;
 
-    apr_allocator_create(&allocator);
-    apr_allocator_max_free_set(allocator, ap_max_mem_free);
-    bucket_alloc = apr_bucket_alloc_create_ex(allocator);
-
-    while (rc = DosReadQueue(workq, &rd, &len, (PPVOID)&worker_args, 0, DCWW_WAIT, &priority, NULLHANDLE),
-           rc == 0 && rd.ulData != WORKTYPE_EXIT) {
-        pconn = worker_args->pconn;
-        ap_create_sb_handle(&sbh, pconn, child_slot, thread_slot);
-        current_conn = ap_run_create_connection(pconn, ap_server_conf,
-                                                worker_args->conn_sd, conn_id,
-                                                sbh, bucket_alloc);
-
-        if (current_conn) {
-            ap_process_connection(current_conn, worker_args->conn_sd);
-            ap_lingering_close(current_conn);
+        /* encrypt using the first passphrase in the list */
+        res = apr_crypto_passphrase(&key, &ivSize, passphrase,
+                strlen(passphrase),
+                (unsigned char *)decoded, sizeof(apr_uuid_t),
+                *cipher, APR_MODE_CBC, 1, 4096, f, r->pool);
+        if (APR_STATUS_IS_ENOKEY(res)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01832)
+                    "the passphrase '%s' was empty", passphrase);
+            continue;
+        }
+        else if (APR_STATUS_IS_EPADDING(res)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01833)
+                    "padding is not supported for cipher");
+            continue;
+        }
+        else if (APR_STATUS_IS_EKEYTYPE(res)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01834)
+                    "the key type is not known");
+            continue;
+        }
+        else if (APR_SUCCESS != res) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01835)
+                    "encryption could not be configured.");
+            continue;
         }
 
-        apr_pool_destroy(pconn);
-        ap_update_child_status_from_indexes(child_slot, thread_slot,
-                                            SERVER_READY, NULL);
+        /* sanity check - decoded too short? */
+        if (decodedlen < (sizeof(apr_uuid_t) + ivSize)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(01836)
+                    "too short to decrypt, skipping");
+            res = APR_ECRYPT;
+            continue;
+        }
+
+        /* bypass the salt at the start of the decoded block */
+        slider += sizeof(apr_uuid_t);
+        len -= sizeof(apr_uuid_t);
+
+        res = apr_crypto_block_decrypt_init(&block, &blockSize, (unsigned char *)slider, key,
+                r->pool);
+        if (APR_SUCCESS != res) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01837)
+                    "apr_crypto_block_decrypt_init failed");
+            continue;
+        }
+
+        /* bypass the iv at the start of the decoded block */
+        slider += ivSize;
+        len -= ivSize;
+
+        /* decrypt the given string */
+        res = apr_crypto_block_decrypt(&decrypted, &decryptedlen,
+                (unsigned char *)slider, len, block);
+        if (res) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01838)
+                    "apr_crypto_block_decrypt failed");
+            continue;
+        }
+        *out = (char *) decrypted;
+
+        res = apr_crypto_block_decrypt_finish(decrypted + decryptedlen, &tlen, block);
+        if (APR_SUCCESS != res) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01839)
+                    "apr_crypto_block_decrypt_finish failed");
+            continue;
+        }
+        decryptedlen += tlen;
+        decrypted[decryptedlen] = 0;
+
+        break;
     }
 
-    ap_update_child_status_from_indexes(child_slot, thread_slot, SERVER_DEAD,
-                                        NULL);
+    if (APR_SUCCESS != res) {
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, res, r, APLOGNO(01840)
+                "decryption failed");
+    }
 
-    apr_bucket_alloc_destroy(bucket_alloc);
-    apr_allocator_destroy(allocator);
+    return res;
+
 }

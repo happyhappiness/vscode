@@ -1,68 +1,48 @@
-apr_status_t h2_conn_child_init(apr_pool_t *pool, server_rec *s)
+static int h2_protocol_switch(conn_rec *c, request_rec *r, server_rec *s,
+                              const char *protocol)
 {
-    const h2_config *config = h2_config_sget(s);
-    apr_status_t status = APR_SUCCESS;
-    int minw, maxw, max_tx_handles, n;
-    int max_threads_per_child = 0;
-    int idle_secs = 0;
-
-    check_modules(1);
+    int found = 0;
+    const char **protos = h2_h2_is_tls(c)? h2_tls_protos : h2_clear_protos;
+    const char **p = protos;
     
-    ap_mpm_query(AP_MPMQ_MAX_THREADS, &max_threads_per_child);
-    
-    status = ap_mpm_query(AP_MPMQ_IS_ASYNC, &async_mpm);
-    if (status != APR_SUCCESS) {
-        /* some MPMs do not implemnent this */
-        async_mpm = 0;
-        status = APR_SUCCESS;
-    }
-
-    h2_config_init(pool);
-    
-    minw = h2_config_geti(config, H2_CONF_MIN_WORKERS);
-    maxw = h2_config_geti(config, H2_CONF_MAX_WORKERS);    
-    if (minw <= 0) {
-        minw = max_threads_per_child;
-    }
-    if (maxw <= 0) {
-        maxw = minw;
+    (void)s;
+    while (*p) {
+        if (!strcmp(*p, protocol)) {
+            found = 1;
+            break;
+        }
+        p++;
     }
     
-    /* How many file handles is it safe to use for transfer
-     * to the master connection to be streamed out? 
-     * Is there a portable APR rlimit on NOFILES? Have not
-     * found it. And if, how many of those would we set aside?
-     * This leads all into a process wide handle allocation strategy
-     * which ultimately would limit the number of accepted connections
-     * with the assumption of implicitly reserving n handles for every 
-     * connection and requiring modules with excessive needs to allocate
-     * from a central pool.
-     */
-    n = h2_config_geti(config, H2_CONF_SESSION_FILES);
-    if (n < 0) {
-        max_tx_handles = maxw * 2;
-    }
-    else {
-        max_tx_handles = maxw * n;
+    if (found) {
+        h2_ctx *ctx = h2_ctx_get(c);
+        
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                      "switching protocol to '%s'", protocol);
+        h2_ctx_protocol_set(ctx, protocol);
+        h2_ctx_server_set(ctx, s);
+        
+        if (r != NULL) {
+            apr_status_t status;
+            /* Switching in the middle of a request means that
+             * we have to send out the response to this one in h2
+             * format. So we need to take over the connection
+             * right away.
+             */
+            ap_remove_input_filter_byhandle(r->input_filters, "http_in");
+            ap_remove_input_filter_byhandle(r->input_filters, "reqtimeout");
+            ap_remove_output_filter_byhandle(r->output_filters, "HTTP_HEADER");
+            
+            /* Ok, start an h2_conn on this one. */
+            status = h2_conn_process(r->connection, r, r->server);
+            if (status != DONE) {
+                /* Nothing really to do about this. */
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                              "session proessed, unexpected status");
+            }
+        }
+        return DONE;
     }
     
-    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
-                 "h2_workers: min=%d max=%d, mthrpchild=%d, tx_files=%d", 
-                 minw, maxw, max_threads_per_child, max_tx_handles);
-    workers = h2_workers_create(s, pool, minw, maxw, max_tx_handles);
-    
-    idle_secs = h2_config_geti(config, H2_CONF_MAX_WORKER_IDLE_SECS);
-    h2_workers_set_max_idle_secs(workers, idle_secs);
- 
-    ap_register_input_filter("H2_IN", h2_filter_core_input,
-                             NULL, AP_FTYPE_CONNECTION);
-   
-    status = h2_mplx_child_init(pool, s);
-
-    if (status == APR_SUCCESS) {
-        status = apr_socket_create(&dummy_socket, APR_INET, SOCK_STREAM,
-                                   APR_PROTO_TCP, pool);
-    }
-
-    return status;
+    return DECLINED;
 }

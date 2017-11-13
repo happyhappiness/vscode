@@ -1,2 +1,1 @@
-error("unable to open mailmap at %s: %s",
-			     filename, strerror(errno));
+die("unable to read tree (%s)", sha1_to_hex(hash));

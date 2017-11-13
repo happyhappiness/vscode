@@ -1,2 +1,2 @@
-error("chmod on %s failed: %s",
-				lock->filename, strerror(errno));
+die("%s %s: expected SP but got: %s",
+			    command, refname, *next);

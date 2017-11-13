@@ -1,2 +1,2 @@
-die_errno(_("Could not create sequencer directory %s"),
-			  git_path_seq_dir());
+die("cannot find commit %s (%s)",
+			    ref_name[num_rev], oid_to_hex(&revkey));

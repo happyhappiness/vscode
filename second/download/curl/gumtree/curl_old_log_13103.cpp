@@ -1,8 +1,12 @@
 fputs(
-"              NSS database defined by the environment variable SSL_DIR (or  by\n"
-"              default  /etc/pki/nssdb).  If  the  NSS PEM PKCS#11 module (lib-\n"
-"              nsspem.so) is available then PEM files may  be  loaded.  If  you\n"
-"              want to use a file from the current directory, please precede it\n"
-"              with \"./\" prefix, in order to avoid confusion with  a  nickname.\n"
-"              If  the nickname contains \":\", it needs to be preceded by \"\\\" so\n"
+"       --dns-ipv4-addr <ip-address>\n"
+"              Tell curl to bind to <ip-address> when making IPv4 DNS requests,\n"
+"              so that the DNS requests originate from this address. The  argu-\n"
+"              ment should be a single IPv4 address.\n"
+"\n"
+"              This  option  requires  that  libcurl  was built with a resolver\n"
+"              backend that supports this operation. The c-ares backend is  the\n"
+"              only such one.  (Added in 7.33.0)\n"
+"\n"
+"       --dns-ipv6-addr <ip-address>\n"
 , stdout);

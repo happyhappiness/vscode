@@ -1,2 +1,1 @@
-die("git upload-pack: not our ref %s",
-			    oid_to_hex(&o->oid));
+printf("%s missing\n", obj_name ? obj_name : sha1_to_hex(data->sha1));

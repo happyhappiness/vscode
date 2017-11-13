@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00789)
-                         "Failed to Add memcache Server: %s:%d",
-                         host_str, port);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "auth_ldap authorize filter: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);

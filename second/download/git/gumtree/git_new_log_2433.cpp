@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+die("Error on reachable objects of %s", oid_to_hex(&obj->oid));

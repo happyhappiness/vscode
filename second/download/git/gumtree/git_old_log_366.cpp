@@ -1,1 +1,1 @@
-die("invalid shallow line: %s", line);
+die("%s not a valid tag", sha1_to_hex(sha1));

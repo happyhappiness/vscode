@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02258)
-                         "Performing quick renegotiation: "
-                         "just re-verifying the peer");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01175)
+                      "%s: Unlock failed for post_request", balancer->s->name);

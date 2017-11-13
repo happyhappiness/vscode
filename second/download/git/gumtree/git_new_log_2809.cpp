@@ -1,1 +1,1 @@
-error("unable to block SIGPIPE in async thread");
+free(git_work_tree_cfg);

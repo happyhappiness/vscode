@@ -1,1 +1,1 @@
-rprintf(FINFO,"gen mapped %s of size %d\n",fname,(int)st.st_size);
+rprintf(FINFO,"sending file_sum\n");

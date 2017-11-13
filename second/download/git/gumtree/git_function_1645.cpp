@@ -1,14 +1,20 @@
-static void NORETURN diagnose_missing_default(const char *def)
+static void write_packed_entry(int fd, char *refname, unsigned char *sha1,
+			       unsigned char *peeled)
 {
-	unsigned char sha1[20];
-	int flags;
-	const char *refname;
+	char line[PATH_MAX + 100];
+	int len;
 
-	refname = resolve_ref_unsafe(def, 0, sha1, &flags);
-	if (!refname || !(flags & REF_ISSYMREF) || (flags & REF_ISBROKEN))
-		die(_("your current branch appears to be broken"));
+	len = snprintf(line, sizeof(line), "%s %s\n",
+		       sha1_to_hex(sha1), refname);
+	/* this should not happen but just being defensive */
+	if (len > sizeof(line))
+		die("too long a refname '%s'", refname);
+	write_or_die(fd, line, len);
 
-	skip_prefix(refname, "refs/heads/", &refname);
-	die(_("your current branch '%s' does not have any commits yet"),
-	    refname);
+	if (peeled) {
+		if (snprintf(line, sizeof(line), "^%s\n",
+			     sha1_to_hex(peeled)) != PEELED_LINE_LENGTH)
+			die("internal error");
+		write_or_die(fd, line, PEELED_LINE_LENGTH);
+	}
 }

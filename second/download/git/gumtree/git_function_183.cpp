@@ -1,35 +1,32 @@
-static int clean_index(const unsigned char *head, const unsigned char *remote)
+static int get_trace_fd(const char *key, int *need_close)
 {
-	struct tree *head_tree, *remote_tree, *index_tree;
-	unsigned char index[GIT_SHA1_RAWSZ];
+	char *trace = getenv(key);
 
-	head_tree = parse_tree_indirect(head);
-	if (!head_tree)
-		return error(_("Could not parse object '%s'."), sha1_to_hex(head));
+	if (!trace || !strcmp(trace, "") ||
+	    !strcmp(trace, "0") || !strcasecmp(trace, "false"))
+		return 0;
+	if (!strcmp(trace, "1") || !strcasecmp(trace, "true"))
+		return STDERR_FILENO;
+	if (strlen(trace) == 1 && isdigit(*trace))
+		return atoi(trace);
+	if (is_absolute_path(trace)) {
+		int fd = open(trace, O_WRONLY | O_APPEND | O_CREAT, 0666);
+		if (fd == -1) {
+			fprintf(stderr,
+				"Could not open '%s' for tracing: %s\n"
+				"Defaulting to tracing on stderr...\n",
+				trace, strerror(errno));
+			return STDERR_FILENO;
+		}
+		*need_close = 1;
+		return fd;
+	}
 
-	remote_tree = parse_tree_indirect(remote);
-	if (!remote_tree)
-		return error(_("Could not parse object '%s'."), sha1_to_hex(remote));
+	fprintf(stderr, "What does '%s' for %s mean?\n", trace, key);
+	fprintf(stderr, "If you want to trace into a file, "
+		"then please set %s to an absolute pathname "
+		"(starting with /).\n", key);
+	fprintf(stderr, "Defaulting to tracing on stderr...\n");
 
-	read_cache_unmerged();
-
-	if (fast_forward_to(head_tree, head_tree, 1))
-		return -1;
-
-	if (write_cache_as_tree(index, 0, NULL))
-		return -1;
-
-	index_tree = parse_tree_indirect(index);
-	if (!index_tree)
-		return error(_("Could not parse object '%s'."), sha1_to_hex(index));
-
-	if (fast_forward_to(index_tree, remote_tree, 0))
-		return -1;
-
-	if (merge_tree(remote_tree))
-		return -1;
-
-	remove_branch_state();
-
-	return 0;
+	return STDERR_FILENO;
 }

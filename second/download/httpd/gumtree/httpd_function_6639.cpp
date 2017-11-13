@@ -1,51 +1,46 @@
-static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
+static apr_status_t on_stream_resume(void *ctx, h2_stream *stream)
 {
-    piped_log *pl = data;
-    apr_status_t stats;
-    int mpm_state;
-
-    switch (reason) {
-    case APR_OC_REASON_DEATH:
-    case APR_OC_REASON_LOST:
-        pl->pid = NULL; /* in case we don't get it going again, this
-                         * tells other logic not to try to kill it
-                         */
-        apr_proc_other_child_unregister(pl);
-        stats = ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state);
-        if (stats != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00105)
-                         "can't query MPM state; not restarting "
-                         "piped log program '%s'",
-                         pl->program);
+    h2_session *session = ctx;
+    apr_status_t status = APR_EAGAIN;
+    int rv;
+    apr_off_t len = 0;
+    int eos = 0;
+    h2_headers *headers;
+    
+    ap_assert(stream);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_resume", session->id, stream->id);
+        
+send_headers:
+    headers = NULL;
+    status = h2_stream_out_prepare(stream, &len, &eos, &headers);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
+                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
+                  session->id, stream->id, (long)len, eos);
+    if (headers) {
+        status = on_stream_headers(session, stream, headers, len, eos);
+        if (status != APR_SUCCESS || stream->rst_error) {
+            return status;
         }
-        else if (mpm_state != AP_MPMQ_STOPPING) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00106)
-                         "piped log program '%s' failed unexpectedly",
-                         pl->program);
-            if ((stats = piped_log_spawn(pl)) != APR_SUCCESS) {
-                /* what can we do?  This could be the error log we're having
-                 * problems opening up... */
-                char buf[120];
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00107)
-                             "piped_log_maintenance: unable to respawn '%s': %s",
-                             pl->program, apr_strerror(stats, buf, sizeof(buf)));
-            }
-        }
-        break;
-
-    case APR_OC_REASON_UNWRITABLE:
-        /* We should not kill off the pipe here, since it may only be full.
-         * If it really is locked, we should kill it off manually. */
-    break;
-
-    case APR_OC_REASON_RESTART:
-        if (pl->pid != NULL) {
-            apr_proc_kill(pl->pid, SIGTERM);
-            pl->pid = NULL;
-        }
-        break;
-
-    case APR_OC_REASON_UNREGISTER:
-        break;
+        goto send_headers;
     }
+    else if (status != APR_EAGAIN) {
+        if (!stream->has_response) {
+            int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03466)
+                          "h2_stream(%ld-%d): no response, RST_STREAM, err=%d",
+                          session->id, stream->id, err);
+            nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                      stream->id, err);
+            return APR_SUCCESS;
+        } 
+        rv = nghttp2_session_resume_data(session->ngh2, stream->id);
+        session->have_written = 1;
+        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
+                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
+                      APLOGNO(02936) 
+                      "h2_stream(%ld-%d): resuming %s",
+                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
+    }
+    return status;
 }

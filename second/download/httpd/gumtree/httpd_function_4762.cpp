@@ -1,153 +1,97 @@
-static int master_main(server_rec *s, HANDLE shutdown_event, HANDLE restart_event)
+int ssl_hook_UserCheck(request_rec *r)
 {
-    int rv, cld;
-    int restart_pending;
-    int shutdown_pending;
-    HANDLE child_exit_event;
-    HANDLE event_handles[NUM_WAIT_HANDLES];
-    DWORD child_pid;
+    SSLConnRec *sslconn = myConnConfig(r->connection);
+    SSLSrvConfigRec *sc = mySrvConfig(r->server);
+    SSLDirConfigRec *dc = myDirConfig(r);
+    char *clientdn;
+    const char *auth_line, *username, *password;
 
-    restart_pending = shutdown_pending = 0;
-
-    event_handles[SHUTDOWN_HANDLE] = shutdown_event;
-    event_handles[RESTART_HANDLE] = restart_event;
-
-    /* Create a single child process */
-    rv = create_process(pconf, &event_handles[CHILD_HANDLE],
-                        &child_exit_event, &child_pid);
-    if (rv < 0)
-    {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "master_main: create child process failed. Exiting.");
-        shutdown_pending = 1;
-        goto die_now;
-    }
-    if (!strcasecmp(signal_arg, "runservice")) {
-        mpm_service_started();
-    }
-
-    /* Update the scoreboard. Note that there is only a single active
-     * child at once.
+    /*
+     * Additionally forbid access (again)
+     * when strict require option is used.
      */
-    ap_scoreboard_image->parent[0].quiescing = 0;
-    ap_scoreboard_image->parent[0].pid = child_pid;
-
-    /* Wait for shutdown or restart events or for child death */
-    winnt_mpm_state = AP_MPMQ_RUNNING;
-    rv = WaitForMultipleObjects(NUM_WAIT_HANDLES, (HANDLE *) event_handles, FALSE, INFINITE);
-    cld = rv - WAIT_OBJECT_0;
-    if (rv == WAIT_FAILED) {
-        /* Something serious is wrong */
-        ap_log_error(APLOG_MARK,APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "master_main: WaitForMultipeObjects WAIT_FAILED -- doing server shutdown");
-        shutdown_pending = 1;
-    }
-    else if (rv == WAIT_TIMEOUT) {
-        /* Hey, this cannot happen */
-        ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                     "master_main: WaitForMultipeObjects with INFINITE wait exited with WAIT_TIMEOUT");
-        shutdown_pending = 1;
-    }
-    else if (cld == SHUTDOWN_HANDLE) {
-        /* shutdown_event signalled */
-        shutdown_pending = 1;
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s,
-                     "Parent: Received shutdown signal -- Shutting down the server.");
-        if (ResetEvent(shutdown_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "ResetEvent(shutdown_event)");
-        }
-    }
-    else if (cld == RESTART_HANDLE) {
-        /* Received a restart event. Prepare the restart_event to be reused
-         * then signal the child process to exit.
-         */
-        restart_pending = 1;
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
-                     "Parent: Received restart signal -- Restarting the server.");
-        if (ResetEvent(restart_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "Parent: ResetEvent(restart_event) failed.");
-        }
-        if (SetEvent(child_exit_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "Parent: SetEvent for child process %d failed.",
-                         event_handles[CHILD_HANDLE]);
-        }
-        /* Don't wait to verify that the child process really exits,
-         * just move on with the restart.
-         */
-        CloseHandle(event_handles[CHILD_HANDLE]);
-        event_handles[CHILD_HANDLE] = NULL;
-    }
-    else {
-        /* The child process exited prematurely due to a fatal error. */
-        DWORD exitcode;
-        if (!GetExitCodeProcess(event_handles[CHILD_HANDLE], &exitcode)) {
-            /* HUH? We did exit, didn't we? */
-            exitcode = APEXIT_CHILDFATAL;
-        }
-        if (   exitcode == APEXIT_CHILDFATAL
-            || exitcode == APEXIT_CHILDINIT
-            || exitcode == APEXIT_INIT) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
-                         "Parent: child process exited with status %u -- Aborting.", exitcode);
-            shutdown_pending = 1;
-        }
-        else {
-            int i;
-            restart_pending = 1;
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Parent: child process exited with status %u -- Restarting.", exitcode);
-            for (i = 0; i < ap_threads_per_child; i++) {
-                ap_update_child_status_from_indexes(0, i, SERVER_DEAD, NULL);
-            }
-        }
-        CloseHandle(event_handles[CHILD_HANDLE]);
-        event_handles[CHILD_HANDLE] = NULL;
-    }
-    if (restart_pending) {
-        ++my_generation;
-        ap_scoreboard_image->global->running_generation = my_generation;
-    }
-die_now:
-    if (shutdown_pending)
+    if ((dc->nOptions & SSL_OPT_STRICTREQUIRE) &&
+        (apr_table_get(r->notes, "ssl-access-forbidden")))
     {
-        int timeout = 30000;  /* Timeout is milliseconds */
-        winnt_mpm_state = AP_MPMQ_STOPPING;
-
-        /* This shutdown is only marginally graceful. We will give the
-         * child a bit of time to exit gracefully. If the time expires,
-         * the child will be wacked.
-         */
-        if (!strcasecmp(signal_arg, "runservice")) {
-            mpm_service_stopping();
-        }
-        /* Signal the child processes to exit */
-        if (SetEvent(child_exit_event) == 0) {
-                ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
-                             "Parent: SetEvent for child process %d failed", event_handles[CHILD_HANDLE]);
-        }
-        if (event_handles[CHILD_HANDLE]) {
-            rv = WaitForSingleObject(event_handles[CHILD_HANDLE], timeout);
-            if (rv == WAIT_OBJECT_0) {
-                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                             "Parent: Child process exited successfully.");
-                CloseHandle(event_handles[CHILD_HANDLE]);
-                event_handles[CHILD_HANDLE] = NULL;
-            }
-            else {
-                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                             "Parent: Forcing termination of child process %d ", event_handles[CHILD_HANDLE]);
-                TerminateProcess(event_handles[CHILD_HANDLE], 1);
-                CloseHandle(event_handles[CHILD_HANDLE]);
-                event_handles[CHILD_HANDLE] = NULL;
-            }
-        }
-        CloseHandle(child_exit_event);
-        return 0;  /* Tell the caller we do not want to restart */
+        return HTTP_FORBIDDEN;
     }
-    winnt_mpm_state = AP_MPMQ_STARTING;
-    CloseHandle(child_exit_event);
-    return 1;      /* Tell the caller we want a restart */
+
+    /*
+     * We decline when we are in a subrequest.  The Authorization header
+     * would already be present if it was added in the main request.
+     */
+    if (!ap_is_initial_req(r)) {
+        return DECLINED;
+    }
+
+    /*
+     * Make sure the user is not able to fake the client certificate
+     * based authentication by just entering an X.509 Subject DN
+     * ("/XX=YYY/XX=YYY/..") as the username and "password" as the
+     * password.
+     */
+    if ((auth_line = apr_table_get(r->headers_in, "Authorization"))) {
+        if (strcEQ(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
+            while ((*auth_line == ' ') || (*auth_line == '\t')) {
+                auth_line++;
+            }
+
+            auth_line = ap_pbase64decode(r->pool, auth_line);
+            username = ap_getword_nulls(r->pool, &auth_line, ':');
+            password = auth_line;
+
+            if ((username[0] == '/') && strEQ(password, "password")) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "Encountered FakeBasicAuth spoof: %s", username);
+                return HTTP_FORBIDDEN;
+            }
+        }
+    }
+
+    /*
+     * We decline operation in various situations...
+     * - SSLOptions +FakeBasicAuth not configured
+     * - r->user already authenticated
+     * - ssl not enabled
+     * - client did not present a certificate
+     */
+    if (!((sc->enabled == SSL_ENABLED_TRUE || sc->enabled == SSL_ENABLED_OPTIONAL)
+          && sslconn && sslconn->ssl && sslconn->client_cert) ||
+        !(dc->nOptions & SSL_OPT_FAKEBASICAUTH) || r->user)
+    {
+        return DECLINED;
+    }
+
+    if (!sslconn->client_dn) {
+        X509_NAME *name = X509_get_subject_name(sslconn->client_cert);
+        char *cp = X509_NAME_oneline(name, NULL, 0);
+        sslconn->client_dn = apr_pstrdup(r->connection->pool, cp);
+        modssl_free(cp);
+    }
+
+    clientdn = (char *)sslconn->client_dn;
+
+    /*
+     * Fake a password - which one would be immaterial, as, it seems, an empty
+     * password in the users file would match ALL incoming passwords, if only
+     * we were using the standard crypt library routine. Unfortunately, OpenSSL
+     * "fixes" a "bug" in crypt and thus prevents blank passwords from
+     * working.  (IMHO what they really fix is a bug in the users of the code
+     * - failing to program correctly for shadow passwords).  We need,
+     * therefore, to provide a password. This password can be matched by
+     * adding the string "xxj31ZMTZzkVA" as the password in the user file.
+     * This is just the crypted variant of the word "password" ;-)
+     */
+    auth_line = apr_pstrcat(r->pool, "Basic ",
+                            ap_pbase64encode(r->pool,
+                                             apr_pstrcat(r->pool, clientdn,
+                                                         ":password", NULL)),
+                            NULL);
+    apr_table_set(r->headers_in, "Authorization", auth_line);
+
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                  "Faking HTTP Basic Auth header: \"Authorization: %s\"",
+                  auth_line);
+
+    return DECLINED;
 }

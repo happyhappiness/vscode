@@ -1,19 +1,36 @@
-static void save_todo(struct commit_list *todo_list, struct replay_opts *opts)
+static void prepare_possible_alternates(const char *sm_name,
+		struct string_list *reference)
 {
-	static struct lock_file todo_lock;
-	struct strbuf buf = STRBUF_INIT;
-	int fd;
+	char *sm_alternate = NULL, *error_strategy = NULL;
+	struct submodule_alternate_setup sas = SUBMODULE_ALTERNATE_SETUP_INIT;
 
-	fd = hold_lock_file_for_update(&todo_lock, git_path_todo_file(), LOCK_DIE_ON_ERROR);
-	if (format_todo(&buf, todo_list, opts) < 0)
-		die(_("Could not format %s."), git_path_todo_file());
-	if (write_in_full(fd, buf.buf, buf.len) < 0) {
-		strbuf_release(&buf);
-		die_errno(_("Could not write to %s"), git_path_todo_file());
-	}
-	if (commit_lock_file(&todo_lock) < 0) {
-		strbuf_release(&buf);
-		die(_("Error wrapping up %s."), git_path_todo_file());
-	}
-	strbuf_release(&buf);
+	git_config_get_string("submodule.alternateLocation", &sm_alternate);
+	if (!sm_alternate)
+		return;
+
+	git_config_get_string("submodule.alternateErrorStrategy", &error_strategy);
+
+	if (!error_strategy)
+		error_strategy = xstrdup("die");
+
+	sas.submodule_name = sm_name;
+	sas.reference = reference;
+	if (!strcmp(error_strategy, "die"))
+		sas.error_mode = SUBMODULE_ALTERNATE_ERROR_DIE;
+	else if (!strcmp(error_strategy, "info"))
+		sas.error_mode = SUBMODULE_ALTERNATE_ERROR_INFO;
+	else if (!strcmp(error_strategy, "ignore"))
+		sas.error_mode = SUBMODULE_ALTERNATE_ERROR_IGNORE;
+	else
+		die(_("Value '%s' for submodule.alternateErrorStrategy is not recognized"), error_strategy);
+
+	if (!strcmp(sm_alternate, "superproject"))
+		foreach_alt_odb(add_possible_reference_from_superproject, &sas);
+	else if (!strcmp(sm_alternate, "no"))
+		; /* do nothing */
+	else
+		die(_("Value '%s' for submodule.alternateLocation is not recognized"), sm_alternate);
+
+	free(sm_alternate);
+	free(error_strategy);
 }

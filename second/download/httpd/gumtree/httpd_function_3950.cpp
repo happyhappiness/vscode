@@ -1,130 +1,140 @@
-static int stream_reqbody_cl(apr_pool_t *p,
-                                      request_rec *r,
-                                      proxy_conn_rec *p_conn,
-                                      conn_rec *origin,
-                                      apr_bucket_brigade *header_brigade,
-                                      apr_bucket_brigade *input_brigade,
-                                      const char *old_cl_val)
+static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog,
+                                 apr_pool_t *ptemp, server_rec *s)
 {
-    int seen_eos = 0, rv = 0;
-    apr_status_t status = APR_SUCCESS;
-    apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
-    apr_bucket_brigade *bb;
-    apr_bucket *e;
-    apr_off_t cl_val = 0;
-    apr_off_t bytes;
-    apr_off_t bytes_streamed = 0;
+    apr_status_t result;
+    server_rec *s_vhost;
+    util_ldap_state_t *st_vhost;
 
-    if (old_cl_val) {
-        char *endstr;
+    util_ldap_state_t *st = (util_ldap_state_t *)
+                            ap_get_module_config(s->module_config,
+                                                 &ldap_module);
 
-        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
-        status = apr_strtoff(&cl_val, old_cl_val, &endstr, 10);
-        
-        if (status || *endstr || endstr == old_cl_val || cl_val < 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                          "proxy: could not parse request Content-Length (%s)",
-                          old_cl_val);
-            return HTTP_BAD_REQUEST;
+    void *data;
+    const char *userdata_key = "util_ldap_init";
+    apr_ldap_err_t *result_err = NULL;
+    int rc;
+
+    /* util_ldap_post_config() will be called twice. Don't bother
+     * going through all of the initialization on the first call
+     * because it will just be thrown away.*/
+    apr_pool_userdata_get(&data, userdata_key, s->process->pool);
+    if (!data) {
+        apr_pool_userdata_set((const void *)1, userdata_key,
+                               apr_pool_cleanup_null, s->process->pool);
+
+#if APR_HAS_SHARED_MEMORY
+        /* If the cache file already exists then delete it.  Otherwise we are
+         * going to run into problems creating the shared memory. */
+        if (st->cache_file) {
+            char *lck_file = apr_pstrcat(ptemp, st->cache_file, ".lck",
+                                         NULL);
+            apr_file_remove(lck_file, ptemp);
         }
+#endif
+        return OK;
     }
-    terminate_headers(bucket_alloc, header_brigade);
 
-    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
+#if APR_HAS_SHARED_MEMORY
+    /* initializing cache if shared memory size is not zero and we already
+     * don't have shm address
+     */
+    if (!st->cache_shm && st->cache_bytes > 0) {
+#endif
+        result = util_ldap_cache_init(p, st);
+        if (result != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+                         "LDAP cache: could not create shared memory segment");
+            return DONE;
+        }
+
+        result = ap_global_mutex_create(&st->util_ldap_cache_lock, NULL,
+                                        ldap_cache_mutex_type, NULL, s, p, 0);
+        if (result != APR_SUCCESS) {
+            return result;
+        }
+
+        /* merge config in all vhost */
+        s_vhost = s->next;
+        while (s_vhost) {
+            st_vhost = (util_ldap_state_t *)
+                       ap_get_module_config(s_vhost->module_config,
+                                            &ldap_module);
+
+#if APR_HAS_SHARED_MEMORY
+            st_vhost->cache_shm = st->cache_shm;
+            st_vhost->cache_rmm = st->cache_rmm;
+            st_vhost->cache_file = st->cache_file;
+            st_vhost->util_ldap_cache = st->util_ldap_cache;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, result, s,
+                         "LDAP merging Shared Cache conf: shm=0x%pp rmm=0x%pp "
+                         "for VHOST: %s", st->cache_shm, st->cache_rmm,
+                         s_vhost->server_hostname);
+#endif
+            s_vhost = s_vhost->next;
+        }
+#if APR_HAS_SHARED_MEMORY
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "LDAP cache: LDAPSharedCacheSize is zero, disabling "
+                     "shared memory cache");
+    }
+#endif
+
+    /* log the LDAP SDK used
+     */
     {
-        apr_brigade_length(input_brigade, 1, &bytes);
-        bytes_streamed += bytes;
-
-        /* If this brigade contains EOS, either stop or remove it. */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            seen_eos = 1;
-
-            /* We can't pass this EOS to the output_filters. */
-            e = APR_BRIGADE_LAST(input_brigade);
-            apr_bucket_delete(e);
-
-            if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
-                e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(input_brigade, e);
-            }
-        }
-
-        /* C-L < bytes streamed?!?
-         * We will error out after the body is completely
-         * consumed, but we can't stream more bytes at the
-         * back end since they would in part be interpreted
-         * as another request!  If nothing is sent, then
-         * just send nothing.
-         *
-         * Prevents HTTP Response Splitting.
-         */
-        if (bytes_streamed > cl_val) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "proxy: read more bytes of request body than expected "
-                          "(got %" APR_OFF_T_FMT ", expected %" APR_OFF_T_FMT ")",
-                          bytes_streamed, cl_val);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        if (header_brigade) {
-            /* we never sent the header brigade, so go ahead and
-             * take care of that now
-             */
-            bb = header_brigade;
-
-            /*
-             * Save input_brigade in bb brigade. (At least) in the SSL case
-             * input_brigade contains transient buckets whose data would get
-             * overwritten during the next call of ap_get_brigade in the loop.
-             * ap_save_brigade ensures these buckets to be set aside.
-             * Calling ap_save_brigade with NULL as filter is OK, because
-             * bb brigade already has been created and does not need to get
-             * created by ap_save_brigade.
-             */
-            status = ap_save_brigade(NULL, &bb, &input_brigade, p);
-            if (status != APR_SUCCESS) {
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            header_brigade = NULL;
-        }
-        else {
-            bb = input_brigade;
-        }
-
-        /* Once we hit EOS, we are ready to flush. */
-        rv = pass_brigade(bucket_alloc, r, p_conn, origin, bb, seen_eos);
-        if (rv != OK) {
-            return rv ;
-        }
-
-        if (seen_eos) {
-            break;
-        }
-
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                HUGE_STRING_LEN);
-
-        if (status != APR_SUCCESS) {
-            return HTTP_BAD_REQUEST;
+        apr_ldap_err_t *result = NULL;
+        apr_ldap_info(p, &(result));
+        if (result != NULL) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, "%s", result->reason);
         }
     }
 
-    if (bytes_streamed != cl_val) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "proxy: client %s given Content-Length did not match"
-                     " number of body bytes read", r->connection->remote_ip);
-        return HTTP_BAD_REQUEST;
+    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
+                              util_ldap_cleanup_module);
+
+    /*
+     * Initialize SSL support, and log the result for the benefit of the admin.
+     *
+     * If SSL is not supported it is not necessarily an error, as the
+     * application may not want to use it.
+     */
+    rc = apr_ldap_ssl_init(p,
+                      NULL,
+                      0,
+                      &(result_err));
+    if (APR_SUCCESS == rc) {
+        rc = apr_ldap_set_option(ptemp, NULL, APR_LDAP_OPT_TLS_CERT,
+                                 (void *)st->global_certs, &(result_err));
     }
 
-    if (header_brigade) {
-        /* we never sent the header brigade since there was no request
-         * body; send it now with the flush flag
-         */
-        bb = header_brigade;
-        return(pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1));
+    if (APR_SUCCESS == rc) {
+        st->ssl_supported = 1;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "LDAP: SSL support available" );
+    }
+    else {
+        st->ssl_supported = 0;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "LDAP: SSL support unavailable%s%s",
+                     result_err ? ": " : "",
+                     result_err ? result_err->reason : "");
     }
 
-    return OK;
+    /* Initialize the rebind callback's cross reference list. */
+    apr_ldap_rebind_init (p);
+
+#ifdef AP_LDAP_OPT_DEBUG
+    if (st->debug_level > 0) { 
+        result = ldap_set_option(NULL, AP_LDAP_OPT_DEBUG, &st->debug_level);
+        if (result != LDAP_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "LDAP: Could not set the LDAP library debug level to %d:(%d) %s", 
+                    st->debug_level, result, ldap_err2string(result));
+        }
+    }
+#endif
+
+    return(OK);
 }

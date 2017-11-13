@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: return code %d from HttpExtensionProc() "
-                           "was not not recognized", rv);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -R directory       : specify an alternate location for "
+                 "shared object files");

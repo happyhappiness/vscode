@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "Status is %d - not sending interim response", r->status);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);

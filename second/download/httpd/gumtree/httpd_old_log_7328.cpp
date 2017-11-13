@@ -1,2 +1,3 @@
-apr_file_printf(errfile, "apr_xlate_open(): %s (%d)\n",
-                apr_strerror(rv, line, sizeof(line)), rv);
+apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
+                    argv[2],
+                    apr_strerror(rv, errmsg, sizeof errmsg));

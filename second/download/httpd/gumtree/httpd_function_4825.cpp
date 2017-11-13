@@ -1,164 +1,170 @@
-static void child_main(int child_num_arg)
+int ssl_pphrase_Handle_CB(char *buf, int bufsize, int verify, void *srv)
 {
-    apr_thread_t **threads;
-    apr_status_t rv;
-    thread_starter *ts;
-    apr_threadattr_t *thread_attr;
-    apr_thread_t *start_thread_id;
+#endif
+    SSLModConfigRec *mc;
+    server_rec *s;
+    apr_pool_t *p;
+    apr_array_header_t *aPassPhrase;
+    SSLSrvConfigRec *sc;
+    int *pnPassPhraseCur;
+    char **cppPassPhraseCur;
+    char *cpVHostID;
+    char *cpAlgoType;
+    int *pnPassPhraseDialog;
+    int *pnPassPhraseDialogCur;
+    BOOL *pbPassPhraseDialogOnce;
+    char *cpp;
+    int len = -1;
 
-    mpm_state = AP_MPMQ_STARTING; /* for benefit of any hooks that run as this
-                                   * child initializes
-                                   */
-    ap_my_pid = getpid();
-    ap_fatal_signal_child_setup(ap_server_conf);
-    apr_pool_create(&pchild, pconf);
+    mc = myModConfig((server_rec *)srv);
 
-    /*stuff to do before we switch id's, so we have permissions.*/
-    ap_reopen_scoreboard(pchild, NULL, 0);
-
-    rv = SAFE_ACCEPT(apr_proc_mutex_child_init(&accept_mutex,
-                                               apr_proc_mutex_lockfile(accept_mutex),
-                                               pchild));
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                     "Couldn't initialize cross-process lock in child");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
-
-    if (ap_run_drop_privileges(pchild, ap_server_conf)) {
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
-
-    ap_run_child_init(pchild, ap_server_conf);
-
-    /* done with init critical section */
-
-    /* Just use the standard apr_setup_signal_thread to block all signals
-     * from being received.  The child processes no longer use signals for
-     * any communication with the parent process.
+    /*
+     * Reconnect to the context of ssl_phrase_Handle()
      */
-    rv = apr_setup_signal_thread();
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                     "Couldn't initialize signal thread");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
+    s                      = myCtxVarGet(mc,  1, server_rec *);
+    p                      = myCtxVarGet(mc,  2, apr_pool_t *);
+    aPassPhrase            = myCtxVarGet(mc,  3, apr_array_header_t *);
+    pnPassPhraseCur        = myCtxVarGet(mc,  4, int *);
+    cppPassPhraseCur       = myCtxVarGet(mc,  5, char **);
+    cpVHostID              = myCtxVarGet(mc,  6, char *);
+    cpAlgoType             = myCtxVarGet(mc,  7, char *);
+    pnPassPhraseDialog     = myCtxVarGet(mc,  8, int *);
+    pnPassPhraseDialogCur  = myCtxVarGet(mc,  9, int *);
+    pbPassPhraseDialogOnce = myCtxVarGet(mc, 10, BOOL *);
+    sc                     = mySrvConfig(s);
 
-    if (ap_max_requests_per_child) {
-        requests_this_child = ap_max_requests_per_child;
-    }
-    else {
-        /* coding a value of zero means infinity */
-        requests_this_child = INT_MAX;
-    }
+    (*pnPassPhraseDialog)++;
+    (*pnPassPhraseDialogCur)++;
 
-    /* Setup worker threads */
-
-    /* clear the storage; we may not create all our threads immediately,
-     * and we want a 0 entry to indicate a thread which was not created
+    /*
+     * When remembered pass phrases are available use them...
      */
-    threads = (apr_thread_t **)calloc(1,
-                                sizeof(apr_thread_t *) * threads_per_child);
-    if (threads == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
-                     "malloc: out of memory");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    if ((cpp = pphrase_array_get(aPassPhrase, *pnPassPhraseCur)) != NULL) {
+        apr_cpystrn(buf, cpp, bufsize);
+        len = strlen(buf);
+        return len;
     }
 
-    ts = (thread_starter *)apr_palloc(pchild, sizeof(*ts));
+    /*
+     * Builtin or Pipe dialog
+     */
+    if (sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN
+          || sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
+        char *prompt;
+        int i;
 
-    apr_threadattr_create(&thread_attr, pchild);
-    /* 0 means PTHREAD_CREATE_JOINABLE */
-    apr_threadattr_detach_set(thread_attr, 0);
-
-    if (ap_thread_stacksize != 0) {
-        apr_threadattr_stacksize_set(thread_attr, ap_thread_stacksize);
-    }
-
-    ts->threads = threads;
-    ts->listener = NULL;
-    ts->child_num_arg = child_num_arg;
-    ts->threadattr = thread_attr;
-
-    rv = apr_thread_create(&start_thread_id, thread_attr, start_threads,
-                           ts, pchild);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                     "apr_thread_create: unable to create worker thread");
-        /* let the parent decide how bad this really is */
-        clean_child_exit(APEXIT_CHILDSICK);
-    }
-
-    mpm_state = AP_MPMQ_RUNNING;
-
-    /* If we are only running in one_process mode, we will want to
-     * still handle signals. */
-    if (one_process) {
-        /* Block until we get a terminating signal. */
-        apr_signal_thread(check_signal);
-        /* make sure the start thread has finished; signal_threads()
-         * and join_workers() depend on that
-         */
-        /* XXX join_start_thread() won't be awakened if one of our
-         *     threads encounters a critical error and attempts to
-         *     shutdown this child
-         */
-        join_start_thread(start_thread_id);
-        signal_threads(ST_UNGRACEFUL); /* helps us terminate a little more
-                           * quickly than the dispatch of the signal thread
-                           * beats the Pipe of Death and the browsers
-                           */
-        /* A terminating signal was received. Now join each of the
-         * workers to clean them up.
-         *   If the worker already exited, then the join frees
-         *   their resources and returns.
-         *   If the worker hasn't exited, then this blocks until
-         *   they have (then cleans up).
-         */
-        join_workers(ts->listener, threads);
-    }
-    else { /* !one_process */
-        /* remove SIGTERM from the set of blocked signals...  if one of
-         * the other threads in the process needs to take us down
-         * (e.g., for MaxRequestsPerChild) it will send us SIGTERM
-         */
-        unblock_signal(SIGTERM);
-        apr_signal(SIGTERM, dummy_signal_handler);
-        /* Watch for any messages from the parent over the POD */
-        while (1) {
-            rv = ap_worker_pod_check(pod);
-            if (rv == AP_NORESTART) {
-                /* see if termination was triggered while we slept */
-                switch(terminate_mode) {
-                case ST_GRACEFUL:
-                    rv = AP_GRACEFUL;
-                    break;
-                case ST_UNGRACEFUL:
-                    rv = AP_RESTART;
-                    break;
+        if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
+            if (!readtty) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                             "Init: Creating pass phrase dialog pipe child "
+                             "'%s'", sc->server->pphrase_dialog_path);
+                if (ssl_pipe_child_create(p, sc->server->pphrase_dialog_path)
+                        != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                                 "Init: Failed to create pass phrase pipe '%s'",
+                                 sc->server->pphrase_dialog_path);
+                    PEMerr(PEM_F_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
+                    memset(buf, 0, (unsigned int)bufsize);
+                    return (-1);
                 }
             }
-            if (rv == AP_GRACEFUL || rv == AP_RESTART) {
-                /* make sure the start thread has finished;
-                 * signal_threads() and join_workers depend on that
-                 */
-                join_start_thread(start_thread_id);
-                signal_threads(rv == AP_GRACEFUL ? ST_GRACEFUL : ST_UNGRACEFUL);
-                break;
-            }
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                         "Init: Requesting pass phrase via piped dialog");
+        }
+        else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
+#ifdef WIN32
+            PEMerr(PEM_F_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
+            memset(buf, 0, (unsigned int)bufsize);
+            return (-1);
+#else
+            /*
+             * stderr has already been redirected to the error_log.
+             * rather than attempting to temporarily rehook it to the terminal,
+             * we print the prompt to stdout before EVP_read_pw_string turns
+             * off tty echo
+             */
+            apr_file_open_stdout(&writetty, p);
+
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                         "Init: Requesting pass phrase via builtin terminal "
+                         "dialog");
+#endif
         }
 
-        /* A terminating signal was received. Now join each of the
-         * workers to clean them up.
-         *   If the worker already exited, then the join frees
-         *   their resources and returns.
-         *   If the worker hasn't exited, then this blocks until
-         *   they have (then cleans up).
+        /*
+         * The first time display a header to inform the user about what
+         * program he actually speaks to, which module is responsible for
+         * this terminal dialog and why to the hell he has to enter
+         * something...
          */
-        join_workers(ts->listener, threads);
+        if (*pnPassPhraseDialog == 1) {
+            apr_file_printf(writetty, "%s mod_ssl/%s (Pass Phrase Dialog)\n",
+                            AP_SERVER_BASEVERSION, MOD_SSL_VERSION);
+            apr_file_printf(writetty, "Some of your private key files are encrypted for security reasons.\n");
+            apr_file_printf(writetty, "In order to read them you have to provide the pass phrases.\n");
+        }
+        if (*pbPassPhraseDialogOnce) {
+            *pbPassPhraseDialogOnce = FALSE;
+            apr_file_printf(writetty, "\n");
+            apr_file_printf(writetty, "Server %s (%s)\n", cpVHostID, cpAlgoType);
+        }
+
+        /*
+         * Emulate the OpenSSL internal pass phrase dialog
+         * (see crypto/pem/pem_lib.c:def_callback() for details)
+         */
+        prompt = "Enter pass phrase:";
+
+        for (;;) {
+            apr_file_puts(prompt, writetty);
+            if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
+                i = pipe_get_passwd_cb(buf, bufsize, "", FALSE);
+            }
+            else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
+                i = EVP_read_pw_string(buf, bufsize, "", FALSE);
+            }
+            if (i != 0) {
+                PEMerr(PEM_F_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
+                memset(buf, 0, (unsigned int)bufsize);
+                return (-1);
+            }
+            len = strlen(buf);
+            if (len < 1)
+                apr_file_printf(writetty, "Apache:mod_ssl:Error: Pass phrase empty (needs to be at least 1 character).\n");
+            else
+                break;
+        }
     }
 
-    free(threads);
+    /*
+     * Filter program
+     */
+    else if (sc->server->pphrase_dialog_type == SSL_PPTYPE_FILTER) {
+        const char *cmd = sc->server->pphrase_dialog_path;
+        const char **argv = apr_palloc(p, sizeof(char *) * 4);
+        char *result;
 
-    clean_child_exit(resource_shortage ? APEXIT_CHILDSICK : 0);
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "Init: Requesting pass phrase from dialog filter "
+                     "program (%s)", cmd);
+
+        argv[0] = cmd;
+        argv[1] = cpVHostID;
+        argv[2] = cpAlgoType;
+        argv[3] = NULL;
+
+        result = ssl_util_readfilter(s, p, cmd, argv);
+        apr_cpystrn(buf, result, bufsize);
+        len = strlen(buf);
+    }
+
+    /*
+     * Ok, we now have the pass phrase, so give it back
+     */
+    *cppPassPhraseCur = apr_pstrdup(p, buf);
+
+    /*
+     * And return it's length to OpenSSL...
+     */
+    return (len);
 }

@@ -1,1 +1,1 @@
-ap_add_output_filter("UPGRADE_FILTER", NULL, r, r->connection);
+ap_rputs(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n", r);

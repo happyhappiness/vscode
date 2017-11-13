@@ -1,5 +1,6 @@
-void walker_say(struct walker *walker, const char *fmt, const char *hex)
+static void body_atom_parser(struct used_atom *atom, const char *arg)
 {
-	if (walker->get_verbosely)
-		fprintf(stderr, fmt, hex);
+	if (arg)
+		die(_("%%(body) does not take arguments"));
+	atom->u.contents.option = C_BODY_DEP;
 }

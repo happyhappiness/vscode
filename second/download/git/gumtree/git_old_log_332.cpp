@@ -1,1 +1,1 @@
-die("LF would be replaced by CRLF in %s", path);
+error(_("cannot open %s: %s"), namebuf, strerror(errno));

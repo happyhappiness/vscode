@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %lu: Retrieved our scoreboard from the parent.", my_pid);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                            "proxy: send failed to %pI (%s)",
+                            conn->worker->cp->addr,
+                            conn->worker->hostname);

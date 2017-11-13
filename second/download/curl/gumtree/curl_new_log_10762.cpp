@@ -1,15 +1,2 @@
-fputs(
-"              When used in FTP, the FTP server response lines  are  considered\n"
-"              being \"headers\" and thus are saved there.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --data-ascii <data>\n"
-"              See -d, --data.\n"
-"\n"
-"       --data-binary <data>\n"
-"              (HTTP)  This  posts data exactly as specified with no extra pro-\n"
-"              cessing whatsoever.\n"
-"\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-, stdout);
+warnf(operation->global, "%s:%d: warning: '%s' %s\n",
+                filename, lineno, option, reason);

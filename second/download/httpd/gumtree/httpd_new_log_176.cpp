@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support available" );
+ap_rputs(util_ald_cache_display(r->pool, st), r);

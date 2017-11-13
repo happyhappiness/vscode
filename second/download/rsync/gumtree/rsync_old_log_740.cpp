@@ -1,1 +1,1 @@
-out_of_memory("receive_file_entry");
+out_of_memory("string_area_new buffer");

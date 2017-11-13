@@ -1,11 +1,10 @@
 fputs(
-"              reached  the  limit, the request will be made and while perform-\n"
-"              ing, it may take longer than this given time period. To limit  a\n"
-"              single  request's  maximum  time,  use -m, --max-time.  Set this\n"
-"              option to zero to not timeout retries. (Added in 7.12.3)\n"
+"              all has been used, you must  use  \"-o  -\"  or  --no-remote-name.\n"
+"              (Added in 7.19.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -s, --silent\n"
-"              Silent or quiet mode. Don't show progress meter  or  error  mes-\n"
+"       --resolve <host:port:address>\n"
+"              Provide  a  custom  address  for  a specific host and port pair.\n"
+"              Using this, you can make the curl requests(s)  use  a  specified\n"
+"              address  and  prevent the otherwise normally resolved address to\n"
+"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
 , stdout);

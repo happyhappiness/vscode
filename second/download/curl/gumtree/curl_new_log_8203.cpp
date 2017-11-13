@@ -1,10 +1,11 @@
 fputs(
-"              default and this option is usually pointless, unless you use  it\n"
-"              to  override  a  previously  set  option  that  sets a different\n"
-"              authentication method (such as --ntlm,  --digest,  or  --negoti-\n"
-"              ate).\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -c, --cookie-jar <file name>\n"
-"              (HTTP)  Specify to which file you want curl to write all cookies\n"
-"              after a completed operation. Curl writes all cookies  previously\n"
+"       -B, --use-ascii\n"
+"              (FTP/LDAP)  Enable  ASCII  transfer.  For  FTP, this can also be\n"
+"              enforced by using an URL that ends with \";type=A\".  This  option\n"
+"              causes data sent to stdout to be in text mode for win32 systems.\n"
+"\n"
+"       --basic\n"
+"              (HTTP)  Tells curl to use HTTP Basic authentication. This is the\n"
 , stdout);

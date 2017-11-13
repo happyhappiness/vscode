@@ -1,2 +1,2 @@
-die_errno(_("cannot symlink '%s' '%s'"),
-					  lnk.buf, path->buf);
+fprintf_ln(stderr, _("directory stat info does not "
+				     "change after deleting a directory"));

@@ -1,1 +1,1 @@
-die(_("%%(body) does not take arguments"));
+die("Cannot demote %s to %s", msg_id, msg_type);

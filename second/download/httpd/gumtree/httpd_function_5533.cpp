@@ -1,12 +1,15 @@
-h2_stream *h2_stream_open(int id, apr_pool_t *pool, h2_session *session)
+static void dumpConfig (rotate_config_t *config)
 {
-    h2_stream *stream = h2_stream_create(id, pool, session);
-    set_state(stream, H2_STREAM_ST_OPEN);
-    stream->request   = h2_request_create(id, pool, session->config);
-    stream->bbout     = apr_brigade_create(stream->pool, 
-                                           stream->session->c->bucket_alloc);
-    
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                  "h2_stream(%ld-%d): opened", session->id, stream->id);
-    return stream;
+    fprintf(stderr, "Rotation time interval:      %12d\n", config->tRotation);
+    fprintf(stderr, "Rotation size interval:      %12d\n", config->sRotation);
+    fprintf(stderr, "Rotation time UTC offset:    %12d\n", config->utc_offset);
+    fprintf(stderr, "Rotation based on localtime: %12s\n", config->use_localtime ? "yes" : "no");
+    fprintf(stderr, "Rotation file date pattern:  %12s\n", config->use_strftime ? "yes" : "no");
+    fprintf(stderr, "Rotation file forced open:   %12s\n", config->force_open ? "yes" : "no");
+    fprintf(stderr, "Rotation verbose:            %12s\n", config->verbose ? "yes" : "no");
+#if APR_FILES_AS_SOCKETS
+    fprintf(stderr, "Rotation create empty logs:  %12s\n", config->create_empty ? "yes" : "no");
+#endif
+    fprintf(stderr, "Rotation file name: %21s\n", config->szLogRoot);
+    fprintf(stderr, "Post-rotation prog: %21s\n", config->postrotate_prog);
 }

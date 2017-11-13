@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "%s" NL, ctx.errstr);
+apr_file_printf(errfile, "User %s not found" NL, user);

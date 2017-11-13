@@ -1,80 +1,38 @@
-int cmd_show(int argc, const char **argv, const char *prefix)
+void show_ref_array_item(struct ref_array_item *info, const char *format, int quote_style)
 {
-	struct rev_info rev;
-	struct object_array_entry *objects;
-	struct setup_revision_opt opt;
-	struct pathspec match_all;
-	int i, count, ret = 0;
+	const char *cp, *sp, *ep;
+	struct strbuf *final_buf;
+	struct ref_formatting_state state = REF_FORMATTING_STATE_INIT;
 
-	init_log_defaults();
-	git_config(git_log_config, NULL);
+	state.quote_style = quote_style;
+	push_stack_element(&state.stack);
 
-	memset(&match_all, 0, sizeof(match_all));
-	init_revisions(&rev, prefix);
-	rev.diff = 1;
-	rev.always_show_header = 1;
-	rev.no_walk = REVISION_WALK_NO_WALK_SORTED;
-	rev.diffopt.stat_width = -1; 	/* Scale to real terminal size */
+	for (cp = format; *cp && (sp = find_next(cp)); cp = ep + 1) {
+		struct atom_value *atomv;
 
-	memset(&opt, 0, sizeof(opt));
-	opt.def = "HEAD";
-	opt.tweak = show_setup_revisions_tweak;
-	cmd_log_init(argc, argv, prefix, &rev, &opt);
-
-	if (!rev.no_walk)
-		return cmd_log_walk(&rev);
-
-	count = rev.pending.nr;
-	objects = rev.pending.objects;
-	for (i = 0; i < count && !ret; i++) {
-		struct object *o = objects[i].item;
-		const char *name = objects[i].name;
-		switch (o->type) {
-		case OBJ_BLOB:
-			ret = show_blob_object(o->oid.hash, &rev, name);
-			break;
-		case OBJ_TAG: {
-			struct tag *t = (struct tag *)o;
-
-			if (rev.shown_one)
-				putchar('\n');
-			printf("%stag %s%s\n",
-					diff_get_color_opt(&rev.diffopt, DIFF_COMMIT),
-					t->tag,
-					diff_get_color_opt(&rev.diffopt, DIFF_RESET));
-			ret = show_tag_object(o->oid.hash, &rev);
-			rev.shown_one = 1;
-			if (ret)
-				break;
-			o = parse_object(t->tagged->oid.hash);
-			if (!o)
-				ret = error(_("Could not read object %s"),
-					    oid_to_hex(&t->tagged->oid));
-			objects[i].item = o;
-			i--;
-			break;
-		}
-		case OBJ_TREE:
-			if (rev.shown_one)
-				putchar('\n');
-			printf("%stree %s%s\n\n",
-					diff_get_color_opt(&rev.diffopt, DIFF_COMMIT),
-					name,
-					diff_get_color_opt(&rev.diffopt, DIFF_RESET));
-			read_tree_recursive((struct tree *)o, "", 0, 0, &match_all,
-					show_tree_object, NULL);
-			rev.shown_one = 1;
-			break;
-		case OBJ_COMMIT:
-			rev.pending.nr = rev.pending.alloc = 0;
-			rev.pending.objects = NULL;
-			add_object_array(o, name, &rev.pending);
-			ret = cmd_log_walk(&rev);
-			break;
-		default:
-			ret = error(_("Unknown type: %d"), o->type);
-		}
+		ep = strchr(sp, ')');
+		if (cp < sp)
+			append_literal(cp, sp, &state);
+		get_ref_atom_value(info, parse_ref_filter_atom(sp + 2, ep), &atomv);
+		atomv->handler(atomv, &state);
 	}
-	free(objects);
-	return ret;
+	if (*cp) {
+		sp = cp + strlen(cp);
+		append_literal(cp, sp, &state);
+	}
+	if (need_color_reset_at_eol) {
+		struct atom_value resetv;
+		char color[COLOR_MAXLEN] = "";
+
+		if (color_parse("reset", color) < 0)
+			die("BUG: couldn't parse 'reset' as a color");
+		resetv.s = color;
+		append_atom(&resetv, &state);
+	}
+	if (state.stack->prev)
+		die(_("format: %%(end) atom missing"));
+	final_buf = &state.stack->output;
+	fwrite(final_buf->buf, 1, final_buf->len, stdout);
+	pop_stack_element(&state.stack);
+	putchar('\n');
 }

@@ -1,84 +1,66 @@
-static int authz_dbd_login(request_rec *r, authz_dbd_cfg *cfg,
-                           const char *action)
+void parse_args(int argc, char *argv[], command_t *cmd_data)
 {
-    int rv;
-    const char *newuri = NULL;
-    int nrows;
-    const char *message;
-    ap_dbd_t *dbd = dbd_handle(r);
-    apr_dbd_prepared_t *query;
-    apr_dbd_results_t *res = NULL;
-    apr_dbd_row_t *row = NULL;
+    int a;
+    char *arg;
+    int argused;
 
-    if (cfg->query == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "No query configured for %s!", action);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    query = apr_hash_get(dbd->prepared, cfg->query, APR_HASH_KEY_STRING);
-    if (query == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error retrieving Query for %s!", action);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    for (a = 1; a < argc; a++) {
+        arg = argv[a];
+        argused = 1;
 
-    rv = apr_dbd_pvquery(dbd->driver, r->pool, dbd->handle, &nrows,
-                         query, r->user, NULL);
-    if (rv == 0) {
-        if (nrows != 1) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "authz_dbd: %s of user %s updated %d rows",
-                          action, r->user, nrows);
-        }
-    }
-    else {
-        message = apr_dbd_error(dbd->driver, dbd->handle, rv);
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "authz_dbd: query for %s failed; user %s [%s]",
-                      action, r->user, message?message:noerror);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (cfg->redirect == 1) {
-        newuri = apr_table_get(r->headers_in, "Referer");
-    }
-
-    if (!newuri && cfg->redir_query) {
-        query = apr_hash_get(dbd->prepared, cfg->redir_query,
-                             APR_HASH_KEY_STRING);
-        if (query == NULL) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "authz_dbd: no redirect query!");
-            /* OK, this is non-critical; we can just not-redirect */
-        }
-        else if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res,
-                                  query, 0, r->user, NULL) == 0) {
-            for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
-                 rv != -1;
-                 rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
-                if (rv != 0) {
-                    message = apr_dbd_error(dbd->driver, dbd->handle, rv);
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "authz_dbd in get_row; action=%s user=%s [%s]",
-                          action, r->user, message?message:noerror);
-                }
-                else if (newuri == NULL) {
-                    newuri = apr_dbd_get_entry(dbd->driver, row, 0);
-                }
-                /* we can't break out here or row won't get cleaned up */
+        if (arg[0] == '-') {
+            if (arg[1] == '-') {
+                argused = parse_long_opt(arg + 2, cmd_data);
             }
+            else {
+                argused = parse_short_opt(arg + 1, cmd_data);
+            }
+
+            /* We haven't done anything with it yet, try some of the
+             * more complicated short opts... */
+            if (argused == 0 && a + 1 < argc) {
+                if (arg[1] == 'o' && !arg[2]) {
+                    arg = argv[++a];
+                    argused = parse_output_file_name(arg, cmd_data);
+                } else if (strcmp(arg+1, "MT") == 0) {
+                    if (!cmd_data->options.silent) {
+                        printf("Adding: %s", arg);
+                    }
+                    push_count_chars(cmd_data->arglist, arg);
+                    arg = argv[++a];
+                    if (!cmd_data->options.silent) {
+                        printf(" %s\n", arg);
+                    }
+                    push_count_chars(cmd_data->arglist, arg);
+                    argused = 1;
+                } else if (strcmp(arg+1, "rpath") == 0) {
+                    /* Aha, we should try to link both! */
+                    cmd_data->install_path = argv[++a];
+                    argused = 1;
+                } else if (strcmp(arg+1, "version-info") == 0) {
+                    /* Store for later deciphering */
+                    cmd_data->version_info = argv[++a];
+                    argused = 1;
+                } else if (strcmp(arg+1, "export-symbols-regex") == 0) {
+                    /* Skip the argument. */
+                    ++a;
+                    argused = 1;
+                } else if (arg[1] == 'R' && !arg[2]) {
+                    /* -R dir Add dir to runtime library search path. */
+                    add_runtimedirlib(argv[++a], cmd_data);
+                    argused = 1;
+                }
+            }
+        } else {
+            argused = parse_input_file_name(arg, cmd_data);
         }
-        else {
-            message = apr_dbd_error(dbd->driver, dbd->handle, rv);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "authz_dbd/redirect for %s of %s [%s]",
-                          action, r->user, message?message:noerror);
+
+        if (!argused) {
+            if (!cmd_data->options.silent) {
+                printf("Adding: %s\n", arg);
+            }
+            push_count_chars(cmd_data->arglist, arg);
         }
     }
-    if (newuri != NULL) {
-        r->status = HTTP_MOVED_TEMPORARILY;
-        apr_table_set(r->err_headers_out, "Location", newuri);
-    }
-    authz_dbd_run_client_login(r, OK, action);
-    return OK;
+
 }

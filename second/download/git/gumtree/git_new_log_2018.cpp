@@ -1,1 +1,1 @@
-die(_("Could not make %s writable by group"), dir);
+die("unable to generate diff for %s", one->path);

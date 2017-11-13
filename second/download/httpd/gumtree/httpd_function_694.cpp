@@ -1,78 +1,195 @@
-static int proxy_status_hook(request_rec *r, int flags)
+static int display_info(request_rec *r)
 {
-    int i, n;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf = (proxy_server_conf *)
-        ap_get_module_config(sconf, &proxy_module);
-    proxy_balancer *balancer = NULL;
-    proxy_worker *worker = NULL;
+    module *modp = NULL;
+    const char *more_info;
+    const command_rec *cmd = NULL;
+#ifdef NEVERMORE
+    const handler_rec *hand = NULL;
+#endif
+    server_rec *serv = r->server;
+    int comma = 0;
 
-    if (flags & AP_STATUS_SHORT || conf->balancers->nelts == 0 ||
-        conf->proxy_status == status_off)
-        return OK;
+    if (strcmp(r->handler, "server-info"))
+        return DECLINED;
 
-    balancer = (proxy_balancer *)conf->balancers->elts;
-    for (i = 0; i < conf->balancers->nelts; i++) {
-        ap_rputs("<hr />\n<h1>Proxy LoadBalancer Status for ", r);
-        ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);
-        ap_rputs("\n\n<table border=\"0\"><tr>"
-                 "<th>SSes</th><th>Timeout</th><th>Method</th>"
-                 "</tr>\n<tr>", r);
-        ap_rvputs(r, "<td>", balancer->sticky, NULL);
-        ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
-                   apr_time_sec(balancer->timeout));
-        ap_rprintf(r, "<td>%s</td>\n",
-                   balancer->lbmethod->name);
-        ap_rputs("</table>\n", r);
-        ap_rputs("\n\n<table border=\"0\"><tr>"
-                 "<th>Sch</th><th>Host</th><th>Stat</th>"
-                 "<th>Route</th><th>Redir</th>"
-                 "<th>F</th><th>Acc</th><th>Wr</th><th>Rd</th>"
-                 "</tr>\n", r);
+    r->allowed |= (AP_METHOD_BIT << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
 
-        worker = (proxy_worker *)balancer->workers->elts;
-        for (n = 0; n < balancer->workers->nelts; n++) {
-            char fbuf[50];
-            ap_rvputs(r, "<tr>\n<td>", worker->scheme, "</td>", NULL);
-            ap_rvputs(r, "<td>", worker->hostname, "</td><td>", NULL);
-            if (worker->s->status & PROXY_WORKER_DISABLED)
-                ap_rputs("Dis", r);
-            else if (worker->s->status & PROXY_WORKER_IN_ERROR)
-                ap_rputs("Err", r);
-            else if (worker->s->status & PROXY_WORKER_INITIALIZED)
-                ap_rputs("Ok", r);
-            else
-                ap_rputs("-", r);
-            ap_rvputs(r, "</td><td>", worker->s->route, NULL);
-            ap_rvputs(r, "</td><td>", worker->s->redirect, NULL);
-            ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
-            ap_rprintf(r, "<td>%d</td><td>", (int)(worker->s->elected));
-            ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
-            ap_rputs("</td><td>", r);
-            ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
-            ap_rputs("</td>\n", r);
+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
 
-            /* TODO: Add the rest of dynamic worker data */
-            ap_rputs("</tr>\n", r);
+    ap_rputs(DOCTYPE_HTML_3_2
+	     "<html><head><title>Server Information</title></head>\n", r);
+    ap_rputs("<body><h1 align=\"center\">Apache Server Information</h1>\n", r);
+    if (!r->args || strcasecmp(r->args, "list")) {
+        if (!r->args) {
+            ap_rputs("<dl><dt><tt><a href=\"#server\">Server Settings</a>, ", r);
+            for (modp = ap_top_module; modp; modp = modp->next) {
+                ap_rprintf(r, "<a href=\"#%s\">%s</a>", modp->name, modp->name);
+                if (modp->next) {
+                    ap_rputs(", ", r);
+                }
+            }
+            ap_rputs("</tt></dt></dl><hr />", r);
 
-            ++worker;
         }
-        ap_rputs("</table>\n", r);
-        ++balancer;
-    }
-    ap_rputs("<hr /><table>\n"
-             "<tr><th>SSes</th><td>Sticky session name</td></tr>\n"
-             "<tr><th>Timeout</th><td>Balancer Timeout</td></tr>\n"
-             "<tr><th>Sch</th><td>Connection scheme</td></tr>\n"
-             "<tr><th>Host</th><td>Backend Hostname</td></tr>\n"
-             "<tr><th>Stat</th><td>Worker status</td></tr>\n"
-             "<tr><th>Route</th><td>Session Route</td></tr>\n"
-             "<tr><th>Redir</th><td>Session Route Redirection</td></tr>\n"
-             "<tr><th>F</th><td>Load Balancer Factor in %</td></tr>\n"
-             "<tr><th>Acc</th><td>Number of requests</td></tr>\n"
-             "<tr><th>Wr</th><td>Number of bytes transferred</td></tr>\n"
-             "<tr><th>Rd</th><td>Number of bytes read</td></tr>\n"
-             "</table>", r);
+        if (!r->args || !strcasecmp(r->args, "server")) {
+            int max_daemons, forked, threaded;
 
-    return OK;
+            ap_rprintf(r, "<dl><dt><a name=\"server\"><strong>Server Version:</strong> "
+                        "<font size=\"+1\"><tt>%s</tt></font></a></dt>\n",
+                        ap_get_server_version());
+            ap_rprintf(r, "<dt><strong>Server Built:</strong> "
+                        "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
+                        ap_get_server_built());
+            ap_rprintf(r, "<dt><strong>API Version:</strong> "
+                        "<tt>%d:%d</tt></dt>\n",
+                        MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
+            ap_rprintf(r, "<dt><strong>Hostname/port:</strong> "
+                        "<tt>%s:%u</tt></dt>\n",
+                        ap_get_server_name(r), ap_get_server_port(r));
+            ap_rprintf(r, "<dt><strong>Timeouts:</strong> "
+                        "<tt>connection: %d &nbsp;&nbsp; "
+                        "keep-alive: %d</tt></dt>",
+                        (int)(apr_time_sec(serv->timeout)), 
+                        (int)(apr_time_sec(serv->timeout)));
+            ap_mpm_query(AP_MPMQ_MAX_DAEMON_USED, &max_daemons);
+            ap_mpm_query(AP_MPMQ_IS_THREADED, &threaded);
+            ap_mpm_query(AP_MPMQ_IS_FORKED, &forked);
+            ap_rprintf(r, "<dt><strong>MPM Name:</strong> <tt>%s</tt></dt>\n", ap_show_mpm());
+            ap_rprintf(r, "<dt><strong>MPM Information:</strong> "
+		       "<tt>Max Daemons: %d Threaded: %s Forked: %s</tt></dt>\n",
+                       max_daemons, threaded ? "yes" : "no",
+                       forked ? "yes" : "no");
+            ap_rprintf(r, "<dt><strong>Server Root:</strong> "
+                        "<tt>%s</tt></dt>\n", ap_server_root);
+            ap_rprintf(r, "<dt><strong>Config File:</strong> "
+		       "<tt>%s</tt></dt>\n", ap_conftree->filename);
+            ap_rputs("</dl><hr />", r);
+        }
+        for (modp = ap_top_module; modp; modp = modp->next) {
+            if (!r->args || !strcasecmp(modp->name, r->args)) {
+                ap_rprintf(r, "<dl><dt><a name=\"%s\"><strong>Module Name:</strong> "
+                            "<font size=\"+1\"><tt>%s</tt></font></a></dt>\n",
+                            modp->name, modp->name);
+                ap_rputs("<dt><strong>Content handlers:</strong> ", r);
+#ifdef NEVERMORE
+                hand = modp->handlers;
+                if (hand) {
+                    while (hand) {
+                        if (hand->content_type) {
+                            ap_rprintf(r, " <tt>%s</tt>\n", hand->content_type);
+                        }
+                        else {
+                            break;
+                        }
+                        hand++;
+                        if (hand && hand->content_type) {
+                            ap_rputs(",", r);
+                        }
+                    }
+                }
+                else {
+                    ap_rputs("<tt> <em>none</em></tt>", r);
+                }
+#else
+                if (module_find_hook(modp, ap_hook_get_handler)) {
+                    ap_rputs("<tt> <em>yes</em></tt>", r);
+                }
+                else {
+                    ap_rputs("<tt> <em>none</em></tt>", r);
+                }
+#endif
+                ap_rputs("</dt>", r);
+                ap_rputs("<dt><strong>Configuration Phase Participation:</strong>\n",
+                      r);
+                if (modp->create_dir_config) {
+                    if (comma) {
+                        ap_rputs(", ", r);
+                    }
+                    ap_rputs("<tt>Create Directory Config</tt>", r);
+                    comma = 1;
+                }
+                if (modp->merge_dir_config) {
+                    if (comma) {
+                        ap_rputs(", ", r);
+                    }
+                    ap_rputs("<tt>Merge Directory Configs</tt>", r);
+                    comma = 1;
+                }
+                if (modp->create_server_config) {
+                    if (comma) {
+                        ap_rputs(", ", r);
+                    }
+                    ap_rputs("<tt>Create Server Config</tt>", r);
+                    comma = 1;
+                }
+                if (modp->merge_server_config) {
+                    if (comma) {
+                        ap_rputs(", ", r);
+                    }
+                    ap_rputs("<tt>Merge Server Configs</tt>", r);
+                    comma = 1;
+                }
+                if (!comma)
+                    ap_rputs("<tt> <em>none</em></tt>", r);
+                comma = 0;
+                ap_rputs("</dt>", r);
+
+                module_request_hook_participate(r, modp);
+
+                cmd = modp->cmds;
+                if (cmd) {
+                    ap_rputs("<dt><strong>Module Directives:</strong></dt>", r);
+                    while (cmd) {
+                        if (cmd->name) {
+                            ap_rputs("<dd><tt>", r);
+                            mod_info_html_cmd_string(r, cmd->name, 0);
+                            ap_rputs(" - <i>", r);
+                            if (cmd->errmsg) {
+                                ap_rputs(cmd->errmsg, r);
+                            }
+                            ap_rputs("</i></tt></dd>\n", r);
+                        }
+                        else {
+                            break;
+                        }
+                        cmd++;
+                    }
+                    ap_rputs("<dt><strong>Current Configuration:</strong></dt>\n", r);
+                    mod_info_module_cmds(r, modp->cmds, ap_conftree);
+                }
+                else {
+                    ap_rputs("<dt><strong>Module Directives:</strong> <tt>none</tt></dt>", r);
+                }
+                more_info = find_more_info(serv, modp->name);
+                if (more_info) {
+                    ap_rputs("<dt><strong>Additional Information:</strong>\n</dt><dd>",
+                          r);
+                    ap_rputs(more_info, r);
+                    ap_rputs("</dd>", r);
+                }
+                ap_rputs("</dl><hr />\n", r);
+                if (r->args) {
+                    break;
+                }
+            }
+        }
+        if (!modp && r->args && strcasecmp(r->args, "server")) {
+            ap_rputs("<p><b>No such module</b></p>\n", r);
+        }
+    }
+    else {
+        ap_rputs("<dl><dt>Server Module List</dt>", r);
+        for (modp = ap_top_module; modp; modp = modp->next) {
+            ap_rputs("<dd>", r);
+            ap_rputs(modp->name, r);
+            ap_rputs("</dd>", r);
+        }
+        ap_rputs("</dl><hr />", r);
+    }
+    ap_rputs(ap_psignature("",r), r);
+    ap_rputs("</body></html>\n", r);
+    /* Done, turn off timeout, close file and return */
+    return 0;
 }

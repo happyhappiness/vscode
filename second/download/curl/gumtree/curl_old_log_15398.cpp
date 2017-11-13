@@ -1,12 +1,9 @@
 fputs(
-"              Redirect all writes to stderr to the specified file instead.  If\n"
-"              the file name is a plain '-', it is instead written to stdout.\n"
+"              This option overrides any previous use of -x, --proxy,  as  they\n"
+"              are mutually exclusive.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"              See also -v, --verbose and -s, --silent.\n"
-"\n"
-"       --suppress-connect-headers\n"
-"              When  -p,  --proxytunnel  is  used and a CONNECT request is made\n"
-"              don't output proxy CONNECT  response  headers.  This  option  is\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks5 proxy with -x, --proxy using a socks5:// protocol prefix.\n"
+"              Since 7.52.0, --preproxy can be used to specify a SOCKS proxy at\n"
+"              the  same  time -x, --proxy is used with an HTTP/HTTPS proxy. In\n"
 , stdout);

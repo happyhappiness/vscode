@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
-                 "%sWatchdog (%s) stopping",
-                 w->singleton ? "Singleton" : "", w->name);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of", threads_per_child);

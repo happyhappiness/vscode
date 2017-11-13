@@ -1,81 +1,56 @@
-static void set_signals(void)
+static void __stdcall service_nt_main_fn(DWORD argc, LPSTR *argv)
 {
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-#endif
+    const char *ignored;
+    nt_service_ctx_t *ctx = &globdat;
 
-    if (!one_process) {
-        ap_fatal_signal_setup(ap_server_conf, pconf);
+    /* args and service names live in the same pool */
+    mpm_service_set_name(mpm_new_argv->pool, &ignored, argv[0]);
+
+    memset(&ctx->ssStatus, 0, sizeof(ctx->ssStatus));
+    ctx->ssStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+    ctx->ssStatus.dwCurrentState = SERVICE_START_PENDING;
+    ctx->ssStatus.dwCheckPoint = 1;
+
+    if (!(ctx->hServiceStatus = 
+              RegisterServiceCtrlHandlerExA(argv[0], service_nt_ctrl, ctx)))
+        {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 
+                     apr_get_os_error(), NULL, 
+                     APLOGNO(00365) "Failure registering service handler");
+        return;
     }
 
-#ifndef NO_USE_SIGACTION
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+    /* Report status, no errors, and buy 3 more seconds */
+    ReportStatusToSCMgr(SERVICE_START_PENDING, 30000, ctx);
 
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00147) "sigaction(SIGTERM)");
-#ifdef AP_SIG_GRACEFUL_STOP
-    if (sigaction(AP_SIG_GRACEFUL_STOP, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00148)
-                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
-#endif
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00149) "sigaction(SIGINT)");
-#endif
-#ifdef SIGXCPU
-    sa.sa_handler = SIG_DFL;
-    if (sigaction(SIGXCPU, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00150) "sigaction(SIGXCPU)");
-#endif
-#ifdef SIGXFSZ
-    /* For systems following the LFS standard, ignoring SIGXFSZ allows
-     * a write() beyond the 2GB limit to fail gracefully with E2BIG
-     * rather than terminate the process. */
-    sa.sa_handler = SIG_IGN;
-    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00151) "sigaction(SIGXFSZ)");
-#endif
-#ifdef SIGPIPE
-    sa.sa_handler = SIG_IGN;
-    if (sigaction(SIGPIPE, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00152) "sigaction(SIGPIPE)");
-#endif
-
-    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy
-     * processing one
+    /* We need to append all the command arguments passed via StartService()
+     * to our running service... which just got here via the SCM...
+     * but we have no interest in argv[0] for the mpm_new_argv list.
      */
-    sigaddset(&sa.sa_mask, SIGHUP);
-    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
-    sa.sa_handler = restart;
-    if (sigaction(SIGHUP, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00153) "sigaction(SIGHUP)");
-    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00154) "sigaction(" AP_SIG_GRACEFUL_STRING ")");
-#else
-    if (!one_process) {
-#ifdef SIGXCPU
-        apr_signal(SIGXCPU, SIG_DFL);
-#endif /* SIGXCPU */
-#ifdef SIGXFSZ
-        apr_signal(SIGXFSZ, SIG_IGN);
-#endif /* SIGXFSZ */
+    if (argc > 1)
+    {
+        char **cmb_data;
+
+        mpm_new_argv->nalloc = mpm_new_argv->nelts + argc - 1;
+        cmb_data = malloc(mpm_new_argv->nalloc * sizeof(const char *));
+
+        /* mpm_new_argv remains first (of lower significance) */
+        memcpy (cmb_data, mpm_new_argv->elts,
+                mpm_new_argv->elt_size * mpm_new_argv->nelts);
+
+        /* Service args follow from StartService() invocation */
+        memcpy (cmb_data + mpm_new_argv->nelts, argv + 1,
+                mpm_new_argv->elt_size * (argc - 1));
+
+        /* The replacement arg list is complete */
+        mpm_new_argv->elts = (char *)cmb_data;
+        mpm_new_argv->nelts = mpm_new_argv->nalloc;
     }
 
-    apr_signal(SIGTERM, sig_term);
-#ifdef SIGHUP
-    apr_signal(SIGHUP, restart);
-#endif /* SIGHUP */
-#ifdef AP_SIG_GRACEFUL
-    apr_signal(AP_SIG_GRACEFUL, restart);
-#endif /* AP_SIG_GRACEFUL */
-#ifdef AP_SIG_GRACEFUL_STOP
-    apr_signal(AP_SIG_GRACEFUL_STOP, sig_term);
-#endif /* AP_SIG_GRACEFUL */
-#ifdef SIGPIPE
-    apr_signal(SIGPIPE, SIG_IGN);
-#endif /* SIGPIPE */
+    /* Let the main thread continue now... but hang on to the
+     * signal_monitor event so we can take further action
+     */
+    SetEvent(ctx->service_init);
 
-#endif
+    WaitForSingleObject(ctx->service_term, INFINITE);
 }

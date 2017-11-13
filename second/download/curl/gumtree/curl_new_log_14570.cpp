@@ -1,11 +1,9 @@
 fputs(
-"              ronment by specifying a single colon with this option: \"-u :\".\n"
+"              want to specify URL(s) in a config file.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -v, --verbose\n"
-"              Makes curl verbose during the operation.  Useful  for  debugging\n"
-"              and  seeing  what's  going  on \"under the hood\". A line starting\n"
-"              with '>' means \"header data\" sent by  curl,  '<'  means  \"header\n"
-"              data\"  received  by  curl  that is hidden in normal cases, and a\n"
+"              If the given URL is missing a scheme name (such as \"http://\"  or\n"
+"              \"ftp://\"  etc) then curl will make a guess based on the host. If\n"
+"              the outermost sub-domain name matches  DICT,  FTP,  IMAP,  LDAP,\n"
+"              POP3  or  SMTP  then  that protocol will be used, otherwise HTTP\n"
+"              will be used. Since 7.45.0 guessing can be disabled by setting a\n"
 , stdout);

@@ -1,3 +1,4 @@
 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
+                     SSLPROXY_CERT_CB_LOG_FMT
+                     "downstream server wanted client certificate "
+                     "but none are configured", sc->vhost_id);

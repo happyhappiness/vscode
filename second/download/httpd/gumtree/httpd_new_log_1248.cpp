@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %lu: WAIT_FAILED -- shutting down server", my_pid);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, conn->pool,
+                      "proxy: Pooled connection 0x%pp for worker %s has been"
+                      " already returned to the connection pool.", conn,
+                      worker->name);

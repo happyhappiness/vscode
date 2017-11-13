@@ -1,66 +1,93 @@
-conn_rec *h2_slave_create(conn_rec *master, apr_pool_t *parent,
-                          apr_allocator_t *allocator)
+static apr_status_t commit_entity(cache_handle_t *h, request_rec *r)
 {
-    apr_pool_t *pool;
-    conn_rec *c;
-    void *cfg;
-    
-    AP_DEBUG_ASSERT(master);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, master,
-                  "h2_conn(%ld): create slave", master->id);
-    
-    /* We create a pool with its own allocator to be used for
-     * processing a request. This is the only way to have the processing
-     * independant of its parent pool in the sense that it can work in
-     * another thread.
-     */
-    if (!allocator) {
-        apr_allocator_create(&allocator);
-    }
-    apr_pool_create_ex(&pool, parent, NULL, allocator);
-    apr_pool_tag(pool, "h2_slave_conn");
-    apr_allocator_owner_set(allocator, pool);
+    cache_socache_conf *conf = ap_get_module_config(r->server->module_config,
+            &cache_socache_module);
+    cache_object_t *obj = h->cache_obj;
+    cache_socache_object_t *sobj = (cache_socache_object_t *) obj->vobj;
+    apr_status_t rv;
+    apr_size_t len;
 
-    c = (conn_rec *) apr_palloc(pool, sizeof(conn_rec));
-    if (c == NULL) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
-                      APLOGNO(02913) "h2_task: creating conn");
-        return NULL;
+    /* flatten the body into the buffer */
+    len = sobj->buffer_len - sobj->body_offset;
+    rv = apr_brigade_flatten(sobj->body, (char *) sobj->buffer
+            + sobj->body_offset, &len);
+    if (APR_SUCCESS != rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02382)
+                "could not flatten brigade, not caching: %s",
+                sobj->key);
+        goto fail;
     }
-    
-    memcpy(c, master, sizeof(conn_rec));
-           
-    /* Replace these */
-    c->master                 = master;
-    c->pool                   = pool;   
-    c->conn_config            = ap_create_conn_config(pool);
-    c->notes                  = apr_table_make(pool, 5);
-    c->input_filters          = NULL;
-    c->output_filters         = NULL;
-    c->bucket_alloc           = apr_bucket_alloc_create(pool);
-    c->data_in_input_filters  = 0;
-    c->data_in_output_filters = 0;
-    c->clogging_input_filters = 1;
-    c->log                    = NULL;
-    c->log_id                 = NULL;
-    /* Simulate that we had already a request on this connection. */
-    c->keepalives             = 1;
-    /* We cannot install the master connection socket on the slaves, as
-     * modules mess with timeouts/blocking of the socket, with
-     * unwanted side effects to the master connection processing.
-     * Fortunately, since we never use the slave socket, we can just install
-     * a single, process-wide dummy and everyone is happy.
-     */
-    ap_set_module_config(c->conn_config, &core_module, dummy_socket);
-    /* TODO: these should be unique to this thread */
-    c->sbh                    = master->sbh;
-    /* TODO: not all mpm modules have learned about slave connections yet.
-     * copy their config from master to slave.
-     */
-    if (h2_conn_mpm_module()) {
-        cfg = ap_get_module_config(master->conn_config, h2_conn_mpm_module());
-        ap_set_module_config(c->conn_config, h2_conn_mpm_module(), cfg);
+    if (len >= sobj->buffer_len - sobj->body_offset) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02383)
+                "body too big for the cache buffer, not caching: %s",
+                h->cache_obj->key);
+        goto fail;
     }
 
-    return c;
+    if (socache_mutex) {
+        apr_status_t status = apr_global_mutex_lock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02384)
+                    "could not acquire lock, ignoring: %s", obj->key);
+            apr_pool_destroy(sobj->pool);
+            sobj->pool = NULL;
+            return rv;
+        }
+    }
+    rv = conf->provider->socache_provider->store(
+            conf->provider->socache_instance, r->server,
+            (unsigned char *) sobj->key, strlen(sobj->key), sobj->expire,
+            sobj->buffer, (unsigned int) sobj->body_offset + len, sobj->pool);
+    if (socache_mutex) {
+        apr_status_t status = apr_global_mutex_unlock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02385)
+                    "could not release lock, ignoring: %s", obj->key);
+            apr_pool_destroy(sobj->pool);
+            sobj->pool = NULL;
+            return DECLINED;
+        }
+    }
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, APLOGNO(02386)
+                "could not write to cache, ignoring: %s", sobj->key);
+        goto fail;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02387)
+            "commit_entity: Headers and body for URL %s cached for maximum of %d seconds.",
+            sobj->name, (apr_uint32_t)apr_time_sec(sobj->expire - r->request_time));
+
+    apr_pool_destroy(sobj->pool);
+    sobj->pool = NULL;
+
+    return APR_SUCCESS;
+
+fail:
+    /* For safety, remove any existing entry on failure, just in case it could not
+     * be revalidated successfully.
+     */
+    if (socache_mutex) {
+        apr_status_t status = apr_global_mutex_lock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02388)
+                    "could not acquire lock, ignoring: %s", obj->key);
+            apr_pool_destroy(sobj->pool);
+            sobj->pool = NULL;
+            return rv;
+        }
+    }
+    conf->provider->socache_provider->remove(conf->provider->socache_instance,
+            r->server, (unsigned char *) sobj->key, strlen(sobj->key), r->pool);
+    if (socache_mutex) {
+        apr_status_t status = apr_global_mutex_unlock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02389)
+                    "could not release lock, ignoring: %s", obj->key);
+        }
+    }
+
+    apr_pool_destroy(sobj->pool);
+    sobj->pool = NULL;
+    return rv;
 }

@@ -1,2 +1,1 @@
-error("corrupt packed object for %s",
-		      oid_to_hex(&entry->idx.oid));
+warning(_("could not lookup configuration '%s'. Assuming this repository is its own authoritative upstream."), remotesb.buf);

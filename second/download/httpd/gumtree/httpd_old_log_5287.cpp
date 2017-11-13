@@ -1,7 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                          "h2_session:  stream(%ld-%d): PRIORITY frame "
-                          " weight=%d, dependsOn=%d, exclusive=%d", 
-                          session->id, (int)frame->hd.stream_id,
-                          frame->priority.pri_spec.weight,
-                          frame->priority.pri_spec.stream_id,
-                          frame->priority.pri_spec.exclusive);
+ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %d ", event_handles[CHILD_HANDLE]);

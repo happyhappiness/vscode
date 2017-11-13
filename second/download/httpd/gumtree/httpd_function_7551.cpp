@@ -1,22 +1,42 @@
-static void log_pid(apr_pool_t *pool, const char *pidfilename, apr_file_t **pidfile)
+static void get_notes_auth(request_rec *r,
+                           const char **user, const char **pw,
+                           const char **method, const char **mimetype)
 {
-    apr_status_t status;
-    char errmsg[120];
-    pid_t mypid = getpid();
+    const char *authname;
+    request_rec *m = r;
 
-    if (APR_SUCCESS == (status = apr_file_open(pidfile, pidfilename,
-                APR_FOPEN_WRITE | APR_FOPEN_CREATE | APR_FOPEN_TRUNCATE |
-                APR_FOPEN_DELONCLOSE, APR_FPROT_UREAD | APR_FPROT_UWRITE |
-                APR_FPROT_GREAD | APR_FPROT_WREAD, pool))) {
-        apr_file_printf(*pidfile, "%" APR_PID_T_FMT APR_EOL_STR, mypid);
+    /* find the main request */
+    while (m->main) {
+        m = m->main;
     }
-    else {
-        if (errfile) {
-            apr_file_printf(errfile,
-                            "Could not write the pid file '%s': %s" APR_EOL_STR,
-                            pidfilename,
-                            apr_strerror(status, errmsg, sizeof errmsg));
-        }
-        exit(1);
+    /* find the first redirect */
+    while (m->prev) {
+        m = m->prev;
     }
+
+    /* have we isolated the user and pw before? */
+    authname = ap_auth_name(m);
+    if (user) {
+        *user = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-user", NULL));
+    }
+    if (pw) {
+        *pw = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-pw", NULL));
+    }
+    if (method) {
+        *method = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-method", NULL));
+    }
+    if (mimetype) {
+        *mimetype = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-mimetype", NULL));
+    }
+
+    /* set the user, even though the user is unauthenticated at this point */
+    if (user && *user) {
+        r->user = (char *) *user;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE6, 0, r,
+                  "from notes: user: %s, pw: %s, method: %s, mimetype: %s",
+                  user ? *user : "<null>", pw ? *pw : "<null>",
+                  method ? *method : "<null>", mimetype ? *mimetype : "<null>");
+
 }

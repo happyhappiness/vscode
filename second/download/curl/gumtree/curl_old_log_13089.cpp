@@ -1,10 +1,11 @@
 fputs(
-"                     (including  any  newlines), URL-encode that data and pass\n"
-"                     it on in the POST.\n"
+"              don't want the @ character to have a special interpretation  use\n"
+"              --data-raw instead.\n"
 "\n"
-"              name@filename\n"
-"                     This will  make  curl  load  data  from  the  given  file\n"
-"                     (including  any  newlines), URL-encode that data and pass\n"
-"                     it on in the POST. The  name  part  gets  an  equal  sign\n"
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
+"       -D, --dump-header <file>\n"
+"              Write the protocol headers to the specified file.\n"
+"\n"
+"              This  option  is handy to use when you want to store the headers\n"
+"              that an HTTP site sends to you. Cookies from the  headers  could\n"
+"              then  be  read  in  a  second  curl  invocation by using the -b,\n"
 , stdout);

@@ -1,12 +1,9 @@
 fputs(
-"                             the complete download. Bytes per second.\n"
+"              fectly well what you're doing. Remove an internal header by giv-\n"
+"              ing a replacement without content  on  the  right  side  of  the\n"
+"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
+"              value then its header must be terminated with a semicolon,  such\n"
+"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
 "\n"
-"              speed_upload   The  average  upload speed that curl measured for\n"
-"                             the complete upload. Bytes per second.\n"
-"\n"
-"              ssl_verify_result\n"
-"                             The result of the SSL peer certificate  verifica-\n"
-"                             tion that was requested. 0 means the verification\n"
-"                             was successful. (Added in 7.19.0)\n"
-"\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
 , stdout);

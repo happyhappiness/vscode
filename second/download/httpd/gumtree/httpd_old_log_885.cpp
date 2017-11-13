@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                             "apr_accept");
+fprintf (stderr, "Next token is %d (%s", ssl_expr_yychar, ssl_expr_yytname[ssl_expr_yychar1]);

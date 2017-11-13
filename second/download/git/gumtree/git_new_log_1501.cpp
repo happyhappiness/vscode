@@ -1,1 +1,1 @@
-die("git cat-file: could not get object info");
+printf("reset %s\n", refname);

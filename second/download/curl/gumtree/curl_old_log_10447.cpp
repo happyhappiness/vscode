@@ -1,1 +1,2 @@
-warnf(config, "You can only select one HTTP request!\n");
+warnf(config, "error trying read config from the '%s' file\n",
+              nextarg);

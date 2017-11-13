@@ -1,1 +1,2 @@
-die(_("object %s not found"), oid_to_hex(&ref->new_oid));
+die("not something we can merge in %s: %s",
+			    filename, merge_names->buf + pos);

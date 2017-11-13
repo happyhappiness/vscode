@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "Use -c option to create new one.\n");
+printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...", 
+                    worker_thread_count);

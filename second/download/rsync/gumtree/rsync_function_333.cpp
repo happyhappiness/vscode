@@ -1,183 +1,40 @@
-void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
-{  
-  int fd;
-  struct stat st;
-  struct map_struct *buf;
-  struct sum_struct *s;
-  int statret;
-  struct file_struct *file = &flist->files[i];
-
+void do_server_recv(int argc,char *argv[])
+{
+  int status;
+  char *dir = NULL;
+  struct file_list *flist;
+  char *local_name=NULL;
+  
   if (verbose > 2)
-    fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);
+    fprintf(FERROR,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
 
-  statret = link_stat(fname,&st);
+  if (argc > 0) {
+    dir = argv[0];
+    argc--;
+    argv++;
+    if (chdir(dir) != 0) {
+      fprintf(FERROR,"chdir %s : %s (4)\n",dir,strerror(errno));
+      exit_cleanup(1);
+    }    
+  }
 
-  if (S_ISDIR(file->mode)) {
-    if (dry_run) return;
-    if (statret == 0 && !S_ISDIR(st.st_mode)) {
-      if (unlink(fname) != 0) {
-	fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
-	return;
-      }
-      statret = -1;
+  if (delete_mode)
+    recv_exclude_list(STDIN_FILENO);
+
+  flist = recv_file_list(STDIN_FILENO);
+  if (!flist || flist->count == 0) {
+    fprintf(FERROR,"nothing to do\n");
+    exit_cleanup(1);
+  }
+
+  if (argc > 0) {    
+    if (strcmp(dir,".")) {
+      argv[0] += strlen(dir);
+      if (argv[0][0] == '/') argv[0]++;
     }
-    if (statret != 0 && mkdir(fname,file->mode) != 0 && errno != EEXIST) {
-	    if (!(relative_paths && errno==ENOENT && 
-		  create_directory_path(fname)==0 && 
-		  mkdir(fname,file->mode)==0)) {
-		    fprintf(FERROR,"mkdir %s : %s (2)\n",
-			    fname,strerror(errno));
-	    }
-    }
-    if (set_perms(fname,file,NULL,0) && verbose) 
-      fprintf(FINFO,"%s/\n",fname);
-    return;
+    local_name = get_local_name(flist,argv[0]);
   }
 
-  if (preserve_links && S_ISLNK(file->mode)) {
-#if SUPPORT_LINKS
-    char lnk[MAXPATHLEN];
-    int l;
-    if (statret == 0) {
-      l = readlink(fname,lnk,MAXPATHLEN-1);
-      if (l > 0) {
-	lnk[l] = 0;
-	if (strcmp(lnk,file->link) == 0) {
-	  set_perms(fname,file,&st,1);
-	  return;
-	}
-      }
-    }
-    if (!dry_run) unlink(fname);
-    if (!dry_run && symlink(file->link,fname) != 0) {
-      fprintf(FERROR,"link %s -> %s : %s\n",
-	      fname,file->link,strerror(errno));
-    } else {
-      set_perms(fname,file,NULL,0);
-      if (verbose) 
-	fprintf(FINFO,"%s -> %s\n",
-		fname,file->link);
-    }
-#endif
-    return;
-  }
-
-#ifdef HAVE_MKNOD
-  if (am_root && preserve_devices && IS_DEVICE(file->mode)) {
-    if (statret != 0 || 
-	st.st_mode != file->mode ||
-	st.st_rdev != file->rdev) {	
-      if (!dry_run) unlink(fname);
-      if (verbose > 2)
-	fprintf(FERROR,"mknod(%s,0%o,0x%x)\n",
-		fname,(int)file->mode,(int)file->rdev);
-      if (!dry_run && 
-	  mknod(fname,file->mode,file->rdev) != 0) {
-	fprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));
-      } else {
-	set_perms(fname,file,NULL,0);
-	if (verbose)
-	  fprintf(FINFO,"%s\n",fname);
-      }
-    } else {
-      set_perms(fname,file,&st,1);
-    }
-    return;
-  }
-#endif
-
-  if (preserve_hard_links && check_hard_link(file)) {
-    if (verbose > 1)
-      fprintf(FINFO,"%s is a hard link\n",file->name);
-    return;
-  }
-
-  if (!S_ISREG(file->mode)) {
-    fprintf(FERROR,"skipping non-regular file %s\n",fname);
-    return;
-  }
-
-  if (statret == -1) {
-    if (errno == ENOENT) {
-      write_int(f_out,i);
-      if (!dry_run) send_sums(NULL,f_out);
-    } else {
-      if (verbose > 1)
-	fprintf(FERROR,"recv_generator failed to open %s\n",fname);
-    }
-    return;
-  }
-
-  if (!S_ISREG(st.st_mode)) {
-    /* its not a regular file on the receiving end, but it is on the
-       sending end. If its a directory then skip it (too dangerous to
-       do a recursive deletion??) otherwise try to unlink it */
-    if (S_ISDIR(st.st_mode)) {
-      fprintf(FERROR,"ERROR: %s is a directory\n",fname);
-      return;
-    }
-    if (unlink(fname) != 0) {
-      fprintf(FERROR,"%s : not a regular file (generator)\n",fname);
-      return;
-    }
-
-    /* now pretend the file didn't exist */
-    write_int(f_out,i);
-    if (!dry_run) send_sums(NULL,f_out);    
-    return;
-  }
-
-  if (update_only && st.st_mtime > file->modtime) {
-    if (verbose > 1)
-      fprintf(FERROR,"%s is newer\n",fname);
-    return;
-  }
-
-  if (skip_file(fname, file, &st)) {
-    set_perms(fname,file,&st,1);
-    return;
-  }
-
-  if (dry_run) {
-    write_int(f_out,i);
-    return;
-  }
-
-  if (whole_file) {
-    write_int(f_out,i);
-    send_sums(NULL,f_out);    
-    return;
-  }
-
-  /* open the file */  
-  fd = open(fname,O_RDONLY);
-
-  if (fd == -1) {
-    fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
-    fprintf(FERROR,"skipping %s\n",fname);
-    return;
-  }
-
-  if (st.st_size > 0) {
-    buf = map_file(fd,st.st_size);
-  } else {
-    buf = NULL;
-  }
-
-  if (verbose > 3)
-    fprintf(FERROR,"gen mapped %s of size %d\n",fname,(int)st.st_size);
-
-  s = generate_sums(buf,st.st_size,block_size);
-
-  if (verbose > 2)
-    fprintf(FERROR,"sending sums for %d\n",i);
-
-  write_int(f_out,i);
-  send_sums(s,f_out);
-  write_flush(f_out);
-
-  close(fd);
-  if (buf) unmap_file(buf);
-
-  free_sums(s);
+  status = do_recv(STDIN_FILENO,STDOUT_FILENO,flist,local_name);
+  exit_cleanup(status);
 }

@@ -1,1 +1,1 @@
-fprintf(out, "%s\n", oid_to_hex(oid));
+error(_("%s: bad revision"), name);

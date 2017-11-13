@@ -1,5 +1,14 @@
-puts(" -j/--junk-session-cookies Ignore session cookies read from file (H)\n"
-       "    --interface <interface> Specify the interface to be used\n"
-       "    --krb4 <level>  Enable krb4 with specified security level (F)\n"
-       " -K/--config        Specify which config file to read\n"
-       " -l/--list-only     List only names of an FTP directory (F)");
+puts(
+"   - XDISPLOC=<X display> Sets the X display location.\n"
+"\n"
+"   - NEW_ENV=<var,val> Sets an environment variable.\n"
+"\n"
+"  NOTE: the telnet protocol does not specify any way to login with a specified\n"
+"  user and password so curl can't do that automatically. To do that, you need\n"
+"  to track when the login prompt is received and send the username and\n"
+"  password accordingly.\n"
+"\n"
+"PERSISTANT CONNECTIONS\n"
+"\n"
+"  Specifying multiple files on a single command line will make curl transfer\n"
+);

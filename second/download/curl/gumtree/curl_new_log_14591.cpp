@@ -1,10 +1,11 @@
 fputs(
-"                             and transfer before  the  final  transaction  was\n"
-"                             started.  time_redirect shows the complete execu-\n"
-"                             tion time for multiple  redirections.  (Added  in\n"
-"                             7.12.3)\n"
+"                             low redirects, this variable will show the actual\n"
+"                             URL a redirect  would  take  you  to.  (Added  in\n"
+"                             7.18.2)\n"
 "\n"
-"              time_starttransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the first byte was just about to be  trans-\n"
+"              remote_ip      The  remote  IP address of the most recently done\n"
+"                             connection - can be either IPv4 or IPv6 (Added in\n"
+"                             7.29.0)\n"
+"\n"
+"              remote_port    The  remote port number of the most recently done\n"
 , stdout);

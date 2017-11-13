@@ -1,1 +1,1 @@
-warning_errno(_("failed to stat '%s'"), ce->name);
+die("unable to auto-detect name (got '%s')", name);

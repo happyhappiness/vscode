@@ -1,10 +1,12 @@
 fputs(
+"              URL  decoded by curl. This allows you to pass in special charac-\n"
+"              ters such as @ by using %40 or pass in a colon with %3a.\n"
+"\n"
+"              The proxy host can be specified the exact same way as the  proxy\n"
+"              environment  variables,  including the protocol prefix (http://)\n"
+"              and the embedded user + password.\n"
+"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --xattr\n"
-"              When  saving  output  to a file, this option tells curl to store\n"
-"              certain file metadata in extended  file  attributes.  Currently,\n"
-"              the URL is stored in the xdg.origin.url attribute and, for HTTP,\n"
-"              the content type is stored in the mime_type  attribute.  If  the\n"
-"              file  system  does not support extended attributes, a warning is\n"
+"       -X, --request <command>\n"
 , stdout);

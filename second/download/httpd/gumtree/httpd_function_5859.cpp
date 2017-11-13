@@ -1,49 +1,51 @@
-apr_status_t h2_stream_out_prepare(h2_stream *stream,
-                                   apr_off_t *plen, int *peos)
+struct h2_stream *h2_session_push(h2_session *session, h2_stream *is,
+                                  h2_push *push)
 {
-    conn_rec *c = stream->session->c;
-    apr_status_t status = APR_SUCCESS;
-    apr_off_t requested;
-
-    if (stream->rst_error) {
-        *plen = 0;
-        *peos = 1;
-        return APR_ECONNRESET;
+    apr_status_t status;
+    h2_stream *stream;
+    h2_ngheader *ngh;
+    int nid;
+    
+    ngh = h2_util_ngheader_make_req(is->pool, push->req);
+    nid = nghttp2_submit_push_promise(session->ngh2, 0, is->id, 
+                                      ngh->nv, ngh->nvlen, NULL);
+                                      
+    if (nid <= 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): submitting push promise fail: %s",
+                      session->id, is->id, nghttp2_strerror(nid));
+        return NULL;
     }
 
-    if (*plen > 0) {
-        requested = H2MIN(*plen, DATA_CHUNK_SIZE);
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                  "h2_stream(%ld-%d): promised new stream %d for %s %s on %d",
+                  session->id, is->id, nid,
+                  push->req->method, push->req->path, is->id);
+                  
+    stream = h2_session_open_stream(session, nid);
+    if (stream) {
+        h2_stream_set_h2_request(stream, is->id, push->req);
+        status = stream_schedule(session, stream, 1);
+        if (status != APR_SUCCESS) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          "h2_stream(%ld-%d): scheduling push stream",
+                          session->id, stream->id);
+            h2_stream_cleanup(stream);
+            stream = NULL;
+        }
+        ++session->unsent_promises;
     }
     else {
-        requested = DATA_CHUNK_SIZE;
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): failed to create stream obj %d",
+                      session->id, is->id, nid);
     }
-    *plen = requested;
+
+    if (!stream) {
+        /* try to tell the client that it should not wait. */
+        nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE, nid,
+                                  NGHTTP2_INTERNAL_ERROR);
+    }
     
-    H2_STREAM_OUT_LOG(APLOG_TRACE2, stream, "h2_stream_out_prepare_pre");
-    h2_util_bb_avail(stream->buffer, plen, peos);
-    if (!*peos && *plen < requested) {
-        /* try to get more data */
-        status = fill_buffer(stream, (requested - *plen) + DATA_CHUNK_SIZE);
-        if (APR_STATUS_IS_EOF(status)) {
-            apr_bucket *eos = apr_bucket_eos_create(c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(stream->buffer, eos);
-            status = APR_SUCCESS;
-        }
-        else if (status == APR_EAGAIN) {
-            /* did not receive more, it's ok */
-            status = APR_SUCCESS;
-        }
-        *plen = requested;
-        h2_util_bb_avail(stream->buffer, plen, peos);
-    }
-    H2_STREAM_OUT_LOG(APLOG_TRACE2, stream, "h2_stream_out_prepare_post");
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
-                  "h2_stream(%ld-%d): prepare, len=%ld eos=%d, trailers=%s",
-                  c->id, stream->id, (long)*plen, *peos,
-                  (stream->response && stream->response->trailers)? 
-                  "yes" : "no");
-    if (!*peos && !*plen && status == APR_SUCCESS) {
-        return APR_EAGAIN;
-    }
-    return status;
+    return stream;
 }

@@ -1,1 +1,2 @@
-rprintf(FLOG,"failed to create pid file %s\n", pid_file);
+rprintf(FERROR,"Failed to exec %s : %s\n",
+	      command[0],strerror(errno));

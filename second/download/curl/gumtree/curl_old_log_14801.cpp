@@ -1,11 +1,9 @@
 fputs(
-"                     file or server not being available).\n"
+"              When using Kerberos V5 with a Windows based  server  you  should\n"
+"              include  the  Windows domain name in the user name, in order for\n"
+"              the server to successfully obtain  a  Kerberos  Ticket.  If  you\n"
+"              don't then the initial authentication handshake may fail.\n"
 "\n"
-"              PSL    PSL  is  short for Public Suffix List and means that this\n"
-"                     curl has been built with  knowledge  about  \"public  suf-\n"
-"                     fixes\".\n"
-"\n"
-"       -w, --write-out <format>\n"
-"              Make curl display information on stdout after a completed trans-\n"
-"              fer. The format is a string that may contain  plain  text  mixed\n"
+"              When  using  NTLM,  the user name can be specified simply as the\n"
+"              user name, without the domain, if there is a single  domain  and\n"
 , stdout);

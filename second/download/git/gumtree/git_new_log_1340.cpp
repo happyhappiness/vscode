@@ -1,1 +1,1 @@
-die(str, refname, err.buf);
+die("Can't load tree %s", oid_to_hex(oid));

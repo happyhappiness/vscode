@@ -1,67 +1,71 @@
-struct ref **get_remote_heads(int in, char *src_buf, size_t src_len,
-			      struct ref **list, unsigned int flags,
-			      struct sha1_array *extra_have,
-			      struct sha1_array *shallow_points)
+static int parse_next_sha1(struct strbuf *input, const char **next,
+			   unsigned char *sha1,
+			   const char *command, const char *refname,
+			   int flags)
 {
-	struct ref **orig_list = list;
-	int got_at_least_one_head = 0;
+	struct strbuf arg = STRBUF_INIT;
+	int ret = 0;
 
-	*list = NULL;
-	for (;;) {
-		struct ref *ref;
-		unsigned char old_sha1[20];
-		char *name;
-		int len, name_len;
-		char *buffer = packet_buffer;
+	if (*next == input->buf + input->len)
+		goto eof;
 
-		len = packet_read(in, &src_buf, &src_len,
-				  packet_buffer, sizeof(packet_buffer),
-				  PACKET_READ_GENTLE_ON_EOF |
-				  PACKET_READ_CHOMP_NEWLINE);
-		if (len < 0)
-			die_initial_contact(got_at_least_one_head);
-
-		if (!len)
-			break;
-
-		if (len > 4 && starts_with(buffer, "ERR "))
-			die("remote error: %s", buffer + 4);
-
-		if (len == 48 && starts_with(buffer, "shallow ")) {
-			if (get_sha1_hex(buffer + 8, old_sha1))
-				die("protocol error: expected shallow sha-1, got '%s'", buffer + 8);
-			if (!shallow_points)
-				die("repository on the other end cannot be shallow");
-			sha1_array_append(shallow_points, old_sha1);
-			continue;
+	if (line_termination) {
+		/* Without -z, consume SP and use next argument */
+		if (!**next || **next == line_termination)
+			return 1;
+		if (**next != ' ')
+			die("%s %s: expected SP but got: %s",
+			    command, refname, *next);
+		(*next)++;
+		*next = parse_arg(*next, &arg);
+		if (arg.len) {
+			if (get_sha1(arg.buf, sha1))
+				goto invalid;
+		} else {
+			/* Without -z, an empty value means all zeros: */
+			hashclr(sha1);
 		}
+	} else {
+		/* With -z, read the next NUL-terminated line */
+		if (**next)
+			die("%s %s: expected NUL but got: %s",
+			    command, refname, *next);
+		(*next)++;
+		if (*next == input->buf + input->len)
+			goto eof;
+		strbuf_addstr(&arg, *next);
+		*next += arg.len;
 
-		if (len < 42 || get_sha1_hex(buffer, old_sha1) || buffer[40] != ' ')
-			die("protocol error: expected sha/ref, got '%s'", buffer);
-		name = buffer + 41;
-
-		name_len = strlen(name);
-		if (len != name_len + 41) {
-			free(server_capabilities);
-			server_capabilities = xstrdup(name + name_len + 1);
+		if (arg.len) {
+			if (get_sha1(arg.buf, sha1))
+				goto invalid;
+		} else if (flags & PARSE_SHA1_ALLOW_EMPTY) {
+			/* With -z, treat an empty value as all zeros: */
+			warning("%s %s: missing <newvalue>, treating as zero",
+				command, refname);
+			hashclr(sha1);
+		} else {
+			/*
+			 * With -z, an empty non-required value means
+			 * unspecified:
+			 */
+			ret = 1;
 		}
-
-		if (extra_have &&
-		    name_len == 5 && !memcmp(".have", name, 5)) {
-			sha1_array_append(extra_have, old_sha1);
-			continue;
-		}
-
-		if (!check_ref(name, name_len, flags))
-			continue;
-		ref = alloc_ref(buffer + 41);
-		hashcpy(ref->old_sha1, old_sha1);
-		*list = ref;
-		list = &ref->next;
-		got_at_least_one_head = 1;
 	}
 
-	annotate_refs_with_symref_info(*orig_list);
+	strbuf_release(&arg);
 
-	return list;
+	return ret;
+
+ invalid:
+	die(flags & PARSE_SHA1_OLD ?
+	    "%s %s: invalid <oldvalue>: %s" :
+	    "%s %s: invalid <newvalue>: %s",
+	    command, refname, arg.buf);
+
+ eof:
+	die(flags & PARSE_SHA1_OLD ?
+	    "%s %s: unexpected end of input when reading <oldvalue>" :
+	    "%s %s: unexpected end of input when reading <newvalue>",
+	    command, refname);
 }

@@ -1,1 +1,1 @@
-fprintf(FINFO,"recv_files(%d) starting\n",flist->count);
+fprintf(FERROR,"stat %s : %s\n",fname,strerror(errno));

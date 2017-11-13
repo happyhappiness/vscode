@@ -1,11 +1,10 @@
 fputs(
-"              --data @foobar. When --data is told to read  from  a  file  like\n"
-"              that, carriage returns and newlines will be stripped out.\n"
+"              (Added in 7.19.7)\n"
+"       -d, --data <data>\n"
+"              (HTTP) Sends the specified data in a POST request  to  the  HTTP\n"
+"              server,  in  the  same  way  that a browser does when a user has\n"
+"              filled in an HTML form and presses the submit button. This  will\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"       -D, --dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
-"\n"
-"              This  option  is handy to use when you want to store the headers\n"
-"              that an HTTP site sends to you. Cookies from the  headers  could\n"
-"              then  be  read  in  a  second  curl  invocation by using the -b,\n"
 , stdout);

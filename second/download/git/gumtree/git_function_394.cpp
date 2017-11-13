@@ -1,98 +1,107 @@
-static struct ref *do_fetch_pack(struct fetch_pack_args *args,
-				 int fd[2],
-				 const struct ref *orig_ref,
-				 struct ref **sought, int nr_sought,
-				 struct shallow_info *si,
-				 char **pack_lockfile)
+int cmd_fetch(int argc, const char **argv, const char *prefix)
 {
-	struct ref *ref = copy_ref_list(orig_ref);
-	unsigned char sha1[20];
-	const char *agent_feature;
-	int agent_len;
+	int i;
+	struct string_list list = STRING_LIST_INIT_DUP;
+	struct remote *remote;
+	int result = 0;
+	struct argv_array argv_gc_auto = ARGV_ARRAY_INIT;
 
-	sort_ref_list(&ref, ref_compare_name);
-	qsort(sought, nr_sought, sizeof(*sought), cmp_ref_by_name);
+	packet_trace_identity("fetch");
 
-	if ((args->depth > 0 || is_repository_shallow()) && !server_supports("shallow"))
-		die("Server does not support shallow clients");
-	if (server_supports("multi_ack_detailed")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports multi_ack_detailed\n");
-		multi_ack = 2;
-		if (server_supports("no-done")) {
-			if (args->verbose)
-				fprintf(stderr, "Server supports no-done\n");
-			if (args->stateless_rpc)
-				no_done = 1;
+	/* Record the command line for the reflog */
+	strbuf_addstr(&default_rla, "fetch");
+	for (i = 1; i < argc; i++)
+		strbuf_addf(&default_rla, " %s", argv[i]);
+
+	git_config(git_fetch_config, NULL);
+
+	argc = parse_options(argc, argv, prefix,
+			     builtin_fetch_options, builtin_fetch_usage, 0);
+
+	if (deepen_relative) {
+		if (deepen_relative < 0)
+			die(_("Negative depth in --deepen is not supported"));
+		if (depth)
+			die(_("--deepen and --depth are mutually exclusive"));
+		depth = xstrfmt("%d", deepen_relative);
+	}
+	if (unshallow) {
+		if (depth)
+			die(_("--depth and --unshallow cannot be used together"));
+		else if (!is_repository_shallow())
+			die(_("--unshallow on a complete repository does not make sense"));
+		else
+			depth = xstrfmt("%d", INFINITE_DEPTH);
+	}
+
+	/* no need to be strict, transport_set_option() will validate it again */
+	if (depth && atoi(depth) < 1)
+		die(_("depth %s is not a positive number"), depth);
+	if (depth || deepen_since || deepen_not.nr)
+		deepen = 1;
+
+	if (recurse_submodules != RECURSE_SUBMODULES_OFF) {
+		if (recurse_submodules_default) {
+			int arg = parse_fetch_recurse_submodules_arg("--recurse-submodules-default", recurse_submodules_default);
+			set_config_fetch_recurse_submodules(arg);
+		}
+		gitmodules_config();
+		git_config(submodule_config, NULL);
+	}
+
+	if (all) {
+		if (argc == 1)
+			die(_("fetch --all does not take a repository argument"));
+		else if (argc > 1)
+			die(_("fetch --all does not make sense with refspecs"));
+		(void) for_each_remote(get_one_remote_for_fetch, &list);
+		result = fetch_multiple(&list);
+	} else if (argc == 0) {
+		/* No arguments -- use default remote */
+		remote = remote_get(NULL);
+		result = fetch_one(remote, argc, argv);
+	} else if (multiple) {
+		/* All arguments are assumed to be remotes or groups */
+		for (i = 0; i < argc; i++)
+			if (!add_remote_or_group(argv[i], &list))
+				die(_("No such remote or remote group: %s"), argv[i]);
+		result = fetch_multiple(&list);
+	} else {
+		/* Single remote or group */
+		(void) add_remote_or_group(argv[0], &list);
+		if (list.nr > 1) {
+			/* More than one remote */
+			if (argc > 1)
+				die(_("Fetching a group and specifying refspecs does not make sense"));
+			result = fetch_multiple(&list);
+		} else {
+			/* Zero or one remotes */
+			remote = remote_get(argv[0]);
+			result = fetch_one(remote, argc-1, argv+1);
 		}
 	}
-	else if (server_supports("multi_ack")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports multi_ack\n");
-		multi_ack = 1;
-	}
-	if (server_supports("side-band-64k")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports side-band-64k\n");
-		use_sideband = 2;
-	}
-	else if (server_supports("side-band")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports side-band\n");
-		use_sideband = 1;
-	}
-	if (server_supports("allow-tip-sha1-in-want")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports allow-tip-sha1-in-want\n");
-		allow_unadvertised_object_request |= ALLOW_TIP_SHA1;
-	}
-	if (server_supports("allow-reachable-sha1-in-want")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");
-		allow_unadvertised_object_request |= ALLOW_REACHABLE_SHA1;
-	}
-	if (!server_supports("thin-pack"))
-		args->use_thin_pack = 0;
-	if (!server_supports("no-progress"))
-		args->no_progress = 0;
-	if (!server_supports("include-tag"))
-		args->include_tag = 0;
-	if (server_supports("ofs-delta")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports ofs-delta\n");
-	} else
-		prefer_ofs_delta = 0;
 
-	if ((agent_feature = server_feature_value("agent", &agent_len))) {
-		agent_supported = 1;
-		if (args->verbose && agent_len)
-			fprintf(stderr, "Server version is %.*s\n",
-				agent_len, agent_feature);
+	if (!result && (recurse_submodules != RECURSE_SUBMODULES_OFF)) {
+		struct argv_array options = ARGV_ARRAY_INIT;
+
+		add_options_to_argv(&options);
+		result = fetch_populated_submodules(&options,
+						    submodule_prefix,
+						    recurse_submodules,
+						    verbosity < 0,
+						    max_children);
+		argv_array_clear(&options);
 	}
 
-	if (everything_local(args, &ref, sought, nr_sought)) {
-		packet_flush(fd[1]);
-		goto all_done;
-	}
-	if (find_common(args, fd, sha1, ref) < 0)
-		if (!args->keep_pack)
-			/* When cloning, it is not unusual to have
-			 * no common commit.
-			 */
-			warning("no common commits");
+	string_list_clear(&list, 0);
 
-	if (args->stateless_rpc)
-		packet_flush(fd[1]);
-	if (args->depth > 0)
-		setup_alternate_shallow(&shallow_lock, &alternate_shallow_file,
-					NULL);
-	else if (si->nr_ours || si->nr_theirs)
-		alternate_shallow_file = setup_temporary_shallow(si->shallow);
-	else
-		alternate_shallow_file = NULL;
-	if (get_pack(args, fd, pack_lockfile))
-		die("git fetch-pack: fetch failed.");
+	close_all_packs();
 
- all_done:
-	return ref;
+	argv_array_pushl(&argv_gc_auto, "gc", "--auto", NULL);
+	if (verbosity < 0)
+		argv_array_push(&argv_gc_auto, "--quiet");
+	run_command_v_opt(argv_gc_auto.argv, RUN_GIT_CMD);
+	argv_array_clear(&argv_gc_auto);
+
+	return result;
 }

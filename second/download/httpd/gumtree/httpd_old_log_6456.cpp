@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00967)
-               "ajp_marshal_into_msgb - No such method %s",
-               r->method);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, msos->m->c,
+                  "h2_stream(%ld-%d): readx, len=%ld eos=%d",
+                  msos->m->id, sos->stream->id, (long)*plen, *peos);

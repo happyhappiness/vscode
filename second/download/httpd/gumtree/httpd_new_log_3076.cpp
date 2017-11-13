@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(02086)
-                     "%pI busy=%s ready=%s", from,
-                     apr_table_get(tbl, "busy"), apr_table_get(tbl, "ready"));
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad_len, " ");

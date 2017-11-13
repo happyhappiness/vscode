@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, r ? r->connection : c, APLOGNO(00082)
-                  "an unknown filter was not added: %s", name);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(00136)
+                     "Server MUST relinquish startup privileges before "
+                     "accepting connections.  Please ensure mod_unixd "
+                     "or other system security module is loaded.");

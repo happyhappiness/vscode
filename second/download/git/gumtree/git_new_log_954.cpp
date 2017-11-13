@@ -1,1 +1,1 @@
-fprintf(stderr, "%s%s\n", prefix, msg);
+die("strange port '%s' blocked", port);

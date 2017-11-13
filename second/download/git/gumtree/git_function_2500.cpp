@@ -1,41 +1,52 @@
-static int fsck_obj(struct object *obj)
+static void grab_sub_body_contents(struct atom_value *val, int deref, struct object *obj, void *buf, unsigned long sz)
 {
-	if (obj->flags & SEEN)
-		return 0;
-	obj->flags |= SEEN;
+	int i;
+	const char *subpos = NULL, *bodypos = NULL, *sigpos = NULL;
+	unsigned long sublen = 0, bodylen = 0, nonsiglen = 0, siglen = 0;
 
-	if (verbose)
-		fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), oid_to_hex(&obj->oid));
+	for (i = 0; i < used_atom_cnt; i++) {
+		const char *name = used_atom[i];
+		struct atom_value *v = &val[i];
+		const char *valp = NULL;
+		if (!!deref != (*name == '*'))
+			continue;
+		if (deref)
+			name++;
+		if (strcmp(name, "subject") &&
+		    strcmp(name, "body") &&
+		    strcmp(name, "contents") &&
+		    strcmp(name, "contents:subject") &&
+		    strcmp(name, "contents:body") &&
+		    strcmp(name, "contents:signature") &&
+		    !starts_with(name, "contents:lines="))
+			continue;
+		if (!subpos)
+			find_subpos(buf, sz,
+				    &subpos, &sublen,
+				    &bodypos, &bodylen, &nonsiglen,
+				    &sigpos, &siglen);
 
-	if (fsck_walk(obj, NULL, &fsck_obj_options))
-		objerror(obj, "broken links");
-	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
-		return -1;
+		if (!strcmp(name, "subject"))
+			v->s = copy_subject(subpos, sublen);
+		else if (!strcmp(name, "contents:subject"))
+			v->s = copy_subject(subpos, sublen);
+		else if (!strcmp(name, "body"))
+			v->s = xmemdupz(bodypos, bodylen);
+		else if (!strcmp(name, "contents:body"))
+			v->s = xmemdupz(bodypos, nonsiglen);
+		else if (!strcmp(name, "contents:signature"))
+			v->s = xmemdupz(sigpos, siglen);
+		else if (!strcmp(name, "contents"))
+			v->s = xstrdup(subpos);
+		else if (skip_prefix(name, "contents:lines=", &valp)) {
+			struct strbuf s = STRBUF_INIT;
+			const char *contents_end = bodylen + bodypos - siglen;
 
-	if (obj->type == OBJ_TREE) {
-		struct tree *item = (struct tree *) obj;
-
-		free_tree_buffer(item);
-	}
-
-	if (obj->type == OBJ_COMMIT) {
-		struct commit *commit = (struct commit *) obj;
-
-		free_commit_buffer(commit);
-
-		if (!commit->parents && show_root)
-			printf("root %s\n", oid_to_hex(&commit->object.oid));
-	}
-
-	if (obj->type == OBJ_TAG) {
-		struct tag *tag = (struct tag *) obj;
-
-		if (show_tags && tag->tagged) {
-			printf("tagged %s %s", typename(tag->tagged->type), oid_to_hex(&tag->tagged->oid));
-			printf(" (%s) in %s\n", tag->tag, oid_to_hex(&tag->object.oid));
+			if (strtoul_ui(valp, 10, &v->u.contents.lines))
+				die(_("positive value expected contents:lines=%s"), valp);
+			/*  Size is the length of the message after removing the signature */
+			append_lines(&s, subpos, contents_end - subpos, v->u.contents.lines);
+			v->s = strbuf_detach(&s, NULL);
 		}
 	}
-
-	return 0;
 }

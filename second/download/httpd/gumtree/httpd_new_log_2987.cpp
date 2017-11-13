@@ -1,4 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, s, APLOGNO(00809)
-                     "Cannot open socache DBM file `%s' for reading "
-                     "(fetch)",
-                     ctx->data_file);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "auth_ldap authorise: require group "
+                                  "(sub-group) \"%s\": authorisation failed "
+                                  "[%s][%d - %s]",
+                                  t, ldc->reason, result,
+                                  ldap_err2string(result));

@@ -1,129 +1,97 @@
-static void write_pack_file(void)
+int cmd_pull(int argc, const char **argv, const char *prefix)
 {
-	uint32_t i = 0, j;
-	struct sha1file *f;
-	off_t offset;
-	uint32_t nr_remaining = nr_result;
-	time_t last_mtime = 0;
-	struct object_entry **write_order;
+	const char *repo, **refspecs;
+	struct sha1_array merge_heads = SHA1_ARRAY_INIT;
+	unsigned char orig_head[GIT_SHA1_RAWSZ], curr_head[GIT_SHA1_RAWSZ];
+	unsigned char rebase_fork_point[GIT_SHA1_RAWSZ];
 
-	if (progress > pack_to_stdout)
-		progress_state = start_progress(_("Writing objects"), nr_result);
-	ALLOC_ARRAY(written_list, to_pack.nr_objects);
-	write_order = compute_write_order();
+	if (!getenv("GIT_REFLOG_ACTION"))
+		set_reflog_message(argc, argv);
 
-	do {
-		unsigned char sha1[20];
-		char *pack_tmp_name = NULL;
+	argc = parse_options(argc, argv, prefix, pull_options, pull_usage, 0);
 
-		if (pack_to_stdout)
-			f = sha1fd_throughput(1, "<stdout>", progress_state);
-		else
-			f = create_tmp_packfile(&pack_tmp_name);
+	parse_repo_refspecs(argc, argv, &repo, &refspecs);
 
-		offset = write_pack_header(f, nr_remaining);
+	if (!opt_ff)
+		opt_ff = xstrdup_or_null(config_get_ff());
 
-		if (reuse_packfile) {
-			off_t packfile_size;
-			assert(pack_to_stdout);
+	if (opt_rebase < 0)
+		opt_rebase = config_get_rebase();
 
-			packfile_size = write_reused_pack(f);
-			offset += packfile_size;
-		}
+	git_config(git_pull_config, NULL);
 
-		nr_written = 0;
-		for (; i < to_pack.nr_objects; i++) {
-			struct object_entry *e = write_order[i];
-			if (write_one(f, e, &offset) == WRITE_ONE_BREAK)
-				break;
-			display_progress(progress_state, written);
-		}
+	if (read_cache_unmerged())
+		die_resolve_conflict("Pull");
 
+	if (file_exists(git_path("MERGE_HEAD")))
+		die_conclude_merge();
+
+	if (get_sha1("HEAD", orig_head))
+		hashclr(orig_head);
+
+	if (!opt_rebase && opt_autostash != -1)
+		die(_("--[no-]autostash option is only valid with --rebase."));
+
+	if (opt_rebase) {
+		int autostash = config_autostash;
+		if (opt_autostash != -1)
+			autostash = opt_autostash;
+
+		if (is_null_sha1(orig_head) && !is_cache_unborn())
+			die(_("Updating an unborn branch with changes added to the index."));
+
+		if (!autostash)
+			die_on_unclean_work_tree(prefix);
+
+		if (get_rebase_fork_point(rebase_fork_point, repo, *refspecs))
+			hashclr(rebase_fork_point);
+	}
+
+	if (run_fetch(repo, refspecs))
+		return 1;
+
+	if (opt_dry_run)
+		return 0;
+
+	if (get_sha1("HEAD", curr_head))
+		hashclr(curr_head);
+
+	if (!is_null_sha1(orig_head) && !is_null_sha1(curr_head) &&
+			hashcmp(orig_head, curr_head)) {
 		/*
-		 * Did we write the wrong # entries in the header?
-		 * If so, rewrite it like in fast-import
+		 * The fetch involved updating the current branch.
+		 *
+		 * The working tree and the index file are still based on
+		 * orig_head commit, but we are merging into curr_head.
+		 * Update the working tree to match curr_head.
 		 */
-		if (pack_to_stdout) {
-			sha1close(f, sha1, CSUM_CLOSE);
-		} else if (nr_written == nr_remaining) {
-			sha1close(f, sha1, CSUM_FSYNC);
-		} else {
-			int fd = sha1close(f, sha1, 0);
-			fixup_pack_header_footer(fd, sha1, pack_tmp_name,
-						 nr_written, sha1, offset);
-			close(fd);
-			if (write_bitmap_index) {
-				warning(_(no_split_warning));
-				write_bitmap_index = 0;
-			}
-		}
 
-		if (!pack_to_stdout) {
-			struct stat st;
-			struct strbuf tmpname = STRBUF_INIT;
+		warning(_("fetch updated the current branch head.\n"
+			"fast-forwarding your working tree from\n"
+			"commit %s."), sha1_to_hex(orig_head));
 
-			/*
-			 * Packs are runtime accessed in their mtime
-			 * order since newer packs are more likely to contain
-			 * younger objects.  So if we are creating multiple
-			 * packs then we should modify the mtime of later ones
-			 * to preserve this property.
-			 */
-			if (stat(pack_tmp_name, &st) < 0) {
-				warning("failed to stat %s: %s",
-					pack_tmp_name, strerror(errno));
-			} else if (!last_mtime) {
-				last_mtime = st.st_mtime;
-			} else {
-				struct utimbuf utb;
-				utb.actime = st.st_atime;
-				utb.modtime = --last_mtime;
-				if (utime(pack_tmp_name, &utb) < 0)
-					warning("failed utime() on %s: %s",
-						pack_tmp_name, strerror(errno));
-			}
+		if (checkout_fast_forward(orig_head, curr_head, 0))
+			die(_("Cannot fast-forward your working tree.\n"
+				"After making sure that you saved anything precious from\n"
+				"$ git diff %s\n"
+				"output, run\n"
+				"$ git reset --hard\n"
+				"to recover."), sha1_to_hex(orig_head));
+	}
 
-			strbuf_addf(&tmpname, "%s-", base_name);
+	get_merge_heads(&merge_heads);
 
-			if (write_bitmap_index) {
-				bitmap_writer_set_checksum(sha1);
-				bitmap_writer_build_type_index(written_list, nr_written);
-			}
+	if (!merge_heads.nr)
+		die_no_merge_candidates(repo, refspecs);
 
-			finish_tmp_packfile(&tmpname, pack_tmp_name,
-					    written_list, nr_written,
-					    &pack_idx_opts, sha1);
-
-			if (write_bitmap_index) {
-				strbuf_addf(&tmpname, "%s.bitmap", sha1_to_hex(sha1));
-
-				stop_progress(&progress_state);
-
-				bitmap_writer_show_progress(progress);
-				bitmap_writer_reuse_bitmaps(&to_pack);
-				bitmap_writer_select_commits(indexed_commits, indexed_commits_nr, -1);
-				bitmap_writer_build(&to_pack);
-				bitmap_writer_finish(written_list, nr_written,
-						     tmpname.buf, write_bitmap_options);
-				write_bitmap_index = 0;
-			}
-
-			strbuf_release(&tmpname);
-			free(pack_tmp_name);
-			puts(sha1_to_hex(sha1));
-		}
-
-		/* mark written objects as written to previous pack */
-		for (j = 0; j < nr_written; j++) {
-			written_list[j]->offset = (off_t)-1;
-		}
-		nr_remaining -= nr_written;
-	} while (nr_remaining && i < to_pack.nr_objects);
-
-	free(written_list);
-	free(write_order);
-	stop_progress(&progress_state);
-	if (written != nr_result)
-		die("wrote %"PRIu32" objects while expecting %"PRIu32,
-			written, nr_result);
+	if (is_null_sha1(orig_head)) {
+		if (merge_heads.nr > 1)
+			die(_("Cannot merge multiple branches into empty head."));
+		return pull_into_void(*merge_heads.sha1, curr_head);
+	} else if (opt_rebase) {
+		if (merge_heads.nr > 1)
+			die(_("Cannot rebase onto multiple branches."));
+		return run_rebase(curr_head, *merge_heads.sha1, rebase_fork_point);
+	} else
+		return run_merge();
 }

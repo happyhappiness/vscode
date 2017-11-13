@@ -1,11 +1,11 @@
 fputs(
-"               curl -T \"img[1-1000].png\" ftp://ftp.example.com/upload/\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\" as filename to have the output sent to stdout.\n"
 "\n"
-"              When uploading to an SMTP server: the uploaded data  is  assumed\n"
-"              to be RFC 5322 formatted. It has to feature the necessary set of\n"
-"              headers and mail body formatted correctly by the  user  as  curl\n"
-"              will not transcode nor encode it further in any way.\n"
+"              This is very similar to --trace, but leaves out the hex part and\n"
+"              only shows the ASCII part of the dump. It makes  smaller  output\n"
+"              that might be easier to read for untrained humans.\n"
 "\n"
-"       --url <url>\n"
-"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
 , stdout);

@@ -1,3 +1,5 @@
-fprintf(stderr, "Could not open passwd file %s for writing: %s\n",
-		    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                     "new file descriptor %d is too large; you probably need "
+                     "to rebuild Apache with a larger FD_SETSIZE "
+                     "(currently %d)", 
+                     csd, FD_SETSIZE);

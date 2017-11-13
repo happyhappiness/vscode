@@ -1,12 +1,9 @@
 fputs(
-"              and tries to get  the  modification  date  (mtime)  from  <file>\n"
-"              instead.  See  the curl_getdate(3) man pages for date expression\n"
-"              details.\n"
+"              request, it does not alter the way curl behaves. So for  example\n"
+"              if  you  want  to make a proper HEAD request, using -X HEAD will\n"
+"              not suffice. You need to use the -I, --head option.\n"
 "\n"
-"              Start the date expression with a dash (-) to make it request for\n"
-"              a  document that is older than the given date/time, default is a\n"
-"              document that is newer than the specified date/time.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
+"              The the method string you set with  -X  will  be  used  for  all\n"
+"              requests,  which if you for example use -L, --location may cause\n"
+"              unintended side-effects when curl doesn't change request  method\n"
 , stdout);

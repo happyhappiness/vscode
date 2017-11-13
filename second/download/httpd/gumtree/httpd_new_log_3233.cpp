@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Expression condition for '%s' %s",
-                          provider->frec->name,
-                          match ? "matched" : "did not match");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01732)
+                "auth_ldap authorise: User DN not found with filter %s: %s", filtbuf, ldc->reason);

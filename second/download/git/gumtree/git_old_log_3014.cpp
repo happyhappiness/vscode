@@ -1,1 +1,0 @@
-die(_("unknown error occured while reading the configuration files"));

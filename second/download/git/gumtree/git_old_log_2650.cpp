@@ -1,2 +1,1 @@
-die(_("Unable to add %s to database"),
-				    a->path);
+die("Invalid search pattern: %s", prefix);

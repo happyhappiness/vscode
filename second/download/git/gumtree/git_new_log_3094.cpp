@@ -1,4 +1,1 @@
-die(Q_("%d line adds whitespace errors.",
-			       "%d lines add whitespace errors.",
-			       state->whitespace_error),
-			    state->whitespace_error);
+die("BUG: state->lock_file should not be NULL");

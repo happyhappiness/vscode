@@ -1,11 +1,11 @@
 fputs(
-"              ing alternatives:\n"
+"              Example, to send your password file to the server, where  'pass-\n"
+"              word' is the name of the form-field to which /etc/passwd will be\n"
+"              the input:\n"
 "\n"
-"              multicwd\n"
-"                     curl  does  a  single CWD operation for each path part in\n"
-"                     the given URL. For deep hierarchies this means very  many\n"
-"                     commands.  This  is  how RFC 1738 says it should be done.\n"
-"                     This is the default but the slowest behavior.\n"
+"              curl -F password=@/etc/passwd www.mypasswords.com\n"
 "\n"
-"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
+"              To read content from stdin instead of a file, use - as the file-\n"
+"              name.  This  goes  for both @ and < constructs. Unfortunately it\n"
+"              does not support reading the file from a named pipe or  similar,\n"
 , stdout);

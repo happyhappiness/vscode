@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03045)
-                          "h2_session(%ld): process, closing conn", c->id);
+ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf, APLOGNO(00049)
+                     "refusing to send signal %d to pid %ld outside "
+                     "process group", sig, (long)pid);

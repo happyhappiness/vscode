@@ -1,12 +1,8 @@
 fputs(
-"              # --- End of example file ---\n"
-"\n"
-"              This option can be used multiple times to load  multiple  config\n"
-"              files.\n"
-"\n"
-"       --connect-timeout <seconds>\n"
-"              Maximum  time  in  seconds  that  you allow curl's connection to\n"
-"              take.  This only limits the connection phase, so  if  curl  con-\n"
-"              nects  within the given period it will continue - if not it will\n"
-"              exit.  Since version 7.32.0, this option accepts decimal values.\n"
+"              Options  and their parameters must be specified on the same con-\n"
+"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
+"              sign.  Long  option  names can optionally be given in the config\n"
+"              file without the initial double dashes and if so, the  colon  or\n"
+"              equals  characters  can  be used as separators. If the option is\n"
+"              specified with one or two dashes,  there  can  be  no  colon  or\n"
 , stdout);

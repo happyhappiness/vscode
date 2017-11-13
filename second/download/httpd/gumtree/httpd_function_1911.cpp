@@ -1,82 +1,53 @@
-static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static apr_status_t run_rewritemap_programs(server_rec *s, apr_pool_t *p)
 {
-    static int restart_num = 0;
-    int startup = 0;
+    rewrite_server_conf *conf;
+    apr_hash_index_t *hi;
+    apr_status_t rc;
+    int lock_warning_issued = 0;
 
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
-    }
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
 
-    if (ap_threads_limit > HARD_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxThreads of %d exceeds compile-time "
-                         "limit of", ap_threads_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the HARD_THREAD_LIMIT"
-                         "define in");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxThreads of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         ap_threads_limit, HARD_THREAD_LIMIT);
-        }
-        ap_threads_limit = HARD_THREAD_LIMIT;
-    }
-    else if (ap_threads_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxThreads of %d not allowed, increasing to 1",
-                         ap_threads_limit);
-        }
-        ap_threads_limit = 1;
-    }
-
-    /* ap_threads_to_start > ap_threads_limit effectively checked in
-     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
+    /*  If the engine isn't turned on,
+     *  don't even try to do anything.
      */
-    if (ap_threads_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartThreads of %d not allowed, increasing to 1",
-                         ap_threads_to_start);
-        }
-        ap_threads_to_start = 1;
+    if (conf->state == ENGINE_DISABLED) {
+        return APR_SUCCESS;
     }
 
-    if (ap_threads_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_threads_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_threads_min_free);
+    for (hi = apr_hash_first(p, conf->rewritemaps); hi; hi = apr_hash_next(hi)){
+        apr_file_t *fpin = NULL;
+        apr_file_t *fpout = NULL;
+        rewritemap_entry *map;
+        void *val;
+
+        apr_hash_this(hi, NULL, NULL, &val);
+        map = val;
+
+        if (map->type != MAPTYPE_PRG) {
+            continue;
         }
-        ap_threads_min_free = 1;
+        if (!(map->argv[0]) || !*(map->argv[0]) || map->fpin || map->fpout) {
+            continue;
+        }
+
+        if (!lock_warning_issued && (!lockname || !*lockname)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "mod_rewrite: Running external rewrite maps "
+                         "without defining a RewriteLock is DANGEROUS!");
+            ++lock_warning_issued;
+        }
+
+        rc = rewritemap_program_child(p, map->argv[0], map->argv,
+                                      &fpout, &fpin);
+        if (rc != APR_SUCCESS || fpin == NULL || fpout == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                         "mod_rewrite: could not start RewriteMap "
+                         "program %s", map->checkfile);
+            return rc;
+        }
+        map->fpin  = fpin;
+        map->fpout = fpout;
     }
 
-    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
-
-    return OK;
+    return APR_SUCCESS;
 }

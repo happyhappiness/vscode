@@ -1,1 +1,1 @@
-fprintf(FERROR,"fstat failed : %s\n",strerror(errno));
+fprintf(FINFO,"data recv %d at %d\n",i,(int)offset);

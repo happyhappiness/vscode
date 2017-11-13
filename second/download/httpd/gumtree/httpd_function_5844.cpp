@@ -1,13 +1,9 @@
-static void H2_STREAM_OUT_LOG(int lvl, h2_stream *s, char *tag)
+static void *session_calloc(size_t n, size_t size, void *ctx)
 {
-    if (APLOG_C_IS_LEVEL(s->session->c, lvl)) {
-        conn_rec *c = s->session->c;
-        char buffer[4 * 1024];
-        const char *line = "(null)";
-        apr_size_t len, bmax = sizeof(buffer)/sizeof(buffer[0]);
-        
-        len = h2_util_bb_print(buffer, bmax, tag, "", s->buffer);
-        ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%ld-%d): %s", 
-                      c->id, s->id, len? buffer : line);
-    }
+    h2_session *session = ctx;
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
+                  "h2_session(%ld): calloc(%ld, %ld)",
+                  session->id, (long)n, (long)size);
+    return calloc(n, size);
 }

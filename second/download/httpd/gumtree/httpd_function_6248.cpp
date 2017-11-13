@@ -1,58 +1,96 @@
-static void dispatch_event(h2_session *session, h2_session_event_t ev, 
-                      int arg, const char *msg)
+static void *APR_THREAD_FUNC worker_thread(apr_thread_t * thd, void *dummy)
 {
-    switch (ev) {
-        case H2_SESSION_EV_INIT:
-            h2_session_ev_init(session, arg, msg);
-            break;            
-        case H2_SESSION_EV_LOCAL_GOAWAY:
-            h2_session_ev_local_goaway(session, arg, msg);
+    proc_info *ti = dummy;
+    int process_slot = ti->pid;
+    int thread_slot = ti->tid;
+    apr_socket_t *csd = NULL;
+    event_conn_state_t *cs;
+    apr_pool_t *ptrans;         /* Pool for per-transaction stuff */
+    apr_status_t rv;
+    int is_idle = 0;
+    timer_event_t *te = NULL;
+
+    free(ti);
+
+    ap_scoreboard_image->servers[process_slot][thread_slot].pid = ap_my_pid;
+    ap_scoreboard_image->servers[process_slot][thread_slot].tid = apr_os_thread_current();
+    ap_scoreboard_image->servers[process_slot][thread_slot].generation = retained->my_generation;
+    ap_update_child_status_from_indexes(process_slot, thread_slot,
+                                        SERVER_STARTING, NULL);
+
+    while (!workers_may_exit) {
+        if (!is_idle) {
+            rv = ap_queue_info_set_idle(worker_queue_info, NULL);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                             "ap_queue_info_set_idle failed. Attempting to "
+                             "shutdown process gracefully.");
+                signal_threads(ST_GRACEFUL);
+                break;
+            }
+            is_idle = 1;
+        }
+
+        ap_update_child_status_from_indexes(process_slot, thread_slot,
+                                            dying ? SERVER_GRACEFUL : SERVER_READY, NULL);
+      worker_pop:
+        if (workers_may_exit) {
             break;
-        case H2_SESSION_EV_REMOTE_GOAWAY:
-            h2_session_ev_remote_goaway(session, arg, msg);
-            break;
-        case H2_SESSION_EV_CONN_ERROR:
-            h2_session_ev_conn_error(session, arg, msg);
-            break;
-        case H2_SESSION_EV_PROTO_ERROR:
-            h2_session_ev_proto_error(session, arg, msg);
-            break;
-        case H2_SESSION_EV_CONN_TIMEOUT:
-            h2_session_ev_conn_timeout(session, arg, msg);
-            break;
-        case H2_SESSION_EV_NO_IO:
-            h2_session_ev_no_io(session, arg, msg);
-            break;
-        case H2_SESSION_EV_STREAM_READY:
-            h2_session_ev_stream_ready(session, arg, msg);
-            break;
-        case H2_SESSION_EV_DATA_READ:
-            h2_session_ev_data_read(session, arg, msg);
-            break;
-        case H2_SESSION_EV_NGH2_DONE:
-            h2_session_ev_ngh2_done(session, arg, msg);
-            break;
-        case H2_SESSION_EV_MPM_STOPPING:
-            h2_session_ev_mpm_stopping(session, arg, msg);
-            break;
-        case H2_SESSION_EV_PRE_CLOSE:
-            h2_session_ev_pre_close(session, arg, msg);
-            break;
-        case H2_SESSION_EV_STREAM_OPEN:
-            h2_session_ev_stream_open(session, arg, msg);
-            break;
-        case H2_SESSION_EV_STREAM_DONE:
-            h2_session_ev_stream_done(session, arg, msg);
-            break;
-        default:
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                          "h2_session(%ld): unknown event %d", 
-                          session->id, ev);
-            break;
+        }
+
+        te = NULL;
+        rv = ap_queue_pop_something(worker_queue, &csd, &cs, &ptrans, &te);
+
+        if (rv != APR_SUCCESS) {
+            /* We get APR_EOF during a graceful shutdown once all the
+             * connections accepted by this server process have been handled.
+             */
+            if (APR_STATUS_IS_EOF(rv)) {
+                break;
+            }
+            /* We get APR_EINTR whenever ap_queue_pop() has been interrupted
+             * from an explicit call to ap_queue_interrupt_all(). This allows
+             * us to unblock threads stuck in ap_queue_pop() when a shutdown
+             * is pending.
+             *
+             * If workers_may_exit is set and this is ungraceful termination/
+             * restart, we are bound to get an error on some systems (e.g.,
+             * AIX, which sanity-checks mutex operations) since the queue
+             * may have already been cleaned up.  Don't log the "error" if
+             * workers_may_exit is set.
+             */
+            else if (APR_STATUS_IS_EINTR(rv)) {
+                goto worker_pop;
+            }
+            /* We got some other error. */
+            else if (!workers_may_exit) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                             "ap_queue_pop failed");
+            }
+            continue;
+        }
+        if (te != NULL) {
+            te->cbfunc(te->baton);
+
+            {
+                apr_thread_mutex_lock(g_timer_skiplist_mtx);
+                APR_RING_INSERT_TAIL(&timer_free_ring, te, timer_event_t, link);
+                apr_thread_mutex_unlock(g_timer_skiplist_mtx);
+            }
+        }
+        else {
+            is_idle = 0;
+            worker_sockets[thread_slot] = csd;
+            process_socket(thd, ptrans, csd, cs, process_slot, thread_slot);
+            worker_sockets[thread_slot] = NULL;
+        }
     }
-    
-    if (session->state == H2_SESSION_ST_DONE) {
-        apr_brigade_cleanup(session->bbtmp);
-        h2_mplx_abort(session->mplx);
-    }
+
+    ap_update_child_status_from_indexes(process_slot, thread_slot,
+                                        dying ? SERVER_DEAD :
+                                        SERVER_GRACEFUL,
+                                        (request_rec *) NULL);
+
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
 }

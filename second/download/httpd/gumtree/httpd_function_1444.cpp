@@ -1,70 +1,77 @@
-static void fix_hostname(request_rec *r)
+void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
+                             apr_proc_mutex_t **child_start_mutex,
+                             apr_shm_t **scoreboard_shm)
 {
-    char *host, *scope_id;
-    char *dst;
-    apr_port_t port;
+    HANDLE hScore;
+    HANDLE ready_event;
+    HANDLE os_start;
+    DWORD BytesRead;
+    void *sb_shared;
     apr_status_t rv;
-    const char *c;
 
-    /* According to RFC 2616, Host header field CAN be blank. */
-    if (!*r->hostname) {
-        return;
-    }
-
-    /* apr_parse_addr_port will interpret a bare integer as a port
-     * which is incorrect in this context.  So treat it separately.
+    /* *** We now do this was back in winnt_rewrite_args
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
      */
-    for (c = r->hostname; apr_isdigit(*c); ++c);
-    if (!*c) {  /* pure integer */
-        return;
+    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
 
-    rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
-    if (rv != APR_SUCCESS || scope_id) {
-        goto bad;
+    SetEvent(ready_event);
+    CloseHandle(ready_event);
+
+    if (!ReadFile(pipe, child_exit_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the exit event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
 
-    if (port) {
-        /* Don't throw the Host: header's port number away:
-           save it in parsed_uri -- ap_get_server_port() needs it! */
-        /* @@@ XXX there should be a better way to pass the port.
-         *         Like r->hostname, there should be a r->portno
-         */
-        r->parsed_uri.port = port;
-        r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
+    if (!ReadFile(pipe, &os_start, sizeof(os_start),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(os_start))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    *child_start_mutex = NULL;
+    if ((rv = apr_os_proc_mutex_put(child_start_mutex, &os_start, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %d: Unable to access the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
 
-    /* if the hostname is an IPv6 numeric address string, it was validated
-     * already; otherwise, further validation is needed
+    if (!ReadFile(pipe, &hScore, sizeof(hScore),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(hScore))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    *scoreboard_shm = NULL;
+    if ((rv = apr_os_shm_put(scoreboard_shm, &hScore, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+
+    rv = ap_reopen_scoreboard(s->process->pool, scoreboard_shm, 1);
+    if (rv || !(sb_shared = apr_shm_baseaddr_get(*scoreboard_shm))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    /* We must 'initialize' the scoreboard to relink all the
+     * process-local pointer arrays into the shared memory block.
      */
-    if (r->hostname[0] != '[') {
-        for (dst = host; *dst; dst++) {
-            if (apr_islower(*dst)) {
-                /* leave char unchanged */
-            }
-            else if (*dst == '.') {
-                if (*(dst + 1) == '.') {
-                    goto bad;
-                }
-            }
-            else if (apr_isupper(*dst)) {
-                *dst = apr_tolower(*dst);
-            }
-            else if (*dst == '/' || *dst == '\\') {
-                goto bad;
-            }
-        }
-        /* strip trailing gubbins */
-        if (dst > host && dst[-1] == '.') {
-            dst[-1] = '\0';
-        }
-    }
-    r->hostname = host;
-    return;
+    ap_init_scoreboard(sb_shared);
 
-bad:
-    r->status = HTTP_BAD_REQUEST;
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Client sent malformed Host header");
-    return;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
 }

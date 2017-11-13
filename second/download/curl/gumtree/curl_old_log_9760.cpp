@@ -1,11 +1,9 @@
 fputs(
-"              vent curl from outputting that and return error 22.\n"
+"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
+"              be in PEM format, and if curl  is  built  against  OpenSSL,  the\n"
+"              directory  must  have  been processed using the c_rehash utility\n"
+"              supplied with OpenSSL. Using --capath can allow  OpenSSL-powered\n"
+"              curl  to  make  SSL-connections much more efficiently than using\n"
+"              --cacert if the --cacert file contains many CA certificates.\n"
 "\n"
-"              This method is not fail-safe and there are occasions where  non-\n"
-"              successful  response  codes  will  slip through, especially when\n"
-"              authentication is involved (response codes 401 and 407).\n"
-"\n"
-"       -F, --form <name=content>\n"
-"              (HTTP) This lets curl emulate a filled-in form in which  a  user\n"
-"              has  pressed  the  submit  button. This causes curl to POST data\n"
 , stdout);

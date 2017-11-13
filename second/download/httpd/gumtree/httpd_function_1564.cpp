@@ -1,205 +1,273 @@
-static int cache_handler(request_rec *r)
+static apr_status_t ajp_marshal_into_msgb(ajp_msg_t *msg,
+                                          request_rec *r,
+                                          apr_uri_t *uri)
 {
-    apr_status_t rv;
-    cache_provider_list *providers;
-    cache_request_rec *cache;
-    apr_bucket_brigade *out;
-    ap_filter_t *next;
-    ap_filter_rec_t *cache_out_handle;
-    ap_filter_rec_t *cache_save_handle;
-    cache_server_conf *conf;
+    int method;
+    apr_uint32_t i, num_headers = 0;
+    apr_byte_t is_ssl;
+    char *remote_host;
+    const char *session_route, *envvar;
+    const apr_array_header_t *arr = apr_table_elts(r->subprocess_env);
+    const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
 
-    /* Delay initialization until we know we are handling a GET */
-    if (r->method_number != M_GET) {
-        return DECLINED;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Into ajp_marshal_into_msgb");
+
+    if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
+               r->method);
+        method = SC_M_JK_STORED;
     }
 
-    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
-                                                      &cache_module);
+    is_ssl = (apr_byte_t) ap_proxy_conn_is_https(r->connection);
 
-    /* only run if the quick handler is disabled */
-    if (conf->quick) {
-        return DECLINED;
+    if (r->headers_in && apr_table_elts(r->headers_in)) {
+        const apr_array_header_t *t = apr_table_elts(r->headers_in);
+        num_headers = t->nelts;
     }
 
-    /*
-     * Which cache module (if any) should handle this request?
-     */
-    if (!(providers = ap_cache_get_providers(r, conf, r->parsed_uri))) {
-        return DECLINED;
+    remote_host = (char *)ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_HOST, NULL);
+
+    ajp_msg_reset(msg);
+
+    if (ajp_msg_append_uint8(msg, CMD_AJP13_FORWARD_REQUEST)     ||
+        ajp_msg_append_uint8(msg, method)                        ||
+        ajp_msg_append_string(msg, r->protocol)                  ||
+        ajp_msg_append_string(msg, uri->path)                    ||
+        ajp_msg_append_string(msg, r->connection->remote_ip)     ||
+        ajp_msg_append_string(msg, remote_host)                  ||
+        ajp_msg_append_string(msg, ap_get_server_name(r))        ||
+        ajp_msg_append_uint16(msg, (apr_uint16_t)r->connection->local_addr->port) ||
+        ajp_msg_append_uint8(msg, is_ssl)                        ||
+        ajp_msg_append_uint16(msg, (apr_uint16_t) num_headers)) {
+
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_marshal_into_msgb: "
+               "Error appending the message begining");
+        return APR_EGENERAL;
     }
 
-    /* make space for the per request config */
-    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
-                                                       &cache_module);
-    if (!cache) {
-        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
-        ap_set_module_config(r->request_config, &cache_module, cache);
-    }
+    for (i = 0 ; i < num_headers ; i++) {
+        int sc;
+        const apr_array_header_t *t = apr_table_elts(r->headers_in);
+        const apr_table_entry_t *elts = (apr_table_entry_t *)t->elts;
 
-    /* save away the possible providers */
-    cache->providers = providers;
-
-    /*
-     * Try to serve this request from the cache.
-     *
-     * If no existing cache file (DECLINED)
-     *   add cache_save filter
-     * If cached file (OK)
-     *   clear filter stack
-     *   add cache_out filter
-     *   return OK
-     */
-    rv = cache_select(r);
-    if (rv != OK) {
-        if (rv == DECLINED) {
-
-            /* try to obtain a cache lock at this point. if we succeed,
-             * we are the first to try and cache this url. if we fail,
-             * it means someone else is already trying to cache this
-             * url, and we should just let the request through to the
-             * backend without any attempt to cache. this stops
-             * duplicated simultaneous attempts to cache an entity.
-             */
-            rv = ap_cache_try_lock(conf, r, NULL);
-            if (APR_SUCCESS == rv) {
-
-                /*
-                 * Add cache_save filter to cache this request. Choose
-                 * the correct filter by checking if we are a subrequest
-                 * or not.
-                 */
-                if (r->main) {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r->server,
-                            "Adding CACHE_SAVE_SUBREQ filter for %s",
-                            r->uri);
-                    cache_save_handle = cache_save_subreq_filter_handle;
-                }
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r->server, "Adding CACHE_SAVE filter for %s",
-                            r->uri);
-                    cache_save_handle = cache_save_filter_handle;
-                }
-                ap_add_output_filter_handle(cache_save_handle,
-                        NULL, r, r->connection);
-
-                /*
-                 * Did the user indicate the precise location of the
-                 * CACHE_SAVE filter by inserting the CACHE filter as a
-                 * marker?
-                 *
-                 * If so, we get cunning and replace CACHE with the
-                 * CACHE_SAVE filter. This has the effect of inserting
-                 * the CACHE_SAVE filter at the precise location where
-                 * the admin wants to cache the content. All filters that
-                 * lie before and after the original location of the CACHE
-                 * filter will remain in place.
-                 */
-                if (cache_replace_filter(r->output_filters,
-                        cache_filter_handle, cache_save_handle)) {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r->server, "Replacing CACHE with CACHE_SAVE "
-                            "filter for %s", r->uri);
-                }
-
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                        "Adding CACHE_REMOVE_URL filter for %s",
-                        r->uri);
-
-                /* Add cache_remove_url filter to this request to remove a
-                 * stale cache entry if needed. Also put the current cache
-                 * request rec in the filter context, as the request that
-                 * is available later during running the filter may be
-                 * different due to an internal redirect.
-                 */
-                cache->remove_url_filter =
-                    ap_add_output_filter_handle(cache_remove_url_filter_handle,
-                            cache, r, r->connection);
-
-            }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
-                             r->server, "Cache locked for url, not caching "
-                             "response: %s", r->uri);
+        if ((sc = sc_for_req_header(elts[i].key)) != UNKNOWN_METHOD) {
+            if (ajp_msg_append_uint16(msg, (apr_uint16_t)sc)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                       "ajp_marshal_into_msgb: "
+                       "Error appending the header name");
+                return AJP_EOVERFLOW;
             }
         }
         else {
-            /* error */
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                         "cache: error returned while checking for cached "
-                         "file by %s cache", cache->provider_name);
+            if (ajp_msg_append_string(msg, elts[i].key)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                       "ajp_marshal_into_msgb: "
+                       "Error appending the header name");
+                return AJP_EOVERFLOW;
+            }
         }
-        return DECLINED;
-    }
 
-    rv = ap_meets_conditions(r);
-    if (rv != OK) {
-        return rv;
-    }
-
-    /* Serve up the content */
-
-    /*
-     * Add cache_out filter to serve this request. Choose
-     * the correct filter by checking if we are a subrequest
-     * or not.
-     */
-    if (r->main) {
-        cache_out_handle = cache_out_subreq_filter_handle;
-    }
-    else {
-        cache_out_handle = cache_out_filter_handle;
-    }
-    ap_add_output_filter_handle(cache_out_handle, NULL, r, r->connection);
-
-    /*
-     * Did the user indicate the precise location of the CACHE_OUT filter by
-     * inserting the CACHE filter as a marker?
-     *
-     * If so, we get cunning and replace CACHE with the CACHE_OUT filters.
-     * This has the effect of inserting the CACHE_OUT filter at the precise
-     * location where the admin wants to cache the content. All filters that
-     * lie *after* the original location of the CACHE filter will remain in
-     * place.
-     */
-    if (cache_replace_filter(r->output_filters, cache_filter_handle, cache_out_handle)) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                r->server, "Replacing CACHE with CACHE_OUT filter for %s",
-                r->uri);
-    }
-
-    /*
-     * Remove all filters that are before the cache_out filter. This ensures
-     * that we kick off the filter stack with our cache_out filter being the
-     * first in the chain. This make sense because we want to restore things
-     * in the same manner as we saved them.
-     * There may be filters before our cache_out filter, because
-     *
-     * 1. We call ap_set_content_type during cache_select. This causes
-     *    Content-Type specific filters to be added.
-     * 2. We call the insert_filter hook. This causes filters e.g. like
-     *    the ones set with SetOutputFilter to be added.
-     */
-    next = r->output_filters;
-    while (next && (next->frec != cache_out_handle)) {
-        ap_remove_output_filter(next);
-        next = next->next;
-    }
-
-    /* kick off the filter stack */
-    out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-    rv = ap_pass_brigade(r->output_filters, out);
-    if (rv != APR_SUCCESS) {
-        if (rv != AP_FILTER_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                         "cache: error returned while trying to return %s "
-                         "cached data",
-                         cache->provider_name);
+        if (ajp_msg_append_string(msg, elts[i].val)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the header value");
+            return AJP_EOVERFLOW;
         }
-        return rv;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                   "ajp_marshal_into_msgb: Header[%d] [%s] = [%s]",
+                   i, elts[i].key, elts[i].val);
     }
 
-    return OK;
+/* XXXX need to figure out how to do this
+    if (s->secret) {
+        if (ajp_msg_append_uint8(msg, SC_A_SECRET) ||
+            ajp_msg_append_string(msg, s->secret)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "Error ajp_marshal_into_msgb - "
+                   "Error appending secret");
+            return APR_EGENERAL;
+        }
+    }
+ */
+
+    if (r->user) {
+        if (ajp_msg_append_uint8(msg, SC_A_REMOTE_USER) ||
+            ajp_msg_append_string(msg, r->user)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the remote user");
+            return AJP_EOVERFLOW;
+        }
+    }
+    if (r->ap_auth_type) {
+        if (ajp_msg_append_uint8(msg, SC_A_AUTH_TYPE) ||
+            ajp_msg_append_string(msg, r->ap_auth_type)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the auth type");
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* XXXX  ebcdic (args converted?) */
+    if (uri->query) {
+        if (ajp_msg_append_uint8(msg, SC_A_QUERY_STRING) ||
+            ajp_msg_append_string(msg, uri->query)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the query string");
+            return AJP_EOVERFLOW;
+        }
+    }
+    if ((session_route = apr_table_get(r->notes, "session-route"))) {
+        if (ajp_msg_append_uint8(msg, SC_A_JVM_ROUTE) ||
+            ajp_msg_append_string(msg, session_route)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the jvm route");
+            return AJP_EOVERFLOW;
+        }
+    }
+/* XXX: Is the subprocess_env a right place?
+ * <Location /examples>
+ *   ProxyPass ajp://remote:8009/servlets-examples
+ *   SetEnv SSL_SESSION_ID CUSTOM_SSL_SESSION_ID
+ * </Location>
+ */
+    /*
+     * Only lookup SSL variables if we are currently running HTTPS.
+     * Furthermore ensure that only variables get set in the AJP message
+     * that are not NULL and not empty.
+     */
+    if (is_ssl) {
+        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
+                                       AJP13_SSL_CLIENT_CERT_INDICATOR))
+            && envvar[0]) {
+            if (ajp_msg_append_uint8(msg, SC_A_SSL_CERT)
+                || ajp_msg_append_string(msg, envvar)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "ajp_marshal_into_msgb: "
+                             "Error appending the SSL certificates");
+                return AJP_EOVERFLOW;
+            }
+        }
+
+        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
+                                       AJP13_SSL_CIPHER_INDICATOR))
+            && envvar[0]) {
+            if (ajp_msg_append_uint8(msg, SC_A_SSL_CIPHER)
+                || ajp_msg_append_string(msg, envvar)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "ajp_marshal_into_msgb: "
+                             "Error appending the SSL ciphers");
+                return AJP_EOVERFLOW;
+            }
+        }
+
+        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
+                                       AJP13_SSL_SESSION_INDICATOR))
+            && envvar[0]) {
+            if (ajp_msg_append_uint8(msg, SC_A_SSL_SESSION)
+                || ajp_msg_append_string(msg, envvar)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "ajp_marshal_into_msgb: "
+                             "Error appending the SSL session");
+                return AJP_EOVERFLOW;
+            }
+        }
+
+        /* ssl_key_size is required by Servlet 2.3 API */
+        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
+                                       AJP13_SSL_KEY_SIZE_INDICATOR))
+            && envvar[0]) {
+
+            if (ajp_msg_append_uint8(msg, SC_A_SSL_KEY_SIZE)
+                || ajp_msg_append_uint16(msg, (unsigned short) atoi(envvar))) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Error ajp_marshal_into_msgb - "
+                             "Error appending the SSL key size");
+                return APR_EGENERAL;
+            }
+        }
+    }
+    /* If the method was unrecognized, encode it as an attribute */
+    if (method == SC_M_JK_STORED) {
+        if (ajp_msg_append_uint8(msg, SC_A_STORED_METHOD)
+            || ajp_msg_append_string(msg, r->method)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "ajp_marshal_into_msgb: "
+                         "Error appending the method '%s' as request attribute",
+                         r->method);
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* Forward the remote port information, which was forgotten
+     * from the builtin data of the AJP 13 protocol.
+     * Since the servlet spec allows to retrieve it via getRemotePort(),
+     * we provide the port to the Tomcat connector as a request
+     * attribute. Modern Tomcat versions know how to retrieve
+     * the remote port from this attribute.
+     */
+    {
+        const char *key = SC_A_REQ_REMOTE_PORT;
+        char *val = apr_itoa(r->pool, r->connection->remote_addr->port);
+        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+            ajp_msg_append_string(msg, key)   ||
+            ajp_msg_append_string(msg, val)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                    "ajp_marshal_into_msgb: "
+                    "Error appending attribute %s=%s",
+                    key, val);
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* Forward the local ip address information, which was forgotten
+     * from the builtin data of the AJP 13 protocol.
+     * Since the servlet spec allows to retrieve it via getLocalAddr(),
+     * we provide the address to the Tomcat connector as a request
+     * attribute. Modern Tomcat versions know how to retrieve
+     * the local address from this attribute.
+     */
+    {
+        const char *key = SC_A_REQ_LOCAL_ADDR;
+        char *val = r->connection->local_ip;
+        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+            ajp_msg_append_string(msg, key)   ||
+            ajp_msg_append_string(msg, val)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                    "ajp_marshal_into_msgb: "
+                    "Error appending attribute %s=%s",
+                    key, val);
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* Use the environment vars prefixed with AJP_
+     * and pass it to the header striping that prefix.
+     */
+    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
+        if (!strncmp(elts[i].key, "AJP_", 4)) {
+            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+                ajp_msg_append_string(msg, elts[i].key + 4)   ||
+                ajp_msg_append_string(msg, elts[i].val)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                        "ajp_marshal_into_msgb: "
+                        "Error appending attribute %s=%s",
+                        elts[i].key, elts[i].val);
+                return AJP_EOVERFLOW;
+            }
+        }
+    }
+
+    if (ajp_msg_append_uint8(msg, SC_A_ARE_DONE)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_marshal_into_msgb: "
+               "Error appending the message end");
+        return AJP_EOVERFLOW;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+            "ajp_marshal_into_msgb: Done");
+    return APR_SUCCESS;
 }

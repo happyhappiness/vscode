@@ -1,1 +1,1 @@
-(mutt_yesorno (buff, M_NO);
+(mutt_yesorno (_("Exit Mutt?"), M_YES);

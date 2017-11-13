@@ -1,9 +1,11 @@
 fputs(
-"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
-"              be  in  PEM  format,  and  if curl is built against OpenSSL, the\n"
-"              directory must have been processed using  the  c_rehash  utility\n"
-"              supplied  with OpenSSL. Using --capath can allow OpenSSL-powered\n"
-"              curl to make SSL-connections much more  efficiently  than  using\n"
-"              --cacert if the --cacert file contains many CA certificates.\n"
+"              (SSL)  Specify  the  path  name  to the Entropy Gathering Daemon\n"
+"              socket. The socket is used to seed the  random  engine  for  SSL\n"
+"              connections. See also the --random-file option.\n"
+"\n"
+"       --cert-type <type>\n"
+"              (SSL)  Tells curl what certificate type the provided certificate\n"
+"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
+"              PEM is assumed.\n"
 "\n"
 , stdout);

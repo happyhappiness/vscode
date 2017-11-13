@@ -1,1 +1,1 @@
-fprintf(opt->file, "%s", diff_line_prefix(opt));
+error(_("empty commit set passed"));

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01259)
-                  "CGI process %" APR_PID_T_FMT " didn't exit, sending SIGKILL",
-                  pid);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, ptemp, APLOGNO(02154)
+                      "mod_privileges is not compatible with a threaded MPM.");

@@ -1,9 +1,11 @@
 fputs(
-"              -d, --data is the same as  --data-ascii.  To  post  data  purely\n"
-"              binary, you should instead use the --data-binary option. To URL-\n"
-"              encode the value of a form field you may use --data-urlencode.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              If any of these options is used more than once on the same  com-\n"
-"              mand  line,  the  data  pieces specified will be merged together\n"
-"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
+"       --create-dirs\n"
+"              When  used  in  conjunction with the -o option, curl will create\n"
+"              the necessary local directory hierarchy as needed.  This  option\n"
+"              creates  the dirs mentioned with the -o option, nothing else. If\n"
+"              the -o file name uses no dir or if the dirs it mentions  already\n"
+"              exist, no dir will be created.\n"
+"\n"
 , stdout);

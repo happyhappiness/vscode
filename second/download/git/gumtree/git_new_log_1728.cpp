@@ -1,2 +1,1 @@
-warning("unsupported ssl version %s: using default",
-				ssl_version);
+die("curl_global_init failed");

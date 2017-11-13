@@ -1,3 +1,2 @@
-apr_file_printf(out, "  %s\n",
-                                APR_ARRAY_IDX(pks->cert_files,
-                                              i, const char *));
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02560)
+                     "Init: Wiped out the queried pass phrases from memory");

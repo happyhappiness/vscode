@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A prepared statement could not be found for "
-                      "AuthDBDUserPWQuery with the key '%s'", conf->user);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                            "Parent: Unable to connect child stderr.");

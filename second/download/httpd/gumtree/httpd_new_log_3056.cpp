@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
-                         NULL, APLOGNO(02098) "Heartbeat: apr_mcast_loopback failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "mod_rewrite: can't open text RewriteMap file %s", file);

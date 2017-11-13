@@ -1,112 +1,75 @@
-static struct ref_lock *lock_ref_sha1_basic(const char *refname,
-					    const unsigned char *old_sha1,
-					    const struct string_list *skip,
-					    unsigned int flags, int *type_p)
+static int read_merge_config(const char *var, const char *value, void *cb)
 {
-	char *ref_file;
-	const char *orig_refname = refname;
-	struct ref_lock *lock;
-	int last_errno = 0;
-	int type, lflags;
-	int mustexist = (old_sha1 && !is_null_sha1(old_sha1));
-	int resolve_flags = 0;
-	int attempts_remaining = 3;
+	struct ll_merge_driver *fn;
+	const char *key, *name;
+	int namelen;
 
-	lock = xcalloc(1, sizeof(struct ref_lock));
-	lock->lock_fd = -1;
-
-	if (mustexist)
-		resolve_flags |= RESOLVE_REF_READING;
-	if (flags & REF_DELETING) {
-		resolve_flags |= RESOLVE_REF_ALLOW_BAD_NAME;
-		if (flags & REF_NODEREF)
-			resolve_flags |= RESOLVE_REF_NO_RECURSE;
+	if (!strcmp(var, "merge.default")) {
+		if (value)
+			default_ll_merge = xstrdup(value);
+		return 0;
 	}
 
-	refname = resolve_ref_unsafe(refname, resolve_flags,
-				     lock->old_sha1, &type);
-	if (!refname && errno == EISDIR) {
-		/* we are trying to lock foo but we used to
-		 * have foo/bar which now does not exist;
-		 * it is normal for the empty directory 'foo'
-		 * to remain.
-		 */
-		ref_file = git_path("%s", orig_refname);
-		if (remove_empty_directories(ref_file)) {
-			last_errno = errno;
-			error("there are still refs under '%s'", orig_refname);
-			goto error_return;
-		}
-		refname = resolve_ref_unsafe(orig_refname, resolve_flags,
-					     lock->old_sha1, &type);
-	}
-	if (type_p)
-	    *type_p = type;
-	if (!refname) {
-		last_errno = errno;
-		error("unable to resolve reference %s: %s",
-			orig_refname, strerror(errno));
-		goto error_return;
-	}
 	/*
-	 * If the ref did not exist and we are creating it, make sure
-	 * there is no existing packed ref whose name begins with our
-	 * refname, nor a packed ref whose name is a proper prefix of
-	 * our refname.
+	 * We are not interested in anything but "merge.<name>.variable";
+	 * especially, we do not want to look at variables such as
+	 * "merge.summary", "merge.tool", and "merge.verbosity".
 	 */
-	if (is_null_sha1(lock->old_sha1) &&
-	     !is_refname_available(refname, skip, get_packed_refs(&ref_cache))) {
-		last_errno = ENOTDIR;
-		goto error_return;
+	if (parse_config_key(var, "merge", &name, &namelen, &key) < 0 || !name)
+		return 0;
+
+	/*
+	 * Find existing one as we might be processing merge.<name>.var2
+	 * after seeing merge.<name>.var1.
+	 */
+	for (fn = ll_user_merge; fn; fn = fn->next)
+		if (!strncmp(fn->name, name, namelen) && !fn->name[namelen])
+			break;
+	if (!fn) {
+		fn = xcalloc(1, sizeof(struct ll_merge_driver));
+		fn->name = xmemdupz(name, namelen);
+		fn->fn = ll_ext_merge;
+		*ll_user_merge_tail = fn;
+		ll_user_merge_tail = &(fn->next);
 	}
 
-	lock->lk = xcalloc(1, sizeof(struct lock_file));
-
-	lflags = 0;
-	if (flags & REF_NODEREF) {
-		refname = orig_refname;
-		lflags |= LOCK_NO_DEREF;
-	}
-	lock->ref_name = xstrdup(refname);
-	lock->orig_ref_name = xstrdup(orig_refname);
-	ref_file = git_path("%s", refname);
-
- retry:
-	switch (safe_create_leading_directories(ref_file)) {
-	case SCLD_OK:
-		break; /* success */
-	case SCLD_VANISHED:
-		if (--attempts_remaining > 0)
-			goto retry;
-		/* fall through */
-	default:
-		last_errno = errno;
-		error("unable to create directory for %s", ref_file);
-		goto error_return;
+	if (!strcmp("name", key)) {
+		if (!value)
+			return error("%s: lacks value", var);
+		fn->description = xstrdup(value);
+		return 0;
 	}
 
-	lock->lock_fd = hold_lock_file_for_update(lock->lk, ref_file, lflags);
-	if (lock->lock_fd < 0) {
-		last_errno = errno;
-		if (errno == ENOENT && --attempts_remaining > 0)
-			/*
-			 * Maybe somebody just deleted one of the
-			 * directories leading to ref_file.  Try
-			 * again:
-			 */
-			goto retry;
-		else {
-			struct strbuf err = STRBUF_INIT;
-			unable_to_lock_message(ref_file, errno, &err);
-			error("%s", err.buf);
-			strbuf_release(&err);
-			goto error_return;
-		}
+	if (!strcmp("driver", key)) {
+		if (!value)
+			return error("%s: lacks value", var);
+		/*
+		 * merge.<name>.driver specifies the command line:
+		 *
+		 *	command-line
+		 *
+		 * The command-line will be interpolated with the following
+		 * tokens and is given to the shell:
+		 *
+		 *    %O - temporary file name for the merge base.
+		 *    %A - temporary file name for our version.
+		 *    %B - temporary file name for the other branches' version.
+		 *    %L - conflict marker length
+		 *
+		 * The external merge driver should write the results in the
+		 * file named by %A, and signal that it has done with zero exit
+		 * status.
+		 */
+		fn->cmdline = xstrdup(value);
+		return 0;
 	}
-	return old_sha1 ? verify_lock(lock, old_sha1, mustexist) : lock;
 
- error_return:
-	unlock_ref(lock);
-	errno = last_errno;
-	return NULL;
+	if (!strcmp("recursive", key)) {
+		if (!value)
+			return error("%s: lacks value", var);
+		fn->recursive = xstrdup(value);
+		return 0;
+	}
+
+	return 0;
 }

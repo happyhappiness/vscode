@@ -1,8 +1,11 @@
 fputs(
-"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
-"              user's home directory for login name and password. This is typi-\n"
-"              cally used for FTP on Unix. If used with HTTP, curl will  enable\n"
-"              user  authentication.  See netrc(4) or ftp(1) for details on the\n"
-"              file format. Curl will not complain if that  file  doesn't  have\n"
-"              the  right permissions (it should not be either world- or group-\n"
+"              --location is used, this option can be used to prevent curl from\n"
+"              following  redirections  \"in absurdum\". By default, the limit is\n"
+"              set to 50 redirections. Set this option to -1 to make it  limit-\n"
+"              less.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --metalink\n"
+"              This  option  can  tell curl to parse and process a given URI as\n"
 , stdout);

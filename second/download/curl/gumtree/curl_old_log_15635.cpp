@@ -1,11 +1,10 @@
 fputs(
-"              --proto for how protocols are represented.\n"
+"              (HTTP) Tells curl to respect RFC 7231/6.4.2 and not convert POST\n"
+"              requests into GET requests when following a 301 redirection. The\n"
+"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
+"              rection.  This  option is meaningful only when using -L, --loca-\n"
+"              tion.\n"
 "\n"
-"              Example, allow only HTTP and HTTPS on redirect:\n"
-"\n"
-"               curl --proto-redir -all,http,https http://example.com\n"
-"\n"
-"              By default curl will allow all protocols on redirect except sev-\n"
-"              eral disabled for security reasons: Since 7.19.4  FILE  and  SCP\n"
-"              are  disabled,  and since 7.40.0 SMB and SMBS are also disabled.\n"
 , stdout);

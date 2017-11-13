@@ -1,252 +1,156 @@
-static apr_status_t ajp_marshal_into_msgb(ajp_msg_t *msg,
-                                          request_rec *r,
-                                          apr_uri_t *uri)
+static int balancer_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+                         apr_pool_t *ptemp, server_rec *s)
 {
-    int method;
-    apr_uint32_t i, num_headers = 0;
-    apr_byte_t is_ssl;
-    char *remote_host;
-    const char *session_route, *envvar;
-    const apr_array_header_t *arr = apr_table_elts(r->subprocess_env);
-    const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
+    apr_status_t rv;
+    void *sconf = s->module_config;
+    proxy_server_conf *conf;
+    ap_slotmem_instance_t *new = NULL;
+    apr_time_t tstamp;
 
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, "Into ajp_marshal_into_msgb");
-
-    if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, APLOGNO(02437)
-               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
-               r->method);
-        method = SC_M_JK_STORED;
+    /* balancer_post_config() will be called twice during startup.  So, don't
+     * set up the static data the 1st time through. */
+    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG) {
+        return OK;
     }
 
-    is_ssl = (apr_byte_t) ap_proxy_conn_is_https(r->connection);
-
-    if (r->headers_in && apr_table_elts(r->headers_in)) {
-        const apr_array_header_t *t = apr_table_elts(r->headers_in);
-        num_headers = t->nelts;
-    }
-
-    remote_host = (char *)ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_HOST, NULL);
-
-    ajp_msg_reset(msg);
-
-    if (ajp_msg_append_uint8(msg, CMD_AJP13_FORWARD_REQUEST)     ||
-        ajp_msg_append_uint8(msg, (apr_byte_t) method)           ||
-        ajp_msg_append_string(msg, r->protocol)                  ||
-        ajp_msg_append_string(msg, uri->path)                    ||
-        ajp_msg_append_string(msg, r->useragent_ip)              ||
-        ajp_msg_append_string(msg, remote_host)                  ||
-        ajp_msg_append_string(msg, ap_get_server_name(r))        ||
-        ajp_msg_append_uint16(msg, (apr_uint16_t)r->connection->local_addr->port) ||
-        ajp_msg_append_uint8(msg, is_ssl)                        ||
-        ajp_msg_append_uint16(msg, (apr_uint16_t) num_headers)) {
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00968)
-               "ajp_marshal_into_msgb: "
-               "Error appending the message beginning");
-        return APR_EGENERAL;
-    }
-
-    for (i = 0 ; i < num_headers ; i++) {
-        int sc;
-        const apr_array_header_t *t = apr_table_elts(r->headers_in);
-        const apr_table_entry_t *elts = (apr_table_entry_t *)t->elts;
-
-        if ((sc = sc_for_req_header(elts[i].key)) != UNKNOWN_METHOD) {
-            if (ajp_msg_append_uint16(msg, (apr_uint16_t)sc)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00969)
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
-                return AJP_EOVERFLOW;
-            }
-        }
-        else {
-            if (ajp_msg_append_string(msg, elts[i].key)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00970)
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if (ajp_msg_append_string(msg, elts[i].val)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00971)
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the header value");
-            return AJP_EOVERFLOW;
-        }
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
-                   "ajp_marshal_into_msgb: Header[%d] [%s] = [%s]",
-                   i, elts[i].key, elts[i].val);
-    }
-
-/* XXXX need to figure out how to do this
-    if (s->secret) {
-        if (ajp_msg_append_uint8(msg, SC_A_SECRET) ||
-            ajp_msg_append_string(msg, s->secret)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                   "Error ajp_marshal_into_msgb - "
-                   "Error appending secret");
-            return APR_EGENERAL;
+    if (!ap_proxy_retry_worker_fn) {
+        ap_proxy_retry_worker_fn =
+                APR_RETRIEVE_OPTIONAL_FN(ap_proxy_retry_worker);
+        if (!ap_proxy_retry_worker_fn) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02230)
+                         "mod_proxy must be loaded for mod_proxy_balancer");
+            return !OK;
         }
     }
- */
 
-    if (r->user) {
-        if (ajp_msg_append_uint8(msg, SC_A_REMOTE_USER) ||
-            ajp_msg_append_string(msg, r->user)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00972)
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the remote user");
-            return AJP_EOVERFLOW;
-        }
-    }
-    if (r->ap_auth_type) {
-        if (ajp_msg_append_uint8(msg, SC_A_AUTH_TYPE) ||
-            ajp_msg_append_string(msg, r->ap_auth_type)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00973)
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the auth type");
-            return AJP_EOVERFLOW;
-        }
-    }
-    /* XXXX  ebcdic (args converted?) */
-    if (uri->query) {
-        if (ajp_msg_append_uint8(msg, SC_A_QUERY_STRING) ||
-            ajp_msg_append_string(msg, uri->query)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00974)
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the query string");
-            return AJP_EOVERFLOW;
-        }
-    }
-    if ((session_route = apr_table_get(r->notes, "session-route"))) {
-        if (ajp_msg_append_uint8(msg, SC_A_JVM_ROUTE) ||
-            ajp_msg_append_string(msg, session_route)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00975)
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the jvm route");
-            return AJP_EOVERFLOW;
-        }
-    }
-/* XXX: Is the subprocess_env a right place?
- * <Location /examples>
- *   ProxyPass ajp://remote:8009/servlets-examples
- *   SetEnv SSL_SESSION_ID CUSTOM_SSL_SESSION_ID
- * </Location>
- */
     /*
-     * Only lookup SSL variables if we are currently running HTTPS.
-     * Furthermore ensure that only variables get set in the AJP message
-     * that are not NULL and not empty.
+     * Get slotmem setups
      */
-    if (is_ssl) {
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_CLIENT_CERT_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_CERT)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00976)
-                              "ajp_marshal_into_msgb: "
-                              "Error appending the SSL certificates");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_CIPHER_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_CIPHER)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00977)
-                              "ajp_marshal_into_msgb: "
-                              "Error appending the SSL ciphers");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_SESSION_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_SESSION)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00978)
-                              "ajp_marshal_into_msgb: "
-                              "Error appending the SSL session");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        /* ssl_key_size is required by Servlet 2.3 API */
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_KEY_SIZE_INDICATOR))
-            && envvar[0]) {
-
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_KEY_SIZE)
-                || ajp_msg_append_uint16(msg, (unsigned short) atoi(envvar))) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00979)
-                              "ajp_marshal_into_msgb: "
-                              "Error appending the SSL key size");
-                return APR_EGENERAL;
-            }
-        }
+    storage = ap_lookup_provider(AP_SLOTMEM_PROVIDER_GROUP, "shm",
+                                 AP_SLOTMEM_PROVIDER_VERSION);
+    if (!storage) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01177)
+                     "Failed to lookup provider 'shm' for '%s': is "
+                     "mod_slotmem_shm loaded??",
+                     AP_SLOTMEM_PROVIDER_GROUP);
+        return !OK;
     }
-    /* If the method was unrecognized, encode it as an attribute */
-    if (method == SC_M_JK_STORED) {
-        if (ajp_msg_append_uint8(msg, SC_A_STORED_METHOD)
-            || ajp_msg_append_string(msg, r->method)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02438)
-                          "ajp_marshal_into_msgb: "
-                          "Error appending the method '%s' as request attribute",
-                          r->method);
-            return AJP_EOVERFLOW;
-        }
-    }
-    /* Forward the remote port information, which was forgotten
-     * from the builtin data of the AJP 13 protocol.
-     * Since the servlet spec allows to retrieve it via getRemotePort(),
-     * we provide the port to the Tomcat connector as a request
-     * attribute. Modern Tomcat versions know how to retrieve
-     * the remote port from this attribute.
+
+    tstamp = apr_time_now();
+    /*
+     * Go thru each Vhost and create the shared mem slotmem for
+     * each balancer's workers
      */
-    {
-        const char *key = SC_A_REQ_REMOTE_PORT;
-        char *val = apr_itoa(r->pool, r->useragent_addr->port);
-        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-            ajp_msg_append_string(msg, key)   ||
-            ajp_msg_append_string(msg, val)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00980)
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
-            return AJP_EOVERFLOW;
+    while (s) {
+        int i,j;
+        proxy_balancer *balancer;
+        sconf = s->module_config;
+        conf = (proxy_server_conf *)ap_get_module_config(sconf, &proxy_module);
+
+        if (conf->bslot) {
+            /* Shared memory already created for this proxy_server_conf.
+             */
+            s = s->next;
+            continue;
         }
-    }
-    /* Use the environment vars prefixed with AJP_
-     * and pass it to the header striping that prefix.
-     */
-    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
-        if (!strncmp(elts[i].key, "AJP_", 4)) {
-            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-                ajp_msg_append_string(msg, elts[i].key + 4)   ||
-                ajp_msg_append_string(msg, elts[i].val)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00981)
-                        "ajp_marshal_into_msgb: "
-                        "Error appending attribute %s=%s",
-                        elts[i].key, elts[i].val);
-                return AJP_EOVERFLOW;
+        if (conf->balancers->nelts) {
+            conf->max_balancers = conf->balancers->nelts + conf->bgrowth;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01178) "Doing balancers create: %d, %d (%d)",
+                         (int)ALIGNED_PROXY_BALANCER_SHARED_SIZE,
+                         (int)conf->balancers->nelts, conf->max_balancers);
+
+            rv = storage->create(&new, conf->id,
+                                 ALIGNED_PROXY_BALANCER_SHARED_SIZE,
+                                 conf->max_balancers, AP_SLOTMEM_TYPE_PREGRAB, pconf);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01179) "balancer slotmem_create failed");
+                return !OK;
+            }
+            conf->bslot = new;
+        }
+        conf->storage = storage;
+
+        /* Initialize shared scoreboard data */
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++, balancer++) {
+            proxy_worker **workers;
+            proxy_worker *worker;
+            proxy_balancer_shared *bshm;
+            unsigned int index;
+
+            balancer->max_workers = balancer->workers->nelts + balancer->growth;
+
+            /* Create global mutex */
+            rv = ap_global_mutex_create(&(balancer->gmutex), NULL, balancer_mutex_type,
+                                        balancer->s->sname, s, pconf, 0);
+            if (rv != APR_SUCCESS || !balancer->gmutex) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01180)
+                             "mutex creation of %s : %s failed", balancer_mutex_type,
+                             balancer->s->sname);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+
+            apr_pool_cleanup_register(pconf, (void *)s, lock_remove,
+                                      apr_pool_cleanup_null);
+
+            /* setup shm for balancers */
+            if ((rv = storage->grab(conf->bslot, &index)) != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01181) "balancer slotmem_grab failed");
+                return !OK;
+
+            }
+            if ((rv = storage->dptr(conf->bslot, index, (void *)&bshm)) != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01182) "balancer slotmem_dptr failed");
+                return !OK;
+            }
+            if ((rv = ap_proxy_share_balancer(balancer, bshm, index)) != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01183) "Cannot share balancer");
+                return !OK;
+            }
+
+            /* create slotmem slots for workers */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01184) "Doing workers create: %s (%s), %d, %d",
+                         balancer->s->name, balancer->s->sname,
+                         (int)ALIGNED_PROXY_WORKER_SHARED_SIZE,
+                         (int)balancer->max_workers);
+
+            rv = storage->create(&new, balancer->s->sname,
+                                 ALIGNED_PROXY_WORKER_SHARED_SIZE,
+                                 balancer->max_workers, AP_SLOTMEM_TYPE_PREGRAB, pconf);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01185) "worker slotmem_create failed");
+                return !OK;
+            }
+            balancer->wslot = new;
+            balancer->storage = storage;
+
+            /* sync all timestamps */
+            balancer->wupdated = balancer->s->wupdated = tstamp;
+
+            /* now go thru each worker */
+            workers = (proxy_worker **)balancer->workers->elts;
+            for (j = 0; j < balancer->workers->nelts; j++, workers++) {
+                proxy_worker_shared *shm;
+
+                worker = *workers;
+                if ((rv = storage->grab(balancer->wslot, &index)) != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01186) "worker slotmem_grab failed");
+                    return !OK;
+
+                }
+                if ((rv = storage->dptr(balancer->wslot, index, (void *)&shm)) != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01187) "worker slotmem_dptr failed");
+                    return !OK;
+                }
+                if ((rv = ap_proxy_share_worker(worker, shm, index)) != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01188) "Cannot share worker");
+                    return !OK;
+                }
+                worker->s->updated = tstamp;
             }
         }
+        s = s->next;
     }
 
-    if (ajp_msg_append_uint8(msg, SC_A_ARE_DONE)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00982)
-               "ajp_marshal_into_msgb: "
-               "Error appending the message end");
-        return AJP_EOVERFLOW;
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r,
-            "ajp_marshal_into_msgb: Done");
-    return APR_SUCCESS;
+    return OK;
 }

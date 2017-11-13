@@ -1,1 +1,1 @@
-fprintf(F," -l, --link-times            display the time on a symlink\n");
+fprintf(F," -L, --link-owner            display the owner+group on a symlink\n");

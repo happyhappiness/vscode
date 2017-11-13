@@ -1,2 +1,2 @@
-printf("%sdebug: state %d, reducing by rule %d (%s)\n",
-                YYPREFIX, ssl_expr_yystate, ssl_expr_yyn, ssl_expr_yyrule[ssl_expr_yyn]);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "proxy_handler no URL in %s", r->filename);

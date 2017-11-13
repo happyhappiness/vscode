@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_file_list starting\n");
+fprintf(stderr,"protocol version mismatch - is your shell clean?\n");

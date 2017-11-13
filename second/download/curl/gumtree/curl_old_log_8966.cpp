@@ -1,12 +1,11 @@
 fputs(
-"              tion,  you  can force curl to pick up the user name and password\n"
-"              from your environment by simply specifying a single  colon  with\n"
-"              this option: \"-U :\".\n"
-"\n"
+"              This option overrides previous uses of -v, --verbose or --trace.\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --url <URL>\n"
-"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
-"              want to specify URL(s) in a config file.\n"
+"       --trace-time\n"
+"              Prepends a time stamp to each trace or verbose  line  that  curl\n"
+"              displays.  (Added in 7.14.0)\n"
 "\n"
+"       -u, --user <user:password;options>\n"
+"              Specify  the  user  name, password and optional login options to\n"
 , stdout);

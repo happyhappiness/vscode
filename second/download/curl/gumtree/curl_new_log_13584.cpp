@@ -1,11 +1,9 @@
 fputs(
-"  all of them, one after the other in the specified order.\n"
+"  Unix introduced the .netrc concept a long time ago. It is a way for a user\n"
+"  to specify name and password for commonly visited FTP sites in a file so\n"
+"  that you don't have to type them in each time you visit those sites. You\n"
+"  realize this is a big security risk if someone else gets hold of your\n"
+"  passwords, so therefore most unix programs won't read this file unless it is\n"
+"  only readable by yourself (curl doesn't care though).\n"
 "\n"
-"  libcurl will attempt to use persistent connections for the transfers so that\n"
-"  the second transfer to the same host can use the same connection that was\n"
-"  already initiated and was left open in the previous transfer. This greatly\n"
-"  decreases connection time for all but the first transfer and it makes a far\n"
-"  better use of the network.\n"
-"\n"
-"  Note that curl cannot use persistent connections for transfers that are used\n"
 , stdout);

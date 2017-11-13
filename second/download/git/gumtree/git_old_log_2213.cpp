@@ -1,1 +1,1 @@
-die("user.useConfigOnly set but no mail given");
+die(_("Error wrapping up %s."), todo_file);

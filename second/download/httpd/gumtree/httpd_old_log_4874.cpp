@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, status, ap_server_conf,
-                     "apr_socket_opt_set: (TCP_NODELAY)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_get_cached_response: cache miss");

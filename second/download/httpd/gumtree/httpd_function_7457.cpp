@@ -1,40 +1,26 @@
-static int stream_reqbody_cl(apr_pool_t *p,
-                                      request_rec *r,
-                                      proxy_conn_rec *p_conn,
-                                      conn_rec *origin,
-                                      apr_bucket_brigade *header_brigade,
-                                      apr_bucket_brigade *input_brigade,
-                                      char *old_cl_val)
+static int spool_reqbody_cl(apr_pool_t *p,
+                                     request_rec *r,
+                                     proxy_conn_rec *p_conn,
+                                     conn_rec *origin,
+                                     apr_bucket_brigade *header_brigade,
+                                     apr_bucket_brigade *input_brigade,
+                                     int force_cl)
 {
-    int seen_eos = 0, rv = 0;
-    apr_status_t status = APR_SUCCESS;
+    int seen_eos = 0;
+    apr_status_t status;
     apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
-    apr_bucket_brigade *bb;
+    apr_bucket_brigade *body_brigade;
     apr_bucket *e;
-    apr_off_t cl_val = 0;
-    apr_off_t bytes;
-    apr_off_t bytes_streamed = 0;
+    apr_off_t bytes, bytes_spooled = 0, fsize = 0;
+    apr_file_t *tmpfile = NULL;
+    apr_off_t limit;
 
-    if (old_cl_val) {
-        char *endstr;
+    body_brigade = apr_brigade_create(p, bucket_alloc);
 
-        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
-        status = apr_strtoff(&cl_val, old_cl_val, &endstr, 10);
-
-        if (status || *endstr || endstr == old_cl_val || cl_val < 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01085)
-                          "could not parse request Content-Length (%s)",
-                          old_cl_val);
-            return HTTP_BAD_REQUEST;
-        }
-    }
-    terminate_headers(bucket_alloc, header_brigade);
+    limit = ap_get_limit_req_body(r);
 
     while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
     {
-        apr_brigade_length(input_brigade, 1, &bytes);
-        bytes_streamed += bytes;
-
         /* If this brigade contains EOS, either stop or remove it. */
         if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
             seen_eos = 1;
@@ -42,61 +28,87 @@ static int stream_reqbody_cl(apr_pool_t *p,
             /* We can't pass this EOS to the output_filters. */
             e = APR_BRIGADE_LAST(input_brigade);
             apr_bucket_delete(e);
-
-            if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
-                e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(input_brigade, e);
-            }
         }
 
-        /* C-L < bytes streamed?!?
-         * We will error out after the body is completely
-         * consumed, but we can't stream more bytes at the
-         * back end since they would in part be interpreted
-         * as another request!  If nothing is sent, then
-         * just send nothing.
-         *
-         * Prevents HTTP Response Splitting.
-         */
-        if (bytes_streamed > cl_val) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01086)
-                          "read more bytes of request body than expected "
-                          "(got %" APR_OFF_T_FMT ", expected %" APR_OFF_T_FMT ")",
-                          bytes_streamed, cl_val);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
+        apr_brigade_length(input_brigade, 1, &bytes);
 
-        if (header_brigade) {
-            /* we never sent the header brigade, so go ahead and
-             * take care of that now
+        if (bytes_spooled + bytes > MAX_MEM_SPOOL) {
+            /*
+             * LimitRequestBody does not affect Proxy requests (Should it?).
+             * Let it take effect if we decide to store the body in a
+             * temporary file on disk.
              */
-            bb = header_brigade;
+            if (limit && (bytes_spooled + bytes > limit)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01088)
+                              "Request body is larger than the configured "
+                              "limit of %" APR_OFF_T_FMT, limit);
+                return HTTP_REQUEST_ENTITY_TOO_LARGE;
+            }
+            /* can't spool any more in memory; write latest brigade to disk */
+            if (tmpfile == NULL) {
+                const char *temp_dir;
+                char *template;
+
+                status = apr_temp_dir_get(&temp_dir, p);
+                if (status != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01089)
+                                  "search for temporary directory failed");
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+                apr_filepath_merge(&template, temp_dir,
+                                   "modproxy.tmp.XXXXXX",
+                                   APR_FILEPATH_NATIVE, p);
+                status = apr_file_mktemp(&tmpfile, template, 0, p);
+                if (status != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01090)
+                                  "creation of temporary file in directory "
+                                  "%s failed", temp_dir);
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+            }
+            for (e = APR_BRIGADE_FIRST(input_brigade);
+                 e != APR_BRIGADE_SENTINEL(input_brigade);
+                 e = APR_BUCKET_NEXT(e)) {
+                const char *data;
+                apr_size_t bytes_read, bytes_written;
+
+                apr_bucket_read(e, &data, &bytes_read, APR_BLOCK_READ);
+                status = apr_file_write_full(tmpfile, data, bytes_read, &bytes_written);
+                if (status != APR_SUCCESS) {
+                    const char *tmpfile_name;
+
+                    if (apr_file_name_get(&tmpfile_name, tmpfile) != APR_SUCCESS) {
+                        tmpfile_name = "(unknown)";
+                    }
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01091)
+                                  "write to temporary file %s failed",
+                                  tmpfile_name);
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+                AP_DEBUG_ASSERT(bytes_read == bytes_written);
+                fsize += bytes_written;
+            }
+            apr_brigade_cleanup(input_brigade);
+        }
+        else {
 
             /*
-             * Save input_brigade in bb brigade. (At least) in the SSL case
+             * Save input_brigade in body_brigade. (At least) in the SSL case
              * input_brigade contains transient buckets whose data would get
              * overwritten during the next call of ap_get_brigade in the loop.
              * ap_save_brigade ensures these buckets to be set aside.
              * Calling ap_save_brigade with NULL as filter is OK, because
-             * bb brigade already has been created and does not need to get
+             * body_brigade already has been created and does not need to get
              * created by ap_save_brigade.
              */
-            status = ap_save_brigade(NULL, &bb, &input_brigade, p);
+            status = ap_save_brigade(NULL, &body_brigade, &input_brigade, p);
             if (status != APR_SUCCESS) {
                 return HTTP_INTERNAL_SERVER_ERROR;
             }
 
-            header_brigade = NULL;
-        }
-        else {
-            bb = input_brigade;
         }
 
-        /* Once we hit EOS, we are ready to flush. */
-        rv = ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, seen_eos);
-        if (rv != OK) {
-            return rv ;
-        }
+        bytes_spooled += bytes;
 
         if (seen_eos) {
             break;
@@ -108,7 +120,7 @@ static int stream_reqbody_cl(apr_pool_t *p,
 
         if (status != APR_SUCCESS) {
             conn_rec *c = r->connection;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02609)
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02610)
                           "read request body failed to %pI (%s)"
                           " from %s (%s)", p_conn->addr,
                           p_conn->hostname ? p_conn->hostname: "",
@@ -117,20 +129,18 @@ static int stream_reqbody_cl(apr_pool_t *p,
         }
     }
 
-    if (bytes_streamed != cl_val) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01087)
-                      "client %s given Content-Length did not match"
-                      " number of body bytes read", r->connection->client_ip);
-        return HTTP_BAD_REQUEST;
+    if (bytes_spooled || force_cl) {
+        add_cl(p, bucket_alloc, header_brigade, apr_off_t_toa(p, bytes_spooled));
     }
-
-    if (header_brigade) {
-        /* we never sent the header brigade since there was no request
-         * body; send it now with the flush flag
-         */
-        bb = header_brigade;
-        return(ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1));
+    terminate_headers(bucket_alloc, header_brigade);
+    APR_BRIGADE_CONCAT(header_brigade, body_brigade);
+    if (tmpfile) {
+        apr_brigade_insert_file(header_brigade, tmpfile, 0, fsize, p);
     }
-
-    return OK;
+    if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
+        e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(header_brigade, e);
+    }
+    /* This is all a single brigade, pass with flush flagged */
+    return(ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, header_brigade, 1));
 }

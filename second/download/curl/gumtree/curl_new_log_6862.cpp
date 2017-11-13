@@ -1,10 +1,11 @@
 fputs(
-"              feature is useful if you have a limited pipe and you'd like your\n"
-"              transfer not to use your entire bandwidth.\n"
+"              NOTE: this does not properly support -F and the sending of  mul-\n"
+"              tipart  formposts,  so in those cases the output program will be\n"
+"              missing necessary calls to curl_formadd(3), and possibly more.\n"
 "\n"
-"              The  given speed is measured in bytes/second, unless a suffix is\n"
-"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
-"              bytes,  'm'  or M' makes it megabytes, while 'g' or 'G' makes it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              If this option is used several times, the last given  file  name\n"
+"              will be used. (Added in 7.16.1)\n"
 "\n"
+"       --limit-rate <speed>\n"
+"              Specify  the  maximum  transfer  rate you want curl to use. This\n"
 , stdout);

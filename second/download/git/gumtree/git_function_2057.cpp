@@ -1,16 +1,16 @@
-int open_pack_index(struct packed_git *p)
+static void mark_expected_rev(char *bisect_rev_hex)
 {
-	char *idx_name;
-	size_t len;
-	int ret;
+	int len = strlen(bisect_rev_hex);
+	const char *filename = git_path("BISECT_EXPECTED_REV");
+	int fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0600);
 
-	if (p->index_data)
-		return 0;
+	if (fd < 0)
+		die_errno("could not create file '%s'", filename);
 
-	if (!strip_suffix(p->pack_name, ".pack", &len))
-		die("BUG: pack_name does not end in .pack");
-	idx_name = xstrfmt("%.*s.idx", (int)len, p->pack_name);
-	ret = check_packed_git_idx(idx_name, p);
-	free(idx_name);
-	return ret;
+	bisect_rev_hex[len] = '\n';
+	write_or_die(fd, bisect_rev_hex, len + 1);
+	bisect_rev_hex[len] = '\0';
+
+	if (close(fd) < 0)
+		die("closing file %s: %s", filename, strerror(errno));
 }

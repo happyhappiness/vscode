@@ -1,2 +1,1 @@
-printf("Using local notes for %s\n",
-						sha1_to_hex(p->obj));
+die(_("Failed to read object '%s'."), arg);

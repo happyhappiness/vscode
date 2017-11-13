@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %lu: Unable to retrieve the ready event from the parent", my_pid);
+printf("Compiled using: APR %s, APR-Util %s\n",
+           APR_VERSION_STRING, APU_VERSION_STRING);

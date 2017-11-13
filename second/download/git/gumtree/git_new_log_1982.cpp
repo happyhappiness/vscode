@@ -1,1 +1,1 @@
-error("Unknown object type for %s", oid_to_hex(&obj->oid));
+die_errno(_("could not open %s for writing"), path);

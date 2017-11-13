@@ -1,15 +1,7 @@
-int
-main(int argc, char *argv[])
+static void init_delayed_bits(int max_ndx)
 {
-	if (argc < 2) {
-		fprintf(stderr, "usage: " PROGRAM " DIR ...\n"
-			"Trivial file listing program for portably checking rsync\n");
-		return 1;
-	}
+	delayed_slot_cnt = (max_ndx + PER_SLOT_BITS - 1) / PER_SLOT_BITS;
 
-	for (argv++; *argv; argv++) {
-		list_file(*argv);
-	}
-
-	return 0;
+	if (!(delayed_bits = (uint32**)calloc(delayed_slot_cnt, sizeof (uint32*))))
+		out_of_memory("set_delayed_bit");
 }

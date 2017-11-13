@@ -1,1 +1,1 @@
-fprintf(FERROR,"pipe failed in do_recv\n");
+fprintf(FERROR,"mktemp %s failed\n",fnametmp);

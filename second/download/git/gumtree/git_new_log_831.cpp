@@ -1,1 +1,2 @@
-git_die_config(key, _("Invalid %s: '%s'"), key, *output);
+error(_("cannot write '%s'"),
+				     rebase_path_fixup_msg());

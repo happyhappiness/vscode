@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03389)
-                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
-                              io->c->id, (long)length);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), NULL, APLOGNO(02965)
+                         "Child: Unable to retrieve my generation from the parent");

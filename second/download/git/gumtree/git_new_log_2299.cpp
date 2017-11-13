@@ -1,3 +1,1 @@
-fprintf(stderr,
-				_("Submodule '%s' (%s) registered for path '%s'\n"),
-				sub->name, url, displaypath);
+strbuf_addbuf(&msg, &mi.log_message);

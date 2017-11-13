@@ -1,1 +1,1 @@
-die("BUG: ren1_dst != ren2_dst");
+die("strange hostname '%s' blocked", host);

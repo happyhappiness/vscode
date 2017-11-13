@@ -1,31 +1,25 @@
-int sock_exec(const char *prog)
+char *normalize_path(char *path, BOOL force_newbuf, unsigned int *len_ptr)
 {
-	pid_t pid;
-	int fd[2];
+	unsigned int len;
 
-	if (socketpair_tcp(fd) != 0) {
-		rsyserr(FERROR, errno, "socketpair_tcp failed");
-		return -1;
-	}
-	if (verbose >= 2)
-		rprintf(FINFO, "Running socket program: \"%s\"\n", prog);
-
-	pid = fork();
-	if (pid < 0) {
-		rsyserr(FERROR, errno, "fork");
-		exit_cleanup(RERR_IPC);
-	}
-
-	if (pid == 0) {
-		close(fd[0]);
-		if (dup2(fd[1], STDIN_FILENO) < 0
-		 || dup2(fd[1], STDOUT_FILENO) < 0) {
-			fprintf(stderr, "Failed to run \"%s\"\n", prog);
-			exit(1);
-		}
-		exit(system(prog));
+	if (*path != '/') { /* Make path absolute. */
+		int len = strlen(path);
+		if (curr_dir_len + 1 + len >= sizeof curr_dir)
+			return NULL;
+		curr_dir[curr_dir_len] = '/';
+		memcpy(curr_dir + curr_dir_len + 1, path, len + 1);
+		if (!(path = strdup(curr_dir)))
+			out_of_memory("normalize_path");
+		curr_dir[curr_dir_len] = '\0';
+	} else if (force_newbuf) {
+		if (!(path = strdup(path)))
+			out_of_memory("normalize_path");
 	}
 
-	close(fd[1]);
-	return fd[0];
+	len = clean_fname(path, CFN_COLLAPSE_DOT_DOT_DIRS | CFN_DROP_TRAILING_DOT_DIR);
+
+	if (len_ptr)
+		*len_ptr = len;
+
+	return path;
 }

@@ -1,1 +1,0 @@
-apr_file_printf(output, "logresolve Statistics:" NL);

@@ -1,1 +1,2 @@
-fprintf(FERROR,"data recv %d at %d\n",i,(int)offset);
+fprintf(FERROR,"parent=%d child=%d sender=%d recurse=%d\n",
+	      (int)getpid(),pid,sender,recurse);

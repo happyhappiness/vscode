@@ -1,1 +1,1 @@
-fprintf (pgpin, "%s\n", PgpPass);
+fprintf (msg->fp, "From %s %s", p ? p->mailbox : NONULL(Username), ctime (&msg->received));

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
-                         NULL, APLOGNO(02099) "Heartbeat: apr_socket_sendto failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "mod_rewrite: can't open DBM RewriteMap %s", file);

@@ -1,1 +1,1 @@
-dav_send_one_response(first, bb, r->output_filters, subpool);
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121 $");

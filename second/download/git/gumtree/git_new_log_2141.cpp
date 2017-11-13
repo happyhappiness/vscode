@@ -1,1 +1,1 @@
-die(_("unrecognized format: %%(%s)"), atom->name);
+die("Unhandled message id: %s", msg_id);

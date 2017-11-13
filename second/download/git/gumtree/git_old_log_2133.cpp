@@ -1,1 +1,2 @@
-die_errno("Cannot change to '%s'", subdir);
+error("unable to generate patch-id diff for %s",
+				     p->one->path);

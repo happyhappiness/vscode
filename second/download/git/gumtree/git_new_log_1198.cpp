@@ -1,1 +1,0 @@
-die_errno(_("cannot create configuration file %s"), config_file);

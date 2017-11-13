@@ -1,10 +1,47 @@
-static void write_commit_msg(const struct am_state *state)
+static void parse_traditional_patch(const char *first, const char *second, struct patch *patch)
 {
-	int fd;
-	const char *filename = am_path(state, "final-commit");
+	char *name;
 
-	fd = xopen(filename, O_WRONLY | O_CREAT, 0666);
-	if (write_in_full(fd, state->msg, state->msg_len) < 0)
-		die_errno(_("could not write to %s"), filename);
-	close(fd);
+	first += 4;	/* skip "--- " */
+	second += 4;	/* skip "+++ " */
+	if (!p_value_known) {
+		int p, q;
+		p = guess_p_value(first);
+		q = guess_p_value(second);
+		if (p < 0) p = q;
+		if (0 <= p && p == q) {
+			p_value = p;
+			p_value_known = 1;
+		}
+	}
+	if (is_dev_null(first)) {
+		patch->is_new = 1;
+		patch->is_delete = 0;
+		name = find_name_traditional(second, NULL, p_value);
+		patch->new_name = name;
+	} else if (is_dev_null(second)) {
+		patch->is_new = 0;
+		patch->is_delete = 1;
+		name = find_name_traditional(first, NULL, p_value);
+		patch->old_name = name;
+	} else {
+		char *first_name;
+		first_name = find_name_traditional(first, NULL, p_value);
+		name = find_name_traditional(second, first_name, p_value);
+		free(first_name);
+		if (has_epoch_timestamp(first)) {
+			patch->is_new = 1;
+			patch->is_delete = 0;
+			patch->new_name = name;
+		} else if (has_epoch_timestamp(second)) {
+			patch->is_new = 0;
+			patch->is_delete = 1;
+			patch->old_name = name;
+		} else {
+			patch->old_name = name;
+			patch->new_name = xstrdup_or_null(name);
+		}
+	}
+	if (!name)
+		die(_("unable to find filename in patch at line %d"), linenr);
 }

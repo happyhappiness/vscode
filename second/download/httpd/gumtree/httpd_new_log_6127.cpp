@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, parms->pool, /* NO LOGNO */
-                  "H2SessionExtraFiles is obsolete and will be ignored");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03087)
+                          "upgrade with content-length: %s, declined", p);

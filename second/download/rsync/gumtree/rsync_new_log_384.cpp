@@ -1,2 +1,1 @@
-rprintf(FERROR,"%s: %s\n",
-			fname,strerror(errno));
+fprintf(FINFO,"renaming %s to %s\n",fnametmp,fname);

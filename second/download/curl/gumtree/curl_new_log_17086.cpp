@@ -1,10 +1,10 @@
 puts(
-"          cally used for ftp on unix. If  used  with  http,  curl\n"
-"          will  enable  user  authentication.  See  netrc(4)  for\n"
-"          details on the file format. Curl will not  complain  if\n"
-"          that  file  hasn't the right permissions (it should not\n"
-"          be world nor group readable). The environment  variable\n"
-"          \"HOME\" is used to find the home directory.\n"
+"          prefix the file name with an @ sign. To  just  get  the\n"
+"          content part from a file, prefix the file name with the\n"
+"          letter <. The difference between @ and < is then that @\n"
+"          makes a file get attached in the post as a file upload,\n"
+"          while the <  makes  a  text  field  and  just  get  the\n"
+"          contents for that text field from a file.\n"
 "\n"
-"          A  quick  and  very  simple  example  of how to setup a\n"
+"          Example,  to  send  your  password  file to the server,\n"
 );

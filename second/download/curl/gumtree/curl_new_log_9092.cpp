@@ -1,9 +1,11 @@
 fputs(
-"              default). Transient error means either: a timeout,  an  FTP  4xx\n"
-"              response code or an HTTP 5xx response code.\n"
+"              (SSL) Specify the path name to file containing what will be con-\n"
+"              sidered as random data. The data is  used  to  seed  the  random\n"
+"              engine for SSL connections.  See also the --egd-file option.\n"
 "\n"
-"              When  curl  is about to retry a transfer, it will first wait one\n"
-"              second and then for all forthcoming retries it will  double  the\n"
-"              waiting  time until it reaches 10 minutes which then will be the\n"
-"              delay between the rest of the retries.  By  using  --retry-delay\n"
+"       --raw  (HTTP) When used, it disables all internal HTTP decoding of con-\n"
+"              tent or transfer encodings and  instead  makes  them  passed  on\n"
+"              unaltered, raw. (Added in 7.16.2)\n"
+"\n"
+"       --remote-name-all\n"
 , stdout);

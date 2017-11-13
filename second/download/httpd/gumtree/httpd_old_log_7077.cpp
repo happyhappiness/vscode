@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01021)
-                      "an error occurred creating a new connection "
-                      "to %pI (%s)", connect_addr, connectname);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "checking remote machine [%s] against [%s]",
+                      uri_addr->hostname, npent[j].name);

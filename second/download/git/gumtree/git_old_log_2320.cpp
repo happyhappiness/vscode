@@ -1,2 +1,1 @@
-error("could not write config file %s: %s", config_filename,
-		      strerror(errno));
+die(_("no tag exactly matches '%s'"), sha1_to_hex(cmit->object.sha1));

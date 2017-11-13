@@ -1,16 +1,36 @@
-static void copyright(void)
+static char *getpass(const char *prompt)
 {
-    if (!use_html) {
-	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.116 $> apache-2.0");
-	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
-	printf("\n");
+/* WCE lacks console. So the getpass is unsuported
+ * The only way is to use the GUI so the getpass should be implemented
+ * on per-application basis.
+*/ 
+#ifdef _WIN32_WCE
+    return NULL;
+#else
+    static char password[MAX_STRING_LEN];
+    int n = 0;
+
+    fputs(prompt, stderr);
+    
+    while ((password[n] = _getch()) != '\r') {
+        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
+            n++;
+            printf("*");
+        }
+	else {
+            printf("\n");
+            fputs(prompt, stderr);
+            n = 0;
+        }
     }
-    else {
-	printf("<p>\n");
-	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.116 $");
-	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
-	printf("</p>\n<p>\n");
+ 
+    password[n] = '\0';
+    printf("\n");
+
+    if (n > (MAX_STRING_LEN - 1)) {
+        password[MAX_STRING_LEN - 1] = '\0';
     }
+
+    return (char *) &password;
+#endif
 }

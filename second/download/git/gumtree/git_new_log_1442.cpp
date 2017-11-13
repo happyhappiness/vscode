@@ -1,2 +1,1 @@
-error("couldn't write %s: %s", log_file,
-					strerror(errno));
+die(_("Failed to resolve HEAD as a valid ref."));

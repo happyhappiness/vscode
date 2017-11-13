@@ -1,2 +1,1 @@
-fprintf(FERROR,"opendir(%s): %s\n",
-			fname,strerror(errno));
+fprintf(f,"    --force              force deletion of directories even if not empty\n");

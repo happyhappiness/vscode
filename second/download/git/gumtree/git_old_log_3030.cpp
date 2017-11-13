@@ -1,1 +1,1 @@
-fprintf(stderr, "%s\n", buf);
+fprintf(stderr, "%.*s", brk + sf, b);

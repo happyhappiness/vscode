@@ -1,9 +1,12 @@
 fputs(
-"              tication, you can force curl to select the user name  and  pass-\n"
-"              word  from  your environment by simply specifying a single colon\n"
-"              with this option: \"-u :\" or by specfying the  login  options  on\n"
-"              their own, for example \"-u ;auth=NTLM\".\n"
+"              url_effective  The URL that was fetched last. This is most mean-\n"
+"                             ingful  if  you've  told curl to follow location:\n"
+"                             headers.\n"
 "\n"
-"              You  can use the optional login options part to specify protocol\n"
-"              specific options that may  be  used  during  authentication.  At\n"
+"       If this option is used several times, the last one will be used.\n"
+"\n"
+"       -x, --proxy <[protocol://][user:password@]proxyhost[:port]>\n"
+"              Use the specified proxy.\n"
+"\n"
+"              The proxy string can be specified with a protocol://  prefix  to\n"
 , stdout);

@@ -1,2 +1,2 @@
-printf("broken link from %7s %s\n",
-				 typename(parent->type), describe_object(parent));
+printf("              to %7s %s\n",
+				 typename(obj->type), describe_object(obj));

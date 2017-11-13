@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02032)
-                             "Hostname %s provided via SNI and hostname %s provided"
-                             " via HTTP select a different server",
-                             servername, r->hostname);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());

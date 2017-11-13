@@ -1,2 +1,1 @@
-warning_errno("could not create file '%s'",
-			      filename);
+die_errno("could not read file '%s'", filename);

@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
-                                 "Child %lu: Encountered too many errors accepting client connections. "
-                                 "Possible causes: Unknown. "
-                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: byrequests selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
+                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);

@@ -1,1 +1,1 @@
-decl_die(access_status, "check user", r);
+ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);

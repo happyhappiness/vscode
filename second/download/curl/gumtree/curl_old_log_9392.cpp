@@ -1,11 +1,11 @@
 fputs(
-"              mand with an asterisk (*) to make curl continue even if the com-\n"
-"              mand fails as by default curl will stop at first failure.\n"
+"              uations,  curl  will  use a standard buffered output stream that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily  exactly  when  the data arrives.  Using this option\n"
+"              will disable that buffering.\n"
 "\n"
-"              SFTP  is a binary protocol. Unlike for FTP, curl interprets SFTP\n"
-"              quote commands itself before sending them to the  server.   File\n"
-"              names may be quoted shell-style to embed spaces or special char-\n"
-"              acters.  Following is the list of all supported SFTP quote  com-\n"
-"              mands:\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --buffer to enforce the buffering.\n"
 "\n"
+"       --netrc-file\n"
 , stdout);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
-                             "stapling_renew_response: error in retrieved response!");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03072)
+                      "h2_stream(%ld-%d): submit %d trailers",
+                      session->id, (int)stream->id,(int) nh->nvlen);

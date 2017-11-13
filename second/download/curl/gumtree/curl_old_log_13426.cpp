@@ -1,11 +1,11 @@
 fputs(
-"              --include  will be ignored. This is because including headers in\n"
-"              the response will break Metalink parser and if the  headers  are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
+"              the  file requested is larger than this value, the transfer will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"              (Added in 7.27.0, if built against the libmetalink library.)\n"
+"              NOTE: The file size is not always known prior to  download,  and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
+"              both FTP and HTTP transfers.\n"
 "\n"
-"       -n, --netrc\n"
-"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
+"       --mail-rcpt <address>\n"
 , stdout);

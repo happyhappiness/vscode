@@ -1,0 +1,1 @@
+fprintf(FERROR,"got file_sum\n");

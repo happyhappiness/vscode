@@ -1,138 +1,121 @@
-static char master_main()
+static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    server_rec *s = ap_server_conf;
-    ap_listen_rec *lr;
-    parent_info_t *parent_info;
-    char *listener_shm_name;
-    int listener_num, num_listeners, slot;
-    ULONG rc;
+    int startup = 0;
 
-    printf("%s \n", ap_get_server_version());
-    set_signals();
-
-    if (ap_setup_listeners(ap_server_conf) < 1) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
-                     "no listening sockets available, shutting down");
-        return FALSE;
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->module_loads == 1) {
+        startup = 1;
     }
 
-    /* Allocate a shared memory block for the array of listeners */
-    for (num_listeners = 0, lr = ap_listeners; lr; lr = lr->next) {
-        num_listeners++;
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
+        }
+        server_limit = MAX_SERVER_LIMIT;
+    }
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
+        }
+        server_limit = 1;
     }
 
-    listener_shm_name = apr_psprintf(pconf, "/sharemem/httpd/parent_info.%d", getpid());
-    rc = DosAllocSharedMem((PPVOID)&parent_info, listener_shm_name,
-                           sizeof(parent_info_t) + num_listeners * sizeof(listen_socket_t),
-                           PAG_READ|PAG_WRITE|PAG_COMMIT);
-
-    if (rc) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s,
-                     "failure allocating shared memory, shutting down");
-        return FALSE;
-    }
-
-    /* Store the listener sockets in the shared memory area for our children to see */
-    for (listener_num = 0, lr = ap_listeners; lr; lr = lr->next, listener_num++) {
-        apr_os_sock_get(&parent_info->listeners[listener_num].listen_fd, lr->sd);
-    }
-
-    /* Create mutex to prevent multiple child processes from detecting
-     * a connection with apr_poll()
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
      */
-
-    rc = DosCreateMutexSem(NULL, &ap_mpm_accept_mutex, DC_SEM_SHARED, FALSE);
-
-    if (rc) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s,
-                     "failure creating accept mutex, shutting down");
-        return FALSE;
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
     }
 
-    parent_info->accept_mutex = ap_mpm_accept_mutex;
-
-    /* Allocate shared memory for scoreboard */
-    if (ap_scoreboard_image == NULL) {
-        void *sb_mem;
-        rc = DosAllocSharedMem(&sb_mem, ap_scoreboard_fname,
-                               ap_calc_scoreboard_size(),
-                               PAG_COMMIT|PAG_READ|PAG_WRITE);
-
-        if (rc) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf,
-                         "unable to allocate shared memory for scoreboard , exiting");
-            return FALSE;
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d exceeds ServerLimit "
+                         "value of", ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing MaxClients to %d.",
+                         server_limit, server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d exceeds ServerLimit value "
+                         "of %d, decreasing to match",
+                         ap_daemons_limit, server_limit);
         }
-
-        ap_init_scoreboard(sb_mem);
+        ap_daemons_limit = server_limit;
     }
-
-    ap_scoreboard_image->global->restart_time = apr_time_now();
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                "%s configured -- resuming normal operations",
-                ap_get_server_version());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                "Server built: %s", ap_get_server_built());
-#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                "AcceptMutex: %s (default: %s)",
-                apr_proc_mutex_name(accept_mutex),
-                apr_proc_mutex_defname());
-#endif
-    if (one_process) {
-        ap_scoreboard_image->parent[0].pid = getpid();
-        ap_mpm_child_main(pconf);
-        return FALSE;
-    }
-
-    while (!restart_pending && !shutdown_pending) {
-        RESULTCODES proc_rc;
-        PID child_pid;
-        int active_children = 0;
-
-        /* Count number of active children */
-        for (slot=0; slot < HARD_SERVER_LIMIT; slot++) {
-            active_children += ap_scoreboard_image->parent[slot].pid != 0 &&
-                !ap_scoreboard_image->parent[slot].quiescing;
+    else if (ap_daemons_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d not allowed, "
+                         "increasing to 1.", ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d not allowed, increasing to 1",
+                         ap_daemons_limit);
         }
-
-        /* Spawn children if needed */
-        for (slot=0; slot < HARD_SERVER_LIMIT && active_children < ap_daemons_to_start; slot++) {
-            if (ap_scoreboard_image->parent[slot].pid == 0) {
-                spawn_child(slot);
-                active_children++;
-            }
-        }
-
-        rc = DosWaitChild(DCWA_PROCESSTREE, DCWW_NOWAIT, &proc_rc, &child_pid, 0);
-
-        if (rc == 0) {
-            /* A child has terminated, remove its scoreboard entry & terminate if necessary */
-            for (slot=0; ap_scoreboard_image->parent[slot].pid != child_pid && slot < HARD_SERVER_LIMIT; slot++);
-
-            if (slot < HARD_SERVER_LIMIT) {
-                ap_scoreboard_image->parent[slot].pid = 0;
-                ap_scoreboard_image->parent[slot].quiescing = 0;
-
-                if (proc_rc.codeTerminate == TC_EXIT) {
-                    /* Child terminated normally, check its exit code and
-                     * terminate server if child indicates a fatal error
-                     */
-                    if (proc_rc.codeResult == APEXIT_CHILDFATAL)
-                        break;
-                }
-            }
-        } else if (rc == ERROR_CHILD_NOT_COMPLETE) {
-            /* No child exited, lets sleep for a while.... */
-            apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
-        }
+        ap_daemons_limit = 1;
     }
 
-    /* Signal children to shut down, either gracefully or immediately */
-    for (slot=0; slot<HARD_SERVER_LIMIT; slot++) {
-      kill(ap_scoreboard_image->parent[slot].pid, is_graceful ? SIGHUP : SIGTERM);
+    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
     }
 
-    DosFreeMem(parent_info);
-    return restart_pending;
+    if (ap_daemons_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareServers of %d not allowed, "
+                         "increasing to 1", ap_daemons_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareServers of %d not allowed, increasing to 1",
+                         ap_daemons_min_free);
+        }
+        ap_daemons_min_free = 1;
+    }
+
+    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
+
+    return OK;
 }

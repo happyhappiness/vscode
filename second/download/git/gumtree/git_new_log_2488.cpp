@@ -1,2 +1,3 @@
-format_display(&sb, '-', _("[deleted]"), NULL,
-				       _("(none)"), prettify_refname(ref->name));
+die(_("merging of trees %s and %s failed"),
+			    oid_to_hex(&head->object.oid),
+			    oid_to_hex(&merge->object.oid));

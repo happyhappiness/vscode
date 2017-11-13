@@ -1,215 +1,107 @@
-static authz_status ldapgroup_check_authorization(request_rec *r,
-                                                  const char *require_args,
-                                                  const void *parsed_require_args)
+apr_status_t h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    apr_status_t status;
+    int acquired;
 
-    util_ldap_connection_t *ldc = NULL;
+    h2_workers_unregister(m->workers, m);
+    
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        int i, wait_secs = 5;
 
-    const char *t;
-
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
-    struct mod_auth_ldap_groupattr_entry_t *ent;
-    int i;
-
-    if (!r->user) {
-        return AUTHZ_DENIED_NO_USER;
-    }
-
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
-    }
-
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_COMPARE); /* for the top-level group only */
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01708)
-                      "auth_ldap authorize: no sec->host - weird...?");
-        return AUTHZ_DENIED;
-    }
-
-    /*
-     * If there are no elements in the group attribute array, the default should be
-     * member and uniquemember; populate the array now.
-     */
-    if (sec->groupattr->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "member";
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "uniqueMember";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
-
-    /*
-     * If there are no elements in the sub group classes array, the default
-     * should be groupOfNames and groupOfUniqueNames; populate the array now.
-     */
-    if (sec->subgroupclasses->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfNames";
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfUniqueNames";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
-
-    /*
-     * If we have been authenticated by some other module than mod_auth_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
-     */
-
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01709)
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
-
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01710)
-            "ldap authorize: Creating LDAP req structure");
-
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01711)
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
+        if (!h2_ihash_empty(m->streams) && APLOGctrace1(m->c)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                          "h2_mplx(%ld): release_join with %d streams open, "
+                          "%d streams resume, %d streams ready, %d tasks", 
+                          m->id, (int)h2_ihash_count(m->streams),
+                          (int)h2_ihash_count(m->sresume), 
+                          (int)h2_ihash_count(m->sready), 
+                          (int)h2_ihash_count(m->tasks));
+            h2_ihash_iter(m->streams, report_stream_iter, m);
         }
-
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-    }
-
-    ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
-
-    if (sec->group_attrib_is_dn) {
-        if (req->dn == NULL || strlen(req->dn) == 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01712)
-                          "auth_ldap authorize: require group: user's DN has "
-                          "not been defined; failing authorization for user %s",
-                          r->user);
-            return AUTHZ_DENIED;
+        
+        /* disable WINDOW_UPDATE callbacks */
+        h2_mplx_set_consumed_cb(m, NULL, NULL);
+        
+        if (!h2_ihash_empty(m->shold)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): start release_join with %d streams in hold", 
+                          m->id, (int)h2_ihash_count(m->shold));
         }
-    }
-    else {
-        if (req->user == NULL || strlen(req->user) == 0) {
-            /* We weren't called in the authentication phase, so we didn't have a
-             * chance to set the user field. Do so now. */
-            req->user = r->user;
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): start release_join with %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
         }
-    }
-
-    t = require_args;
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01713)
-                  "auth_ldap authorize: require group: testing for group "
-                  "membership in \"%s\"",
-                  t);
-
-    for (i = 0; i < sec->groupattr->nelts; i++) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01714)
-                      "auth_ldap authorize: require group: testing for %s: "
-                      "%s (%s)",
-                      ent[i].name,
-                      sec->group_attrib_is_dn ? req->dn : req->user, t);
-
-        result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
-                             sec->group_attrib_is_dn ? req->dn : req->user);
-        switch(result) {
-            case LDAP_COMPARE_TRUE: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01715)
-                              "auth_ldap authorize: require group: "
-                              "authorization successful (attribute %s) "
-                              "[%s][%d - %s]",
-                              ent[i].name, ldc->reason, result,
-                              ldap_err2string(result));
-                set_request_vars(r, LDAP_AUTHZ);
-                return AUTHZ_GRANTED;
-            }
-            case LDAP_NO_SUCH_ATTRIBUTE:
-            case LDAP_COMPARE_FALSE: {
-                /* nested groups need searches and compares, so grab a new handle */
-                authnz_ldap_cleanup_connection_close(ldc);
-                apr_pool_cleanup_kill(r->pool, ldc,authnz_ldap_cleanup_connection_close);
-
-                ldc = get_connection_for_authz(r, LDAP_COMPARE_AND_SEARCH);
-                apr_pool_cleanup_register(r->pool, ldc,
-                                          authnz_ldap_cleanup_connection_close,
-                                          apr_pool_cleanup_null);
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01716)
-                               "auth_ldap authorise: require group \"%s\": "
-                               "failed [%s][%d - %s], checking sub-groups",
-                               t, ldc->reason, result, ldap_err2string(result));
-
-                result = util_ldap_cache_check_subgroups(r, ldc, sec->url, t, ent[i].name,
-                                                         sec->group_attrib_is_dn ? req->dn : req->user,
-                                                         sec->sgAttributes[0] ? sec->sgAttributes : default_attributes,
-                                                         sec->subgroupclasses,
-                                                         0, sec->maxNestingDepth);
-                if(result == LDAP_COMPARE_TRUE) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01717)
-                                  "auth_ldap authorise: require group "
-                                  "(sub-group): authorisation successful "
-                                  "(attribute %s) [%s][%d - %s]",
-                                  ent[i].name, ldc->reason, result,
-                                  ldap_err2string(result));
-                    set_request_vars(r, LDAP_AUTHZ);
-                    return AUTHZ_GRANTED;
+        
+        h2_iq_clear(m->q);
+        apr_thread_cond_broadcast(m->task_thawed);
+        while (!h2_ihash_iter(m->streams, stream_done_iter, m)) {
+            /* iterate until all streams have been removed */
+        }
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->streams));
+    
+        if (!h2_ihash_empty(m->shold)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 2. release_join with %d streams in hold", 
+                          m->id, (int)h2_ihash_count(m->shold));
+        }
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 2. release_join with %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
+        }
+        
+        /* If we still have busy workers, we cannot release our memory
+         * pool yet, as tasks have references to us.
+         * Any operation on the task slave connection will from now on
+         * be errored ECONNRESET/ABORTED, so processing them should fail 
+         * and workers *should* return in a timely fashion.
+         */
+        for (i = 0; m->workers_busy > 0; ++i) {
+            h2_ihash_iter(m->tasks, task_abort_connection, m);
+            
+            m->join_wait = wait;
+            status = apr_thread_cond_timedwait(wait, m->lock, apr_time_from_sec(wait_secs));
+            
+            if (APR_STATUS_IS_TIMEUP(status)) {
+                if (i > 0) {
+                    /* Oh, oh. Still we wait for assigned  workers to report that 
+                     * they are done. Unless we have a bug, a worker seems to be hanging. 
+                     * If we exit now, all will be deallocated and the worker, once 
+                     * it does return, will walk all over freed memory...
+                     */
+                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03198)
+                                  "h2_mplx(%ld): release, waiting for %d seconds now for "
+                                  "%d h2_workers to return, have still %d tasks outstanding", 
+                                  m->id, i*wait_secs, m->workers_busy,
+                                  (int)h2_ihash_count(m->tasks));
+                    if (i == 1) {
+                        h2_ihash_iter(m->tasks, task_print, m);
+                    }
                 }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01718)
-                                  "auth_ldap authorise: require group "
-                                  "(sub-group) \"%s\": authorisation failed "
-                                  "[%s][%d - %s]",
-                                  t, ldc->reason, result,
-                                  ldap_err2string(result));
-                }
-                break;
-            }
-            default: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01719)
-                              "auth_ldap authorize: require group \"%s\": "
-                              "authorization failed [%s][%d - %s]",
-                              t, ldc->reason, result, ldap_err2string(result));
+                h2_mplx_abort(m);
+                apr_thread_cond_broadcast(m->task_thawed);
             }
         }
+        
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->shold));
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 3. release_join %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
+            purge_streams(m);
+        }
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->spurge));
+        
+        if (!h2_ihash_empty(m->tasks)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03056)
+                          "h2_mplx(%ld): release_join -> destroy, "
+                          "%d tasks still present", 
+                          m->id, (int)h2_ihash_count(m->tasks));
+        }
+        leave_mutex(m, acquired);
+        h2_mplx_destroy(m);
+        /* all gone */
     }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01720)
-                  "auth_ldap authorize group: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
-
-    return AUTHZ_DENIED;
+    return status;
 }

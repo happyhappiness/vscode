@@ -1,63 +1,67 @@
-static const char *branch_get_push_1(struct branch *branch, struct strbuf *err)
+static int store_aux(const char *key, const char *value, void *cb)
 {
-	struct remote *remote;
+	const char *ep;
+	size_t section_len;
 
-	if (!branch)
-		return error_buf(err, _("HEAD does not point to a branch"));
+	switch (store.state) {
+	case KEY_SEEN:
+		if (matches(key, value)) {
+			if (store.seen == 1 && store.multi_replace == 0) {
+				warning("%s has multiple values", key);
+			}
 
-	remote = remote_get(pushremote_for_branch(branch, NULL));
-	if (!remote)
-		return error_buf(err,
-				 _("branch '%s' has no remote for pushing"),
-				 branch->name);
+			ALLOC_GROW(store.offset, store.seen + 1,
+				   store.offset_alloc);
 
-	if (remote->push_refspec_nr) {
-		char *dst;
-		const char *ret;
+			store.offset[store.seen] = cf->do_ftell(cf);
+			store.seen++;
+		}
+		break;
+	case SECTION_SEEN:
+		/*
+		 * What we are looking for is in store.key (both
+		 * section and var), and its section part is baselen
+		 * long.  We found key (again, both section and var).
+		 * We would want to know if this key is in the same
+		 * section as what we are looking for.  We already
+		 * know we are in the same section as what should
+		 * hold store.key.
+		 */
+		ep = strrchr(key, '.');
+		section_len = ep - key;
 
-		dst = apply_refspecs(remote->push, remote->push_refspec_nr,
-				     branch->refname);
-		if (!dst)
-			return error_buf(err,
-					 _("push refspecs for '%s' do not include '%s'"),
-					 remote->name, branch->name);
+		if ((section_len != store.baselen) ||
+		    memcmp(key, store.key, section_len+1)) {
+			store.state = SECTION_END_SEEN;
+			break;
+		}
 
-		ret = tracking_for_push_dest(remote, dst, err);
-		free(dst);
-		return ret;
-	}
-
-	if (remote->mirror)
-		return tracking_for_push_dest(remote, branch->refname, err);
-
-	switch (push_default) {
-	case PUSH_DEFAULT_NOTHING:
-		return error_buf(err, _("push has no destination (push.default is 'nothing')"));
-
-	case PUSH_DEFAULT_MATCHING:
-	case PUSH_DEFAULT_CURRENT:
-		return tracking_for_push_dest(remote, branch->refname, err);
-
-	case PUSH_DEFAULT_UPSTREAM:
-		return branch_get_upstream(branch, err);
-
-	case PUSH_DEFAULT_UNSPECIFIED:
-	case PUSH_DEFAULT_SIMPLE:
-		{
-			const char *up, *cur;
-
-			up = branch_get_upstream(branch, err);
-			if (!up)
-				return NULL;
-			cur = tracking_for_push_dest(remote, branch->refname, err);
-			if (!cur)
-				return NULL;
-			if (strcmp(cur, up))
-				return error_buf(err,
-						 _("cannot resolve 'simple' push to a single destination"));
-			return cur;
+		/*
+		 * Do not increment matches: this is no match, but we
+		 * just made sure we are in the desired section.
+		 */
+		ALLOC_GROW(store.offset, store.seen + 1,
+			   store.offset_alloc);
+		store.offset[store.seen] = cf->do_ftell(cf);
+		/* fallthru */
+	case SECTION_END_SEEN:
+	case START:
+		if (matches(key, value)) {
+			ALLOC_GROW(store.offset, store.seen + 1,
+				   store.offset_alloc);
+			store.offset[store.seen] = cf->do_ftell(cf);
+			store.state = KEY_SEEN;
+			store.seen++;
+		} else {
+			if (strrchr(key, '.') - key == store.baselen &&
+			      !strncmp(key, store.key, store.baselen)) {
+					store.state = SECTION_SEEN;
+					ALLOC_GROW(store.offset,
+						   store.seen + 1,
+						   store.offset_alloc);
+					store.offset[store.seen] = cf->do_ftell(cf);
+			}
 		}
 	}
-
-	die("BUG: unhandled push situation");
+	return 0;
 }

@@ -1,168 +1,78 @@
-int cache_select(request_rec *r)
+static SSL_SESSION *shmcb_lookup_session_id(
+    server_rec *s, SHMCBQueue *queue,
+    SHMCBCache *cache, UCHAR *id,
+    unsigned int idlen)
 {
-    cache_provider_list *list;
-    apr_status_t rv;
-    cache_handle_t *h;
-    char *key;
-    cache_request_rec *cache = (cache_request_rec *)
-                         ap_get_module_config(r->request_config, &cache_module);
+    unsigned char tempasn[SSL_SESSION_MAX_DER];
+    SHMCBIndex *idx;
+    SHMCBHeader *header;
+    SSL_SESSION *pSession = NULL;
+    unsigned int curr_pos, loop, count;
+    MODSSL_D2I_SSL_SESSION_CONST unsigned char *ptr;
+    time_t now;
 
-    rv = cache_generate_key(r, r->pool, &key);
-    if (rv != APR_SUCCESS) {
-        return rv;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "entering shmcb_lookup_session_id");
+
+    /* If there are entries to expire, ditch them first thing. */
+    shmcb_expire_division(s, queue, cache);
+    now = time(NULL);
+    curr_pos = shmcb_get_safe_uint(queue->first_pos);
+    count = shmcb_get_safe_uint(queue->pos_count);
+    header = queue->header;
+    for (loop = 0; loop < count; loop++) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "loop=%u, count=%u, curr_pos=%u",
+                     loop, count, curr_pos);
+        idx = shmcb_get_index(queue, curr_pos);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "idx->s_id2=%u, id[1]=%u, offset=%u",
+                idx->s_id2, id[1], shmcb_get_safe_uint(&(idx->offset)));
+        /* Only look into the session further if;
+         * (a) the second byte of the session_id matches,
+         * (b) the "removed" flag isn't set,
+         * (c) the session hasn't expired yet.
+         * We do (c) like this so that it saves us having to
+         * do natural expiries ... naturally expired sessions
+         * scroll off the front anyway when the cache is full and
+         * "rotating", the only real issue that remains is the
+         * removal or disabling of forcibly killed sessions. */
+        if ((idx->s_id2 == id[1]) && !idx->removed &&
+            (shmcb_get_safe_time(&(idx->expires)) > now)) {
+            unsigned int session_id_length;
+            unsigned char *session_id;
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "at index %u, found possible session match",
+                         curr_pos);
+            shmcb_cyclic_cton_memcpy(header->cache_data_size,
+                                     tempasn, cache->data,
+                                     shmcb_get_safe_uint(&(idx->offset)),
+                                     SSL_SESSION_MAX_DER);
+            ptr = tempasn;
+            pSession = d2i_SSL_SESSION(NULL, &ptr, SSL_SESSION_MAX_DER);
+            session_id_length = SSL_SESSION_get_session_id_length(pSession);
+            session_id = SSL_SESSION_get_session_id(pSession);
+
+            if (pSession == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "scach2_lookup_session_id internal error");
+                return NULL;
+            }
+            if ((session_id_length == idlen) &&
+                (memcmp(session_id, id, idlen) == 0)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "a match!");
+                return pSession;
+            }
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "not a match");
+            SSL_SESSION_free(pSession);
+            pSession = NULL;
+        }
+        curr_pos = shmcb_cyclic_increment(header->index_num, curr_pos, 1);
     }
-    /* go through the cache types till we get a match */
-    h = apr_palloc(r->pool, sizeof(cache_handle_t));
-
-    list = cache->providers;
-
-    while (list) {
-        switch ((rv = list->provider->open_entity(h, r, key))) {
-        case OK: {
-            char *vary = NULL;
-            int fresh;
-
-            if (list->provider->recall_headers(h, r) != APR_SUCCESS) {
-                /* TODO: Handle this error */
-                return DECLINED;
-            }
-
-            /*
-             * Check Content-Negotiation - Vary
-             *
-             * At this point we need to make sure that the object we found in
-             * the cache is the same object that would be delivered to the
-             * client, when the effects of content negotiation are taken into
-             * effect.
-             *
-             * In plain english, we want to make sure that a language-negotiated
-             * document in one language is not given to a client asking for a
-             * language negotiated document in a different language by mistake.
-             *
-             * This code makes the assumption that the storage manager will
-             * cache the req_hdrs if the response contains a Vary
-             * header.
-             *
-             * RFC2616 13.6 and 14.44 describe the Vary mechanism.
-             */
-            vary = apr_pstrdup(r->pool, apr_table_get(h->resp_hdrs, "Vary"));
-            while (vary && *vary) {
-                char *name = vary;
-                const char *h1, *h2;
-
-                /* isolate header name */
-                while (*vary && !apr_isspace(*vary) && (*vary != ','))
-                    ++vary;
-                while (*vary && (apr_isspace(*vary) || (*vary == ','))) {
-                    *vary = '\0';
-                    ++vary;
-                }
-
-                /*
-                 * is this header in the request and the header in the cached
-                 * request identical? If not, we give up and do a straight get
-                 */
-                h1 = apr_table_get(r->headers_in, name);
-                h2 = apr_table_get(h->req_hdrs, name);
-                if (h1 == h2) {
-                    /* both headers NULL, so a match - do nothing */
-                }
-                else if (h1 && h2 && !strcmp(h1, h2)) {
-                    /* both headers exist and are equal - do nothing */
-                }
-                else {
-                    /* headers do not match, so Vary failed */
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                                r->server,
-                                "cache_select_url(): Vary header mismatch.");
-                    return DECLINED;
-                }
-            }
-
-            cache->provider = list->provider;
-            cache->provider_name = list->provider_name;
-
-            /* Is our cached response fresh enough? */
-            fresh = ap_cache_check_freshness(h, r);
-            if (!fresh) {
-                const char *etag, *lastmod;
-
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                  "Cached response for %s isn't fresh.  Adding/replacing "
-                  "conditional request headers.", r->uri);
-
-                /* Make response into a conditional */
-                cache->stale_headers = apr_table_copy(r->pool,
-                                                      r->headers_in);
-
-                /* We can only revalidate with our own conditionals: remove the
-                 * conditions from the original request.
-                 */
-                apr_table_unset(r->headers_in, "If-Match");
-                apr_table_unset(r->headers_in, "If-Modified-Since");
-                apr_table_unset(r->headers_in, "If-None-Match");
-                apr_table_unset(r->headers_in, "If-Range");
-                apr_table_unset(r->headers_in, "If-Unmodified-Since");
-
-                /*
-                 * Do not do Range requests with our own conditionals: If
-                 * we get 304 the Range does not matter and otherwise the
-                 * entity changed and we want to have the complete entity
-                 */
-                apr_table_unset(r->headers_in, "Range");
-
-                etag = apr_table_get(h->resp_hdrs, "ETag");
-                lastmod = apr_table_get(h->resp_hdrs, "Last-Modified");
-
-                if (etag || lastmod) {
-                    /* If we have a cached etag and/or Last-Modified add in
-                     * our own conditionals.
-                     */
-
-                    if (etag) {
-                        apr_table_set(r->headers_in, "If-None-Match", etag);
-                    }
-
-                    if (lastmod) {
-                        apr_table_set(r->headers_in, "If-Modified-Since",
-                                      lastmod);
-                    }
-                    cache->stale_handle = h;
-                }
-                else {
-                    int irv;
-
-                    /*
-                     * The copy isn't fresh enough, but we cannot revalidate.
-                     * So it is the same case as if there had not been a cached
-                     * entry at all. Thus delete the entry from cache.
-                     */
-                    irv = cache->provider->remove_url(h, r->pool);
-                    if (irv != OK) {
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, irv, r->server,
-                                     "cache: attempt to remove url from cache unsuccessful.");
-                    }
-                }
-
-                return DECLINED;
-            }
-
-            /* Okay, this response looks okay.  Merge in our stuff and go. */
-            ap_cache_accept_headers(h, r, 0);
-
-            cache->handle = h;
-            return OK;
-        }
-        case DECLINED: {
-            /* try again with next cache type */
-            list = list->next;
-            continue;
-        }
-        default: {
-            /* oo-er! an error */
-            return rv;
-        }
-        }
-    }
-    return DECLINED;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "no matching sessions were found");
+    return NULL;
 }

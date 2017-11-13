@@ -1,9 +1,11 @@
 fputs(
-"              pretation  of  the  @ character. To post data purely binary, you\n"
-"              should instead use the --data-binary option.  To URL-encode  the\n"
-"              value of a form field you may use --data-urlencode.\n"
+"              -c, --cookie-jar in the same command line is common.\n"
 "\n"
-"              If  any of these options is used more than once on the same com-\n"
-"              mand line, the data pieces specified  will  be  merged  together\n"
-"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
+"       --create-dirs\n"
+"              When used in conjunction with the -o, --output option, curl will\n"
+"              create the necessary local directory hierarchy as  needed.  This\n"
+"              option  creates the dirs mentioned with the -o, --output option,\n"
+"              nothing else. If the --output file name uses no dir  or  if  the\n"
+"              dirs it mentions already exist, no dir will be created.\n"
+"\n"
 , stdout);

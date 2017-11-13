@@ -1,9 +1,11 @@
 fputs(
-"              likely not what you intended.  To address  these  issues  set  a\n"
-"              domain  in  Set-Cookie  (doing that will include sub domains) or\n"
-"              use the Netscape format.\n"
+"              string, meaning \"any host/port\". \"HOST2\" and \"PORT2\" may also be\n"
+"              the   empty   string,   meaning   \"use  the  request's  original\n"
+"              host/port\".\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"              Users very often want to both read cookies from a file and write\n"
-"              updated  cookies  back to a file, so using both -b, --cookie and\n"
+"              A \"host\" specified to this option is compared as a string, so it\n"
+"              needs  to  match  the name used in request URL. It can be either\n"
+"              numerical such as \"127.0.0.1\" or the  full  host  name  such  as\n"
+"              \"example.org\".\n"
+"\n"
 , stdout);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Microsoft LDAP SDK" );
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server,
+                     "LDAP: auth_ldap using SSL connections");

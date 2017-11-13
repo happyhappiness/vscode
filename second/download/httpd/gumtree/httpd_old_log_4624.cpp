@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_threads_min_free);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                      "no SessionDBDinsertlabel has been specified");

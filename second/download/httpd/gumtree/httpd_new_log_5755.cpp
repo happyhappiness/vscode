@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00115)
-                     "Useless use of AllowOverrideList at %s:%d",
-                     cmd->directive->filename, cmd->directive->line_num);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p, APLOGNO(02641)
+                              "unable to control socket non-blocking status");

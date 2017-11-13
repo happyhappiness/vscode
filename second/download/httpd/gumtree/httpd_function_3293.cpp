@@ -1,68 +1,57 @@
-static apr_status_t kept_body_filter(ap_filter_t *f, apr_bucket_brigade *b,
-                                     ap_input_mode_t mode,
-                                     apr_read_type_e block,
-                                     apr_off_t readbytes)
+static authz_status ip_check_authorization(request_rec *r, const char *require_line)
 {
-    request_rec *r = f->r;
-    apr_bucket_brigade *kept_body = r->kept_body;
-    kept_body_ctx_t *ctx = f->ctx;
-    apr_bucket *ec, *e2;
-    apr_status_t rv;
+    const char *t, *w;
 
-    /* just get out of the way of things we don't want. */
-    if (!kept_body || (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE)) {
-        return ap_get_brigade(f->next, b, mode, block, readbytes);
-    }
+    /* The 'ip' provider will allow the configuration to specify a list of
+        ip addresses to check rather than a single address.  This is different
+        from the previous host based syntax. */
+    t = require_line;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+        char *where = apr_pstrdup(r->pool, w);
+        char *s;
+        char msgbuf[120];
+        apr_ipsubnet_t *ip;
+        apr_status_t rv;
+        int got_ip = 0;
 
-    /* set up the context if it does not already exist */
-    if (!ctx) {
-        f->ctx = ctx = apr_palloc(f->r->pool, sizeof(*ctx));
-        ctx->offset = 0;
-        apr_brigade_length(kept_body, 1, &ctx->remaining);
-    }
-
-    /* kept_body is finished, send next filter */
-    if (ctx->remaining <= 0) {
-        return ap_get_brigade(f->next, b, mode, block, readbytes);
-    }
-
-    /* send all of the kept_body, but no more */
-    if (readbytes > ctx->remaining) {
-        readbytes = ctx->remaining;
-    }
-
-    /* send part of the kept_body */
-    if ((rv = apr_brigade_partition(kept_body, ctx->offset, &ec)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "apr_brigade_partition() failed on kept_body at %" APR_OFF_T_FMT, ctx->offset);
-        return rv;
-    }
-    if ((rv = apr_brigade_partition(kept_body, ctx->offset + readbytes, &e2)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "apr_brigade_partition() failed on kept_body at %" APR_OFF_T_FMT, ctx->offset + readbytes);
-        return rv;
-    }
-
-    do {
-        apr_bucket *foo;
-        const char *str;
-        apr_size_t len;
-
-        if (apr_bucket_copy(ec, &foo) != APR_SUCCESS) {
-            /* As above; this should not fail since the bucket has
-             * a known length, but just to be sure, this takes
-             * care of uncopyable buckets that do somehow manage
-             * to slip through.  */
-            /* XXX: check for failure? */
-            apr_bucket_read(ec, &str, &len, APR_BLOCK_READ);
-            apr_bucket_copy(ec, &foo);
+        if ((s = ap_strchr(where, '/'))) {
+            *s++ = '\0';
+            rv = apr_ipsubnet_create(&ip, where, s, r->pool);
+            if(APR_STATUS_IS_EINVAL(rv)) {
+                /* looked nothing like an IP address */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "an ip address 'require' list appears to be invalid ");
+            }
+            else if (rv != APR_SUCCESS) {
+                apr_strerror(rv, msgbuf, sizeof msgbuf);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "an ip address 'require' list appears to be invalid; %s ",
+                              msgbuf);
+            }
+            else
+                got_ip = 1;
         }
-        APR_BRIGADE_INSERT_TAIL(b, foo);
-        ec = APR_BUCKET_NEXT(ec);
-    } while (ec != e2);
+        else if (!APR_STATUS_IS_EINVAL(rv = apr_ipsubnet_create(&ip, where,
+                                                                NULL, r->pool))) {
+            if (rv != APR_SUCCESS) {
+                apr_strerror(rv, msgbuf, sizeof msgbuf);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "an ip address 'require' list appears to be invalid; %s ",
+                              msgbuf);
+            }
+            else 
+                got_ip = 1;
+        }
 
-    ctx->remaining -= readbytes;
-    ctx->offset += readbytes;
-    return APR_SUCCESS;
+        if (got_ip && apr_ipsubnet_test(ip, r->connection->remote_addr)) {
+            return AUTHZ_GRANTED;
+        }
+    }
 
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "access to %s failed, reason: ip address list does not meet "
+                  "'require'ments for user '%s' to be allowed access",
+                  r->uri, r->user);
+
+    return AUTHZ_DENIED;
 }

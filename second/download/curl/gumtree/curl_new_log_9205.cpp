@@ -1,12 +1,10 @@
 fputs(
-"                             the complete download. Bytes per second.\n"
+"                             to the remote FTP server. (Added in 7.15.4)\n"
 "\n"
-"              speed_upload   The average upload speed that curl  measured  for\n"
-"                             the complete upload. Bytes per second.\n"
+"              http_code      The numerical response code that was found in the\n"
+"                             last retrieved HTTP(S)  or  FTP(s)  transfer.  In\n"
+"                             7.18.2  the alias response_code was added to show\n"
+"                             the same info.\n"
 "\n"
-"              ssl_verify_result\n"
-"                             The  result of the SSL peer certificate verifica-\n"
-"                             tion that was requested. 0 means the verification\n"
-"                             was successful. (Added in 7.19.0)\n"
-"\n"
+"              http_connect   The numerical code that was  found  in  the  last\n"
 , stdout);

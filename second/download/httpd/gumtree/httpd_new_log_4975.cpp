@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00541)
-                  "XML Parser Error: %s", errbuf);
+ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, stat, p, APLOGNO(00073)
+                      "make_sock: unable to listen for connections "
+                      "on address %pI",
+                      server->bind_addr);

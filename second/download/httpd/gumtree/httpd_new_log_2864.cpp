@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_NOTICE, rv, ptemp, APLOGNO(02153)
-                      "mod_privileges: unable to determine MPM characteristics."
-                      "  Please ensure you are using a non-threaded MPM "
-                      "with this module.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: bybusyness selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
+                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);

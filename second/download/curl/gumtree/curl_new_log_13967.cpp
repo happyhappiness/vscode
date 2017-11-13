@@ -1,10 +1,11 @@
 fputs(
-"              user's home directory for login name and password. This is typi-\n"
-"              cally  used for FTP on Unix. If used with HTTP, curl will enable\n"
-"              user authentication. See netrc(5) ftp(1) for details on the file\n"
-"              format.  Curl  will  not  complain if that file doesn't have the\n"
-"              right permissions (it should not be either world- or group-read-\n"
-"              able).  The environment variable \"HOME\" is used to find the home\n"
-"              directory.\n"
+"              are  errors (such as the file or server not being available). It\n"
+"              will also verify the hash of the file after  the  download  com-\n"
+"              pletes.  The Metalink file itself is downloaded and processed in\n"
+"              memory and not stored in the local file system.\n"
+"\n"
+"              Example to use a remote Metalink file:\n"
+"\n"
+"               curl --metalink http://www.example.com/example.metalink\n"
 "\n"
 , stdout);

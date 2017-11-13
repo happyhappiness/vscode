@@ -1,12 +1,9 @@
 fputs(
-"              nects within the given period it will continue - if not it  will\n"
-"              exit.  Since version 7.32.0, this option accepts decimal values.\n"
+"              Continue/Resume  a  previous  file transfer at the given offset.\n"
+"              The given offset is the exact  number  of  bytes  that  will  be\n"
+"              skipped,  counting  from the beginning of the source file before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"              See also the -m, --max-time option.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --create-dirs\n"
-"              When  used  in  conjunction with the -o option, curl will create\n"
-"              the necessary local directory hierarchy as needed.  This  option\n"
+"              Use  \"-C  -\" to tell curl to automatically find out where/how to\n"
 , stdout);

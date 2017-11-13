@@ -1,1 +1,1 @@
-die("no matching remote head");
+die(_("%s already exists"), git_dir);

@@ -1,3 +1,2 @@
-ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %lu %s %s",
-                         e, err, annotation);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, data->r,
+                          "poll failed waiting for CGI child");

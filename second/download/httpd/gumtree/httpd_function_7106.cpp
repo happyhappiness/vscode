@@ -1,39 +1,62 @@
-static int authenticate_form_logout_handler(request_rec * r)
+static int convert_secure_socket(conn_rec *c, apr_socket_t *csd)
 {
-    auth_form_config_rec *conf;
-    const char *err;
+        int rcode;
+        struct tlsclientopts sWS2Opts;
+        struct nwtlsopts sNWTLSOpts;
+        struct sslserveropts opts;
+    unsigned long ulFlags;
+    SOCKET sock;
+    unicode_t keyFileName[60];
 
-    if (strcmp(r->handler, FORM_LOGOUT_HANDLER)) {
-        return DECLINED;
+    apr_os_sock_get(&sock, csd);
+
+    /* zero out buffers */
+        memset((char *)&sWS2Opts, 0, sizeof(struct tlsclientopts));
+        memset((char *)&sNWTLSOpts, 0, sizeof(struct nwtlsopts));
+
+    /* turn on ssl for the socket */
+        ulFlags = (numcerts ? SO_TLS_ENABLE : SO_TLS_ENABLE | SO_TLS_BLIND_ACCEPT);
+        rcode = WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
+                     NULL, 0, NULL, NULL, NULL);
+        if (SOCKET_ERROR == rcode)
+        {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02124)
+                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
+                return rcode;
+        }
+
+    ulFlags = SO_TLS_UNCLEAN_SHUTDOWN;
+        WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
+                     NULL, 0, NULL, NULL, NULL);
+
+    /* setup the socket for SSL */
+    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
+    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
+    sWS2Opts.options = &sNWTLSOpts;
+
+    if (numcerts) {
+        sNWTLSOpts.walletProvider = WAL_PROV_DER;   /* the wallet provider defined in wdefs.h */
+        sNWTLSOpts.TrustedRootList = certarray;     /* array of certs in UNICODE format       */
+        sNWTLSOpts.numElementsInTRList = numcerts;  /* number of certs in TRList              */
+    }
+    else {
+        /* setup the socket for SSL */
+        unicpy(keyFileName, L"SSL CertificateIP");
+        sWS2Opts.wallet = keyFileName;              /* no client certificate */
+        sWS2Opts.walletlen = unilen(keyFileName);
+
+        sNWTLSOpts.walletProvider = WAL_PROV_KMO;   /* the wallet provider defined in wdefs.h */
     }
 
-    conf = ap_get_module_config(r->per_dir_config, &auth_form_module);
+    /* make the IOCTL call */
+    rcode = WSAIoctl(sock, SO_TLS_SET_CLIENT, &sWS2Opts,
+                     sizeof(struct tlsclientopts), NULL, 0, NULL,
+                     NULL, NULL);
 
-    /* remove the username and password, effectively logging the user out */
-    set_session_auth(r, NULL, NULL, NULL);
-
-    /*
-     * make sure the logout page is never cached - otherwise the logout won't
-     * work!
-     */
-    apr_table_addn(r->headers_out, "Cache-Control", "no-store");
-    apr_table_addn(r->err_headers_out, "Cache-Control", "no-store");
-
-    /* if set, internal redirect to the logout page */
-    if (conf->logout) {
-        const char *logout = ap_expr_str_exec(r,
-                conf->logout, &err);
-        if (!err) {
-            apr_table_addn(r->headers_out, "Location", logout);
-            return HTTP_TEMPORARY_REDIRECT;
+    /* make sure that it was successful */
+        if(SOCKET_ERROR == rcode ){
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02125)
+                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
         }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02343)
-                          "Can't evaluate logout expression: %s", err);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-    }
-
-    return HTTP_OK;
-
+        return rcode;
 }

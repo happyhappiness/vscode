@@ -1,1 +1,0 @@
-fprintf(stderr, "fixed %s\n", sb.buf);

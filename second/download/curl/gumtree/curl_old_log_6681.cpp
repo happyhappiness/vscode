@@ -1,11 +1,9 @@
 fputs(
-"              resume  the  transfer. It then uses the given output/input files\n"
-"              to figure that out.\n"
+"              Continue/Resume a previous file transfer at  the  given  offset.\n"
+"              The  given  offset  is  the  exact  number of bytes that will be\n"
+"              skipped, counting from the beginning of the source  file  before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --ciphers <list of ciphers>\n"
-"              (SSL) Specifies which ciphers to use in the connection. The list\n"
-"              of  ciphers  must  specify  valid ciphers. Read up on SSL cipher\n"
-"              list          details           on           this           URL:\n"
+"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
 , stdout);

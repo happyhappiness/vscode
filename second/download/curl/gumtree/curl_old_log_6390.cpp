@@ -1,8 +1,12 @@
 fputs(
-"              Tells  curl  to  respect  RFC  2616/10.3.2  and not convert POST\n"
-"              requests into GET requests when following a 301 redirection. The\n"
-"              non-RFC  behaviour  is  ubiquitous in web browsers, so curl does\n"
-"              the conversion by default to maintain  consistency.  However,  a\n"
-"              server  may  require  a POST to remain a POST after such a redi-\n"
-"              rection. This option is meaningful only when using -L/--location\n"
+"              Consequentially,  the  file will be saved in the current working\n"
+"              directory. If you want the file saved in a different  directory,\n"
+"              make sure you change current working directory before you invoke\n"
+"              curl with the -O/--remote-name flag!\n"
+"\n"
+"              You may use this option as many times as the number of URLs  you\n"
+"              have.\n"
+"\n"
+"       --remote-name-all\n"
+"              This  option changes the default action for all given URLs to be\n"
 , stdout);

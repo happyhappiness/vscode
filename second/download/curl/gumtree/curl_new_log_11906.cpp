@@ -1,11 +1,11 @@
 fputs(
-"              set  to 50 redirections. Set this option to -1 to make it limit-\n"
-"              less.\n"
+"              out will decrease in accuracy as the specified timeout increases\n"
+"              in decimal precision.  See also the --connect-timeout option.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --metalink\n"
-"              This option can tell curl to parse and process a  given  URI  as\n"
-"              Metalink  file  (both  version 3 and 4 (RFC 5854) are supported)\n"
-"              and make use of the mirrors listed within for failover if  there\n"
+"       --login-options <options>\n"
+"              Specify the login options to use during server authentication.\n"
+"\n"
+"              You  can  use  the  login  options  to specify protocol specific\n"
 , stdout);

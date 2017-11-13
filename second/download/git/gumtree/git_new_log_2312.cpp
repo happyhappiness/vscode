@@ -1,1 +1,1 @@
-error_errno("readlink(%s)", elem->path);
+memset(&array, 0, sizeof(array));

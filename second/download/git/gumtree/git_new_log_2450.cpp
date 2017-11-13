@@ -1,1 +1,2 @@
-printf(_("We cannot bisect more!\n"));
+error("Object %s not a commit",
+			     oid_to_hex(&item->object.oid));

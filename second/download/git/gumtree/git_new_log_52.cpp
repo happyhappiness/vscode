@@ -1,1 +1,1 @@
-die("editing object file failed");
+die("cat-file reported failure");

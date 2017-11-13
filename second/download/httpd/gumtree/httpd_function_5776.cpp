@@ -1,67 +1,92 @@
-apr_status_t h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
+static void check_pipeline(conn_rec *c, apr_bucket_brigade *bb)
 {
-    apr_status_t status;
-    int acquired;
+    apr_status_t rv;
+    int num_blank_lines = DEFAULT_LIMIT_BLANK_LINES;
+    ap_input_mode_t mode = AP_MODE_SPECULATIVE;
+    apr_size_t cr = 0;
+    char buf[2];
 
-    h2_workers_unregister(m->workers, m);
-    
-    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
-        int i, wait_secs = 5;
-        
-        /* disable WINDOW_UPDATE callbacks */
-        h2_mplx_set_consumed_cb(m, NULL, NULL);
-        
-        h2_iq_clear(m->q);
-        apr_thread_cond_broadcast(m->task_thawed);
-        while (!h2_io_set_iter(m->stream_ios, stream_done_iter, m)) {
-            /* iterate until all ios have been orphaned or destroyed */
+    c->data_in_input_filters = 0;
+    while (c->keepalive != AP_CONN_CLOSE && !c->aborted) {
+        apr_size_t len = cr + 1;
+
+        apr_brigade_cleanup(bb);
+        rv = ap_get_brigade(c->input_filters, bb, mode,
+                            APR_NONBLOCK_READ, len);
+        if (rv != APR_SUCCESS || APR_BRIGADE_EMPTY(bb)) {
+            /*
+             * Error or empty brigade: There is no data present in the input
+             * filter
+             */
+            if (mode == AP_MODE_READBYTES) {
+                /* Unexpected error, stop with this connection */
+                ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(02967)
+                              "Can't consume pipelined empty lines");
+                c->keepalive = AP_CONN_CLOSE;
+            }
+            break;
         }
-    
-        /* If we still have busy workers, we cannot release our memory
-         * pool yet, as slave connections have child pools of their respective
-         * h2_io's.
-         * Any remaining ios are processed in these workers. Any operation 
-         * they do on their input/outputs will be errored ECONNRESET/ABORTED, 
-         * so processing them should fail and workers *should* return.
+
+        /* Ignore trailing blank lines (which must not be interpreted as
+         * pipelined requests) up to the limit, otherwise we would block
+         * on the next read without flushing data, and hence possibly delay
+         * pending response(s) until the next/real request comes in or the
+         * keepalive timeout expires.
          */
-        for (i = 0; m->workers_busy > 0; ++i) {
-            m->join_wait = wait;
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                          "h2_mplx(%ld): release_join, waiting on %d worker to report back", 
-                          m->id, (int)h2_io_set_size(m->stream_ios));
-                          
-            status = apr_thread_cond_timedwait(wait, m->lock, apr_time_from_sec(wait_secs));
-            if (APR_STATUS_IS_TIMEUP(status)) {
-                if (i > 0) {
-                    /* Oh, oh. Still we wait for assigned  workers to report that 
-                     * they are done. Unless we have a bug, a worker seems to be hanging. 
-                     * If we exit now, all will be deallocated and the worker, once 
-                     * it does return, will walk all over freed memory...
-                     */
-                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03198)
-                                  "h2_mplx(%ld): release, waiting for %d seconds now for "
-                                  "%d h2_workers to return, have still %d requests outstanding", 
-                                  m->id, i*wait_secs, m->workers_busy,
-                                  (int)h2_io_set_size(m->stream_ios));
-                    if (i == 1) {
-                        h2_io_set_iter(m->stream_ios, stream_print, m);
-                    }
-                }
-                h2_mplx_abort(m);
-                apr_thread_cond_broadcast(m->task_thawed);
+        rv = apr_brigade_flatten(bb, buf, &len);
+        if (rv != APR_SUCCESS || len != cr + 1) {
+            int log_level;
+            if (mode == AP_MODE_READBYTES) {
+                /* Unexpected error, stop with this connection */
+                c->keepalive = AP_CONN_CLOSE;
+                log_level = APLOG_ERR;
+            }
+            else {
+                /* Let outside (non-speculative/blocking) read determine
+                 * where this possible failure comes from (metadata,
+                 * morphed EOF socket => empty bucket? debug only here).
+                 */
+                c->data_in_input_filters = 1;
+                log_level = APLOG_DEBUG;
+            }
+            ap_log_cerror(APLOG_MARK, log_level, rv, c, APLOGNO(02968)
+                          "Can't check pipelined data");
+            break;
+        }
+
+        if (mode == AP_MODE_READBYTES) {
+            mode = AP_MODE_SPECULATIVE;
+            cr = 0;
+        }
+        else if (cr) {
+            AP_DEBUG_ASSERT(len == 2 && buf[0] == APR_ASCII_CR);
+            if (buf[1] == APR_ASCII_LF) {
+                mode = AP_MODE_READBYTES;
+                num_blank_lines--;
+            }
+            else {
+                c->data_in_input_filters = 1;
+                break;
             }
         }
-        
-        if (!h2_io_set_is_empty(m->stream_ios)) {
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, m->c, 
-                          "h2_mplx(%ld): release_join, %d streams still open", 
-                          m->id, (int)h2_io_set_size(m->stream_ios));
+        else {
+            if (buf[0] == APR_ASCII_LF) {
+                mode = AP_MODE_READBYTES;
+                num_blank_lines--;
+            }
+            else if (buf[0] == APR_ASCII_CR) {
+                cr = 1;
+            }
+            else {
+                c->data_in_input_filters = 1;
+                break;
+            }
         }
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03056)
-                      "h2_mplx(%ld): release_join -> destroy", m->id);
-        leave_mutex(m, acquired);
-        h2_mplx_destroy(m);
-        /* all gone */
+        /* Enough blank lines with this connection?
+         * Stop and don't recycle it.
+         */
+        if (num_blank_lines < 0) {
+            c->keepalive = AP_CONN_CLOSE;
+        }
     }
-    return status;
 }

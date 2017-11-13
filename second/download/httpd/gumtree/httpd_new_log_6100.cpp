@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03450)
-                      "HTTP Request Line; Unable to parse URI: '%.*s'",
-                      field_name_len(r->uri), r->uri);
+ap_log_cerror( APLOG_MARK, APLOG_TRACE1, status, c,
+                  "h2_session(%ld): [%s] process returns", 
+                  session->id, state_name(session->state));

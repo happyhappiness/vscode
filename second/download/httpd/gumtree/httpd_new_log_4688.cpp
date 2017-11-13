@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                                     apr_get_os_error(), ap_server_conf, APLOGNO(00341)
-                             "winnt_accept: Asynchronous AcceptEx failed.");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01913)
+                     "Unable to initialize TLS session ticket key callback "
+                     "(incompatible OpenSSL version?)");

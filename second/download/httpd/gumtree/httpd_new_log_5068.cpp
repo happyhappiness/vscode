@@ -1,6 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02823)
-                         "%s: connection established with Unix domain socket "
-                         "%s (%s)",
-                         proxy_function,
-                         conn->uds_path,
-                         worker->s->hostname);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00492)
+                         "caught " AP_SIG_GRACEFUL_STOP_STRING
+                         ", shutting down gracefully");

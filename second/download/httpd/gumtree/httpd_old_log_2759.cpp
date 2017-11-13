@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authorize: require ldap-attribute: user's DN "
-                      "has not been defined; failing authorization");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Error looking up %s in database", user);

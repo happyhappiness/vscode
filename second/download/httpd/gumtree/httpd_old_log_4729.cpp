@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the scoreboard handle for the child");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                          "could not partition buffered SSL brigade");

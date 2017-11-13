@@ -1,1 +1,1 @@
-die("BUG: finalize_deferred_config() should have been called");
+print_verbose(args, _("Server supports no-done"));

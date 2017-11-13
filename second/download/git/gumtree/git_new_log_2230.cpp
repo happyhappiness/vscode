@@ -1,1 +1,2 @@
-fprintf_ln(stderr, _("If you wish to set tracking information for this branch you can do so with:"));
+die_errno("failed to write to %s",
+				  get_tempfile_path(&temporary_shallow));

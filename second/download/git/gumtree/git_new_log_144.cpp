@@ -1,1 +1,1 @@
-close(key->fd);
+die("unknown option --%s", a);

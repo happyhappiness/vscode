@@ -1,35 +1,121 @@
-static void winnt_child_init(apr_pool_t *pchild, struct server_rec *s)
+static const char *mod_auth_ldap_parse_url(cmd_parms *cmd,
+                                    void *config,
+                                    const char *url,
+                                    const char *mode)
 {
-    apr_status_t rv;
+    int rc;
+    apr_ldap_url_desc_t *urld;
+    apr_ldap_err_t *result;
 
-    setup_signal_names(apr_psprintf(pchild,"ap%d", parent_pid));
+    authn_ldap_config_t *sec = config;
 
-    /* This is a child process, not in single process mode */
-    if (!one_process) {
-        /* Set up events and the scoreboard */
-        get_handles_from_parent(s, &exit_event, &start_mutex,
-                                &ap_scoreboard_shm);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: `%s'", getpid(), url);
 
-        /* Set up the listeners */
-        get_listeners_from_parent(s);
+    rc = apr_ldap_url_parse(cmd->pool, url, &(urld), &(result));
+    if (rc != APR_SUCCESS) {
+        return result->reason;
+    }
+    sec->url = apr_pstrdup(cmd->pool, url);
 
-        /* Done reading from the parent, close that channel */
-        CloseHandle(pipe);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: Host: %s", getpid(), urld->lud_host);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: Port: %d", getpid(), urld->lud_port);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: DN: %s", getpid(), urld->lud_dn);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: attrib: %s", getpid(), urld->lud_attrs? urld->lud_attrs[0] : "(null)");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: scope: %s", getpid(),
+                 (urld->lud_scope == LDAP_SCOPE_SUBTREE? "subtree" :
+                  urld->lud_scope == LDAP_SCOPE_BASE? "base" :
+                  urld->lud_scope == LDAP_SCOPE_ONELEVEL? "onelevel" : "unknown"));
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: filter: %s", getpid(), urld->lud_filter);
 
-        ap_my_generation = ap_scoreboard_image->global->running_generation;
+    /* Set all the values, or at least some sane defaults */
+    if (sec->host) {
+        char *p = apr_palloc(cmd->pool, strlen(sec->host) + strlen(urld->lud_host) + 2);
+        strcpy(p, urld->lud_host);
+        strcat(p, " ");
+        strcat(p, sec->host);
+        sec->host = p;
     }
     else {
-        /* Single process mode - this lock doesn't even need to exist */
-        rv = apr_proc_mutex_create(&start_mutex, signal_name_prefix,
-                                   APR_LOCK_DEFAULT, s->process->pool);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
-                         "%s child %d: Unable to init the start_mutex.",
-                         service_name, my_pid);
-            exit(APEXIT_CHILDINIT);
-        }
-
-        /* Borrow the shutdown_even as our _child_ loop exit event */
-        exit_event = shutdown_event;
+        sec->host = urld->lud_host? apr_pstrdup(cmd->pool, urld->lud_host) : "localhost";
     }
+    sec->basedn = urld->lud_dn? apr_pstrdup(cmd->pool, urld->lud_dn) : "";
+    if (urld->lud_attrs && urld->lud_attrs[0]) {
+        int i = 1;
+        while (urld->lud_attrs[i]) {
+            i++;
+        }
+        sec->attributes = apr_pcalloc(cmd->pool, sizeof(char *) * (i+1));
+        i = 0;
+        while (urld->lud_attrs[i]) {
+            sec->attributes[i] = apr_pstrdup(cmd->pool, urld->lud_attrs[i]);
+            i++;
+        }
+        sec->attribute = sec->attributes[0];
+    }
+    else {
+        sec->attribute = "uid";
+    }
+
+    sec->scope = urld->lud_scope == LDAP_SCOPE_ONELEVEL ?
+        LDAP_SCOPE_ONELEVEL : LDAP_SCOPE_SUBTREE;
+
+    if (urld->lud_filter) {
+        if (urld->lud_filter[0] == '(') {
+            /*
+             * Get rid of the surrounding parens; later on when generating the
+             * filter, they'll be put back.
+             */
+            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter+1);
+            sec->filter[strlen(sec->filter)-1] = '\0';
+        }
+        else {
+            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter);
+        }
+    }
+    else {
+        sec->filter = "objectclass=*";
+    }
+
+    if (mode) {
+        if (0 == strcasecmp("NONE", mode)) {
+            sec->secure = APR_LDAP_NONE;
+        }
+        else if (0 == strcasecmp("SSL", mode)) {
+            sec->secure = APR_LDAP_SSL;
+        }
+        else if (0 == strcasecmp("TLS", mode) || 0 == strcasecmp("STARTTLS", mode)) {
+            sec->secure = APR_LDAP_STARTTLS;
+        }
+        else {
+            return "Invalid LDAP connection mode setting: must be one of NONE, "
+                   "SSL, or TLS/STARTTLS";
+        }
+    }
+
+      /* "ldaps" indicates secure ldap connections desired
+      */
+    if (strncasecmp(url, "ldaps", 5) == 0)
+    {
+        sec->secure = APR_LDAP_SSL;
+        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                     "LDAP: auth_ldap using SSL connections");
+    }
+    else
+    {
+        sec->port = urld->lud_port? urld->lud_port : LDAP_PORT;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                     "LDAP: auth_ldap not using SSL connections");
+    }
+
+    sec->have_ldap_url = 1;
+
+    return NULL;
 }

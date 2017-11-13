@@ -1,1 +1,1 @@
-out_of_memory("glob_expand");
+out_of_memory("expand_item_list");

@@ -1,1 +1,0 @@
-apr_file_printf(out, "  %s\n", pks->cert_files[i]);

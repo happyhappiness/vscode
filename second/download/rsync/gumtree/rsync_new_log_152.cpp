@@ -1,1 +1,0 @@
-fprintf(FINFO,"%s is uptodate\n",fname);

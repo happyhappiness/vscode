@@ -1,1 +1,1 @@
-die(_("--first-parent is incompatible with --bisect"));
+)subprocess_find_entry(&subprocess_map, cmd);

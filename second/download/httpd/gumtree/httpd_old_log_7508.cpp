@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02201)
-                                 "Init: Can't open server certificate file %s",
-                                 szPath);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02241)
+                                 "Init: Unable to read server certificate from"
+                                 " file %s", szPath);

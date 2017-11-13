@@ -1,8 +1,10 @@
 fputs(
-"              If no '=' symbol is used in the line, it is treated as  a  file-\n"
-"              name  to  use to read previously stored cookie lines from, which\n"
-"              should be used in this session if they match. Using this  method\n"
-"              also  activates  the \"cookie parser\" which will make curl record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination  with  the -L, --location option. The file format of\n"
+"              target file instead  of  overwriting  it.  If  the  remote  file\n"
+"              doesn't  exist,  it  will  be  created.   Note that this flag is\n"
+"              ignored by some SFTP servers (including OpenSSH).\n"
+"\n"
+"       -A, --user-agent <agent string>\n"
+"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
+"              Some   badly   done  CGIs  fail  if  this  field  isn't  set  to\n"
+"              \"Mozilla/4.0\". To encode blanks  in  the  string,  surround  the\n"
 , stdout);

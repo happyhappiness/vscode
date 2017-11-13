@@ -1,20 +1,18 @@
-static void child_errfn(apr_pool_t *pool, apr_status_t err, const char *description)
+static const char *util_ldap_set_certdbpath(cmd_parms *cmd, void *dummy, const char *path)
 {
-    request_rec *r;
-    void *vr;
-    apr_file_t *stderr_log;
-    char errbuf[200];
-    char time_str[APR_CTIME_LEN];
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+						  &ldap_module);
 
-    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, pool);
-    r = vr;
-    apr_file_open_stderr(&stderr_log, pool);
-    ap_recent_ctime(time_str, apr_time_now());
-    apr_file_printf(stderr_log,
-                    "[%s] [client %s] mod_ext_filter (%d)%s: %s\n",
-                    time_str,
-                    r->connection->remote_ip,
-                    err,
-                    apr_strerror(err, errbuf, sizeof(errbuf)),
-                    description);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "[%d] ldap cache: Setting LDAP SSL client certificate dbpath to %s.", 
+                      getpid(), path);
+
+    st->have_certdb = 1;
+    if (ldapssl_client_init(path, NULL) != 0) {
+        return "Could not initialize SSL client";
+    }
+    else {
+        return NULL;
+    }
 }

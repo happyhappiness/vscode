@@ -1,2 +1,1 @@
-fprintf(FERROR,"unlink %s: %s\n",
-			dest,strerror(errno));
+fprintf(FINFO,"recv_files finished\n");

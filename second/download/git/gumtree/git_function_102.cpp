@@ -1,37 +1,25 @@
-void winansi_init(void)
+static void update_refs_stdin(void)
 {
-	int con1, con2;
-	char name[32];
+	struct strbuf cmd = STRBUF_INIT;
 
-	/* check if either stdout or stderr is a console output screen buffer */
-	con1 = is_console(1);
-	con2 = is_console(2);
-	if (!con1 && !con2)
-		return;
+	/* Read each line dispatch its command */
+	while (strbuf_getline(&cmd, stdin, line_termination) != EOF)
+		if (!cmd.buf[0])
+			die("empty command in input");
+		else if (isspace(*cmd.buf))
+			die("whitespace before command: %s", cmd.buf);
+		else if (starts_with(cmd.buf, "update "))
+			parse_cmd_update(cmd.buf + 7);
+		else if (starts_with(cmd.buf, "create "))
+			parse_cmd_create(cmd.buf + 7);
+		else if (starts_with(cmd.buf, "delete "))
+			parse_cmd_delete(cmd.buf + 7);
+		else if (starts_with(cmd.buf, "verify "))
+			parse_cmd_verify(cmd.buf + 7);
+		else if (starts_with(cmd.buf, "option "))
+			parse_cmd_option(cmd.buf + 7);
+		else
+			die("unknown command: %s", cmd.buf);
 
-	/* create a named pipe to communicate with the console thread */
-	sprintf(name, "\\\\.\\pipe\\winansi%lu", GetCurrentProcessId());
-	hwrite = CreateNamedPipe(name, PIPE_ACCESS_OUTBOUND,
-		PIPE_TYPE_BYTE | PIPE_WAIT, 1, BUFFER_SIZE, 0, 0, NULL);
-	if (hwrite == INVALID_HANDLE_VALUE)
-		die_lasterr("CreateNamedPipe failed");
-
-	hread = CreateFile(name, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
-	if (hread == INVALID_HANDLE_VALUE)
-		die_lasterr("CreateFile for named pipe failed");
-
-	/* start console spool thread on the pipe's read end */
-	hthread = CreateThread(NULL, 0, console_thread, NULL, 0, NULL);
-	if (hthread == INVALID_HANDLE_VALUE)
-		die_lasterr("CreateThread(console_thread) failed");
-
-	/* schedule cleanup routine */
-	if (atexit(winansi_exit))
-		die_errno("atexit(winansi_exit) failed");
-
-	/* redirect stdout / stderr to the pipe */
-	if (con1)
-		hconsole1 = swap_osfhnd(1, duplicate_handle(hwrite));
-	if (con2)
-		hconsole2 = swap_osfhnd(2, duplicate_handle(hwrite));
+	strbuf_release(&cmd);
 }

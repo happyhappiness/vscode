@@ -1,14 +1,15 @@
-static apr_status_t add_worker(h2_workers *workers)
+static apr_status_t h2_workers_start(h2_workers *workers)
 {
-    h2_worker *w = h2_worker_create(workers->next_worker_id++,
-                                    workers->pool, workers->thread_attr,
-                                    get_mplx_next, worker_done, workers);
-    if (!w) {
-        return APR_ENOMEM;
+    apr_status_t status = apr_thread_mutex_lock(workers->lock);
+    if (status == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                      "h2_workers: starting");
+
+        while (workers->worker_count < workers->min_workers
+               && status == APR_SUCCESS) {
+            status = add_worker(workers);
+        }
+        apr_thread_mutex_unlock(workers->lock);
     }
-    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                 "h2_workers: adding worker(%d)", w->id);
-    ++workers->worker_count;
-    H2_WORKER_LIST_INSERT_TAIL(&workers->workers, w);
-    return APR_SUCCESS;
+    return status;
 }

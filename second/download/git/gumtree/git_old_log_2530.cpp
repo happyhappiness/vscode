@@ -1,2 +1,1 @@
-die("Failed to store link to current notes ref (%s)",
-			    default_notes_ref());
+error(_("could not delete references: %s"), err.buf);

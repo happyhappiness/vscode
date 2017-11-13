@@ -1,1 +1,1 @@
-die(_("base commit should be the ancestor of revision list"));
+die(_("base commit shouldn't be in revision list"));

@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "Making local copy of SGL for "
-                                  "group (%s)(objectClass=%s) ",
-                                  dn, (char *)sgc_ents[base_sgcIndex].name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                              "ISAPI: ServerSupport function "
+                              "HSE_REQ_SEND_RESPONSE_HEADER "
+                              "ap_pass_brigade failed: %s", r->filename);

@@ -1,11 +1,10 @@
 fputs(
-"                     on. Just be careful so that the content  doesn't  contain\n"
-"                     any  =  or  @  symbols, as that will then make the syntax\n"
-"                     match one of the other cases below!\n"
+"              (HTTP) This posts data, similar to the other --data options with\n"
+"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
+"              To  be  CGI-compliant,  the <data> part should begin with a name\n"
+"              followed by a separator and a content specification. The  <data>\n"
+"              part can be passed to curl using one of the following syntaxes:\n"
 "\n"
-"              =content\n"
-"                     This will make curl URL-encode the content and pass  that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
-"\n"
-"              name=content\n"
+"              content\n"
+"                     This  will make curl URL-encode the content and pass that\n"
 , stdout);

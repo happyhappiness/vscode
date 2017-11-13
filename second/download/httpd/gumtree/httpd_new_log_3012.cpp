@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00790)
-                     "scache_mc: error setting key '%s' "
-                     "with %d bytes of data", buf, nData);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
+                          "authorization failure (no authenticated user): %s",
+                          r->uri);

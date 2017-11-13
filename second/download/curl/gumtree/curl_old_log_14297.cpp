@@ -1,10 +1,9 @@
 fputs(
-"                     This  will  make  curl  load  data  from  the  given file\n"
-"                     (including any newlines), URL-encode that data  and  pass\n"
-"                     it  on  in  the  POST.  The  name part gets an equal sign\n"
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
-"                     that the name is expected to be URL-encoded already.\n"
-"       See also -d, --data and --data-raw. Added in 7.18.0.\n"
+"              likely not what you intended.  To address  these  issues  set  a\n"
+"              domain  in  Set-Cookie  (doing that will include sub domains) or\n"
+"              use the Netscape format.\n"
 "\n"
-"       -d, --data <data>\n"
+"              If this option is used several times, the last one will be used.\n"
+"              Users very often want to both read cookies from a file and write\n"
+"              updated  cookies  back to a file, so using both -b, --cookie and\n"
 , stdout);

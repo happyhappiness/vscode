@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02665)
-            "mod_lua: Failed to create shared memory segment on file %s",
-                     lua_ivm_shmfile ? lua_ivm_shmfile : "(anonymous)");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(10032)
+                     "Spurious usage of '=' in an environment variable name. "
+                     "'%s %s %s' expected instead?", cmd->cmd->name, env, plast);

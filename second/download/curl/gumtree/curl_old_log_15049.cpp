@@ -1,11 +1,9 @@
 fputs(
-"              -c, --cookie-jar in the same command line is common.\n"
+"              Continue/Resume a previous file transfer at  the  given  offset.\n"
+"              The  given  offset  is  the  exact  number of bytes that will be\n"
+"              skipped, counting from the beginning of the source  file  before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"       --create-dirs\n"
-"              When used in conjunction with the -o, --output option, curl will\n"
-"              create the necessary local directory hierarchy as  needed.  This\n"
-"              option  creates the dirs mentioned with the -o, --output option,\n"
-"              nothing else. If the --output file name uses no dir  or  if  the\n"
-"              dirs it mentions already exist, no dir will be created.\n"
-"\n"
+"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
 , stdout);

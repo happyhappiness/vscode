@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
+                                     "winnt_mpm: falling back to "
+                                     "'AcceptFilter none'.");

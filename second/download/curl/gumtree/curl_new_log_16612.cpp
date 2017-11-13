@@ -1,5 +1,17 @@
-puts(" -L/--location      Follow Location: hints (H)\n"
-       " -m/--max-time <seconds> Maximum time allowed for the transfer\n"
-       " -M/--manual        Display huge help text\n"
-       " -n/--netrc         Read .netrc for user name and password\n"
-       " -N/--no-buffer     Disables the buffering of the output stream");
+puts(
+"  Curl reads and understands the following environment variables:\n"
+"\n"
+"        HTTP_PROXY, HTTPS_PROXY, FTP_PROXY, GOPHER_PROXY\n"
+"\n"
+"  They should be set for protocol-specific proxies. General proxy should be\n"
+"  set with\n"
+"        \n"
+"        ALL_PROXY\n"
+"\n"
+"  A comma-separated list of host names that shouldn't go through any proxy is\n"
+"  set in (only an asterisk, '*' matches all hosts)\n"
+"\n"
+"        NO_PROXY\n"
+"\n"
+"  If a tail substring of the domain-path for a host matches one of these\n"
+);

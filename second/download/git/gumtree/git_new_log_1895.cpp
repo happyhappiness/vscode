@@ -1,1 +1,2 @@
-fprintf(f, "%s\n", oid_to_hex(&obj->oid));
+die("git show-ref: bad ref %s (%s)", refname,
+		    oid_to_hex(oid));

@@ -1,71 +1,42 @@
-static int handle_exec(include_ctx_t *ctx, apr_bucket_brigade **bb,
-                       request_rec *r, ap_filter_t *f, apr_bucket *head_ptr,
-                       apr_bucket **inserted_head)
+static apr_table_t *groups_for_user(request_rec *r, const char *user,
+                                    const char *grpfile)
 {
-    char *tag     = NULL;
-    char *tag_val = NULL;
-    char *file = r->filename;
-    apr_bucket  *tmp_buck;
-    char parsed_string[MAX_STRING_LEN];
+    ap_configfile_t *f;
+    apr_table_t *grps = apr_table_make(r->pool, 15);
+    apr_pool_t *sp;
+    char l[MAX_STRING_LEN];
+    const char *group_name, *ll, *w;
+    apr_status_t sts;
 
-    *inserted_head = NULL;
-    if (ctx->flags & FLAG_PRINTING) {
-        if (ctx->flags & FLAG_NO_EXEC) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "exec used but not allowed in %s", r->filename);
-            CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+    if ((sts = ap_pcfg_openfile(&f, r->pool, grpfile)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, sts, r,
+                      "Digest: Could not open group file: %s", grpfile);
+        return NULL;
+    }
+
+    if (apr_pool_create(&sp, r->pool) != APR_SUCCESS) {
+        return NULL;
+    }
+
+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
+        if ((l[0] == '#') || (!l[0])) {
+            continue;
         }
-        else {
-            while (1) {
-                cgi_pfn_gtv(ctx, &tag, &tag_val, 1);
-                if (tag_val == NULL) {
-                    if (tag == NULL) {
-                        return 0;
-                    }
-                    else {
-                        return 1;
-                    }
-                }
-                if (!strcmp(tag, "cmd")) {
-                    cgi_pfn_ps(r, ctx, tag_val, parsed_string,
-                               sizeof(parsed_string), 1);
-                    if (include_cmd(ctx, bb, parsed_string, r, f) == -1) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                    "execution failure for parameter \"%s\" "
-                                    "to tag exec in file %s", tag, r->filename);
-                        CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr,
-                                            *inserted_head);
-                    }
-                }
-                else if (!strcmp(tag, "cgi")) {
-                    apr_status_t retval = APR_SUCCESS;
+        ll = l;
+        apr_pool_clear(sp);
 
-                    cgi_pfn_ps(r, ctx, tag_val, parsed_string,
-                               sizeof(parsed_string), 0);
+        group_name = ap_getword(sp, &ll, ':');
 
-                    SPLIT_AND_PASS_PRETAG_BUCKETS(*bb, ctx, f->next, retval);
-                    if (retval != APR_SUCCESS) {
-                        return retval;
-                    }
-
-                    if (include_cgi(parsed_string, r, f->next, head_ptr,
-                                    inserted_head) == -1) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "invalid CGI ref \"%s\" in %s",
-                                      tag_val, file);
-                        CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr,
-                                            *inserted_head);
-                    }
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "unknown parameter \"%s\" to tag exec in %s",
-                                  tag, file);
-                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr,
-                                        *inserted_head);
-                }
+        while (ll[0]) {
+            w = ap_getword_conf(sp, &ll);
+            if (!strcmp(w, user)) {
+                apr_table_setn(grps, apr_pstrdup(r->pool, group_name), "in");
+                break;
             }
         }
     }
-    return 0;
+
+    ap_cfg_closefile(f);
+    apr_pool_destroy(sp);
+    return grps;
 }

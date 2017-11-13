@@ -1,122 +1,199 @@
-static apr_status_t includes_filter(ap_filter_t *f, apr_bucket_brigade *b)
+static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
+                                 apr_pool_t *ptemp, server_rec *s)
 {
-    request_rec *r = f->r;
-    ssi_ctx_t *ctx = f->ctx;
-    request_rec *parent;
-    include_dir_config *conf = 
-                   (include_dir_config *)ap_get_module_config(r->per_dir_config,
-                                                              &include_module);
+    int rc = LDAP_SUCCESS;
+    apr_status_t result;
+    char buf[MAX_STRING_LEN];
 
-    include_server_config *sconf= ap_get_module_config(r->server->module_config,
-                                                              &include_module);
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "mod_include: Options +Includes (or IncludesNoExec) "
-                      "wasn't set, INCLUDES filter removed");
-        ap_remove_output_filter(f);
-        return ap_pass_brigade(f->next, b);
-    }
+#if APR_HAS_SHARED_MEMORY
+    server_rec *s_vhost;
+    util_ldap_state_t *st_vhost;
+    
+    /* initializing cache if file is here and we already don't have shm addr*/
+    if (st->cache_file && !st->cache_shm) {
+#endif
+        result = util_ldap_cache_init(p, st);
+        apr_strerror(result, buf, sizeof(buf));
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
+                     "LDAP cache init: %s", buf);
 
-    if (!f->ctx) {
-        /* create context for this filter */
-        f->ctx = ctx = apr_palloc(f->c->pool, sizeof(*ctx));
-        ctx->ctx = apr_pcalloc(f->c->pool, sizeof(*ctx->ctx));
-        ctx->ctx->pool = f->r->pool;
-        apr_pool_create(&ctx->dpool, ctx->ctx->pool);
+#if APR_HAS_SHARED_MEMORY
+        /* merge config in all vhost */
+        s_vhost = s->next;
+        while (s_vhost) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
+                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
+                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
 
-        /* configuration data */
-        ctx->end_seq_len = strlen(sconf->default_end_tag);
-        ctx->r = f->r;
-
-        /* runtime data */
-        ctx->tmp_bb = apr_brigade_create(ctx->ctx->pool, f->c->bucket_alloc);
-        ctx->seen_eos = 0;
-        ctx->state = PARSE_PRE_HEAD;
-        ctx->ctx->flags = (FLAG_PRINTING | FLAG_COND_TRUE);
-        if (ap_allow_options(f->r) & OPT_INCNOEXEC) {
-            ctx->ctx->flags |= FLAG_NO_EXEC;
+            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
+            st_vhost->cache_shm = st->cache_shm;
+            st_vhost->cache_rmm = st->cache_rmm;
+            st_vhost->cache_file = st->cache_file;
+            s_vhost = s_vhost->next;
         }
-        ctx->ctx->if_nesting_level = 0;
-        ctx->ctx->re_string = NULL;
-        ctx->ctx->error_str_override = NULL;
-        ctx->ctx->time_str_override = NULL;
-
-        ctx->ctx->error_str = conf->default_error_msg;
-        ctx->ctx->time_str = conf->default_time_fmt;
-        ctx->ctx->start_seq_pat = &sconf->start_seq_pat;
-        ctx->ctx->start_seq  = sconf->default_start_tag;
-        ctx->ctx->start_seq_len = sconf->start_tag_len;
-        ctx->ctx->end_seq = sconf->default_end_tag;
-
-        /* legacy compat stuff */
-        ctx->ctx->state = PARSED; /* dummy */
-        ctx->ctx->ssi_tag_brigade = apr_brigade_create(f->c->pool,
-                                                       f->c->bucket_alloc);
-        ctx->ctx->status = APR_SUCCESS;
-        ctx->ctx->head_start_index = 0;
-        ctx->ctx->tag_start_index = 0;
-        ctx->ctx->tail_start_index = 0;
     }
     else {
-        ctx->ctx->bytes_parsed = 0;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
     }
-
-    if ((parent = ap_get_module_config(r->request_config, &include_module))) {
-        /* Kludge --- for nested includes, we want to keep the subprocess
-         * environment of the base document (for compatibility); that means
-         * torquing our own last_modified date as well so that the
-         * LAST_MODIFIED variable gets reset to the proper value if the
-         * nested document resets <!--#config timefmt -->.
-         */
-        r->subprocess_env = r->main->subprocess_env;
-        apr_pool_join(r->main->pool, r->pool);
-        r->finfo.mtime = r->main->finfo.mtime;
-    }
-    else {
-        /* we're not a nested include, so we create an initial
-         * environment */
-        ap_add_common_vars(r);
-        ap_add_cgi_vars(r);
-        add_include_vars(r, conf->default_time_fmt);
-    }
-    /* Always unset the content-length.  There is no way to know if
-     * the content will be modified at some point by send_parsed_content.
-     * It is very possible for us to not find any content in the first
-     * 9k of the file, but still have to modify the content of the file.
-     * If we are going to pass the file through send_parsed_content, then
-     * the content-length should just be unset.
+#endif
+    
+    /* log the LDAP SDK used 
      */
-    apr_table_unset(f->r->headers_out, "Content-Length");
+    #if APR_HAS_NETSCAPE_LDAPSDK 
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Netscape LDAP SDK" );
 
-    /* Always unset the Last-Modified field - see RFC2616 - 13.3.4.
-     * We don't know if we are going to be including a file or executing
-     * a program which may change the Last-Modified header or make the 
-     * content completely dynamic.  Therefore, we can't support these
-     * headers.
-     * Exception: XBitHack full means we *should* set the Last-Modified field.
-     */
+    #elif APR_HAS_NOVELL_LDAPSDK
 
-    /* Assure the platform supports Group protections */
-    if ((*conf->xbithack == xbithack_full)
-        && (r->finfo.valid & APR_FINFO_GPROT)
-        && (r->finfo.protection & APR_GEXECUTE)) {
-        ap_update_mtime(r, r->finfo.mtime);
-        ap_set_last_modified(r);
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Novell LDAP SDK" );
+
+    #elif APR_HAS_OPENLDAP_LDAPSDK
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with OpenLDAP LDAP SDK" );
+
+    #elif APR_HAS_MICROSOFT_LDAPSDK
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Microsoft LDAP SDK" );
+    #else
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with unknown LDAP SDK" );
+
+    #endif /* APR_HAS_NETSCAPE_LDAPSDK */
+
+
+
+    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
+                              util_ldap_cleanup_module); 
+
+    /* initialize SSL support if requested
+    */
+    if (st->cert_auth_file)
+    {
+        #if APR_HAS_LDAP_SSL /* compiled with ssl support */
+
+        #if APR_HAS_NETSCAPE_LDAPSDK 
+
+            /* Netscape sdk only supports a cert7.db file 
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_CERT7_DB)
+            {
+                rc = ldapssl_client_init(st->cert_auth_file, NULL);
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                         "LDAP: Invalid LDAPTrustedCAType directive - "
+                          "CERT7_DB_PATH type required");
+                rc = -1;
+            }
+
+        #elif APR_HAS_NOVELL_LDAPSDK
+        
+            /* Novell SDK supports DER or BASE64 files
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_DER  ||
+                st->cert_file_type == LDAP_CA_TYPE_BASE64 )
+            {
+                rc = ldapssl_client_init(NULL, NULL);
+                if (LDAP_SUCCESS == rc)
+                {
+                    if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
+                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
+                                                  LDAPSSL_CERT_FILETYPE_B64);
+                    else
+                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
+                                                  LDAPSSL_CERT_FILETYPE_DER);
+
+                    if (LDAP_SUCCESS != rc)
+                        ldapssl_client_deinit();
+                }
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                             "LDAP: Invalid LDAPTrustedCAType directive - "
+                             "DER_FILE or BASE64_FILE type required");
+                rc = -1;
+            }
+
+        #elif APR_HAS_OPENLDAP_LDAPSDK
+
+            /* OpenLDAP SDK supports BASE64 files
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
+            {
+                rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, st->cert_auth_file);
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                             "LDAP: Invalid LDAPTrustedCAType directive - "
+                             "BASE64_FILE type required");
+                rc = -1;
+            }
+
+
+        #elif APR_HAS_MICROSOFT_LDAPSDK
+            
+            /* Microsoft SDK use the registry certificate store - always
+             * assume support is always available
+            */
+            rc = LDAP_SUCCESS;
+
+        #else
+            rc = -1;
+        #endif /* APR_HAS_NETSCAPE_LDAPSDK */
+
+        #else  /* not compiled with SSL Support */
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                     "LDAP: Not built with SSL support." );
+            rc = -1;
+
+        #endif /* APR_HAS_LDAP_SSL */
+
+        if (LDAP_SUCCESS == rc)
+        {
+            st->ssl_support = 1;
+        }
+        else
+        {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
+                         "LDAP: SSL initialization failed");
+            st->ssl_support = 0;
+        }
     }
-    else {
-        apr_table_unset(f->r->headers_out, "Last-Modified");
+      
+        /* The Microsoft SDK uses the registry certificate store -
+         * always assume support is available
+        */
+    #if APR_HAS_MICROSOFT_LDAPSDK
+        st->ssl_support = 1;
+    #endif
+    
+
+        /* log SSL status - If SSL isn't available it isn't necessarily
+         * an error because the modules asking for LDAP connections 
+         * may not ask for SSL support
+        */
+    if (st->ssl_support)
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support available" );
     }
-
-    /* add QUERY stuff to env cause it ain't yet */
-    if (r->args) {
-        char *arg_copy = apr_pstrdup(r->pool, r->args);
-
-        apr_table_setn(r->subprocess_env, "QUERY_STRING", r->args);
-        ap_unescape_url(arg_copy);
-        apr_table_setn(r->subprocess_env, "QUERY_STRING_UNESCAPED",
-                  ap_escape_shell_cmd(r->pool, arg_copy));
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
     }
-
-    return send_parsed_content(f, b);
+    
+    return(OK);
 }

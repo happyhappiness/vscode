@@ -1,11 +1,10 @@
 fputs(
-"              FTP(S) server. The method argument should be one of the  follow-\n"
-"              ing alternatives:\n"
+"              To read content from stdin instead of a file, use - as the file-\n"
+"              name. This goes for both @ and <  constructs.  Unfortunately  it\n"
+"              does  not support reading the file from a named pipe or similar,\n"
+"              as it needs the full size before the transfer starts.\n"
 "\n"
-"              multicwd\n"
-"                     curl  does  a  single CWD operation for each path part in\n"
-"                     the given URL. For deep hierarchies this means very  many\n"
-"                     commands.  This  is  how RFC 1738 says it should be done.\n"
-"                     This is the default but the slowest behavior.\n"
+"              You can also  tell  curl  what  Content-Type  to  use  by  using\n"
+"              'type=', in a manner similar to:\n"
 "\n"
 , stdout);

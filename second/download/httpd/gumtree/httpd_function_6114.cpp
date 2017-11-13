@@ -1,45 +1,49 @@
-static apr_status_t strict_hostname_check(request_rec *r, char *host)
+apr_status_t h2_stream_readx(h2_stream *stream, 
+                             h2_io_data_cb *cb, void *ctx,
+                             apr_off_t *plen, int *peos)
 {
-    char *ch;
-    int is_dotted_decimal = 1, leading_zeroes = 0, dots = 0;
-
-    for (ch = host; *ch; ch++) {
-        if (!apr_isascii(*ch)) {
-            goto bad;
-        }
-        else if (apr_isalpha(*ch) || *ch == '-') {
-            is_dotted_decimal = 0;
-        }
-        else if (ch[0] == '.') {
-            dots++;
-            if (ch[1] == '0' && apr_isdigit(ch[2]))
-                leading_zeroes = 1;
-        }
-        else if (!apr_isdigit(*ch)) {
-           /* also takes care of multiple Host headers by denying commas */
-            goto bad;
-        }
+    apr_status_t status = APR_SUCCESS;
+    apr_table_t *trailers = NULL;
+    const char *src;
+    
+    H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream readx_pre");
+    if (stream->rst_error) {
+        return APR_ECONNRESET;
     }
-    if (is_dotted_decimal) {
-        if (host[0] == '.' || (host[0] == '0' && apr_isdigit(host[1])))
-            leading_zeroes = 1;
-        if (leading_zeroes || dots != 3) {
-            /* RFC 3986 7.4 */
-            goto bad;
+    *peos = 0;
+    if (!APR_BRIGADE_EMPTY(stream->bbout)) {
+        apr_off_t origlen = *plen;
+        
+        src = "stream";
+        status = h2_util_bb_readx(stream->bbout, cb, ctx, plen, peos);
+        if (status == APR_SUCCESS && !*peos && !*plen) {
+            apr_brigade_cleanup(stream->bbout);
+            *plen = origlen;
+            return h2_stream_readx(stream, cb, ctx, plen, peos);
         }
     }
     else {
-        /* The top-level domain must start with a letter (RFC 1123 2.1) */
-        while (ch > host && *ch != '.')
-            ch--;
-        if (ch[0] == '.' && ch[1] != '\0' && !apr_isalpha(ch[1]))
-            goto bad;
+        src = "mplx";
+        status = h2_mplx_out_readx(stream->session->mplx, stream->id, 
+                                   cb, ctx, plen, peos, &trailers);
     }
-    return APR_SUCCESS;
-
-bad:
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02415)
-                  "[strict] Invalid host name '%s'%s%.6s",
-                  host, *ch ? ", problem near: " : "", ch);
-    return APR_EINVAL;
+    
+    if (trailers && stream->response) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
+                      "h2_stream(%ld-%d): readx, saving trailers",
+                      stream->session->id, stream->id);
+        h2_response_set_trailers(stream->response, trailers);
+    }
+    
+    if (status == APR_SUCCESS && !*peos && !*plen) {
+        status = APR_EAGAIN;
+    }
+    
+    H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream readx_post");
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
+                  "h2_stream(%ld-%d): readx %s, len=%ld eos=%d",
+                  stream->session->id, stream->id, src, (long)*plen, *peos);
+    H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream readx_post");
+    
+    return status;
 }

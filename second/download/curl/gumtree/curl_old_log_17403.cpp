@@ -1,6 +1,17 @@
-puts(" -y/--speed-time    Time needed to trig speed-limit abort. Defaults to 30\n"
-       " -Y/--speed-limit   Stop transfer if below speed-limit for 'speed-time' secs\n"
-       " -z/--time-cond <time> Includes a time condition to the server (H)\n"
-       " -Z/--max-redirs <num> Set maximum number of redirections allowed (H)\n"
-       " -2/--sslv2         Force usage of SSLv2 (H)\n"
-       " -3/--sslv3         Force usage of SSLv3 (H)");
+puts(
+"  all transfers will be persistant.\n"
+"\n"
+"  Persistant connections were introduced in curl 7.7.\n"
+"\n"
+"MAILING LISTS\n"
+"\n"
+"  For your convenience, we have several open mailing lists to discuss curl,\n"
+"  its development and things relevant to this.\n"
+"\n"
+"  To subscribe to the main curl list, mail curl-request@contactor.se with\n"
+"  \"subscribe <fill in your email address>\" in the body.\n"
+"\n"
+"  To subscribe to the curl-library users/deverlopers list, follow the\n"
+"  instructions at http://curl.haxx.se/mail/\n"
+"\n"
+);

@@ -1,1 +1,2 @@
-ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);
+ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
+                     "</a></pre>\n", NULL);

@@ -1,1 +1,1 @@
-die("BUG: config_buf can only ungetc the same character");
+error("Could not write flush packet");

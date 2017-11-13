@@ -1,1 +1,2 @@
-fprintf(stderr, commit_utf8_warn);
+printf(" rewrite %s (%d%%)\n",
+					       p->new_name, p->score);

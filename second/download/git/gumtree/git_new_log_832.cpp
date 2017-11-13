@@ -1,2 +1,2 @@
-error(_("unknown core.untrackedCache value '%s'; "
-			"using 'keep' default value"), v);
+error(_("could not read commit message of %s"),
+			     oid_to_hex(&commit->object.oid));

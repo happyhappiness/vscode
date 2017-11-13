@@ -1,9 +1,9 @@
 fputs(
-"              only  view.  This  is  especially  useful  if  the user wants to\n"
-"              machine-parse the contents of an FTP directory since the  normal\n"
-"              directory  view doesn't use a standard look or format. When used\n"
-"              like this, the option causes a NLST command to be  sent  to  the\n"
-"              server instead of LIST.\n"
+"              before  sending keepalive probes and the time between individual\n"
+"              keepalive probes. It is currently effective on operating systems\n"
+"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
+"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
 "\n"
-"              Note:  Some  FTP  servers  list  only files in their response to\n"
+"              If this option is used several times, the last one will be used.\n"
 , stdout);

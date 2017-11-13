@@ -1,1 +1,1 @@
-printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
+error("%s: invalid reflog entry %s", refname, oid_to_hex(oid));

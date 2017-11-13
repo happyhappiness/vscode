@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv, APLOGNO(01492)
-                     "rfc1413: apr_sockaddr_info_get(%s) failed",
-                     conn->local_ip);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ctx->s, APLOGNO(02087)
+                     "malformed message from %pI",
+                     from);

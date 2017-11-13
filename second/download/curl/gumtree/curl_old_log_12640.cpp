@@ -1,10 +1,11 @@
 fputs(
-"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              -d, --data is the same as --data-ascii. --data-raw is almost the\n"
-"              same but does not have a special interpretation of the @ charac-\n"
-"              ter.  To  post  data  purely  binary, you should instead use the\n"
-"              --data-binary option.  To URL-encode the value of a  form  field\n"
-"              you may use --data-urlencode.\n"
+"       --ciphers <list of ciphers>\n"
+"              (SSL) Specifies which ciphers to use in the connection. The list\n"
+"              of  ciphers  must  specify  valid ciphers. Read up on SSL cipher\n"
+"              list          details           on           this           URL:\n"
+"              https://www.openssl.org/docs/apps/ciphers.html\n"
 "\n"
+"              NSS  ciphers  are  done differently than OpenSSL and GnuTLS. The\n"
 , stdout);

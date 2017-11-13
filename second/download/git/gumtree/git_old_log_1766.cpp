@@ -1,1 +1,1 @@
-die_errno(_("Could not create sequencer directory %s"), seq_dir);
+error("Couldn't set %s", lock->ref_name);

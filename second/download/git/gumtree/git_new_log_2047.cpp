@@ -1,2 +1,2 @@
-die("Failed to traverse parents of commit %s",
-						oid_to_hex(&commit->object.oid));
+warning("protocol restrictions not applied to curl redirects because\n"
+			"your curl version is too old (>= 7.19.4)");

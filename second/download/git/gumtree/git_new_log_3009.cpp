@@ -1,1 +1,1 @@
-error_errno("cannot open %s", filename ? filename : "NULL");
+error_errno("cannot open fd %d", in_fd);

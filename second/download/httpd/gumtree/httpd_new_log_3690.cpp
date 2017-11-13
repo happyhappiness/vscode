@@ -1,2 +1,7 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(01214)
-                      "lb_heartbeat: No server for worker %s", (*worker)->s->name);
+apr_file_printf(stderr_log,
+                    "[%s] [client %s] mod_ext_filter (%d)%s: %s\n",
+                    time_str,
+                    r->useragent_ip,
+                    err,
+                    apr_strerror(err, errbuf, sizeof(errbuf)),
+                    description);

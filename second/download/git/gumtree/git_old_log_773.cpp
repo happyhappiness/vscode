@@ -1,1 +1,2 @@
-printf(": %s: %s\n", git_attr_name(check[j].attr), value);
+die_errno("Invalid symlink '%s'",
+						  sb.buf);

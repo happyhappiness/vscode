@@ -1,2 +1,1 @@
-die(_("SHA1 COLLISION FOUND WITH %s !"),
-		    oid_to_hex(&entry->idx.oid));
+die(_("could not read symlink file %s"), path);

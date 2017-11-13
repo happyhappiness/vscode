@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                            "invalid transfer log path %s.", name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "distributed scache 'remove' HIT");

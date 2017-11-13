@@ -1,1 +1,1 @@
-out_of_memory("create_flist_from_batch");
+out_of_memory("send_file_name");

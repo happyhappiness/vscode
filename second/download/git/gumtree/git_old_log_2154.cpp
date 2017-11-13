@@ -1,1 +1,1 @@
-error("malformed format string %s", sp);
+die("unable to generate diff for %s", pair->one->path);

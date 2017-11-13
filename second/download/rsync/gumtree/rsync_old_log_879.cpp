@@ -1,1 +1,1 @@
-out_of_memory("recv_uid_list");
+out_of_memory("glob_expand_one");

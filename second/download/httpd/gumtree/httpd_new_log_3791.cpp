@@ -1,1 +1,2 @@
-ap_rvputs(r, worker->s->name, "</a></td>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01225)
+                          "Error reading request entity data");

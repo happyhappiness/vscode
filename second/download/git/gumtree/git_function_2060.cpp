@@ -1,24 +1,14 @@
-static int write_one_shallow(const struct commit_graft *graft, void *cb_data)
+static void handle_skipped_merge_base(const unsigned char *mb)
 {
-	struct write_shallow_data *data = cb_data;
-	const char *hex = oid_to_hex(&graft->oid);
-	if (graft->nr_parent != -1)
-		return 0;
-	if (data->flags & SEEN_ONLY) {
-		struct commit *c = lookup_commit(graft->oid.hash);
-		if (!c || !(c->object.flags & SEEN)) {
-			if (data->flags & VERBOSE)
-				printf("Removing %s from .git/shallow\n",
-				       sha1_to_hex(c->object.sha1));
-			return 0;
-		}
-	}
-	data->count++;
-	if (data->use_pack_protocol)
-		packet_buf_write(data->out, "shallow %s", hex);
-	else {
-		strbuf_addstr(data->out, hex);
-		strbuf_addch(data->out, '\n');
-	}
-	return 0;
+	char *mb_hex = sha1_to_hex(mb);
+	char *bad_hex = sha1_to_hex(current_bad_oid->hash);
+	char *good_hex = join_sha1_array_hex(&good_revs, ' ');
+
+	warning("the merge base between %s and [%s] "
+		"must be skipped.\n"
+		"So we cannot be sure the first bad commit is "
+		"between %s and %s.\n"
+		"We continue anyway.",
+		bad_hex, good_hex, mb_hex, bad_hex);
+	free(good_hex);
 }

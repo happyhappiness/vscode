@@ -1,1 +1,3 @@
-(mutt_yesorno (_("Can't match nametemplate, continue?"), M_YES);
+state_printf (s, _("[-- Error: "
+                       "Unknown multipart/signed protocol %s! --]\n\n"),
+                  protocol);

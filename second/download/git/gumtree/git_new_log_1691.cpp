@@ -1,1 +1,1 @@
-error("--name-only is only applicable to --list or --get-regexp");
+strbuf_addf(&refname, "refs/%s", write_ref[i]);

@@ -1,2 +1,2 @@
-print_verbose(args, _("got %s %d %s"), "ack",
-						      ack, sha1_to_hex(result_sha1));
+die("could not convert '%s' %s",
+					    oid_to_hex(oid), data->rest);

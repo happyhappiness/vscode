@@ -1,1 +1,1 @@
-fprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);
+fprintf(FERROR,"filename too long\n");

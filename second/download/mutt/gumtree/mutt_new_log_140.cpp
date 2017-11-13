@@ -1,1 +1,1 @@
-mutt_window_mvprintw (MuttMessageWindow, 0, 0, _("Enter keys (^G to abort): "));
+mutt_window_mvprintw (MuttIndexWindow, HDR_MIX, 0, TITLE_FMT, _("Mix: "));

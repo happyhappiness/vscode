@@ -1,15 +1,16 @@
-static int can_beam_file(void *ctx, h2_bucket_beam *beam,  apr_file_t *file)
+static void copyright(void)
 {
-    h2_mplx *m = ctx;
-    if (m->tx_handles_reserved > 0) {
-        --m->tx_handles_reserved;
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c,
-                      "h2_mplx(%ld-%d): beaming file %s, tx_avail %d", 
-                      m->id, beam->id, beam->tag, m->tx_handles_reserved);
-        return 1;
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1663405 $>");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
+        printf("\n");
     }
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c,
-                  "h2_mplx(%ld-%d): can_beam_file denied on %s", 
-                  m->id, beam->id, beam->tag);
-    return 0;
+    else {
+        printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1663405 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
+        printf("</p>\n<p>\n");
+    }
 }

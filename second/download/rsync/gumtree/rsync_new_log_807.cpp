@@ -1,1 +1,1 @@
-S_ISDIR(st.st_mode);
+out_of_memory("rsync_module");

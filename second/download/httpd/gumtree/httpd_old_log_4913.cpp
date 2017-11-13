@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR,
-                      0, r, "need AuthType to note auth failure: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, status, ap_server_conf,
+                             "apr_socket_accept failed for inactive listener");

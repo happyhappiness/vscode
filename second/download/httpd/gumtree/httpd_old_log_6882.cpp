@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01075)
-                      "Error dispatching request to %s:", server_portstr);
+ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
+				      APLOGNO(03403)
+                                      "h2_session(%ld): idle, no data, error", 
+                                      session->id);

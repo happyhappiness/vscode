@@ -1,1 +1,1 @@
-out_of_memory("send_implied_dirs");
+fprintf(stderr, ": %s (%d)\n", strerror(errcode), errcode);

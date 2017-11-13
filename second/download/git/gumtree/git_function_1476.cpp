@@ -1,19 +1,22 @@
-static void reject_invalid_nonce(const char *nonce, int len)
+const char *absolute_path(const char *path)
 {
-	int i = 0;
+	static char buf[PATH_MAX + 1];
 
-	if (NONCE_LEN_LIMIT <= len)
-		die("the receiving end asked to sign an invalid nonce <%.*s>",
-		    len, nonce);
-
-	for (i = 0; i < len; i++) {
-		int ch = nonce[i] & 0xFF;
-		if (isalnum(ch) ||
-		    ch == '-' || ch == '.' ||
-		    ch == '/' || ch == '+' ||
-		    ch == '=' || ch == '_')
-			continue;
-		die("the receiving end asked to sign an invalid nonce <%.*s>",
-		    len, nonce);
+	if (!*path) {
+		die("The empty string is not a valid path");
+	} else if (is_absolute_path(path)) {
+		if (strlcpy(buf, path, PATH_MAX) >= PATH_MAX)
+			die("Too long path: %.*s", 60, path);
+	} else {
+		size_t len;
+		const char *fmt;
+		const char *cwd = get_pwd_cwd();
+		if (!cwd)
+			die_errno("Cannot determine the current working directory");
+		len = strlen(cwd);
+		fmt = (len > 0 && is_dir_sep(cwd[len - 1])) ? "%s%s" : "%s/%s";
+		if (snprintf(buf, PATH_MAX, fmt, cwd, path) >= PATH_MAX)
+			die("Too long path: %.*s", 60, path);
 	}
+	return buf;
 }

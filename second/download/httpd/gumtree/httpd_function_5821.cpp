@@ -1,19 +1,59 @@
-static void h2_session_destroy(h2_session *session)
+h2_response *h2_response_create(int stream_id,
+                                const char *http_status,
+                                apr_array_header_t *hlines,
+                                apr_pool_t *pool)
 {
-    AP_DEBUG_ASSERT(session);
-    h2_session_cleanup(session);
+    apr_table_t *header;
+    h2_response *response = apr_pcalloc(pool, sizeof(h2_response));
+    int i;
+    if (response == NULL) {
+        return NULL;
+    }
+    
+    response->stream_id = stream_id;
+    response->status = http_status;
+    response->content_length = -1;
+    
+    if (hlines) {
+        header = apr_table_make(pool, hlines->nelts);        
+        for (i = 0; i < hlines->nelts; ++i) {
+            char *hline = ((char **)hlines->elts)[i];
+            char *sep = ap_strchr(hline, ':');
+            if (!sep) {
+                ap_log_perror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, pool,
+                              APLOGNO(02955) "h2_response(%d): invalid header[%d] '%s'",
+                              response->stream_id, i, (char*)hline);
+                /* not valid format, abort */
+                return NULL;
+            }
+            (*sep++) = '\0';
+            while (*sep == ' ' || *sep == '\t') {
+                ++sep;
+            }
+            if (ignore_header(hline)) {
+                /* never forward, ch. 8.1.2.2 */
+            }
+            else {
+                apr_table_merge(header, hline, sep);
+                if (*sep && H2_HD_MATCH_LIT_CS("content-length", hline)) {
+                    char *end;
+                    response->content_length = apr_strtoi64(sep, &end, 10);
+                    if (sep == end) {
+                        ap_log_perror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, 
+                                      pool, APLOGNO(02956) 
+                                      "h2_response(%d): content-length"
+                                      " value not parsed: %s", 
+                                      response->stream_id, sep);
+                        response->content_length = -1;
+                    }
+                }
+            }
+        }
+    }
+    else {
+        header = apr_table_make(pool, 0);        
+    }
 
-    if (APLOGctrace1(session->c)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      "h2_session(%ld): destroy, %d streams open",
-                      session->id, (int)h2_ihash_count(session->streams));
-    }
-    if (session->mplx) {
-        h2_mplx_set_consumed_cb(session->mplx, NULL, NULL);
-        h2_mplx_release_and_join(session->mplx, session->iowait);
-        session->mplx = NULL;
-    }
-    if (session->pool) {
-        apr_pool_destroy(session->pool);
-    }
+    response->rheader = header;
+    return response;
 }

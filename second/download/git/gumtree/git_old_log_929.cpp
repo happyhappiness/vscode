@@ -1,1 +1,1 @@
-printf_ln(_("Patch is empty. Was it split wrong?"));
+error("invalid key (newline): %s", key);

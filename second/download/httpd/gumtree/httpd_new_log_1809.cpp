@@ -1,2 +1,2 @@
-ap_add_output_filter(ssl_io_filter,
-                                                       filter_ctx, r, c);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Error evaluating filter dispatch condition");

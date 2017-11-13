@@ -1,1 +1,0 @@
-die(_("--points-at option is only allowed with -l."));

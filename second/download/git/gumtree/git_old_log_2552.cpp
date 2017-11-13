@@ -1,0 +1,1 @@
+fprintf(stderr, "no symlink - falling back to symbolic ref\n");

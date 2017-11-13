@@ -1,1 +1,1 @@
-die("bad object %s", oid_to_hex(&tag->tagged->oid));
+die("unable to generate word diff");

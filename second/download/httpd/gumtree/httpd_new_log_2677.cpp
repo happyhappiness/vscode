@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01811)
-          "the " FORM_LOGIN_HANDLER " only supports the POST method for %s",
-                      r->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                          "apr_socket_opt_set(APR_TCP_NODELAY): "
+                          "Failed to set");

@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01331) "Missing '}' on "
-                                  "variable \"%s\" in %s", p, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01737)
+                  "auth_ldap authorize attribute: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);

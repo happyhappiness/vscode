@@ -1,1 +1,2 @@
-fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
+fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
+	  VERSION);

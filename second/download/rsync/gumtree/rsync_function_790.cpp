@@ -1,12 +1,12 @@
-static void tls_usage(int ret)
+static void set_delayed_bit(int ndx)
 {
-  FILE *F = ret ? stderr : stdout;
-  fprintf(F,"usage: " PROGRAM " [OPTIONS] FILE ...\n");
-  fprintf(F,"Trivial file listing program for portably checking rsync\n");
-  fprintf(F,"\nOptions:\n");
-#ifdef SUPPORT_XATTRS
-  fprintf(F," -f, --fake-super            display attributes including fake-super xattrs\n");
-#endif
-  fprintf(F," -h, --help                  show this help\n");
-  exit(ret);
+	int slot = ndx / PER_SLOT_BITS;
+	ndx %= PER_SLOT_BITS;
+
+	if (!delayed_bits[slot]) {
+		if (!(delayed_bits[slot] = (uint32*)calloc(PER_SLOT_INTS, 4)))
+			out_of_memory("set_delayed_bit");
+	}
+
+	delayed_bits[slot][ndx/32] |= 1u << (ndx % 32);
 }

@@ -1,113 +1,161 @@
-int main(int argc, char **argv)
+static void show_compile_settings(void)
 {
-int i;
-FILE *f;
-const unsigned char *tables = pcre_maketables();
+    printf("Server version: %s\n", ap_get_server_version());
+    printf("Server built:   %s\n", ap_get_server_built());
+    printf("Server's Module Magic Number: %u:%u\n",
+           MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
+    printf("Server loaded:  APR %s, APR-UTIL %s\n",
+           apr_version_string(), apu_version_string());
+    printf("Compiled using: APR %s, APR-UTIL %s\n",
+           APR_VERSION_STRING, APU_VERSION_STRING);
+    /* sizeof(foo) is long on some platforms so we might as well
+     * make it long everywhere to keep the printf format
+     * consistent
+     */
+    printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
+    printf("Server compiled with....\n");
+#ifdef BIG_SECURITY_HOLE
+    printf(" -D BIG_SECURITY_HOLE\n");
+#endif
 
-if (argc != 2)
-  {
-  fprintf(stderr, "dftables: one filename argument is required\n");
-  return 1;
-  }
+#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
+    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
+#endif
 
-f = fopen(argv[1], "w");
-if (f == NULL)
-  {
-  fprintf(stderr, "dftables: failed to open %s for writing\n", argv[1]);
-  return 1;
-  }
+#ifdef APACHE_MPM_DIR
+    printf(" -D APACHE_MPM_DIR=\"%s\"\n", APACHE_MPM_DIR);
+#endif
 
-/* There are two fprintf() calls here, because gcc in pedantic mode complains
-about the very long string otherwise. */
+#ifdef HAVE_SHMGET
+    printf(" -D HAVE_SHMGET\n");
+#endif
 
-fprintf(f,
-  "/*************************************************\n"
-  "*      Perl-Compatible Regular Expressions       *\n"
-  "*************************************************/\n\n"
-  "/* This file is automatically written by the dftables auxiliary \n"
-  "program. If you edit it by hand, you might like to edit the Makefile to \n"
-  "prevent its ever being regenerated.\n\n");
-fprintf(f,
-  "This file is #included in the compilation of pcre.c to build the default\n"
-  "character tables which are used when no tables are passed to the compile\n"
-  "function. */\n\n"
-  "static unsigned char pcre_default_tables[] = {\n\n"
-  "/* This table is a lower casing table. */\n\n");
+#if APR_FILE_BASED_SHM
+    printf(" -D APR_FILE_BASED_SHM\n");
+#endif
 
-fprintf(f, "  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0) fprintf(f, "\n  ");
-  fprintf(f, "%3d", *tables++);
-  if (i != 255) fprintf(f, ",");
-  }
-fprintf(f, ",\n\n");
+#if APR_HAS_SENDFILE
+    printf(" -D APR_HAS_SENDFILE\n");
+#endif
 
-fprintf(f, "/* This table is a case flipping table. */\n\n");
+#if APR_HAS_MMAP
+    printf(" -D APR_HAS_MMAP\n");
+#endif
 
-fprintf(f, "  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0) fprintf(f, "\n  ");
-  fprintf(f, "%3d", *tables++);
-  if (i != 255) fprintf(f, ",");
-  }
-fprintf(f, ",\n\n");
+#ifdef NO_WRITEV
+    printf(" -D NO_WRITEV\n");
+#endif
 
-fprintf(f,
-  "/* This table contains bit maps for various character classes.\n"
-  "Each map is 32 bytes long and the bits run from the least\n"
-  "significant end of each byte. The classes that have their own\n"
-  "maps are: space, xdigit, digit, upper, lower, word, graph\n"
-  "print, punct, and cntrl. Other classes are built from combinations. */\n\n");
+#ifdef NO_LINGCLOSE
+    printf(" -D NO_LINGCLOSE\n");
+#endif
 
-fprintf(f, "  ");
-for (i = 0; i < cbit_length; i++)
-  {
-  if ((i & 7) == 0 && i != 0)
-    {
-    if ((i & 31) == 0) fprintf(f, "\n");
-    fprintf(f, "\n  ");
-    }
-  fprintf(f, "0x%02x", *tables++);
-  if (i != cbit_length - 1) fprintf(f, ",");
-  }
-fprintf(f, ",\n\n");
+#if APR_HAVE_IPV6
+    printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");
+#ifdef AP_ENABLE_V4_MAPPED
+    printf("enabled)\n");
+#else
+    printf("disabled)\n");
+#endif
+#endif
 
-fprintf(f,
-  "/* This table identifies various classes of character by individual bits:\n"
-  "  0x%02x   white space character\n"
-  "  0x%02x   letter\n"
-  "  0x%02x   decimal digit\n"
-  "  0x%02x   hexadecimal digit\n"
-  "  0x%02x   alphanumeric or '_'\n"
-  "  0x%02x   regular expression metacharacter or binary zero\n*/\n\n",
-  ctype_space, ctype_letter, ctype_digit, ctype_xdigit, ctype_word,
-  ctype_meta);
+#if APR_USE_FLOCK_SERIALIZE
+    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
+#endif
 
-fprintf(f, "  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0)
-    {
-    fprintf(f, " /* ");
-    if (isprint(i-8)) fprintf(f, " %c -", i-8);
-      else fprintf(f, "%3d-", i-8);
-    if (isprint(i-1)) fprintf(f, " %c ", i-1);
-      else fprintf(f, "%3d", i-1);
-    fprintf(f, " */\n  ");
-    }
-  fprintf(f, "0x%02x", *tables++);
-  if (i != 255) fprintf(f, ",");
-  }
+#if APR_USE_SYSVSEM_SERIALIZE
+    printf(" -D APR_USE_SYSVSEM_SERIALIZE\n");
+#endif
 
-fprintf(f, "};/* ");
-if (isprint(i-8)) fprintf(f, " %c -", i-8);
-  else fprintf(f, "%3d-", i-8);
-if (isprint(i-1)) fprintf(f, " %c ", i-1);
-  else fprintf(f, "%3d", i-1);
-fprintf(f, " */\n\n/* End of chartables.c */\n");
+#if APR_USE_POSIXSEM_SERIALIZE
+    printf(" -D APR_USE_POSIXSEM_SERIALIZE\n");
+#endif
 
-fclose(f);
-return 0;
+#if APR_USE_FCNTL_SERIALIZE
+    printf(" -D APR_USE_FCNTL_SERIALIZE\n");
+#endif
+
+#if APR_USE_PROC_PTHREAD_SERIALIZE
+    printf(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n");
+#endif
+
+#if APR_USE_PTHREAD_SERIALIZE
+    printf(" -D APR_USE_PTHREAD_SERIALIZE\n");
+#endif
+
+#if APR_PROCESS_LOCK_IS_GLOBAL
+    printf(" -D APR_PROCESS_LOCK_IS_GLOBAL\n");
+#endif
+
+#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
+    printf(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n");
+#endif
+
+#if APR_HAS_OTHER_CHILD
+    printf(" -D APR_HAS_OTHER_CHILD\n");
+#endif
+
+#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
+    printf(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n");
+#endif
+
+#ifdef BUFFERED_LOGS
+    printf(" -D BUFFERED_LOGS\n");
+#ifdef PIPE_BUF
+    printf(" -D PIPE_BUF=%ld\n",(long)PIPE_BUF);
+#endif
+#endif
+
+#if APR_CHARSET_EBCDIC
+    printf(" -D APR_CHARSET_EBCDIC\n");
+#endif
+
+#ifdef APACHE_XLATE
+    printf(" -D APACHE_XLATE\n");
+#endif
+
+#ifdef NEED_HASHBANG_EMUL
+    printf(" -D NEED_HASHBANG_EMUL\n");
+#endif
+
+#ifdef SHARED_CORE
+    printf(" -D SHARED_CORE\n");
+#endif
+
+/* This list displays the compiled in default paths: */
+#ifdef HTTPD_ROOT
+    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
+#endif
+
+#ifdef SUEXEC_BIN
+    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
+#endif
+
+#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
+    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
+#endif
+
+#ifdef DEFAULT_PIDLOG
+    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
+#endif
+
+#ifdef DEFAULT_SCOREBOARD
+    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
+#endif
+
+#ifdef DEFAULT_LOCKFILE
+    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
+#endif
+
+#ifdef DEFAULT_ERRORLOG
+    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
+#endif
+
+#ifdef AP_TYPES_CONFIG_FILE
+    printf(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n");
+#endif
+
+#ifdef SERVER_CONFIG_FILE
+    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
+#endif
 }

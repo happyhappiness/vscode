@@ -1,1 +1,4 @@
-die(_("Failed to resolve '%s' as a valid ref."), split[1]->buf);
+error(_("missing binary patch data for '%s'"),
+			     patch->new_name ?
+			     patch->new_name :
+			     patch->old_name);

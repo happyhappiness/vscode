@@ -1,2 +1,1 @@
-fprintf(stderr,"failed to set permissions on %s : %s\n",
-	      fname,strerror(errno));
+fprintf(stderr,"-o only allowed for root\n");

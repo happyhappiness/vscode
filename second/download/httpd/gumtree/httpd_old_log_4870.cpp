@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", min_spare_threads);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "stapling_get_cert_info: stapling not supported for certificate");

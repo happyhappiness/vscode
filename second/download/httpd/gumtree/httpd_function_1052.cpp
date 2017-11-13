@@ -1,47 +1,90 @@
-static apr_status_t dbd_construct(void **db, void *params, apr_pool_t *pool)
+int ap_signal_server(int *exit_status, apr_pool_t *pconf)
 {
-    svr_cfg *svr = (svr_cfg*) params;
-    ap_dbd_t *rec = apr_pcalloc(pool, sizeof(ap_dbd_t));
-    apr_status_t rv = apr_dbd_get_driver(pool, svr->name, &rec->driver);
+    apr_status_t rv;
+    pid_t otherpid;
+    int running = 0;
+    int have_pid_file = 0;
+    const char *status;
 
-/* Error-checking get_driver isn't necessary now (because it's done at
- * config-time).  But in case that changes in future ...
- */
-    switch (rv) {
-    case APR_ENOTIMPL:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
-                      "DBD: driver for %s not available", svr->name);
-        return rv;
-    case APR_EDSOOPEN:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
-                      "DBD: can't find driver for %s", svr->name);
-        return rv;
-    case APR_ESYMNOTFOUND:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
-                      "DBD: driver for %s is invalid or corrupted", svr->name);
-        return rv;
-    default:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
-                      "DBD: mod_dbd not compatible with apr in get_driver");
-        return rv;
-    case APR_SUCCESS:
-        break;
+    *exit_status = 0;
+
+    rv = ap_read_pid(pconf, ap_pid_fname, &otherpid);
+    if (rv != APR_SUCCESS) {
+        if (rv != APR_ENOENT) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rv, NULL,
+                         "Error retrieving pid file %s", ap_pid_fname);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "Remove it before continuing if it is corrupted.");
+            *exit_status = 1;
+            return 1;
+        }
+        status = "httpd (no pid file) not running";
+    }
+    else {
+        have_pid_file = 1;
+        if (kill(otherpid, 0) == 0) {
+            running = 1;
+            status = apr_psprintf(pconf,
+                                  "httpd (pid %" APR_PID_T_FMT ") already "
+                                  "running", otherpid);
+        }
+        else {
+            status = apr_psprintf(pconf,
+                                  "httpd (pid %" APR_PID_T_FMT "?) not running",
+                                  otherpid);
+        }
     }
 
-    rv = apr_dbd_open(rec->driver, pool, svr->params, &rec->handle);
-    switch (rv) {
-    case APR_EGENERAL:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
-                      "DBD: Can't connect to %s[%s]", svr->name, svr->params);
-        return rv;
-    default:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
-                      "DBD: mod_dbd not compatible with apr in open");
-        return rv;
-    case APR_SUCCESS:
-        break;
+    if (!strcmp(dash_k_arg, "start")) {
+        if (running) {
+            printf("%s\n", status);
+            return 1;
+        }
     }
-    *db = rec;
-    rv = dbd_prepared_init(pool, svr, rec);
-    return rv;
+
+    if (!strcmp(dash_k_arg, "stop")) {
+        if (!running) {
+            printf("%s\n", status);
+        }
+        else {
+            send_signal(otherpid, SIGTERM);
+        }
+        return 1;
+    }
+
+    if (!strcmp(dash_k_arg, "restart")) {
+        if (!running) {
+            printf("httpd not running, trying to start\n");
+        }
+        else {
+            *exit_status = send_signal(otherpid, SIGHUP);
+            return 1;
+        }
+    }
+
+    if (!strcmp(dash_k_arg, "graceful")) {
+        if (!running) {
+            printf("httpd not running, trying to start\n");
+        }
+        else {
+            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL);
+            return 1;
+        }
+    }
+
+    if (!strcmp(dash_k_arg, "graceful-stop")) {
+#ifdef AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN
+        if (!running) {
+            printf("%s\n", status);
+        }
+        else {
+            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL_STOP);
+        }
+#else
+        printf("httpd MPM \"" MPM_NAME "\" does not support graceful-stop\n");
+#endif
+        return 1;
+    }
+
+    return 0;
 }

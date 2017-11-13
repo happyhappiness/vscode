@@ -1,1 +1,1 @@
-die(_("unable to parse command-line config"));
+printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);

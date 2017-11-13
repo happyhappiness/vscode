@@ -1,1 +1,1 @@
-die("%s aborted reading request", prog_name);
+die("BUG: get_locked_file_path() called for unlocked object");

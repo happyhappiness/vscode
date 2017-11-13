@@ -1,4 +1,3 @@
-printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
-               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
-               trstring, tdstring, tdstring,
-               (double) (totalread + totalposted) / timetaken);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);

@@ -1,2 +1,2 @@
-error(_("HEAD of working tree %s is not updated"),
-			      worktrees[i]->path);
+die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"),
+			    orig_name, linenr);

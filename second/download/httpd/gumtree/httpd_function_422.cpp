@@ -1,24 +1,34 @@
-static const char *util_ldap_set_connection_timeout(cmd_parms *cmd, void *dummy, const char *ttl)
+void util_ldap_compare_node_display(request_rec *r, util_ald_cache_t *cache, void *n)
 {
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-						  &ldap_module);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    util_compare_node_t *node = (util_compare_node_t *)n;
+    char date_str[APR_CTIME_LEN+1];
+    char *buf, *cmp_result;
 
-    if (err != NULL) {
-        return err;
+    apr_ctime(date_str, node->lastcompare);
+
+    if (node->result == LDAP_COMPARE_TRUE) {
+        cmp_result = "LDAP_COMPARE_TRUE";
+    }
+    else if (node->result == LDAP_COMPARE_FALSE) {
+        cmp_result = "LDAP_COMPARE_FALSE";
+    }
+    else {
+        cmp_result = apr_itoa(r->pool, node->result);
     }
 
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    st->connectionTimeout = atol(ttl);
+    buf = apr_psprintf(r->pool, 
+             "<tr valign='top'>"
+             "<td nowrap>%s</td>"
+             "<td nowrap>%s</td>"
+             "<td nowrap>%s</td>"
+             "<td nowrap>%s</td>"
+             "<td nowrap>%s</td>"
+             "<tr>",
+         node->dn,
+         node->attrib,
+         node->value,
+         date_str,
+         cmp_result);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                      "[%d] ldap connection: Setting connection timeout to %ld seconds.", 
-                      getpid(), st->connectionTimeout);
-#else
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
-                     "LDAP: Connection timout option not supported by the LDAP SDK in use." );
-#endif
-
-    return NULL;
+    ap_rputs(buf, r);
 }

@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+die("bad %s argument: %s", opt, arg);

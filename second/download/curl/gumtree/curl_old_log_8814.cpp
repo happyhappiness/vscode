@@ -1,9 +1,12 @@
 fputs(
-"              headers, thus possibly inducing  an  extra  network  round-trip.\n"
-"              This  is  used  instead  of  setting  a  specific authentication\n"
-"              method, which you can do with  --basic,  --digest,  --ntlm,  and\n"
-"              --negotiate.\n"
+"              sions  (which  it  is  if it is IPv6-capable), this option tells\n"
+"              curl to resolve names to IPv4 addresses only.\n"
 "\n"
-"              Note  that  using --anyauth is not recommended if you do uploads\n"
-"              from stdin, since it may require data to be sent twice and  then\n"
+"       -6, --ipv6\n"
+"              If curl is capable of resolving an address to multiple  IP  ver-\n"
+"              sions  (which  it  is  if it is IPv6-capable), this option tells\n"
+"              curl to resolve names to IPv6 addresses only.\n"
+"\n"
+"       -a, --append\n"
+"              (FTP/SFTP) When used in an upload, this will tell curl to append\n"
 , stdout);

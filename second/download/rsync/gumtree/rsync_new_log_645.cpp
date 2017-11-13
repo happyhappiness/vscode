@@ -1,1 +1,1 @@
-io_printf(f_out, "\n");
+fprintf(logfile,"%s  %s", timestring(), buf);

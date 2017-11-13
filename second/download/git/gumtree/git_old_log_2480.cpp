@@ -1,4 +1,1 @@
-die(Q_("%d line adds whitespace errors.",
-			       "%d lines add whitespace errors.",
-			       whitespace_error),
-			    whitespace_error);
+die("bad tree object %s", sha1_to_hex(obj->sha1));

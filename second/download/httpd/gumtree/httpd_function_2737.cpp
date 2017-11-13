@@ -1,214 +1,311 @@
-static authz_status ldapgroup_check_authorization(request_rec *r,
-                                             const char *require_args)
+static apr_status_t proxy_send_dir_filter(ap_filter_t *f,
+                                          apr_bucket_brigade *in)
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    request_rec *r = f->r;
+    conn_rec *c = r->connection;
+    apr_pool_t *p = r->pool;
+    apr_bucket_brigade *out = apr_brigade_create(p, c->bucket_alloc);
+    apr_status_t rv;
 
-    util_ldap_connection_t *ldc = NULL;
+    register int n;
+    char *dir, *path, *reldir, *site, *str, *type;
 
-    const char *t;
+    const char *pwd = apr_table_get(r->notes, "Directory-PWD");
+    const char *readme = apr_table_get(r->notes, "Directory-README");
 
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
-    struct mod_auth_ldap_groupattr_entry_t *ent;
-    int i;
+    proxy_dir_ctx_t *ctx = f->ctx;
 
-    if (!r->user) {
-        return AUTHZ_DENIED_NO_USER;
+    if (!ctx) {
+        f->ctx = ctx = apr_pcalloc(p, sizeof(*ctx));
+        ctx->in = apr_brigade_create(p, c->bucket_alloc);
+        ctx->buffer[0] = 0;
+        ctx->state = HEADER;
     }
 
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
-    }
+    /* combine the stored and the new */
+    APR_BRIGADE_CONCAT(ctx->in, in);
 
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_COMPARE); /* for the top-level group only */
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "auth_ldap authorize: no sec->host - weird...?");
-        return AUTHZ_DENIED;
-    }
+    if (HEADER == ctx->state) {
 
-    /*
-     * If there are no elements in the group attribute array, the default should be
-     * member and uniquemember; populate the array now.
-     */
-    if (sec->groupattr->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "member";
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "uniqueMember";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
+        /* basedir is either "", or "/%2f" for the "squid %2f hack" */
+        const char *basedir = "";  /* By default, path is relative to the $HOME dir */
+        char *wildcard = NULL;
 
-    /*
-     * If there are no elements in the sub group classes array, the default
-     * should be groupOfNames and groupOfUniqueNames; populate the array now.
-     */
-    if (sec->subgroupclasses->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfNames";
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfUniqueNames";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
+        /* Save "scheme://site" prefix without password */
+        site = apr_uri_unparse(p, &f->r->parsed_uri, APR_URI_UNP_OMITPASSWORD | APR_URI_UNP_OMITPATHINFO);
+        /* ... and path without query args */
+        path = apr_uri_unparse(p, &f->r->parsed_uri, APR_URI_UNP_OMITSITEPART | APR_URI_UNP_OMITQUERY);
 
-    /*
-     * If we have been authenticated by some other module than mod_auth_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
-     */
-
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
-
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
-
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
+        /* If path began with /%2f, change the basedir */
+        if (strncasecmp(path, "/%2f", 4) == 0) {
+            basedir = "/%2f";
         }
 
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-    }
+        /* Strip off a type qualifier. It is ignored for dir listings */
+        if ((type = strstr(path, ";type=")) != NULL)
+            *type++ = '\0';
 
-    ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+        (void)decodeenc(path);
 
-    if (sec->group_attrib_is_dn) {
-        if (req->dn == NULL || strlen(req->dn) == 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: require group: user's DN has "
-                          "not been defined; failing authorization for user %s",
-                          r->user);
-            return AUTHZ_DENIED;
+        while (path[1] == '/') /* collapse multiple leading slashes to one */
+            ++path;
+
+        reldir = strrchr(path, '/');
+        if (reldir != NULL && ftp_check_globbingchars(reldir)) {
+            wildcard = &reldir[1];
+            reldir[0] = '\0'; /* strip off the wildcard suffix */
         }
-    }
-    else {
-        if (req->user == NULL || strlen(req->user) == 0) {
-            /* We weren't called in the authentication phase, so we didn't have a
-             * chance to set the user field. Do so now. */
-            req->user = r->user;
-        }
-    }
 
-    t = require_args;
+        /* Copy path, strip (all except the last) trailing slashes */
+        /* (the trailing slash is needed for the dir component loop below) */
+        path = dir = apr_pstrcat(p, path, "/", NULL);
+        for (n = strlen(path); n > 1 && path[n - 1] == '/' && path[n - 2] == '/'; --n)
+            path[n - 1] = '\0';
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize: require group: testing for group "
-                  "membership in \"%s\"",
-                  t);
+        /* Add a link to the root directory (if %2f hack was used) */
+        str = (basedir[0] != '\0') ? "<a href=\"/%2f/\">%2f</a>/" : "";
 
-    for (i = 0; i < sec->groupattr->nelts; i++) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authorize: require group: testing for %s: "
-                      "%s (%s)",
-                      ent[i].name,
-                      sec->group_attrib_is_dn ? req->dn : req->user, t);
+        /* print "ftp://host/" */
+        str = apr_psprintf(p, DOCTYPE_HTML_3_2
+                "<html>\n <head>\n  <title>%s%s%s</title>\n"
+                " </head>\n"
+                " <body>\n  <h2>Directory of "
+                "<a href=\"/\">%s</a>/%s",
+                site, basedir, ap_escape_html(p, path),
+                site, str);
 
-        result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
-                             sec->group_attrib_is_dn ? req->dn : req->user);
-        switch(result) {
-            case LDAP_COMPARE_TRUE: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: require group: "
-                              "authorization successful (attribute %s) "
-                              "[%s][%d - %s]",
-                              ent[i].name, ldc->reason, result,
-                              ldap_err2string(result));
-                set_request_vars(r, LDAP_AUTHZ);
-                return AUTHZ_GRANTED;
+        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str),
+                                                          p, c->bucket_alloc));
+
+        for (dir = path+1; (dir = strchr(dir, '/')) != NULL; )
+        {
+            *dir = '\0';
+            if ((reldir = strrchr(path+1, '/'))==NULL) {
+                reldir = path+1;
             }
-            case LDAP_NO_SUCH_ATTRIBUTE: 
-            case LDAP_COMPARE_FALSE: {
-                /* nested groups need searches and compares, so grab a new handle */
-                authnz_ldap_cleanup_connection_close(ldc);
-                apr_pool_cleanup_kill(r->pool, ldc,authnz_ldap_cleanup_connection_close);
+            else
+                ++reldir;
+            /* print "path/" component */
+            str = apr_psprintf(p, "<a href=\"%s%s/\">%s</a>/", basedir,
+                        ap_escape_uri(p, path),
+                        ap_escape_html(p, reldir));
+            *dir = '/';
+            while (*dir == '/')
+              ++dir;
+            APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str,
+                                                           strlen(str), p,
+                                                           c->bucket_alloc));
+        }
+        if (wildcard != NULL) {
+            APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(wildcard,
+                                                           strlen(wildcard), p,
+                                                           c->bucket_alloc));
+        }
 
-                ldc = get_connection_for_authz(r, LDAP_COMPARE_AND_SEARCH);
-                apr_pool_cleanup_register(r->pool, ldc,
-                                          authnz_ldap_cleanup_connection_close,
-                                          apr_pool_cleanup_null);
+        /* If the caller has determined the current directory, and it differs */
+        /* from what the client requested, then show the real name */
+        if (pwd == NULL || strncmp(pwd, path, strlen(pwd)) == 0) {
+            str = apr_psprintf(p, "</h2>\n\n  <hr />\n\n<pre>");
+        }
+        else {
+            str = apr_psprintf(p, "</h2>\n\n(%s)\n\n  <hr />\n\n<pre>",
+                               ap_escape_html(p, pwd));
+        }
+        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str),
+                                                           p, c->bucket_alloc));
 
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                               "auth_ldap authorise: require group \"%s\": "
-                               "failed [%s][%d - %s], checking sub-groups",
-                               t, ldc->reason, result, ldap_err2string(result));
+        /* print README */
+        if (readme) {
+            str = apr_psprintf(p, "%s\n</pre>\n\n<hr />\n\n<pre>\n",
+                               ap_escape_html(p, readme));
 
-                result = util_ldap_cache_check_subgroups(r, ldc, sec->url, t, ent[i].name,
-                                                         sec->group_attrib_is_dn ? req->dn : req->user,
-                                                         sec->sgAttributes[0] ? sec->sgAttributes : default_attributes,
-                                                         sec->subgroupclasses,
-                                                         0, sec->maxNestingDepth);
-                if(result == LDAP_COMPARE_TRUE) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "auth_ldap authorise: require group "
-                                  "(sub-group): authorisation successful "
-                                  "(attribute %s) [%s][%d - %s]",
-                                  ent[i].name, ldc->reason, result,
-                                  ldap_err2string(result));
-                    set_request_vars(r, LDAP_AUTHZ);
-                    return AUTHZ_GRANTED;
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "auth_ldap authorise: require group "
-                                  "(sub-group) \"%s\": authorisation failed "
-                                  "[%s][%d - %s]",
-                                  t, ldc->reason, result,
-                                  ldap_err2string(result));
-                }
+            APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str,
+                                                           strlen(str), p,
+                                                           c->bucket_alloc));
+        }
+
+        /* make sure page intro gets sent out */
+        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_flush_create(c->bucket_alloc));
+        if (APR_SUCCESS != (rv = ap_pass_brigade(f->next, out))) {
+            return rv;
+        }
+        apr_brigade_cleanup(out);
+
+        ctx->state = BODY;
+    }
+
+    /* loop through each line of directory */
+    while (BODY == ctx->state) {
+        char *filename;
+        int found = 0;
+        int eos = 0;
+
+        ap_regex_t *re = NULL;
+        ap_regmatch_t re_result[LS_REG_MATCH];
+
+        /* Compile the output format of "ls -s1" as a fallback for non-unix ftp listings */
+        re = ap_pregcomp(p, LS_REG_PATTERN, AP_REG_EXTENDED);
+        ap_assert(re != NULL);
+
+        /* get a complete line */
+        /* if the buffer overruns - throw data away */
+        while (!found && !APR_BRIGADE_EMPTY(ctx->in)) {
+            char *pos, *response;
+            apr_size_t len, max;
+            apr_bucket *e;
+
+            e = APR_BRIGADE_FIRST(ctx->in);
+            if (APR_BUCKET_IS_EOS(e)) {
+                eos = 1;
                 break;
             }
-            default: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: require group \"%s\": "
-                              "authorization failed [%s][%d - %s]",
-                              t, ldc->reason, result, ldap_err2string(result));
+            if (APR_SUCCESS != (rv = apr_bucket_read(e, (const char **)&response, &len, APR_BLOCK_READ))) {
+                return rv;
+            }
+            pos = memchr(response, APR_ASCII_LF, len);
+            if (pos != NULL) {
+                if ((response + len) != (pos + 1)) {
+                    len = pos - response + 1;
+                    apr_bucket_split(e, pos - response + 1);
+                }
+                found = 1;
+            }
+            max = sizeof(ctx->buffer) - strlen(ctx->buffer) - 1;
+            if (len > max) {
+                len = max;
+            }
+
+            /* len+1 to leave space for the trailing nil char */
+            apr_cpystrn(ctx->buffer+strlen(ctx->buffer), response, len+1);
+
+            APR_BUCKET_REMOVE(e);
+            apr_bucket_destroy(e);
+        }
+
+        /* EOS? jump to footer */
+        if (eos) {
+            ctx->state = FOOTER;
+            break;
+        }
+
+        /* not complete? leave and try get some more */
+        if (!found) {
+            return APR_SUCCESS;
+        }
+
+        {
+            apr_size_t n = strlen(ctx->buffer);
+            if (ctx->buffer[n-1] == CRLF[1])  /* strip trailing '\n' */
+                ctx->buffer[--n] = '\0';
+            if (ctx->buffer[n-1] == CRLF[0])  /* strip trailing '\r' if present */
+                ctx->buffer[--n] = '\0';
+        }
+
+        /* a symlink? */
+        if (ctx->buffer[0] == 'l' && (filename = strstr(ctx->buffer, " -> ")) != NULL) {
+            char *link_ptr = filename;
+
+            do {
+                filename--;
+            } while (filename[0] != ' ' && filename > ctx->buffer);
+            if (filename > ctx->buffer)
+                *(filename++) = '\0';
+            *(link_ptr++) = '\0';
+            str = apr_psprintf(p, "%s <a href=\"%s\">%s %s</a>\n",
+                               ap_escape_html(p, ctx->buffer),
+                               ap_escape_uri(p, filename),
+                               ap_escape_html(p, filename),
+                               ap_escape_html(p, link_ptr));
+        }
+
+        /* a directory/file? */
+        else if (ctx->buffer[0] == 'd' || ctx->buffer[0] == '-' || ctx->buffer[0] == 'l' || apr_isdigit(ctx->buffer[0])) {
+            int searchidx = 0;
+            char *searchptr = NULL;
+            int firstfile = 1;
+            if (apr_isdigit(ctx->buffer[0])) {  /* handle DOS dir */
+                searchptr = strchr(ctx->buffer, '<');
+                if (searchptr != NULL)
+                    *searchptr = '[';
+                searchptr = strchr(ctx->buffer, '>');
+                if (searchptr != NULL)
+                    *searchptr = ']';
+            }
+
+            filename = strrchr(ctx->buffer, ' ');
+            if (filename == NULL) {
+                /* Line is broken.  Ignore it. */
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                             "proxy_ftp: could not parse line %s", ctx->buffer);
+                /* erase buffer for next time around */
+                ctx->buffer[0] = 0;
+                continue;  /* while state is BODY */
+            }
+            *(filename++) = '\0';
+
+            /* handle filenames with spaces in 'em */
+            if (!strcmp(filename, ".") || !strcmp(filename, "..") || firstfile) {
+                firstfile = 0;
+                searchidx = filename - ctx->buffer;
+            }
+            else if (searchidx != 0 && ctx->buffer[searchidx] != 0) {
+                *(--filename) = ' ';
+                ctx->buffer[searchidx - 1] = '\0';
+                filename = &ctx->buffer[searchidx];
+            }
+
+            /* Append a slash to the HREF link for directories */
+            if (!strcmp(filename, ".") || !strcmp(filename, "..") || ctx->buffer[0] == 'd') {
+                str = apr_psprintf(p, "%s <a href=\"%s/\">%s</a>\n",
+                                   ap_escape_html(p, ctx->buffer),
+                                   ap_escape_uri(p, filename),
+                                   ap_escape_html(p, filename));
+            }
+            else {
+                str = apr_psprintf(p, "%s <a href=\"%s\">%s</a>\n",
+                                   ap_escape_html(p, ctx->buffer),
+                                   ap_escape_uri(p, filename),
+                                   ap_escape_html(p, filename));
             }
         }
+        /* Try a fallback for listings in the format of "ls -s1" */
+        else if (0 == ap_regexec(re, ctx->buffer, LS_REG_MATCH, re_result, 0)) {
+
+            filename = apr_pstrndup(p, &ctx->buffer[re_result[2].rm_so], re_result[2].rm_eo - re_result[2].rm_so);
+
+            str = apr_pstrcat(p, ap_escape_html(p, apr_pstrndup(p, ctx->buffer, re_result[2].rm_so)),
+                              "<a href=\"", ap_escape_uri(p, filename), "\">",
+                              ap_escape_html(p, filename), "</a>\n", NULL);
+        }
+        else {
+            strcat(ctx->buffer, "\n"); /* re-append the newline */
+            str = ap_escape_html(p, ctx->buffer);
+        }
+
+        /* erase buffer for next time around */
+        ctx->buffer[0] = 0;
+
+        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str), p,
+                                                            c->bucket_alloc));
+        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_flush_create(c->bucket_alloc));
+        if (APR_SUCCESS != (rv = ap_pass_brigade(f->next, out))) {
+            return rv;
+        }
+        apr_brigade_cleanup(out);
+
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize group: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
+    if (FOOTER == ctx->state) {
+        str = apr_psprintf(p, "</pre>\n\n  <hr />\n\n  %s\n\n </body>\n</html>\n", ap_psignature("", r));
+        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str), p,
+                                                            c->bucket_alloc));
+        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_flush_create(c->bucket_alloc));
+        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_eos_create(c->bucket_alloc));
+        if (APR_SUCCESS != (rv = ap_pass_brigade(f->next, out))) {
+            return rv;
+        }
+        apr_brigade_destroy(out);
+    }
 
-    return AUTHZ_DENIED;
+    return APR_SUCCESS;
 }

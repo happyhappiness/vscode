@@ -1,16 +1,39 @@
-static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
+int util_ldap_handler(request_rec *r)
 {
-    apr_status_t sts;
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
+    util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(r->server->module_config, &ldap_module);
 
-    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock, st->lock_file, p);
-    if (sts != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s, "failed to init caching lock in child process");
-        return;
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+        return DECLINED;
+
+    if (strcmp(r->handler, "ldap-status")) {
+        return DECLINED;
     }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
-                     "INIT global mutex %s in child %d ", st->lock_file, getpid());
-    }
+
+    r->content_type = "text/html";
+    if (r->header_only)
+        return OK;
+
+    ap_rputs(DOCTYPE_HTML_3_2
+             "<html><head><title>LDAP Cache Information</title></head>\n", r);
+    ap_rputs("<body bgcolor='#ffffff'><h1 align=center>LDAP Cache Information</h1>\n", r);
+
+    ap_rputs("<p>\n"
+             "<table border='0'>\n"
+             "<tr bgcolor='#000000'>\n"
+             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Cache Name</b></font></td>"
+             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Entries</b></font></td>"
+             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Avg. Chain Len.</b></font></td>"
+             "<td colspan='2'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Hits</b></font></td>"
+             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Ins/Rem</b></font></td>"
+             "<td colspan='2'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Purges</b></font></td>"
+             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Avg Purge Time</b></font></td>"
+             "</tr>\n", r
+            );
+
+    ap_rputs(util_ald_cache_display(r->pool, st), r);
+
+    ap_rputs("</table>\n</p>\n", r);
+
+    return OK;
 }

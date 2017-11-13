@@ -1,1 +1,1 @@
-error("%s", err.buf);
+die(_("unable to parse format string"));

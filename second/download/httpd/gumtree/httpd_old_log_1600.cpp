@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Invalid expression \"%s\" in file %s",
-                              expr, r->filename);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: failed to initialise prepared SQL statements");

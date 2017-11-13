@@ -1,1 +1,1 @@
-die("BUG: invalid cmdmode: %c", opt->cmdmode);
+die("BUG: check_apply_state() failed");

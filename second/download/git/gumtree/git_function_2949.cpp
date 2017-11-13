@@ -1,22 +1,15 @@
-static int read_mailmap_file(struct string_list *map, const char *filename,
-			     char **repo_abbrev)
+static void *fill_tree_desc_strict(struct tree_desc *desc,
+				   const unsigned char *hash)
 {
-	char buffer[1024];
-	FILE *f;
+	void *buffer;
+	enum object_type type;
+	unsigned long size;
 
-	if (!filename)
-		return 0;
-
-	f = fopen(filename, "r");
-	if (!f) {
-		if (errno == ENOENT)
-			return 0;
-		return error("unable to open mailmap at %s: %s",
-			     filename, strerror(errno));
-	}
-
-	while (fgets(buffer, sizeof(buffer), f) != NULL)
-		read_mailmap_line(map, buffer, repo_abbrev);
-	fclose(f);
-	return 0;
+	buffer = read_sha1_file(hash, &type, &size);
+	if (!buffer)
+		die("unable to read tree (%s)", sha1_to_hex(hash));
+	if (type != OBJ_TREE)
+		die("%s is not a tree", sha1_to_hex(hash));
+	init_tree_desc(desc, buffer, size);
+	return buffer;
 }

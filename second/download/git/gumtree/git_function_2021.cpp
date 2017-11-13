@@ -1,245 +1,91 @@
-static void populate_value(struct ref_array_item *ref)
+static int diff_get_patch_id(struct diff_options *options, unsigned char *sha1)
 {
-	void *buf;
-	struct object *obj;
-	int eaten, i;
-	unsigned long size;
-	const unsigned char *tagged;
+	struct diff_queue_struct *q = &diff_queued_diff;
+	int i;
+	git_SHA_CTX ctx;
+	struct patch_id_t data;
+	char buffer[PATH_MAX * 4 + 20];
 
-	ref->value = xcalloc(used_atom_cnt, sizeof(struct atom_value));
+	git_SHA1_Init(&ctx);
+	memset(&data, 0, sizeof(struct patch_id_t));
+	data.ctx = &ctx;
 
-	if (need_symref && (ref->flag & REF_ISSYMREF) && !ref->symref) {
-		unsigned char unused1[20];
-		ref->symref = resolve_refdup(ref->refname, RESOLVE_REF_READING,
-					     unused1, NULL);
-		if (!ref->symref)
-			ref->symref = "";
-	}
+	for (i = 0; i < q->nr; i++) {
+		xpparam_t xpp;
+		xdemitconf_t xecfg;
+		mmfile_t mf1, mf2;
+		struct diff_filepair *p = q->queue[i];
+		int len1, len2;
 
-	/* Fill in specials first */
-	for (i = 0; i < used_atom_cnt; i++) {
-		const char *name = used_atom[i];
-		struct atom_value *v = &ref->value[i];
-		int deref = 0;
-		const char *refname;
-		const char *formatp;
-		const char *valp;
-		struct branch *branch = NULL;
-
-		v->handler = append_atom;
-
-		if (*name == '*') {
-			deref = 1;
-			name++;
-		}
-
-		if (starts_with(name, "refname"))
-			refname = ref->refname;
-		else if (starts_with(name, "symref"))
-			refname = ref->symref ? ref->symref : "";
-		else if (starts_with(name, "upstream")) {
-			const char *branch_name;
-			/* only local branches may have an upstream */
-			if (!skip_prefix(ref->refname, "refs/heads/",
-					 &branch_name))
-				continue;
-			branch = branch_get(branch_name);
-
-			refname = branch_get_upstream(branch, NULL);
-			if (!refname)
-				continue;
-		} else if (starts_with(name, "push")) {
-			const char *branch_name;
-			if (!skip_prefix(ref->refname, "refs/heads/",
-					 &branch_name))
-				continue;
-			branch = branch_get(branch_name);
-
-			refname = branch_get_push(branch, NULL);
-			if (!refname)
-				continue;
-		} else if (match_atom_name(name, "color", &valp)) {
-			char color[COLOR_MAXLEN] = "";
-
-			if (!valp)
-				die(_("expected format: %%(color:<color>)"));
-			if (color_parse(valp, color) < 0)
-				die(_("unable to parse format"));
-			v->s = xstrdup(color);
+		memset(&xpp, 0, sizeof(xpp));
+		memset(&xecfg, 0, sizeof(xecfg));
+		if (p->status == 0)
+			return error("internal diff status error");
+		if (p->status == DIFF_STATUS_UNKNOWN)
 			continue;
-		} else if (!strcmp(name, "flag")) {
-			char buf[256], *cp = buf;
-			if (ref->flag & REF_ISSYMREF)
-				cp = copy_advance(cp, ",symref");
-			if (ref->flag & REF_ISPACKED)
-				cp = copy_advance(cp, ",packed");
-			if (cp == buf)
-				v->s = "";
-			else {
-				*cp = '\0';
-				v->s = xstrdup(buf + 1);
-			}
+		if (diff_unmodified_pair(p))
 			continue;
-		} else if (!deref && grab_objectname(name, ref->objectname, v)) {
+		if ((DIFF_FILE_VALID(p->one) && S_ISDIR(p->one->mode)) ||
+		    (DIFF_FILE_VALID(p->two) && S_ISDIR(p->two->mode)))
 			continue;
-		} else if (!strcmp(name, "HEAD")) {
-			const char *head;
-			unsigned char sha1[20];
-
-			head = resolve_ref_unsafe("HEAD", RESOLVE_REF_READING,
-						  sha1, NULL);
-			if (!strcmp(ref->refname, head))
-				v->s = "*";
-			else
-				v->s = " ";
-			continue;
-		} else if (match_atom_name(name, "align", &valp)) {
-			struct align *align = &v->u.align;
-			struct strbuf **s, **to_free;
-			int width = -1;
-
-			if (!valp)
-				die(_("expected format: %%(align:<width>,<position>)"));
-
-			/*
-			 * TODO: Implement a function similar to strbuf_split_str()
-			 * which would omit the separator from the end of each value.
-			 */
-			s = to_free = strbuf_split_str(valp, ',', 0);
-
-			align->position = ALIGN_LEFT;
-
-			while (*s) {
-				/*  Strip trailing comma */
-				if (s[1])
-					strbuf_setlen(s[0], s[0]->len - 1);
-				if (!strtoul_ui(s[0]->buf, 10, (unsigned int *)&width))
-					;
-				else if (!strcmp(s[0]->buf, "left"))
-					align->position = ALIGN_LEFT;
-				else if (!strcmp(s[0]->buf, "right"))
-					align->position = ALIGN_RIGHT;
-				else if (!strcmp(s[0]->buf, "middle"))
-					align->position = ALIGN_MIDDLE;
-				else
-					die(_("improper format entered align:%s"), s[0]->buf);
-				s++;
-			}
-
-			if (width < 0)
-				die(_("positive width expected with the %%(align) atom"));
-			align->width = width;
-			strbuf_list_free(to_free);
-			v->handler = align_atom_handler;
-			continue;
-		} else if (!strcmp(name, "end")) {
-			v->handler = end_atom_handler;
-			continue;
-		} else
+		if (DIFF_PAIR_UNMERGED(p))
 			continue;
 
-		formatp = strchr(name, ':');
-		if (formatp) {
-			int num_ours, num_theirs;
+		diff_fill_sha1_info(p->one);
+		diff_fill_sha1_info(p->two);
+		if (fill_mmfile(&mf1, p->one) < 0 ||
+				fill_mmfile(&mf2, p->two) < 0)
+			return error("unable to read files to diff");
 
-			formatp++;
-			if (!strcmp(formatp, "short"))
-				refname = shorten_unambiguous_ref(refname,
-						      warn_ambiguous_refs);
-			else if (!strcmp(formatp, "track") &&
-				 (starts_with(name, "upstream") ||
-				  starts_with(name, "push"))) {
-
-				if (stat_tracking_info(branch, &num_ours,
-						       &num_theirs, NULL))
-					continue;
-
-				if (!num_ours && !num_theirs)
-					v->s = "";
-				else if (!num_ours)
-					v->s = xstrfmt("[behind %d]", num_theirs);
-				else if (!num_theirs)
-					v->s = xstrfmt("[ahead %d]", num_ours);
-				else
-					v->s = xstrfmt("[ahead %d, behind %d]",
-						       num_ours, num_theirs);
-				continue;
-			} else if (!strcmp(formatp, "trackshort") &&
-				   (starts_with(name, "upstream") ||
-				    starts_with(name, "push"))) {
-				assert(branch);
-
-				if (stat_tracking_info(branch, &num_ours,
-							&num_theirs, NULL))
-					continue;
-
-				if (!num_ours && !num_theirs)
-					v->s = "=";
-				else if (!num_ours)
-					v->s = "<";
-				else if (!num_theirs)
-					v->s = ">";
-				else
-					v->s = "<>";
-				continue;
-			} else
-				die("unknown %.*s format %s",
-				    (int)(formatp - name), name, formatp);
-		}
-
-		if (!deref)
-			v->s = refname;
+		len1 = remove_space(p->one->path, strlen(p->one->path));
+		len2 = remove_space(p->two->path, strlen(p->two->path));
+		if (p->one->mode == 0)
+			len1 = snprintf(buffer, sizeof(buffer),
+					"diff--gita/%.*sb/%.*s"
+					"newfilemode%06o"
+					"---/dev/null"
+					"+++b/%.*s",
+					len1, p->one->path,
+					len2, p->two->path,
+					p->two->mode,
+					len2, p->two->path);
+		else if (p->two->mode == 0)
+			len1 = snprintf(buffer, sizeof(buffer),
+					"diff--gita/%.*sb/%.*s"
+					"deletedfilemode%06o"
+					"---a/%.*s"
+					"+++/dev/null",
+					len1, p->one->path,
+					len2, p->two->path,
+					p->one->mode,
+					len1, p->one->path);
 		else
-			v->s = xstrfmt("%s^{}", refname);
+			len1 = snprintf(buffer, sizeof(buffer),
+					"diff--gita/%.*sb/%.*s"
+					"---a/%.*s"
+					"+++b/%.*s",
+					len1, p->one->path,
+					len2, p->two->path,
+					len1, p->one->path,
+					len2, p->two->path);
+		git_SHA1_Update(&ctx, buffer, len1);
+
+		if (diff_filespec_is_binary(p->one) ||
+		    diff_filespec_is_binary(p->two)) {
+			git_SHA1_Update(&ctx, sha1_to_hex(p->one->sha1), 40);
+			git_SHA1_Update(&ctx, sha1_to_hex(p->two->sha1), 40);
+			continue;
+		}
+
+		xpp.flags = 0;
+		xecfg.ctxlen = 3;
+		xecfg.flags = 0;
+		if (xdi_diff_outf(&mf1, &mf2, patch_id_consume, &data,
+				  &xpp, &xecfg))
+			return error("unable to generate patch-id diff for %s",
+				     p->one->path);
 	}
 
-	for (i = 0; i < used_atom_cnt; i++) {
-		struct atom_value *v = &ref->value[i];
-		if (v->s == NULL)
-			goto need_obj;
-	}
-	return;
-
- need_obj:
-	buf = get_obj(ref->objectname, &obj, &size, &eaten);
-	if (!buf)
-		die("missing object %s for %s",
-		    sha1_to_hex(ref->objectname), ref->refname);
-	if (!obj)
-		die("parse_object_buffer failed on %s for %s",
-		    sha1_to_hex(ref->objectname), ref->refname);
-
-	grab_values(ref->value, 0, obj, buf, size);
-	if (!eaten)
-		free(buf);
-
-	/*
-	 * If there is no atom that wants to know about tagged
-	 * object, we are done.
-	 */
-	if (!need_tagged || (obj->type != OBJ_TAG))
-		return;
-
-	/*
-	 * If it is a tag object, see if we use a value that derefs
-	 * the object, and if we do grab the object it refers to.
-	 */
-	tagged = ((struct tag *)obj)->tagged->oid.hash;
-
-	/*
-	 * NEEDSWORK: This derefs tag only once, which
-	 * is good to deal with chains of trust, but
-	 * is not consistent with what deref_tag() does
-	 * which peels the onion to the core.
-	 */
-	buf = get_obj(tagged, &obj, &size, &eaten);
-	if (!buf)
-		die("missing object %s for %s",
-		    sha1_to_hex(tagged), ref->refname);
-	if (!obj)
-		die("parse_object_buffer failed on %s for %s",
-		    sha1_to_hex(tagged), ref->refname);
-	grab_values(ref->value, 1, obj, buf, size);
-	if (!eaten)
-		free(buf);
+	git_SHA1_Final(sha1, &ctx);
+	return 0;
 }

@@ -1,10 +1,10 @@
 fputs(
-"              num_connects   Number of new connects made in the recent  trans-\n"
-"                             fer. (Added in 7.12.3)\n"
+"              these  letters are not normal legal URL contents but they should\n"
+"              be encoded according to the URI standard.\n"
 "\n"
-"              num_redirects  Number  of  redirects  that  were followed in the\n"
-"                             request. (Added in 7.12.3)\n"
-"\n"
-"              redirect_url   When an HTTP request was made without -L to  fol-\n"
-"                             low redirects, this variable will show the actual\n"
+"       -G, --get\n"
+"              When used, this option will make all  data  specified  with  -d,\n"
+"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
+"              GET request instead of the POST request that otherwise would  be\n"
+"              used. The data will be appended to the URL with a '?' separator.\n"
 , stdout);

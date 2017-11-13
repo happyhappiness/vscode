@@ -1,1 +1,1 @@
-fprintf(FINFO,"send_files phase=%d\n",phase);
+fprintf(FINFO,"%s is newer\n",fname);

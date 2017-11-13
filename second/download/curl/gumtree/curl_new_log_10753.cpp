@@ -1,2 +1,2 @@
-warnf(config->global, "unrecognized ftp CCC method '%s', using default\n",
-        str);
+warnf(config->global, "cookie option(s) used even though cookie "
+                "support is disabled!\n");

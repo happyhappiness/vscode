@@ -1,1 +1,2 @@
-rprintf(FINFO,"deleting directory %s\n",f_name(f));
+rprintf(FINFO,"count=%d rem=%d n=%d flength=%d\n",
+	    s->count,s->remainder,s->n,(int)s->flength);

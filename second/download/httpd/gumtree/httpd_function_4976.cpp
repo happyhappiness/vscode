@@ -1,83 +1,136 @@
-static const char *get_addresses(apr_pool_t *p, const char *w_,
-                                 server_addr_rec ***paddr,
-                                 apr_port_t default_port)
+static apr_status_t make_sock(apr_pool_t *p, ap_listen_rec *server)
 {
-    apr_sockaddr_t *my_addr;
-    server_addr_rec *sar;
-    char *w, *host, *scope_id;
-    int wild_port;
-    apr_size_t wlen;
-    apr_port_t port;
-    apr_status_t rv;
+    apr_socket_t *s = server->sd;
+    int one = 1;
+#if APR_HAVE_IPV6
+#ifdef AP_ENABLE_V4_MAPPED
+    int v6only_setting = 0;
+#else
+    int v6only_setting = 1;
+#endif
+#endif
+    apr_status_t stat;
 
-    if (*w_ == '\0')
-        return NULL;
+#ifndef WIN32
+    stat = apr_socket_opt_set(s, APR_SO_REUSEADDR, one);
+    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                      "make_sock: for address %pI, apr_socket_opt_set: (SO_REUSEADDR)",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+#endif
 
-    w = apr_pstrdup(p, w_);
-    /* apr_parse_addr_port() doesn't understand ":*" so handle that first. */
-    wlen = strlen(w);                    /* wlen must be > 0 at this point */
-    wild_port = 0;
-    if (w[wlen - 1] == '*') {
-        if (wlen < 2) {
-            wild_port = 1;
-        }
-        else if (w[wlen - 2] == ':') {
-            w[wlen - 2] = '\0';
-            wild_port = 1;
+    stat = apr_socket_opt_set(s, APR_SO_KEEPALIVE, one);
+    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                      "make_sock: for address %pI, apr_socket_opt_set: (SO_KEEPALIVE)",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+
+#if APR_HAVE_IPV6
+    if (server->bind_addr->family == APR_INET6) {
+        stat = apr_socket_opt_set(s, APR_IPV6_V6ONLY, v6only_setting);
+        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+            ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                          "make_sock: for address %pI, apr_socket_opt_set: "
+                          "(IPV6_V6ONLY)",
+                          server->bind_addr);
+            apr_socket_close(s);
+            return stat;
         }
     }
-    rv = apr_parse_addr_port(&host, &scope_id, &port, w, p);
-    /* If the string is "80", apr_parse_addr_port() will be happy and set
-     * host to NULL and port to 80, so watch out for that.
+#endif
+
+    /*
+     * To send data over high bandwidth-delay connections at full
+     * speed we must force the TCP window to open wide enough to keep the
+     * pipe full.  The default window size on many systems
+     * is only 4kB.  Cross-country WAN connections of 100ms
+     * at 1Mb/s are not impossible for well connected sites.
+     * If we assume 100ms cross-country latency,
+     * a 4kB buffer limits throughput to 40kB/s.
+     *
+     * To avoid this problem I've added the SendBufferSize directive
+     * to allow the web master to configure send buffer size.
+     *
+     * The trade-off of larger buffers is that more kernel memory
+     * is consumed.  YMMV, know your customers and your network!
+     *
+     * -John Heidemann <johnh@isi.edu> 25-Oct-96
+     *
+     * If no size is specified, use the kernel default.
      */
-    if (rv != APR_SUCCESS) {
-        return "The address or port is invalid";
-    }
-    if (!host) {
-        return "Missing address for VirtualHost";
-    }
-    if (scope_id) {
-        return "Scope ids are not supported";
-    }
-    if (!port && !wild_port) {
-        port = default_port;
-    }
-
-    if (strcmp(host, "*") == 0) {
-        rv = apr_sockaddr_info_get(&my_addr, "0.0.0.0", APR_INET, port, 0, p);
-        if (rv) {
-            return "Could not resolve address '0.0.0.0' -- "
-                "check resolver configuration.";
+    if (send_buffer_size) {
+        stat = apr_socket_opt_set(s, APR_SO_SNDBUF,  send_buffer_size);
+        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
+                          "make_sock: failed to set SendBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);
+            /* not a fatal error */
         }
     }
-    else if (strcasecmp(host, "_default_") == 0
-        || strcmp(host, "255.255.255.255") == 0) {
-        rv = apr_sockaddr_info_get(&my_addr, "255.255.255.255", APR_INET, port, 0, p);
-        if (rv) {
-            return "Could not resolve address '255.255.255.255' -- "
-                "check resolver configuration.";
-        }
-    }
-    else {
-        rv = apr_sockaddr_info_get(&my_addr, host, APR_UNSPEC, port, 0, p);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
-                "Could not resolve host name %s -- ignoring!", host);
-            return NULL;
+    if (receive_buffer_size) {
+        stat = apr_socket_opt_set(s, APR_SO_RCVBUF, receive_buffer_size);
+        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
+                          "make_sock: failed to set ReceiveBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);
+            /* not a fatal error */
         }
     }
 
-    /* Remember all addresses for the host */
+#if APR_TCP_NODELAY_INHERITED
+    ap_sock_disable_nagle(s);
+#endif
 
-    do {
-        sar = apr_pcalloc(p, sizeof(server_addr_rec));
-        **paddr = sar;
-        *paddr = &sar->next;
-        sar->host_addr = my_addr;
-        sar->host_port = port;
-        sar->virthost = host;
-        my_addr = my_addr->next;
-    } while (my_addr);
+    if ((stat = apr_socket_bind(s, server->bind_addr)) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, stat, p,
+                      "make_sock: could not bind to address %pI",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
 
-    return NULL;
+    if ((stat = apr_socket_listen(s, ap_listenbacklog)) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, stat, p,
+                      "make_sock: unable to listen for connections "
+                      "on address %pI",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+
+#ifdef WIN32
+    /* I seriously doubt that this would work on Unix; I have doubts that
+     * it entirely solves the problem on Win32.  However, since setting
+     * reuseaddr on the listener -prior- to binding the socket has allowed
+     * us to attach to the same port as an already running instance of
+     * Apache, or even another web server, we cannot identify that this
+     * port was exclusively granted to this instance of Apache.
+     *
+     * So set reuseaddr, but do not attempt to do so until we have the
+     * parent listeners successfully bound.
+     */
+    stat = apr_socket_opt_set(s, APR_SO_REUSEADDR, one);
+    if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                    "make_sock: for address %pI, apr_socket_opt_set: (SO_REUSEADDR)",
+                     server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
+#endif
+
+    server->sd = s;
+    server->active = 1;
+
+    server->accept_func = NULL;
+
+    return APR_SUCCESS;
 }

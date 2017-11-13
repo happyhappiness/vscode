@@ -1,1 +1,1 @@
-fprintf(FERROR,"ERROR: file corruption in %s\n",fname);
+fprintf(FERROR,"\nError: MDupdate MD already done.");

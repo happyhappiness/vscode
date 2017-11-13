@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r, APLOGNO(01672)
-                          "Anonymous: Passwd <%s> Accepted",
-                          sent_pw ? sent_pw : "\'none\'");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
+                     "unable to replace stderr with error log file");

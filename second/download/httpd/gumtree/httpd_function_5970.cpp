@@ -1,39 +1,60 @@
-static int h2_h2_post_read_req(request_rec *r)
+apr_status_t h2_conn_process(conn_rec *c, request_rec *r, server_rec *s)
 {
-    /* slave connection? */
-    if (r->connection->master) {
-        h2_ctx *ctx = h2_ctx_rget(r);
-        struct h2_task *task = h2_ctx_get_task(ctx);
-        /* This hook will get called twice on internal redirects. Take care
-         * that we manipulate filters only once. */
-        if (task && !task->filters_set) {
-            ap_filter_t *f;
-            
-            /* setup the correct output filters to process the response
-             * on the proper mod_http2 way. */
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "adding task output filter");
-            if (task->ser_headers) {
-                ap_add_output_filter("H1_TO_H2_RESP", task, r, r->connection);
-            }
-            else {
-                /* replace the core http filter that formats response headers
-                 * in HTTP/1 with our own that collects status and headers */
-                ap_remove_output_filter_byhandle(r->output_filters, "HTTP_HEADER");
-                ap_add_output_filter("H2_RESPONSE", task, r, r->connection);
-            }
-            
-            /* trailers processing. Incoming trailers are added to this
-             * request via our h2 input filter, outgoing trailers
-             * in a special h2 out filter. */
-            for (f = r->input_filters; f; f = f->next) {
-                if (!strcmp("H2_TO_H1", f->frec->name)) {
-                    f->r = r;
-                    break;
-                }
-            }
-            ap_add_output_filter("H2_TRAILERS", task, r, r->connection);
-            task->filters_set = 1;
-        }
+    apr_status_t status;
+    h2_session *session;
+    const h2_config *config;
+    int rv;
+    
+    if (!workers) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02911) 
+                      "workers not initialized");
+        return APR_EGENERAL;
     }
-    return DECLINED;
+    
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "h2_conn_process start");
+    
+    if (!s && r) {
+        s = r->server;
+    }
+    
+    config = s? h2_config_sget(s) : h2_config_get(c);
+    if (r) {
+        session = h2_session_rcreate(r, config, workers);
+    }
+    else {
+        session = h2_session_create(c, config, workers);
+    }
+    
+    if (!h2_is_acceptable_connection(c, 1)) {
+        nghttp2_submit_goaway(session->ngh2, NGHTTP2_FLAG_NONE, 0,
+                              NGHTTP2_INADEQUATE_SECURITY, NULL, 0);
+    } 
+
+    ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_READ, c);
+    status = h2_session_start(session, &rv);
+    
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                  "h2_session(%ld): starting on %s:%d", session->id,
+                  session->c->base_server->server_hostname,
+                  session->c->local_addr->port);
+    if (status != APR_SUCCESS) {
+        h2_session_abort(session, status, rv);
+        h2_session_eoc_callback(session);
+        return status;
+    }
+    
+    status = h2_session_process(session);
+
+    ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
+                  "h2_session(%ld): done", session->id);
+    /* Make sure this connection gets closed properly. */
+    ap_update_child_status_from_conn(c->sbh, SERVER_CLOSING, c);
+    c->keepalive = AP_CONN_CLOSE;
+    if (c->cs) {
+        c->cs->state = CONN_STATE_WRITE_COMPLETION;
+    }
+
+    h2_session_close(session);
+    /* hereafter session will be gone */
+    return status;
 }

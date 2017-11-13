@@ -1,1 +1,0 @@
-usage(argv[0], "UTC offset parameter is not valid with -l");

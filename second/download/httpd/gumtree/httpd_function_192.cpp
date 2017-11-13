@@ -1,376 +1,199 @@
-static void output_directories(struct ent **ar, int n,
-                               autoindex_config_rec *d, request_rec *r,
-                               apr_int32_t autoindex_opts, char keyid,
-                               char direction, const char *colargs)
+static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
+                                 apr_pool_t *ptemp, server_rec *s)
 {
-    int x;
-    apr_size_t rv;
-    char *name = r->uri;
-    char *tp;
-    int static_columns = !!(autoindex_opts & SUPPRESS_COLSORT);
-    apr_pool_t *scratch;
-    int name_width;
-    int desc_width;
-    char *name_scratch;
-    char *pad_scratch;
-    char *breakrow = "";
+    int rc = LDAP_SUCCESS;
+    apr_status_t result;
+    char buf[MAX_STRING_LEN];
 
-    apr_pool_create(&scratch, r->pool);
-    if (name[0] == '\0') {
-        name = "/";
-    }
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
 
-    name_width = d->name_width;
-    desc_width = d->desc_width;
+#if APR_HAS_SHARED_MEMORY
+    server_rec *s_vhost;
+    util_ldap_state_t *st_vhost;
+    
+    /* initializing cache if file is here and we already don't have shm addr*/
+    if (st->cache_file && !st->cache_shm) {
+#endif
+        result = util_ldap_cache_init(p, st);
+        apr_strerror(result, buf, sizeof(buf));
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
+                     "LDAP cache init: %s", buf);
 
-    if ((autoindex_opts & (FANCY_INDEXING | TABLE_INDEXING))
-                        == FANCY_INDEXING) {
-        if (d->name_adjust == K_ADJUST) {
-            for (x = 0; x < n; x++) {
-                int t = strlen(ar[x]->name);
-                if (t > name_width) {
-                    name_width = t;
-                }
-            }
-        }
+#if APR_HAS_SHARED_MEMORY
+        /* merge config in all vhost */
+        s_vhost = s->next;
+        while (s_vhost) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
+                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
+                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
 
-        if (d->desc_adjust == K_ADJUST) {
-            for (x = 0; x < n; x++) {
-                if (ar[x]->desc != NULL) {
-                    int t = strlen(ar[x]->desc);
-                    if (t > desc_width) {
-                        desc_width = t;
-                    }
-                }
-            }
-        }
-    }
-    name_scratch = apr_palloc(r->pool, name_width + 1);
-    pad_scratch = apr_palloc(r->pool, name_width + 1);
-    memset(pad_scratch, ' ', name_width);
-    pad_scratch[name_width] = '\0';
-
-    if (autoindex_opts & TABLE_INDEXING) {
-        int cols = 1;
-        ap_rputs("<table><tr>", r);
-        if (!(autoindex_opts & SUPPRESS_ICON)) {
-            ap_rputs("<th>", r);
-            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
-                             "\" alt=\"[ICO]\"", NULL);
-                if (d->icon_width) {
-                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                }
-                if (d->icon_height) {
-                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                }
-
-                if (autoindex_opts & EMIT_XHTML) {
-                    ap_rputs(" /", r);
-                }
-                ap_rputs("></th>", r);
-            }
-            else {
-                ap_rputs("&nbsp;</th>", r);
-            }
-
-            ++cols;
-        }
-        ap_rputs("<th>", r);
-        emit_link(r, "Name", K_NAME, keyid, direction,
-                  colargs, static_columns);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Size", K_SIZE, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Description", K_DESC, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            breakrow = apr_psprintf(r->pool,
-                                    "<tr><th colspan=\"%d\">"
-                                    "<hr%s></th></tr>\n", cols,
-                                    (autoindex_opts & EMIT_XHTML) ? " /" : "");
-        }
-        ap_rvputs(r, "</th></tr>", breakrow, NULL);
-    }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        ap_rputs("<pre>", r);
-        if (!(autoindex_opts & SUPPRESS_ICON)) {
-            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
-                             "\" alt=\"Icon \"", NULL);
-                if (d->icon_width) {
-                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                }
-                if (d->icon_height) {
-                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                }
-
-                if (autoindex_opts & EMIT_XHTML) {
-                    ap_rputs(" /", r);
-                }
-                ap_rputs("> ", r);
-            }
-            else {
-                ap_rputs("      ", r);
-            }
-        }
-        emit_link(r, "Name", K_NAME, keyid, direction,
-                  colargs, static_columns);
-        ap_rputs(pad_scratch + 4, r);
-        /*
-         * Emit the guaranteed-at-least-one-space-between-columns byte.
-         */
-        ap_rputs(" ", r);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-                      colargs, static_columns);
-            ap_rputs("      ", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            emit_link(r, "Size", K_SIZE, keyid, direction,
-                      colargs, static_columns);
-            ap_rputs("  ", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            emit_link(r, "Description", K_DESC, keyid, direction,
-                      colargs, static_columns);
-        }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            ap_rputs("<hr", r);
-            if (autoindex_opts & EMIT_XHTML) {
-                ap_rputs(" /", r);
-            }
-            ap_rputs(">", r);
-        }
-        else {
-            ap_rputc('\n', r);
+            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
+            st_vhost->cache_shm = st->cache_shm;
+            st_vhost->cache_rmm = st->cache_rmm;
+            st_vhost->cache_file = st->cache_file;
+            s_vhost = s_vhost->next;
         }
     }
     else {
-        ap_rputs("<ul>", r);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
     }
+#endif
+    
+    /* log the LDAP SDK used 
+     */
+    #if APR_HAS_NETSCAPE_LDAPSDK 
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Netscape LDAP SDK" );
 
-    for (x = 0; x < n; x++) {
-        char *anchor, *t, *t2;
-        int nwidth;
+    #elif APR_HAS_NOVELL_LDAPSDK
 
-        apr_pool_clear(scratch);
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Novell LDAP SDK" );
 
-        t = ar[x]->name;
-        anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
+    #elif APR_HAS_OPENLDAP_LDAPSDK
 
-        if (!x && t[0] == '/') {
-            t2 = "Parent Directory";
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with OpenLDAP LDAP SDK" );
+
+    #elif APR_HAS_MICROSOFT_LDAPSDK
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Microsoft LDAP SDK" );
+    #else
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with unknown LDAP SDK" );
+
+    #endif /* APR_HAS_NETSCAPE_LDAPSDK */
+
+
+
+    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
+                              util_ldap_cleanup_module); 
+
+    /* initialize SSL support if requested
+    */
+    if (st->cert_auth_file)
+    {
+        #if APR_HAS_LDAP_SSL /* compiled with ssl support */
+
+        #if APR_HAS_NETSCAPE_LDAPSDK 
+
+            /* Netscape sdk only supports a cert7.db file 
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_CERT7_DB)
+            {
+                rc = ldapssl_client_init(st->cert_auth_file, NULL);
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                         "LDAP: Invalid LDAPTrustedCAType directive - "
+                          "CERT7_DB_PATH type required");
+                rc = -1;
+            }
+
+        #elif APR_HAS_NOVELL_LDAPSDK
+        
+            /* Novell SDK supports DER or BASE64 files
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_DER  ||
+                st->cert_file_type == LDAP_CA_TYPE_BASE64 )
+            {
+                rc = ldapssl_client_init(NULL, NULL);
+                if (LDAP_SUCCESS == rc)
+                {
+                    if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
+                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
+                                                  LDAPSSL_CERT_FILETYPE_B64);
+                    else
+                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
+                                                  LDAPSSL_CERT_FILETYPE_DER);
+
+                    if (LDAP_SUCCESS != rc)
+                        ldapssl_client_deinit();
+                }
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                             "LDAP: Invalid LDAPTrustedCAType directive - "
+                             "DER_FILE or BASE64_FILE type required");
+                rc = -1;
+            }
+
+        #elif APR_HAS_OPENLDAP_LDAPSDK
+
+            /* OpenLDAP SDK supports BASE64 files
+            */
+            if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
+            {
+                rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, st->cert_auth_file);
+            }
+            else
+            {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                             "LDAP: Invalid LDAPTrustedCAType directive - "
+                             "BASE64_FILE type required");
+                rc = -1;
+            }
+
+
+        #elif APR_HAS_MICROSOFT_LDAPSDK
+            
+            /* Microsoft SDK use the registry certificate store - always
+             * assume support is always available
+            */
+            rc = LDAP_SUCCESS;
+
+        #else
+            rc = -1;
+        #endif /* APR_HAS_NETSCAPE_LDAPSDK */
+
+        #else  /* not compiled with SSL Support */
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                     "LDAP: Not built with SSL support." );
+            rc = -1;
+
+        #endif /* APR_HAS_LDAP_SSL */
+
+        if (LDAP_SUCCESS == rc)
+        {
+            st->ssl_support = 1;
         }
-        else {
-            t2 = t;
-        }
-
-        if (autoindex_opts & TABLE_INDEXING) {
-            ap_rputs("<tr>", r);
-            if (!(autoindex_opts & SUPPRESS_ICON)) {
-                ap_rputs("<td valign=\"top\">", r);
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
-                }
-                if ((ar[x]->icon) || d->default_icon) {
-                    ap_rvputs(r, "<img src=\"",
-                              ap_escape_html(scratch,
-                                             ar[x]->icon ? ar[x]->icon
-                                                         : d->default_icon),
-                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-                              "]\"", NULL);
-                    if (d->icon_width) {
-                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                    }
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
-
-                    if (autoindex_opts & EMIT_XHTML) {
-                        ap_rputs(" /", r);
-                    }
-                    ap_rputs(">", r);
-                }
-                else {
-                    ap_rputs("&nbsp;", r);
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a></td>", r);
-                }
-                else {
-                    ap_rputs("</td>", r);
-                }
-            }
-            if (d->name_adjust == K_ADJUST) {
-                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
-                          ap_escape_html(scratch, t2), "</a>", NULL);
-            }
-            else {
-                nwidth = strlen(t2);
-                if (nwidth > name_width) {
-                  memcpy(name_scratch, t2, name_width - 3);
-                  name_scratch[name_width - 3] = '.';
-                  name_scratch[name_width - 2] = '.';
-                  name_scratch[name_width - 1] = '>';
-                  name_scratch[name_width] = 0;
-                  t2 = name_scratch;
-                  nwidth = name_width;
-                }
-                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
-                          ap_escape_html(scratch, t2),
-                          "</a>", pad_scratch + nwidth, NULL);
-            }
-            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-                if (ar[x]->lm != -1) {
-                    char time_str[MAX_STRING_LEN];
-                    apr_time_exp_t ts;
-                    apr_time_exp_lt(&ts, ar[x]->lm);
-                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
-                                 "</td><td align=\"right\">%d-%b-%Y %H:%M  ",
-                                 &ts);
-                    ap_rputs(time_str, r);
-                }
-                else {
-                    ap_rputs("</td><td>&nbsp;", r);
-                }
-            }
-            if (!(autoindex_opts & SUPPRESS_SIZE)) {
-                char buf[5];
-                ap_rvputs(r, "</td><td align=\"right\">",
-                          apr_strfsize(ar[x]->size, buf), NULL);
-            }
-            if (!(autoindex_opts & SUPPRESS_DESC)) {
-                if (ar[x]->desc) {
-                    if (d->desc_adjust == K_ADJUST) {
-                        ap_rvputs(r, "</td><td>", ar[x]->desc, NULL);
-                    }
-                    else {
-                        ap_rvputs(r, "</td><td>",
-                                  terminate_description(d, ar[x]->desc,
-                                                        autoindex_opts,
-                                                        desc_width), NULL);
-                    }
-                }
-            }
-            else {
-                ap_rputs("</td><td>&nbsp;", r);
-            }
-            ap_rputs("</td></tr>\n", r);
-        }
-        else if (autoindex_opts & FANCY_INDEXING) {
-            if (!(autoindex_opts & SUPPRESS_ICON)) {
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
-                }
-                if ((ar[x]->icon) || d->default_icon) {
-                    ap_rvputs(r, "<img src=\"",
-                              ap_escape_html(scratch,
-                                             ar[x]->icon ? ar[x]->icon
-                                                         : d->default_icon),
-                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-                              "]\"", NULL);
-                    if (d->icon_width) {
-                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                    }
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
-
-                    if (autoindex_opts & EMIT_XHTML) {
-                        ap_rputs(" /", r);
-                    }
-                    ap_rputs(">", r);
-                }
-                else {
-                    ap_rputs("     ", r);
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a> ", r);
-                }
-                else {
-                    ap_rputc(' ', r);
-                }
-            }
-            nwidth = strlen(t2);
-            if (nwidth > name_width) {
-                memcpy(name_scratch, t2, name_width - 3);
-                name_scratch[name_width - 3] = '.';
-                name_scratch[name_width - 2] = '.';
-                name_scratch[name_width - 1] = '>';
-                name_scratch[name_width] = 0;
-                t2 = name_scratch;
-                nwidth = name_width;
-            }
-            ap_rvputs(r, "<a href=\"", anchor, "\">",
-                      ap_escape_html(scratch, t2),
-                      "</a>", pad_scratch + nwidth, NULL);
-            /*
-             * The blank before the storm.. er, before the next field.
-             */
-            ap_rputs(" ", r);
-            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-                if (ar[x]->lm != -1) {
-                    char time_str[MAX_STRING_LEN];
-                    apr_time_exp_t ts;
-                    apr_time_exp_lt(&ts, ar[x]->lm);
-                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
-                                "%d-%b-%Y %H:%M  ", &ts);
-                    ap_rputs(time_str, r);
-                }
-                else {
-                    /*Length="22-Feb-1998 23:42  " (see 4 lines above) */
-                    ap_rputs("                   ", r);
-                }
-            }
-            if (!(autoindex_opts & SUPPRESS_SIZE)) {
-                char buf[5];
-                ap_rputs(apr_strfsize(ar[x]->size, buf), r);
-                ap_rputs("  ", r);
-            }
-            if (!(autoindex_opts & SUPPRESS_DESC)) {
-                if (ar[x]->desc) {
-                    ap_rputs(terminate_description(d, ar[x]->desc,
-                                                   autoindex_opts,
-                                                   desc_width), r);
-                }
-            }
-            ap_rputc('\n', r);
-        }
-        else {
-            ap_rvputs(r, "<li><a href=\"", anchor, "\"> ", t2,
-                         "</a></li>\n", NULL);
+        else
+        {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
+                         "LDAP: SSL initialization failed");
+            st->ssl_support = 0;
         }
     }
-    if (autoindex_opts & TABLE_INDEXING) {
-        ap_rvputs(r, breakrow, "</table>\n", NULL);
+      
+        /* The Microsoft SDK uses the registry certificate store -
+         * always assume support is available
+        */
+    #if APR_HAS_MICROSOFT_LDAPSDK
+        st->ssl_support = 1;
+    #endif
+    
+
+        /* log SSL status - If SSL isn't available it isn't necessarily
+         * an error because the modules asking for LDAP connections 
+         * may not ask for SSL support
+        */
+    if (st->ssl_support)
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support available" );
     }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            ap_rputs("<hr", r);
-            if (autoindex_opts & EMIT_XHTML) {
-                ap_rputs(" /", r);
-            }
-            ap_rputs("></pre>\n", r);
-        }
-        else {
-            ap_rputs("</pre>\n", r);
-        }
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
     }
-    else {
-        ap_rputs("</ul>\n", r);
-    }
+    
+    return(OK);
 }

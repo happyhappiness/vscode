@@ -1,87 +1,83 @@
-static int authorize_user_core(request_rec *r, int after_authn)
+int explode_static_lib(command_t *cmd_data, const char *lib)
 {
-    authz_core_dir_conf *conf;
-    authz_status auth_result;
+    count_chars tmpdir_cc, libname_cc;
+    const char *tmpdir, *libname;
+    char savewd[PATH_MAX];
+    const char *name;
+    DIR *dir;
+    struct dirent *entry;
+    const char *lib_args[4];
 
-    conf = ap_get_module_config(r->per_dir_config, &authz_core_module);
-
-    if (!conf->section) {
-        if (ap_auth_type(r)) {
-            /* there's an AuthType configured, but no authorization
-             * directives applied to support it
-             */
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
-                          "AuthType configured with no corresponding "
-                          "authorization directives");
-
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r,
-                      "authorization result: granted (no directives)");
-
-        return OK;
+    /* Bah! */
+    if (cmd_data->options.dry_run) {
+        return 0;
     }
 
-    auth_result = apply_authz_sections(r, conf->section, AUTHZ_LOGIC_AND);
+    name = jlibtool_basename(lib);
 
-    if (auth_result == AUTHZ_GRANTED) {
-        return OK;
+    init_count_chars(&tmpdir_cc);
+    push_count_chars(&tmpdir_cc, ".libs/");
+    push_count_chars(&tmpdir_cc, name);
+    push_count_chars(&tmpdir_cc, ".exploded/");
+    tmpdir = flatten_count_chars(&tmpdir_cc, 0);
+
+    if (!cmd_data->options.silent) {
+        printf("Making: %s\n", tmpdir);
     }
-    else if (auth_result == AUTHZ_DENIED_NO_USER) {
-        if (after_authn) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
-                          "authorization failure (no authenticated user): %s",
-                          r->uri);
-            /*
-             * If we're returning 401 to an authenticated user, tell them to
-             * try again. If unauthenticated, note_auth_failure has already
-             * been called during auth.
-             */
-            if (r->user)
-                ap_note_auth_failure(r);
+    safe_mkdir(tmpdir);
 
-            return HTTP_UNAUTHORIZED;
+    push_count_chars(cmd_data->tmp_dirs, tmpdir);
+
+    getcwd(savewd, sizeof(savewd));
+
+    if (chdir(tmpdir) != 0) {
+        if (!cmd_data->options.silent) {
+            printf("Warning: could not explode %s\n", lib);
         }
-        else {
-            /*
-             * We need a user before we can decide what to do.
-             * Get out of the way and proceed with authentication.
-             */
-            return DECLINED;
-        }
+        return 1;
     }
-    else if (auth_result == AUTHZ_DENIED || auth_result == AUTHZ_NEUTRAL) {
-        if (!after_authn || ap_auth_type(r) == NULL) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
-                          "client denied by server configuration: %s%s",
-                          r->filename ? "" : "uri ",
-                          r->filename ? r->filename : r->uri);
 
-            return HTTP_FORBIDDEN;
-        }
-        else {
-            /* XXX: maybe we want to return FORBIDDEN here, too??? */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
-                          "user %s: authorization failure for \"%s\": ",
-                          r->user, r->uri);
-
-            /*
-             * If we're returning 401 to an authenticated user, tell them to
-             * try again. If unauthenticated, note_auth_failure has already
-             * been called during auth.
-             */
-            if (r->user)
-                ap_note_auth_failure(r);
-
-            return HTTP_UNAUTHORIZED;
-        }
+    if (lib[0] == '/') {
+        libname = lib;
     }
     else {
-        /* We'll assume that the module has already said what its
-         * error was in the logs.
-         */
-        return HTTP_INTERNAL_SERVER_ERROR;
+        init_count_chars(&libname_cc);
+        push_count_chars(&libname_cc, "../../");
+        push_count_chars(&libname_cc, lib);
+        libname = flatten_count_chars(&libname_cc, 0);
     }
+
+    lib_args[0] = LIBRARIAN;
+    lib_args[1] = "x";
+    lib_args[2] = libname;
+    lib_args[3] = NULL;
+
+    external_spawn(cmd_data, LIBRARIAN, lib_args);
+
+    chdir(savewd);
+    dir = opendir(tmpdir);
+
+    while ((entry = readdir(dir)) != NULL) {
+#if defined(__APPLE__) && defined(RANLIB)
+        /* Apple inserts __.SYMDEF which isn't needed.
+         * Leopard (10.5+) can also add '__.SYMDEF SORTED' which isn't
+         * much fun either.  Just skip them.
+         */
+        if (strstr(entry->d_name, "__.SYMDEF") != NULL) {
+            continue;
+        }
+#endif
+        if (entry->d_name[0] != '.') {
+            push_count_chars(&tmpdir_cc, entry->d_name);
+            name = flatten_count_chars(&tmpdir_cc, 0);
+            if (!cmd_data->options.silent) {
+                printf("Adding: %s\n", name);
+            }
+            push_count_chars(cmd_data->obj_files, name);
+            pop_count_chars(&tmpdir_cc);
+        }
+    }
+
+    closedir(dir);
+    return 0;
 }

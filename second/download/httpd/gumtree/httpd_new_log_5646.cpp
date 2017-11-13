@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, rv, r,
-                  "ap_proxy_transfer_between_connections complete");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                     apr_get_os_error(), NULL,
+                     APLOGNO(00381) "Query of the '%s' service failed",
+                     mpm_display_name);

@@ -1,31 +1,37 @@
-static void dump_tags(void)
+static int show(int argc, const char **argv, const char *prefix)
 {
-	static const char *msg = "fast-import";
-	struct tag *t;
-	struct strbuf ref_name = STRBUF_INIT;
-	struct strbuf err = STRBUF_INIT;
-	struct ref_transaction *transaction;
+	const char *object_ref;
+	struct notes_tree *t;
+	unsigned char object[20];
+	const unsigned char *note;
+	int retval;
+	struct option options[] = {
+		OPT_END()
+	};
 
-	transaction = ref_transaction_begin(&err);
-	if (!transaction) {
-		failure |= error("%s", err.buf);
-		goto cleanup;
+	argc = parse_options(argc, argv, prefix, options, git_notes_show_usage,
+			     0);
+
+	if (1 < argc) {
+		error(_("too many parameters"));
+		usage_with_options(git_notes_show_usage, options);
 	}
-	for (t = first_tag; t; t = t->next_tag) {
-		strbuf_reset(&ref_name);
-		strbuf_addf(&ref_name, "refs/tags/%s", t->name);
 
-		if (ref_transaction_update(transaction, ref_name.buf, t->sha1,
-					   NULL, 0, 0, msg, &err)) {
-			failure |= error("%s", err.buf);
-			goto cleanup;
-		}
+	object_ref = argc ? argv[0] : "HEAD";
+
+	if (get_sha1(object_ref, object))
+		die(_("failed to resolve '%s' as a valid ref."), object_ref);
+
+	t = init_notes_check("show", 0);
+	note = get_note(t, object);
+
+	if (!note)
+		retval = error(_("no note found for object %s."),
+			       sha1_to_hex(object));
+	else {
+		const char *show_args[3] = {"show", sha1_to_hex(note), NULL};
+		retval = execv_git_cmd(show_args);
 	}
-	if (ref_transaction_commit(transaction, &err))
-		failure |= error("%s", err.buf);
-
- cleanup:
-	ref_transaction_free(transaction);
-	strbuf_release(&ref_name);
-	strbuf_release(&err);
+	free_notes(t);
+	return retval;
 }

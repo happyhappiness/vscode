@@ -1,1 +1,1 @@
-(mutt_yesorno (prompt, M_YES);
+printf (":\n");

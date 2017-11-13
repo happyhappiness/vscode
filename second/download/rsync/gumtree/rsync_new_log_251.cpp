@@ -1,1 +1,1 @@
-fprintf(FERROR,"backup filename too long\n");
+out_of_memory("map_file");

@@ -1,2 +1,1 @@
-die("could not read file '%s': %s", filename,
-				strerror(errno));
+(fprintf(fp, "%s	%s\n", sha1_to_hex(sha1), path) <;

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01091)
-                                  "write to temporary file %s failed",
-                                  tmpfile_name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(01324)
+                     "LDAPSharedCacheSize is too small. Increase it or "
+                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");

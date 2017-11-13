@@ -1,1 +1,1 @@
-error("Failed to remove 'git notes merge' worktree");
+error(_("failed to read %s"), patch->old_name);

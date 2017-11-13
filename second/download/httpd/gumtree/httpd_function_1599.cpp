@@ -1,415 +1,252 @@
-static int parse_expr(include_ctx_t *ctx, const char *expr, int *was_error)
+apr_status_t mpm_service_install(apr_pool_t *ptemp, int argc,
+                                 const char * const * argv, int reconfig)
 {
-    parse_node_t *new, *root = NULL, *current = NULL;
-    request_rec *r = ctx->intern->r;
-    request_rec *rr = NULL;
-    const char *error = "Invalid expression \"%s\" in file %s";
-    const char *parse = expr;
-    unsigned regex = 0;
+    char key_name[MAX_PATH];
+    ap_regkey_t *key;
+    char        *launch_cmd;
+    apr_status_t rv;
 
-    *was_error = 0;
+    fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
+                   : "Installing the %s service\n", mpm_display_name);
 
-    if (!parse) {
-        return 0;
-    }
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+    {
+        SC_HANDLE   schService;
+        SC_HANDLE   schSCManager;
+        DWORD       rc;
+#if APR_HAS_UNICODE_FS
+        apr_wchar_t *display_name_w;
+        apr_wchar_t *launch_cmd_w;
 
-    /* Create Parse Tree */
-    while (1) {
-        /* uncomment this to see how the tree a built:
-         *
-         * DEBUG_DUMP_TREE(ctx, root);
-         */
-        CREATE_NODE(ctx, new);
-
+        IF_WIN_OS_IS_UNICODE
         {
-#ifdef DEBUG_INCLUDE
-            int was_unmatched =
+            apr_size_t slen = strlen(mpm_display_name) + 1;
+            apr_size_t wslen = slen;
+            display_name_w = apr_palloc(ptemp, wslen * sizeof(apr_wchar_t));
+            rv = apr_conv_utf8_to_ucs2(mpm_display_name, &slen,
+                                       display_name_w, &wslen);
+            if (rv != APR_SUCCESS)
+                return rv;
+            else if (slen)
+                return APR_ENAMETOOLONG;
+
+            launch_cmd_w = apr_palloc(ptemp, (MAX_PATH + 17) * sizeof(apr_wchar_t));
+            launch_cmd_w[0] = L'"';
+            rc = GetModuleFileNameW(NULL, launch_cmd_w + 1, MAX_PATH);
+            wcscpy(launch_cmd_w + rc + 1, L"\" -k runservice");
+        }
+#endif /* APR_HAS_UNICODE_FS */
+#if APR_HAS_ANSI_FS
+        ELSE_WIN_OS_IS_ANSI
+        {
+            launch_cmd = apr_palloc(ptemp, MAX_PATH + 17);
+            launch_cmd[0] = '"';
+            rc = GetModuleFileName(NULL, launch_cmd + 1, MAX_PATH);
+            strcpy(launch_cmd + rc + 1, "\" -k runservice");
+        }
 #endif
-            get_ptoken(ctx, &parse, &new->token,
-                       (current != NULL ? &current->token : NULL));
-            if (!parse)
-                break;
-
-            DEBUG_DUMP_UNMATCHED(ctx, was_unmatched);
-            DEBUG_DUMP_TOKEN(ctx, &new->token);
+        if (rc == 0) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "GetModuleFileName failed");
+            return rv;
         }
 
-        if (!current) {
-            switch (new->token.type) {
-            case TOKEN_STRING:
-            case TOKEN_NOT:
-            case TOKEN_ACCESS:
-            case TOKEN_LBRACE:
-                root = current = new;
-                continue;
+        schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                     SC_MANAGER_CREATE_SERVICE);
+        if (!schSCManager) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager");
+            return (rv);
+        }
 
-            default:
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr,
-                              r->filename);
-                *was_error = 1;
-                return 0;
+        if (reconfig) {
+#if APR_HAS_UNICODE_FS
+            IF_WIN_OS_IS_UNICODE
+            {
+                schService = OpenServiceW(schSCManager, mpm_service_name_w,
+                                      SERVICE_CHANGE_CONFIG);
+            }
+#endif /* APR_HAS_UNICODE_FS */
+#if APR_HAS_ANSI_FS
+            ELSE_WIN_OS_IS_ANSI
+            {
+                schService = OpenService(schSCManager, mpm_service_name,
+                                         SERVICE_CHANGE_CONFIG);
+            }
+#endif
+            if (!schService) {
+                ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                             apr_get_os_error(), NULL,
+                             "OpenService failed");
+            }
+            else {
+#if APR_HAS_UNICODE_FS
+                IF_WIN_OS_IS_UNICODE
+                {
+                    rc = ChangeServiceConfigW(schService,
+                                              SERVICE_WIN32_OWN_PROCESS,
+                                              SERVICE_AUTO_START,
+                                              SERVICE_ERROR_NORMAL,
+                                              launch_cmd_w, NULL, NULL,
+                                              L"Tcpip\0Afd\0", NULL, NULL,
+                                              display_name_w);
+                }
+#endif /* APR_HAS_UNICODE_FS */
+#if APR_HAS_ANSI_FS
+                ELSE_WIN_OS_IS_ANSI
+                {
+                    rc = ChangeServiceConfig(schService,
+                                             SERVICE_WIN32_OWN_PROCESS,
+                                             SERVICE_AUTO_START,
+                                             SERVICE_ERROR_NORMAL,
+                                             launch_cmd, NULL, NULL,
+                                             "Tcpip\0Afd\0", NULL, NULL,
+                                             mpm_display_name);
+                }
+#endif
+                if (!rc) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                                 apr_get_os_error(), NULL,
+                                 "ChangeServiceConfig failed");
+                    /* !schService aborts configuration below */
+                    CloseServiceHandle(schService);
+                    schService = NULL;
+                }
+            }
+        }
+        else {
+            /* RPCSS is the Remote Procedure Call (RPC) Locator required
+             * for DCOM communication pipes.  I am far from convinced we
+             * should add this to the default service dependencies, but
+             * be warned that future apache modules or ISAPI dll's may
+             * depend on it.
+             */
+
+#if APR_HAS_UNICODE_FS
+            IF_WIN_OS_IS_UNICODE
+            {
+                schService = CreateServiceW(schSCManager,    // SCManager database
+                                 mpm_service_name_w,   // name of service
+                                 display_name_w,   // name to display
+                                 SERVICE_ALL_ACCESS,   // access required
+                                 SERVICE_WIN32_OWN_PROCESS,  // service type
+                                 SERVICE_AUTO_START,   // start type
+                                 SERVICE_ERROR_NORMAL, // error control type
+                                 launch_cmd_w,         // service's binary
+                                 NULL,                 // no load svc group
+                                 NULL,                 // no tag identifier
+                                 L"Tcpip\0Afd\0",      // dependencies
+                                 NULL,                 // use SYSTEM account
+                                 NULL);                // no password
+            }
+#endif /* APR_HAS_UNICODE_FS */
+#if APR_HAS_ANSI_FS
+            ELSE_WIN_OS_IS_ANSI
+            {
+                schService = CreateService(schSCManager,     // SCManager database
+                                 mpm_service_name,     // name of service
+                                 mpm_display_name,     // name to display
+                                 SERVICE_ALL_ACCESS,   // access required
+                                 SERVICE_WIN32_OWN_PROCESS,  // service type
+                                 SERVICE_AUTO_START,   // start type
+                                 SERVICE_ERROR_NORMAL, // error control type
+                                 launch_cmd,           // service's binary
+                                 NULL,                 // no load svc group
+                                 NULL,                 // no tag identifier
+                                 "Tcpip\0Afd\0",       // dependencies
+                                 NULL,                 // use SYSTEM account
+                                 NULL);                // no password
+            }
+#endif
+            if (!schService)
+            {
+                rv = apr_get_os_error();
+                ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                             "Failed to create WinNT Service Profile");
+                CloseServiceHandle(schSCManager);
+                return (rv);
             }
         }
 
-        switch (new->token.type) {
-        case TOKEN_STRING:
-            switch (current->token.type) {
-            case TOKEN_STRING:
-                current->token.value =
-                    apr_pstrcat(ctx->dpool, current->token.value,
-                                *current->token.value ? " " : "",
-                                new->token.value, NULL);
-                continue;
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+    }
+    else /* osver.dwPlatformId != VER_PLATFORM_WIN32_NT */
+    {
+        char exe_path[MAX_PATH];
 
-            case TOKEN_RE:
-            case TOKEN_RBRACE:
-            case TOKEN_GROUP:
-                break;
-
-            default:
-                new->parent = current;
-                current = current->right = new;
-                continue;
-            }
-            break;
-
-        case TOKEN_RE:
-            switch (current->token.type) {
-            case TOKEN_EQ:
-            case TOKEN_NE:
-                new->parent = current;
-                current = current->right = new;
-                ++regex;
-                continue;
-
-            default:
-                break;
-            }
-            break;
-
-        case TOKEN_AND:
-        case TOKEN_OR:
-            switch (current->token.type) {
-            case TOKEN_STRING:
-            case TOKEN_RE:
-            case TOKEN_GROUP:
-                current = current->parent;
-
-                while (current) {
-                    switch (current->token.type) {
-                    case TOKEN_AND:
-                    case TOKEN_OR:
-                    case TOKEN_LBRACE:
-                        break;
-
-                    default:
-                        current = current->parent;
-                        continue;
-                    }
-                    break;
-                }
-
-                if (!current) {
-                    new->left = root;
-                    root->parent = new;
-                    current = root = new;
-                    continue;
-                }
-
-                new->left = current->right;
-                new->left->parent = new;
-                new->parent = current;
-                current = current->right = new;
-                continue;
-
-            default:
-                break;
-            }
-            break;
-
-        case TOKEN_EQ:
-        case TOKEN_NE:
-        case TOKEN_GE:
-        case TOKEN_GT:
-        case TOKEN_LE:
-        case TOKEN_LT:
-            if (current->token.type == TOKEN_STRING) {
-                current = current->parent;
-
-                if (!current) {
-                    new->left = root;
-                    root->parent = new;
-                    current = root = new;
-                    continue;
-                }
-
-                switch (current->token.type) {
-                case TOKEN_LBRACE:
-                case TOKEN_AND:
-                case TOKEN_OR:
-                    new->left = current->right;
-                    new->left->parent = new;
-                    new->parent = current;
-                    current = current->right = new;
-                    continue;
-
-                default:
-                    break;
-                }
-            }
-            break;
-
-        case TOKEN_RBRACE:
-            while (current && current->token.type != TOKEN_LBRACE) {
-                current = current->parent;
-            }
-
-            if (current) {
-                TYPE_TOKEN(&current->token, TOKEN_GROUP);
-                continue;
-            }
-
-            error = "Unmatched ')' in \"%s\" in file %s";
-            break;
-
-        case TOKEN_NOT:
-        case TOKEN_ACCESS:
-        case TOKEN_LBRACE:
-            switch (current->token.type) {
-            case TOKEN_STRING:
-            case TOKEN_RE:
-            case TOKEN_RBRACE:
-            case TOKEN_GROUP:
-                break;
-
-            default:
-                current->right = new;
-                new->parent = current;
-                current = new;
-                continue;
-            }
-            break;
-
-        default:
-            break;
+        if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
+        {
+            apr_status_t rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "GetModuleFileName failed");
+            return rv;
         }
 
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr, r->filename);
-        *was_error = 1;
-        return 0;
+        /* Store the launch command in the registry */
+        launch_cmd = apr_psprintf(ptemp, "\"%s\" -n %s -k runservice",
+                                 exe_path, mpm_service_name);
+        rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, SERVICECONFIG9X,
+                            APR_READ | APR_WRITE | APR_CREATE, pconf);
+        if (rv == APR_SUCCESS) {
+            rv = ap_regkey_value_set(key, mpm_service_name,
+                                     launch_cmd, 0, pconf);
+            ap_regkey_close(key);
+        }
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "%s: Failed to add the RunServices registry entry.",
+                         mpm_display_name);
+            return (rv);
+        }
+
+        apr_snprintf(key_name, sizeof(key_name), SERVICECONFIG, mpm_service_name);
+        rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, key_name,
+                            APR_READ | APR_WRITE | APR_CREATE, pconf);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "%s: Failed to create the registry service key.",
+                         mpm_display_name);
+            return (rv);
+        }
+        rv = ap_regkey_value_set(key, "ImagePath", launch_cmd, 0, pconf);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "%s: Failed to store ImagePath in the registry.",
+                         mpm_display_name);
+            ap_regkey_close(key);
+            return (rv);
+        }
+        rv = ap_regkey_value_set(key, "DisplayName",
+                                 mpm_display_name, 0, pconf);
+        ap_regkey_close(key);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "%s: Failed to store DisplayName in the registry.",
+                         mpm_display_name);
+            return (rv);
+        }
     }
 
-    DEBUG_DUMP_TREE(ctx, root);
+    set_service_description();
 
-    /* Evaluate Parse Tree */
-    current = root;
-    error = NULL;
-    while (current) {
-        switch (current->token.type) {
-        case TOKEN_STRING:
-            current->token.value =
-                ap_ssi_parse_string(ctx, current->token.value, NULL, 0,
-                                    SSI_EXPAND_DROP_NAME);
-            current->value = !!*current->token.value;
-            break;
-
-        case TOKEN_AND:
-        case TOKEN_OR:
-            if (!current->left || !current->right) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Invalid expression \"%s\" in file %s",
-                              expr, r->filename);
-                *was_error = 1;
-                return 0;
-            }
-
-            if (!current->left->done) {
-                switch (current->left->token.type) {
-                case TOKEN_STRING:
-                    current->left->token.value =
-                        ap_ssi_parse_string(ctx, current->left->token.value,
-                                            NULL, 0, SSI_EXPAND_DROP_NAME);
-                    current->left->value = !!*current->left->token.value;
-                    DEBUG_DUMP_EVAL(ctx, current->left);
-                    current->left->done = 1;
-                    break;
-
-                default:
-                    current = current->left;
-                    continue;
-                }
-            }
-
-            /* short circuit evaluation */
-            if (!current->right->done && !regex &&
-                ((current->token.type == TOKEN_AND && !current->left->value) ||
-                (current->token.type == TOKEN_OR && current->left->value))) {
-                current->value = current->left->value;
-            }
-            else {
-                if (!current->right->done) {
-                    switch (current->right->token.type) {
-                    case TOKEN_STRING:
-                        current->right->token.value =
-                            ap_ssi_parse_string(ctx,current->right->token.value,
-                                                NULL, 0, SSI_EXPAND_DROP_NAME);
-                        current->right->value = !!*current->right->token.value;
-                        DEBUG_DUMP_EVAL(ctx, current->right);
-                        current->right->done = 1;
-                        break;
-
-                    default:
-                        current = current->right;
-                        continue;
-                    }
-                }
-
-                if (current->token.type == TOKEN_AND) {
-                    current->value = current->left->value &&
-                                     current->right->value;
-                }
-                else {
-                    current->value = current->left->value ||
-                                     current->right->value;
-                }
-            }
-            break;
-
-        case TOKEN_EQ:
-        case TOKEN_NE:
-            if (!current->left || !current->right ||
-                current->left->token.type != TOKEN_STRING ||
-                (current->right->token.type != TOKEN_STRING &&
-                 current->right->token.type != TOKEN_RE)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                            "Invalid expression \"%s\" in file %s",
-                            expr, r->filename);
-                *was_error = 1;
-                return 0;
-            }
-            current->left->token.value =
-                ap_ssi_parse_string(ctx, current->left->token.value, NULL, 0,
-                                    SSI_EXPAND_DROP_NAME);
-            current->right->token.value =
-                ap_ssi_parse_string(ctx, current->right->token.value, NULL, 0,
-                                    SSI_EXPAND_DROP_NAME);
-
-            if (current->right->token.type == TOKEN_RE) {
-                current->value = re_check(ctx, current->left->token.value,
-                                          current->right->token.value);
-                --regex;
-            }
-            else {
-                current->value = !strcmp(current->left->token.value,
-                                         current->right->token.value);
-            }
-
-            if (current->token.type == TOKEN_NE) {
-                current->value = !current->value;
-            }
-            break;
-
-        case TOKEN_GE:
-        case TOKEN_GT:
-        case TOKEN_LE:
-        case TOKEN_LT:
-            if (!current->left || !current->right ||
-                current->left->token.type != TOKEN_STRING ||
-                current->right->token.type != TOKEN_STRING) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Invalid expression \"%s\" in file %s",
-                              expr, r->filename);
-                *was_error = 1;
-                return 0;
-            }
-
-            current->left->token.value =
-                ap_ssi_parse_string(ctx, current->left->token.value, NULL, 0,
-                                    SSI_EXPAND_DROP_NAME);
-            current->right->token.value =
-                ap_ssi_parse_string(ctx, current->right->token.value, NULL, 0,
-                                    SSI_EXPAND_DROP_NAME);
-
-            current->value = strcmp(current->left->token.value,
-                                    current->right->token.value);
-
-            switch (current->token.type) {
-            case TOKEN_GE: current->value = current->value >= 0; break;
-            case TOKEN_GT: current->value = current->value >  0; break;
-            case TOKEN_LE: current->value = current->value <= 0; break;
-            case TOKEN_LT: current->value = current->value <  0; break;
-            default: current->value = 0; break; /* should not happen */
-            }
-            break;
-
-        case TOKEN_NOT:
-        case TOKEN_GROUP:
-            if (current->right) {
-                if (!current->right->done) {
-                    current = current->right;
-                    continue;
-                }
-                current->value = current->right->value;
-            }
-            else {
-                current->value = 1;
-            }
-
-            if (current->token.type == TOKEN_NOT) {
-                current->value = !current->value;
-            }
-            break;
-
-        case TOKEN_ACCESS:
-            if (current->left || !current->right ||
-                (current->right->token.type != TOKEN_STRING &&
-                 current->right->token.type != TOKEN_RE)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                            "Invalid expression \"%s\" in file %s: Token '-A' must be followed by a URI string.",
-                            expr, r->filename);
-                *was_error = 1;
-                return 0;
-            }
-            current->right->token.value =
-                ap_ssi_parse_string(ctx, current->right->token.value, NULL, 0,
-                                    SSI_EXPAND_DROP_NAME);
-            rr = ap_sub_req_lookup_uri(current->right->token.value, r, NULL);
-            /* 400 and higher are considered access denied */
-            if (rr->status < HTTP_BAD_REQUEST) {
-                current->value = 1;
-            }
-            else {
-                current->value = 0;
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rr->status, r, 
-                              "mod_include: The tested "
-                              "subrequest -A \"%s\" returned an error code.",
-                              current->right->token.value);
-            }
-            ap_destroy_sub_req(rr);
-            break;
-
-        case TOKEN_RE:
-            if (!error) {
-                error = "No operator before regex in expr \"%s\" in file %s";
-            }
-        case TOKEN_LBRACE:
-            if (!error) {
-                error = "Unmatched '(' in \"%s\" in file %s";
-            }
-        default:
-            if (!error) {
-                error = "internal parser error in \"%s\" in file %s";
-            }
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr,r->filename);
-            *was_error = 1;
-            return 0;
-        }
-
-        DEBUG_DUMP_EVAL(ctx, current);
-        current->done = 1;
-        current = current->parent;
+    /* For both WinNT & Win9x store the service ConfigArgs in the registry...
+     */
+    apr_snprintf(key_name, sizeof(key_name), SERVICEPARAMS, mpm_service_name);
+    rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, key_name,
+                        APR_READ | APR_WRITE | APR_CREATE, pconf);
+    if (rv == APR_SUCCESS) {
+        rv = ap_regkey_value_array_set(key, "ConfigArgs", argc, argv, pconf);
+        ap_regkey_close(key);
     }
-
-    return (root ? root->value : 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "%s: Failed to store the ConfigArgs in the registry.",
+                     mpm_display_name);
+        return (rv);
+    }
+    fprintf(stderr,"The %s service is successfully installed.\n", mpm_display_name);
+    return APR_SUCCESS;
 }

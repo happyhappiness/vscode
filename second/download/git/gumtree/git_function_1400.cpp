@@ -1,37 +1,43 @@
-static int append_msgs_to_imap(struct imap_server_conf *server,
-			       struct strbuf* all_msgs, int total)
+int set_worktree_head_symref(const char *gitdir, const char *target, const char *logmsg)
 {
-	struct strbuf msg = STRBUF_INIT;
-	struct imap_store *ctx = NULL;
-	int ofs = 0;
-	int r;
-	int n = 0;
+	/*
+	 * FIXME: this obviously will not work well for future refs
+	 * backends. This function needs to die.
+	 */
+	struct files_ref_store *refs =
+		files_downcast(get_main_ref_store(),
+			       REF_STORE_WRITE,
+			       "set_head_symref");
 
-	ctx = imap_open_store(server, server->folder);
-	if (!ctx) {
-		fprintf(stderr, "failed to open store\n");
-		return 1;
+	static struct lock_file head_lock;
+	struct ref_lock *lock;
+	struct strbuf head_path = STRBUF_INIT;
+	const char *head_rel;
+	int ret;
+
+	strbuf_addf(&head_path, "%s/HEAD", absolute_path(gitdir));
+	if (hold_lock_file_for_update(&head_lock, head_path.buf,
+				      LOCK_NO_DEREF) < 0) {
+		struct strbuf err = STRBUF_INIT;
+		unable_to_lock_message(head_path.buf, errno, &err);
+		error("%s", err.buf);
+		strbuf_release(&err);
+		strbuf_release(&head_path);
+		return -1;
 	}
-	ctx->name = server->folder;
 
-	fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");
-	while (1) {
-		unsigned percent = n * 100 / total;
+	/* head_rel will be "HEAD" for the main tree, "worktrees/wt/HEAD" for
+	   linked trees */
+	head_rel = remove_leading_path(head_path.buf,
+				       absolute_path(get_git_common_dir()));
+	/* to make use of create_symref_locked(), initialize ref_lock */
+	lock = xcalloc(1, sizeof(struct ref_lock));
+	lock->lk = &head_lock;
+	lock->ref_name = xstrdup(head_rel);
 
-		fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);
+	ret = create_symref_locked(refs, lock, head_rel, target, logmsg);
 
-		if (!split_msg(all_msgs, &msg, &ofs))
-			break;
-		if (server->use_html)
-			wrap_in_html(&msg);
-		r = imap_store_msg(ctx, &msg);
-		if (r != DRV_OK)
-			break;
-		n++;
-	}
-	fprintf(stderr, "\n");
-
-	imap_close_store(ctx);
-
-	return 0;
+	unlock_ref(lock); /* will free lock */
+	strbuf_release(&head_path);
+	return ret;
 }

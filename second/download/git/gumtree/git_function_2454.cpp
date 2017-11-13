@@ -1,30 +1,24 @@
-static void handle_bad_merge_base(void)
+static enum date_mode_type parse_date_type(const char *format, const char **end)
 {
-	if (is_expected_rev(current_bad_oid)) {
-		char *bad_hex = oid_to_hex(current_bad_oid);
-		char *good_hex = join_sha1_array_hex(&good_revs, ' ');
-		if (!strcmp(term_bad, "bad") && !strcmp(term_good, "good")) {
-			fprintf(stderr, "The merge base %s is bad.\n"
-				"This means the bug has been fixed "
-				"between %s and [%s].\n",
-				bad_hex, bad_hex, good_hex);
-		} else if (!strcmp(term_bad, "new") && !strcmp(term_good, "old")) {
-			fprintf(stderr, "The merge base %s is new.\n"
-				"The property has changed "
-				"between %s and [%s].\n",
-				bad_hex, bad_hex, good_hex);
-		} else {
-			fprintf(stderr, "The merge base %s is %s.\n"
-				"This means the first '%s' commit is "
-				"between %s and [%s].\n",
-				bad_hex, term_bad, term_good, bad_hex, good_hex);
-		}
-		exit(3);
-	}
+	if (skip_prefix(format, "relative", end))
+		return DATE_RELATIVE;
+	if (skip_prefix(format, "iso8601-strict", end) ||
+	    skip_prefix(format, "iso-strict", end))
+		return DATE_ISO8601_STRICT;
+	if (skip_prefix(format, "iso8601", end) ||
+	    skip_prefix(format, "iso", end))
+		return DATE_ISO8601;
+	if (skip_prefix(format, "rfc2822", end) ||
+	    skip_prefix(format, "rfc", end))
+		return DATE_RFC2822;
+	if (skip_prefix(format, "short", end))
+		return DATE_SHORT;
+	if (skip_prefix(format, "default", end))
+		return DATE_NORMAL;
+	if (skip_prefix(format, "raw", end))
+		return DATE_RAW;
+	if (skip_prefix(format, "format", end))
+		return DATE_STRFTIME;
 
-	fprintf(stderr, "Some %s revs are not ancestor of the %s rev.\n"
-		"git bisect cannot work properly in this case.\n"
-		"Maybe you mistook %s and %s revs?\n",
-		term_good, term_bad, term_good, term_bad);
-	exit(1);
+	die("unknown date format %s", format);
 }

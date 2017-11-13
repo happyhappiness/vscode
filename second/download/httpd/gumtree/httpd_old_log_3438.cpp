@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "cache_compare: Cache insertion failure.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Caching url: %s", r->unparsed_uri);

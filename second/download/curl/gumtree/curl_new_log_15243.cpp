@@ -1,10 +1,11 @@
 fputs(
-"              internal  default behavior, but using this option can be used to\n"
-"              override a previous -P, --ftp-port option.\n"
+"              while the < makes a text field and just  get  the  contents  for\n"
+"              that text field from a file.\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.  Undoing  an  enforced passive really isn't doable but you\n"
-"              must then instead enforce the correct -P, --ftp-port again.\n"
+"              Example:  to  send  an image to a server, where 'profile' is the\n"
+"              name of the form-field to which portrait.jpg will be the input:\n"
 "\n"
-"              Passive mode means that curl will try the EPSV command first and\n"
+"               curl -F profile=@portrait.jpg https://example.com/upload.cgi\n"
+"\n"
+"              To read content from stdin instead of a file, use - as the file-\n"
 , stdout);

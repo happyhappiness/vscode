@@ -1,27 +1,29 @@
-static int ssl_tmp_key_init_ec(server_rec *s,
-                               int bits, int idx)
+static int ssl_tmp_keys_init(server_rec *s)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    EC_KEY *ecdh = NULL;
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                 "Init: Generating temporary RSA private keys (512/1024 bits)");
 
-    /* XXX: Are there any FIPS constraints we should enforce? */
-
-    if (bits != 256) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02298)
-                     "Init: Failed to generate temporary "
-                     "%d bit EC parameters, only 256 bits supported", bits);
+    if (MODSSL_TMP_KEY_INIT_RSA(s, 512) ||
+        MODSSL_TMP_KEY_INIT_RSA(s, 1024)) {
         return !OK;
     }
 
-    if ((ecdh = EC_KEY_new()) == NULL ||
-        EC_KEY_set_group(ecdh, EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1)) != 1)
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02299)
-                     "Init: Failed to generate temporary "
-                     "%d bit EC parameters", bits);
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                 "Init: Generating temporary DH parameters (512/1024 bits)");
+
+    if (MODSSL_TMP_KEY_INIT_DH(s, 512) ||
+        MODSSL_TMP_KEY_INIT_DH(s, 1024)) {
         return !OK;
     }
 
-    mc->pTmpKeys[idx] = ecdh;
+#ifndef OPENSSL_NO_EC
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                 "Init: Generating temporary EC parameters (256 bits)");
+
+    if (MODSSL_TMP_KEY_INIT_EC(s, 256)) {
+        return !OK;
+    }
+#endif
+
     return OK;
 }

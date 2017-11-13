@@ -1,160 +1,192 @@
-static int default_handler(request_rec *r)
+static int uldap_connection_init(request_rec *r,
+                                 util_ldap_connection_t *ldc)
 {
-    conn_rec *c = r->connection;
-    apr_bucket_brigade *bb;
-    apr_bucket *e;
-    core_dir_config *d;
-    int errstatus;
-    apr_file_t *fd = NULL;
-    apr_status_t status;
-    /* XXX if/when somebody writes a content-md5 filter we either need to
-     *     remove this support or coordinate when to use the filter vs.
-     *     when to use this code
-     *     The current choice of when to compute the md5 here matches the 1.3
-     *     support fairly closely (unlike 1.3, we don't handle computing md5
-     *     when the charset is translated).
+    int rc = 0, ldap_option = 0;
+    int version  = LDAP_VERSION3;
+    apr_ldap_err_t *result = NULL;
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    struct timeval connectionTimeout = {10,0};    /* 10 second connection timeout */
+#endif
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
+        &ldap_module);
+
+    /* Since the host will include a port if the default port is not used,
+     * always specify the default ports for the port parameter.  This will
+     * allow a host string that contains multiple hosts the ability to mix
+     * some hosts with ports and some without. All hosts which do not
+     * specify a port will use the default port.
      */
-    int bld_content_md5;
+    apr_ldap_init(r->pool, &(ldc->ldap),
+                  ldc->host,
+                  APR_LDAP_SSL == ldc->secure ? LDAPS_PORT : LDAP_PORT,
+                  APR_LDAP_NONE,
+                  &(result));
 
-    d = (core_dir_config *)ap_get_module_config(r->per_dir_config,
-                                                &core_module);
-    bld_content_md5 = (d->content_md5 & 1)
-                      && r->output_filters->frec->ftype != AP_FTYPE_RESOURCE;
-
-    ap_allow_standard_methods(r, MERGE_ALLOW, M_GET, M_OPTIONS, M_POST, -1);
-
-    /* If filters intend to consume the request body, they must
-     * register an InputFilter to slurp the contents of the POST
-     * data from the POST input stream.  It no longer exists when
-     * the output filters are invoked by the default handler.
-     */
-    if ((errstatus = ap_discard_request_body(r)) != OK) {
-        return errstatus;
+    if (NULL == result) {
+        /* something really bad happened */
+        ldc->bound = 0;
+        if (NULL == ldc->reason) {
+            ldc->reason = "LDAP: ldap initialization failed";
+        }
+        return(APR_EGENERAL);
     }
 
-    if (r->method_number == M_GET || r->method_number == M_POST) {
-        if (r->finfo.filetype == 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "File does not exist: %s", r->filename);
-            return HTTP_NOT_FOUND;
-        }
+    if (result->rc) {
+        ldc->reason = result->reason;
+    }
 
-        /* Don't try to serve a dir.  Some OSs do weird things with
-         * raw I/O on a dir.
-         */
-        if (r->finfo.filetype == APR_DIR) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Attempt to serve directory: %s", r->filename);
-            return HTTP_NOT_FOUND;
-        }
-
-        if ((r->used_path_info != AP_REQ_ACCEPT_PATH_INFO) &&
-            r->path_info && *r->path_info)
-        {
-            /* default to reject */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "File does not exist: %s",
-                          apr_pstrcat(r->pool, r->filename, r->path_info, NULL));
-            return HTTP_NOT_FOUND;
-        }
-
-        /* We understood the (non-GET) method, but it might not be legal for
-           this particular resource. Check to see if the 'deliver_script'
-           flag is set. If so, then we go ahead and deliver the file since
-           it isn't really content (only GET normally returns content).
-
-           Note: based on logic further above, the only possible non-GET
-           method at this point is POST. In the future, we should enable
-           script delivery for all methods.  */
-        if (r->method_number != M_GET) {
-            core_request_config *req_cfg;
-
-            req_cfg = ap_get_module_config(r->request_config, &core_module);
-            if (!req_cfg->deliver_script) {
-                /* The flag hasn't been set for this request. Punt. */
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "This resource does not accept the %s method.",
-                              r->method);
-                return HTTP_METHOD_NOT_ALLOWED;
-            }
-        }
-
-
-        if ((status = apr_file_open(&fd, r->filename, APR_READ | APR_BINARY
-#if APR_HAS_SENDFILE
-                            | ((d->enable_sendfile == ENABLE_SENDFILE_OFF)
-                                                ? 0 : APR_SENDFILE_ENABLED)
-#endif
-                                    , 0, r->pool)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                          "file permissions deny server access: %s", r->filename);
-            return HTTP_FORBIDDEN;
-        }
-
-        ap_update_mtime(r, r->finfo.mtime);
-        ap_set_last_modified(r);
-        ap_set_etag(r);
-        apr_table_setn(r->headers_out, "Accept-Ranges", "bytes");
-        ap_set_content_length(r, r->finfo.size);
-        if (bld_content_md5) {
-            apr_table_setn(r->headers_out, "Content-MD5",
-                           ap_md5digest(r->pool, fd));
-        }
-
-        bb = apr_brigade_create(r->pool, c->bucket_alloc);
-
-        if ((errstatus = ap_meets_conditions(r)) != OK) {
-            apr_file_close(fd);
-            r->status = errstatus;
+    if (NULL == ldc->ldap)
+    {
+        ldc->bound = 0;
+        if (NULL == ldc->reason) {
+            ldc->reason = "LDAP: ldap initialization failed";
         }
         else {
-            e = apr_brigade_insert_file(bb, fd, 0, r->finfo.size, r->pool);
+            ldc->reason = result->reason;
+        }
+        return(result->rc);
+    }
 
-#if APR_HAS_MMAP
-            if (d->enable_mmap == ENABLE_MMAP_OFF) {
-                (void)apr_bucket_file_enable_mmap(e, 0);
-            }
+    /* Now that we have an ldap struct, add it to the referral list for rebinds. */
+    rc = apr_ldap_rebind_add(ldc->pool, ldc->ldap, ldc->binddn, ldc->bindpw);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "LDAP: Unable to add rebind cross reference entry. Out of memory?");
+        uldap_connection_unbind(ldc);
+        ldc->reason = "LDAP: Unable to add rebind cross reference entry.";
+        return(rc);
+    }
+
+    /* always default to LDAP V3 */
+    ldap_set_option(ldc->ldap, LDAP_OPT_PROTOCOL_VERSION, &version);
+
+    /* set client certificates */
+    if (!apr_is_empty_array(ldc->client_certs)) {
+        apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_TLS_CERT,
+                            ldc->client_certs, &(result));
+        if (LDAP_SUCCESS != result->rc) {
+            uldap_connection_unbind( ldc );
+            ldc->reason = result->reason;
+            return(result->rc);
+        }
+    }
+
+    /* switch on SSL/TLS */
+    if (APR_LDAP_NONE != ldc->secure) {
+        apr_ldap_set_option(r->pool, ldc->ldap,
+                            APR_LDAP_OPT_TLS, &ldc->secure, &(result));
+        if (LDAP_SUCCESS != result->rc) {
+            uldap_connection_unbind( ldc );
+            ldc->reason = result->reason;
+            return(result->rc);
+        }
+    }
+
+    /* Set the alias dereferencing option */
+    ldap_option = ldc->deref;
+    ldap_set_option(ldc->ldap, LDAP_OPT_DEREF, &ldap_option);
+
+    /* Set options for rebind and referrals. */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "LDAP: Setting referrals to %s.",
+                 ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));
+    apr_ldap_set_option(r->pool, ldc->ldap,
+                        APR_LDAP_OPT_REFERRALS,
+                        (void *)((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ?
+                                 LDAP_OPT_ON : LDAP_OPT_OFF),
+                        &(result));
+    if (result->rc != LDAP_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Unable to set LDAP_OPT_REFERRALS option to %s: %d.",
+                     ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"),
+                     result->rc);
+        result->reason = "Unable to set LDAP_OPT_REFERRALS.";
+        ldc->reason = result->reason;
+        uldap_connection_unbind(ldc);
+        return(result->rc);
+    }
+
+    if ((ldc->ReferralHopLimit != AP_LDAP_HOPLIMIT_UNSET) && ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) {
+        /* Referral hop limit - only if referrals are enabled and a hop limit is explicitly requested */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Setting referral hop limit to %d.",
+                     ldc->ReferralHopLimit);
+        apr_ldap_set_option(r->pool, ldc->ldap,
+                            APR_LDAP_OPT_REFHOPLIMIT,
+                            (void *)&ldc->ReferralHopLimit,
+                            &(result));
+        if (result->rc != LDAP_SUCCESS) {
+          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                       "Unable to set LDAP_OPT_REFHOPLIMIT option to %d: %d.",
+                       ldc->ReferralHopLimit,
+                       result->rc);
+          result->reason = "Unable to set LDAP_OPT_REFHOPLIMIT.";
+          ldc->reason = result->reason;
+          uldap_connection_unbind(ldc);
+          return(result->rc);
+        }
+    }
+
+/*XXX All of the #ifdef's need to be removed once apr-util 1.2 is released */
+#ifdef APR_LDAP_OPT_VERIFY_CERT
+    apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_VERIFY_CERT,
+                        &(st->verify_svr_cert), &(result));
+#else
+#if defined(LDAPSSL_VERIFY_SERVER)
+    if (st->verify_svr_cert) {
+        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_SERVER);
+    }
+    else {
+        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_NONE);
+    }
+#elif defined(LDAP_OPT_X_TLS_REQUIRE_CERT)
+    /* This is not a per-connection setting so just pass NULL for the
+       Ldap connection handle */
+    if (st->verify_svr_cert) {
+        int i = LDAP_OPT_X_TLS_DEMAND;
+        result->rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_REQUIRE_CERT, &i);
+    }
+    else {
+        int i = LDAP_OPT_X_TLS_NEVER;
+        result->rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_REQUIRE_CERT, &i);
+    }
 #endif
-        }
+#endif
 
-        e = apr_bucket_eos_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, e);
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    if (st->connectionTimeout > 0) {
+        connectionTimeout.tv_sec = st->connectionTimeout;
+    }
 
-        status = ap_pass_brigade(r->output_filters, bb);
-        if (status == APR_SUCCESS
-            || r->status != HTTP_OK
-            || c->aborted) {
-            return OK;
-        }
-        else {
-            /* no way to know what type of error occurred */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
-                          "default_handler: ap_pass_brigade returned %i",
-                          status);
-            return HTTP_INTERNAL_SERVER_ERROR;
+    if (st->connectionTimeout >= 0) {
+        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_NETWORK_TIMEOUT,
+                                 (void *)&connectionTimeout, &(result));
+        if (APR_SUCCESS != rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "LDAP: Could not set the connection timeout");
         }
     }
-    else {              /* unusual method (not GET or POST) */
-        if (r->method_number == M_INVALID) {
-            /* See if this looks like an undecrypted SSL handshake attempt.
-             * It's safe to look a couple bytes into the_request if it exists, as it's
-             * always allocated at least MIN_LINE_ALLOC (80) bytes.
-             */
-            if (r->the_request
-                && r->the_request[0] == 0x16                                
-                && (r->the_request[1] == 0x2 || r->the_request[1] == 0x3)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Invalid method in request %s - possible attempt to establish SSL connection on non-SSL port", r->the_request);
-            } else {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Invalid method in request %s", r->the_request);
-            }
-            return HTTP_NOT_IMPLEMENTED;
-        }
+#endif
 
-        if (r->method_number == M_OPTIONS) {
-            return ap_send_http_options(r);
+#ifdef LDAP_OPT_TIMEOUT
+    /*
+     * LDAP_OPT_TIMEOUT is not portable, but it influences all synchronous ldap
+     * function calls and not just ldap_search_ext_s(), which accepts a timeout
+     * parameter.
+     * XXX: It would be possible to simulate LDAP_OPT_TIMEOUT by replacing all
+     * XXX: synchronous ldap function calls with asynchronous calls and using
+     * XXX: ldap_result() with a timeout.
+     */
+    if (st->opTimeout) {
+        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_TIMEOUT,
+                                 st->opTimeout, &(result));
+        if (APR_SUCCESS != rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "LDAP: Could not set LDAP_OPT_TIMEOUT");
         }
-        return HTTP_METHOD_NOT_ALLOWED;
     }
+#endif
+
+    return(rc);
 }

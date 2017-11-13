@@ -1,49 +1,45 @@
-int ssl_stapling_init_cert(server_rec *s, modssl_ctx_t *mctx, X509 *x)
+static int proxy_connect_transfer(request_rec *r, conn_rec *c_i, conn_rec *c_o,
+                                  apr_bucket_brigade *bb, char *name)
 {
-    certinfo *cinf;
-    X509 *issuer = NULL;
-    STACK_OF(STRING) *aia = NULL;
+    int rv;
+#ifdef DEBUGGING
+    apr_off_t len;
+#endif
 
-    if (x == NULL)
-        return 0;
-    cinf  = X509_get_ex_data(x, stapling_ex_idx);
-    if (cinf) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "ssl_stapling_init_cert: certificate already initialized!");
-        return 0;
+    do {
+        apr_brigade_cleanup(bb);
+        rv = ap_get_brigade(c_i->input_filters, bb, AP_MODE_READBYTES,
+                            APR_NONBLOCK_READ, CONN_BLKSZ);
+        if (rv == APR_SUCCESS) {
+            if (c_o->aborted)
+                return APR_EPIPE;
+            if (APR_BRIGADE_EMPTY(bb))
+                break;
+#ifdef DEBUGGING
+            len = -1;
+            apr_brigade_length(bb, 0, &len);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "proxy: CONNECT: read %" APR_OFF_T_FMT
+                          " bytes from %s", len, name);
+#endif
+            rv = ap_pass_brigade(c_o->output_filters, bb);
+            if (rv == APR_SUCCESS) {
+                ap_fflush(c_o->output_filters, bb);
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "proxy: CONNECT: error on %s - ap_pass_brigade",
+                              name);
+            }
+        } else if (!APR_STATUS_IS_EAGAIN(rv)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "proxy: CONNECT: error on %s - ap_get_brigade",
+                          name);
+        }
+    } while (rv == APR_SUCCESS);
+
+    if (APR_STATUS_IS_EAGAIN(rv)) {
+        rv = APR_SUCCESS;
     }
-    cinf = OPENSSL_malloc(sizeof(certinfo));
-    if (!cinf) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "ssl_stapling_init_cert: error allocating memory!");
-        return 0;
-    }
-    cinf->cid = NULL;
-    cinf->uri = NULL;
-    X509_set_ex_data(x, stapling_ex_idx, cinf);
-
-    issuer = stapling_get_issuer(mctx, x);
-
-    if (issuer == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "ssl_stapling_init_cert: Can't retrieve issuer certificate!");
-        return 0;
-    }
-
-    cinf->cid = OCSP_cert_to_id(NULL, x, issuer);
-    X509_free(issuer);
-    if (!cinf->cid)
-        return 0;
-    X509_digest(x, EVP_sha1(), cinf->idx, NULL);
-
-    aia = X509_get1_ocsp(x);
-    if (aia)
-        cinf->uri = sk_STRING_pop(aia);
-    if (!cinf->uri && !mctx->stapling_force_url) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "ssl_stapling_init_cert: no responder URL");
-    }
-    if (aia)
-        X509_email_free(aia);
-    return 1;
+    return rv;
 }

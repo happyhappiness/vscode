@@ -1,28 +1,52 @@
-static void init_balancer_members(apr_pool_t *p, server_rec *s,
-                                 proxy_balancer *balancer)
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
 {
-    int i;
-    proxy_worker **workers;
 
-    workers = (proxy_worker **)balancer->workers->elts;
+    apr_status_t rv;
 
-    for (i = 0; i < balancer->workers->nelts; i++) {
-        int worker_is_initialized;
-        proxy_worker *worker = *workers;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01158)
-                     "Looking at %s -> %s initialized?", balancer->s->name, worker->s->name);
-        worker_is_initialized = PROXY_WORKER_IS_INITIALIZED(worker);
-        if (!worker_is_initialized) {
-            ap_proxy_initialize_worker(worker, s, p);
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01173)
+                      "%s: Lock failed for post_request",
+                      balancer->s->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    if (!apr_is_empty_array(balancer->errstatuses)) {
+        int i;
+        for (i = 0; i < balancer->errstatuses->nelts; i++) {
+            int val = ((int *)balancer->errstatuses->elts)[i];
+            if (r->status == val) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01174)
+                              "%s: Forcing worker (%s) into error state " 
+                              "due to status code %d matching 'failonstatus' "
+                              "balancer parameter",
+                              balancer->s->name, worker->s->name, val);
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+                break;
+            }
         }
-        ++workers;
     }
 
-    /* Set default number of attempts to the number of
-     * workers.
-     */
-    if (!balancer->s->max_attempts_set && balancer->workers->nelts > 1) {
-        balancer->s->max_attempts = balancer->workers->nelts - 1;
-        balancer->s->max_attempts_set = 1;
+    if (balancer->failontimeout
+        && (apr_table_get(r->notes, "proxy_timedout")) != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
+                      "%s: Forcing worker (%s) into error state "
+                      "due to timeout and 'failonstatus' parameter being set",
+                       balancer->s->name, worker->s->name);
+        worker->s->status |= PROXY_WORKER_IN_ERROR;
+        worker->s->error_time = apr_time_now();
+
     }
+
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01175)
+                      "%s: Unlock failed for post_request", balancer->s->name);
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01176)
+                  "proxy_balancer_post_request for (%s)", balancer->s->name);
+
+    return OK;
 }

@@ -1,48 +1,53 @@
-static authn_status check_password(request_rec *r, const char *user,
-                                   const char *password)
+static authn_status authn_dbd_realm(request_rec *r, const char *user,
+                                    const char *realm, char **rethash)
 {
-    authn_file_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                       &authn_file_module);
-    ap_configfile_t *f;
-    char l[MAX_STRING_LEN];
-    apr_status_t status;
-    char *file_password = NULL;
+    apr_status_t rv;
+    const char *dbd_hash = NULL;
+    apr_dbd_prepared_t *statement;
+    apr_dbd_results_t *res = NULL;
+    apr_dbd_row_t *row = NULL;
 
-    status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
-
-    if (status != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Could not open password file: %s", conf->pwfile);
+    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                &authn_dbd_module);
+    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
+    if (dbd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Error looking up %s in database", user);
         return AUTH_GENERAL_ERROR;
     }
-
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-        const char *rpw, *w;
-
-        /* Skip # or blank lines. */
-        if ((l[0] == '#') || (!l[0])) {
-            continue;
-        }
-
-        rpw = l;
-        w = ap_getword(r->pool, &rpw, ':');
-
-        if (!strcmp(user, w)) {
-            file_password = ap_getword(r->pool, &rpw, ':');
-            break;
-        }
+    if (conf->realm == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "No DBD Authn configured!");
+        return AUTH_GENERAL_ERROR;
     }
-    ap_cfg_closefile(f);
+    statement = apr_hash_get(dbd->prepared, conf->realm, APR_HASH_KEY_STRING);
+    if (statement == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "No DBD Authn configured!");
+        return AUTH_GENERAL_ERROR;
+    }
+    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
+                              0, user, realm, NULL) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Error looking up %s:%s in database", user, realm);
+        return AUTH_GENERAL_ERROR;
+    }
+    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+         rv != -1;
+         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+        if (rv != 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "Error looking up %s in database", user);
+            return AUTH_GENERAL_ERROR;
+        }
+        if (dbd_hash == NULL) {
+            dbd_hash = apr_dbd_get_entry(dbd->driver, row, 0);
+        }
+        /* we can't break out here or row won't get cleaned up */
+    }
 
-    if (!file_password) {
+    if (!dbd_hash) {
         return AUTH_USER_NOT_FOUND;
     }
-    AUTHN_CACHE_STORE(r, user, NULL, file_password);
 
-    status = apr_password_validate(password, file_password);
-    if (status != APR_SUCCESS) {
-        return AUTH_DENIED;
-    }
-
-    return AUTH_GRANTED;
+    *rethash = apr_pstrdup(r->pool, dbd_hash);
+    return AUTH_USER_FOUND;
 }

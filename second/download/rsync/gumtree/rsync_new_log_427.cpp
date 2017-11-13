@@ -1,1 +1,1 @@
-rprintf(FERROR,"pipe failed in do_recv\n");
+rprintf(FERROR,"%s : %s\n",fname,strerror(errno));

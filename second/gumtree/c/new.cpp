@@ -1,3 +1,5 @@
-int a = fun()
-if(b)
-    // printf("hello haier%s", str(a));
+if(fun())
+    printf("hello haier%s", str(a));
+r = bar();
+if(r)
+    printf("hello haier%s", str(a));

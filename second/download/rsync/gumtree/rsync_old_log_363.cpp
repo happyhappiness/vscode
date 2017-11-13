@@ -1,1 +1,1 @@
-fprintf(FERROR,"generator wrote %d\n",write_total());
+fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01346) "unknown parameter "
-                          "\"%s\" in tag echo of %s", tag, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r, APLOGNO(01627)
+                          "AuthType configured with no corresponding "
+                          "authorization directives");

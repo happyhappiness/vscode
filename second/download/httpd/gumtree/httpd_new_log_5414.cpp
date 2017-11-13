@@ -1,2 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
-                      APLOGNO(02913) "h2_task: creating conn");
+ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf, APLOGNO(00047)
+                     "could not make child process %" APR_PID_T_FMT
+                     " exit, "
+                     "attempting to continue anyway",
+                     pid);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL,
-                         APLOGNO(00017) "Pre-configuration failed, exiting");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00907)
+                         "%s/", inet_ntoa(This->addr));

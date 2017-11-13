@@ -1,1 +1,1 @@
-ap_rputs("        </httpd:worker>\n", r);
+ap_rputs("    </httpd:balancer>\n", r);

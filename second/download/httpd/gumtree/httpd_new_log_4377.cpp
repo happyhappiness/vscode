@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01949)
-                     "Failed to release OCSP stapling lock");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01062)
+                      "sending env var '%s' value '%s'",
+                      elts[i].key, elts[i].val);

@@ -1,9 +1,9 @@
 fputs(
-"              Specify  which config file to read curl arguments from. The con-\n"
-"              fig file is a text file in which command line arguments  can  be\n"
-"              written  which  then will be used as if they were written on the\n"
-"              actual command line.\n"
+"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
+"              optional password isn't specified, it will be queried for on the\n"
+"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
+"              that is the private key and  the  private  certificate  concate-\n"
+"              nated! See --cert and --key to specify them independently.\n"
 "\n"
-"              Options and their parameters must be specified on the same  con-\n"
-"              fig  file  line,  separated  by whitespace, colon, or the equals\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
 , stdout);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01949)
+                     "Failed to release OCSP stapling lock");

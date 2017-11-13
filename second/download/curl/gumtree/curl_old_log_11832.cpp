@@ -1,10 +1,11 @@
 fputs(
-"              Tells   curl  to  use  the  listed  protocols  for  its  initial\n"
-"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
-"              arated,  and  are each a protocol name or 'all', optionally pre-\n"
-"              fixed by zero or more modifiers. Available modifiers are:\n"
+"                     for the control connection\n"
 "\n"
-"              +  Permit this protocol in addition to protocols already permit-\n"
-"                 ted (this is the default if no modifier is used).\n"
+"              If this option is used several times, the last one will be used.\n"
+"              Disable  the use of PORT with --ftp-pasv. Disable the attempt to\n"
+"              use the EPRT command instead of PORT  by  using  --disable-eprt.\n"
+"              EPRT is really PORT++.\n"
 "\n"
+"              Starting in 7.19.5, you can append \":[start]-[end]\" to the right\n"
+"              of the address, to tell curl what TCP port range  to  use.  That\n"
 , stdout);

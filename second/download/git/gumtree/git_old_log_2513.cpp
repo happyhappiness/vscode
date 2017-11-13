@@ -1,1 +1,1 @@
-printf("%s\n", sb.buf);
+die("Reference directory conflict: %s", ref1->name);

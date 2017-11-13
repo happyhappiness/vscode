@@ -1,0 +1,1 @@
+die("found existing file at '%s'", path);

@@ -1,25 +1,86 @@
-static struct child_process *git_proxy_connect(int fd[2], char *host)
+static int push_refs_with_export(struct transport *transport,
+		struct ref *remote_refs, int flags)
 {
-	const char *port = STR(DEFAULT_GIT_PORT);
-	struct child_process *proxy;
+	struct ref *ref;
+	struct child_process *helper, exporter;
+	struct helper_data *data = transport->data;
+	struct string_list revlist_args = STRING_LIST_INIT_DUP;
+	struct strbuf buf = STRBUF_INIT;
 
-	get_host_and_port(&host, &port);
+	if (!data->refspecs)
+		die("remote-helper doesn't support push; refspec needed");
 
-	if (looks_like_command_line_option(host))
-		die("strange hostname '%s' blocked", host);
-	if (looks_like_command_line_option(port))
-		die("strange port '%s' blocked", port);
+	if (flags & TRANSPORT_PUSH_DRY_RUN) {
+		if (set_helper_option(transport, "dry-run", "true") != 0)
+			die("helper %s does not support dry-run", data->name);
+	} else if (flags & TRANSPORT_PUSH_CERT) {
+		if (set_helper_option(transport, TRANS_OPT_PUSH_CERT, "true") != 0)
+			die("helper %s does not support --signed", data->name);
+	}
 
-	proxy = xmalloc(sizeof(*proxy));
-	child_process_init(proxy);
-	argv_array_push(&proxy->args, git_proxy_command);
-	argv_array_push(&proxy->args, host);
-	argv_array_push(&proxy->args, port);
-	proxy->in = -1;
-	proxy->out = -1;
-	if (start_command(proxy))
-		die("cannot start proxy %s", git_proxy_command);
-	fd[0] = proxy->out; /* read from proxy stdout */
-	fd[1] = proxy->in;  /* write to proxy stdin */
-	return proxy;
+	if (flags & TRANSPORT_PUSH_FORCE) {
+		if (set_helper_option(transport, "force", "true") != 0)
+			warning("helper %s does not support 'force'", data->name);
+	}
+
+	helper = get_helper(transport);
+
+	write_constant(helper->in, "export\n");
+
+	for (ref = remote_refs; ref; ref = ref->next) {
+		char *private;
+		unsigned char sha1[20];
+
+		private = apply_refspecs(data->refspecs, data->refspec_nr, ref->name);
+		if (private && !get_sha1(private, sha1)) {
+			strbuf_addf(&buf, "^%s", private);
+			string_list_append(&revlist_args, strbuf_detach(&buf, NULL));
+			hashcpy(ref->old_sha1, sha1);
+		}
+		free(private);
+
+		if (ref->peer_ref) {
+			if (strcmp(ref->name, ref->peer_ref->name)) {
+				if (!ref->deletion) {
+					const char *name;
+					int flag;
+
+					/* Follow symbolic refs (mainly for HEAD). */
+					name = resolve_ref_unsafe(
+						 ref->peer_ref->name,
+						 RESOLVE_REF_READING,
+						 sha1, &flag);
+					if (!name || !(flag & REF_ISSYMREF))
+						name = ref->peer_ref->name;
+
+					strbuf_addf(&buf, "%s:%s", name, ref->name);
+				} else
+					strbuf_addf(&buf, ":%s", ref->name);
+
+				string_list_append(&revlist_args, "--refspec");
+				string_list_append(&revlist_args, buf.buf);
+				strbuf_release(&buf);
+			}
+			if (!ref->deletion)
+				string_list_append(&revlist_args, ref->peer_ref->name);
+		}
+	}
+
+	if (get_exporter(transport, &exporter, &revlist_args))
+		die("Couldn't run fast-export");
+
+	string_list_clear(&revlist_args, 1);
+
+	if (finish_command(&exporter))
+		die("Error while running fast-export");
+	if (push_update_refs_status(data, remote_refs, flags))
+		return 1;
+
+	if (data->export_marks) {
+		strbuf_addf(&buf, "%s.tmp", data->export_marks);
+		rename(buf.buf, data->export_marks);
+		strbuf_release(&buf);
+	}
+
+	return 0;
 }

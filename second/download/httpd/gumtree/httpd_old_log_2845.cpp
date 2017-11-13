@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "could not send interim 101 Upgrade response");
+fprintf(stderr, "Completed %ld requests\n", done);

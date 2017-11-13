@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02214)
-                     "No certificates in %s", pkcs7);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
+                         "atomics not working as expected");

@@ -1,63 +1,66 @@
-void h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
+h2_workers *h2_workers_create(server_rec *s, apr_pool_t *server_pool,
+                              int min_workers, int max_workers,
+                              apr_size_t max_tx_handles)
 {
     apr_status_t status;
-    int i, wait_secs = 60;
+    h2_workers *workers;
+    apr_pool_t *pool;
 
-    /* How to shut down a h2 connection:
-     * 0. abort and tell the workers that no more tasks will come from us */
-    m->aborted = 1;
-    h2_workers_unregister(m->workers, m);
-    
-    H2_MPLX_ENTER_ALWAYS(m);
+    AP_DEBUG_ASSERT(s);
+    AP_DEBUG_ASSERT(server_pool);
 
-    /* How to shut down a h2 connection:
-     * 1. cancel all streams still active */
-    while (!h2_ihash_iter(m->streams, stream_cancel_iter, m)) {
-        /* until empty */
-    }
-    
-    /* 2. terminate ngn_shed, no more streams
-     * should be scheduled or in the active set */
-    h2_ngn_shed_abort(m->ngn_shed);
-    ap_assert(h2_ihash_empty(m->streams));
-    ap_assert(h2_iq_empty(m->q));
-    
-    /* 3. while workers are busy on this connection, meaning they
-     *    are processing tasks from this connection, wait on them finishing
-     *    in order to wake us and let us check again. 
-     *    Eventually, this has to succeed. */    
-    m->join_wait = wait;
-    for (i = 0; h2_ihash_count(m->shold) > 0; ++i) {        
-        status = apr_thread_cond_timedwait(wait, m->lock, apr_time_from_sec(wait_secs));
+    /* let's have our own pool that will be parent to all h2_worker
+     * instances we create. This happens in various threads, but always
+     * guarded by our lock. Without this pool, all subpool creations would
+     * happen on the pool handed to us, which we do not guard.
+     */
+    apr_pool_create(&pool, server_pool);
+    apr_pool_tag(pool, "h2_workers");
+    workers = apr_pcalloc(pool, sizeof(h2_workers));
+    if (workers) {
+        workers->s = s;
+        workers->pool = pool;
+        workers->min_workers = min_workers;
+        workers->max_workers = max_workers;
+        workers->max_idle_secs = 10;
         
-        if (APR_STATUS_IS_TIMEUP(status)) {
-            /* This can happen if we have very long running requests
-             * that do not time out on IO. */
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03198)
-                          "h2_mplx(%ld): waited %d sec for %d tasks", 
-                          m->id, i*wait_secs, (int)h2_ihash_count(m->shold));
-            h2_ihash_iter(m->shold, report_stream_iter, m);
+        workers->max_tx_handles = max_tx_handles;
+        workers->spare_tx_handles = workers->max_tx_handles;
+        
+        apr_threadattr_create(&workers->thread_attr, workers->pool);
+        if (ap_thread_stacksize != 0) {
+            apr_threadattr_stacksize_set(workers->thread_attr,
+                                         ap_thread_stacksize);
+            ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                         "h2_workers: using stacksize=%ld", 
+                         (long)ap_thread_stacksize);
+        }
+        
+        APR_RING_INIT(&workers->workers, h2_worker, link);
+        APR_RING_INIT(&workers->zombies, h2_worker, link);
+        APR_RING_INIT(&workers->mplxs, h2_mplx, link);
+        
+        status = apr_thread_mutex_create(&workers->lock,
+                                         APR_THREAD_MUTEX_DEFAULT,
+                                         workers->pool);
+        if (status == APR_SUCCESS) {
+            status = apr_thread_cond_create(&workers->mplx_added, workers->pool);
+        }
+        
+        if (status == APR_SUCCESS) {
+            status = apr_thread_mutex_create(&workers->tx_lock,
+                                             APR_THREAD_MUTEX_DEFAULT,
+                                             workers->pool);
+        }
+        
+        if (status == APR_SUCCESS) {
+            status = h2_workers_start(workers);
+        }
+        
+        if (status != APR_SUCCESS) {
+            h2_workers_destroy(workers);
+            workers = NULL;
         }
     }
-    m->join_wait = NULL;
-    
-    /* 4. close the h2_req_enginge shed */
-    h2_ngn_shed_destroy(m->ngn_shed);
-    m->ngn_shed = NULL;
-    
-    /* 4. With all workers done, all streams should be in spurge */
-    if (!h2_ihash_empty(m->shold)) {
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03516)
-                      "h2_mplx(%ld): unexpected %d streams in hold", 
-                      m->id, (int)h2_ihash_count(m->shold));
-        h2_ihash_iter(m->shold, unexpected_stream_iter, m);
-    }
-    
-    H2_MPLX_LEAVE(m);
-
-    /* 5. unregister again, now that our workers are done */
-    h2_workers_unregister(m->workers, m);
-
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                  "h2_mplx(%ld): released", m->id);
+    return workers;
 }

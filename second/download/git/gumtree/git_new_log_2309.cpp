@@ -1,1 +1,1 @@
-!error("tag '%s' not found.", name);
+die("BUG: not unique item in first-parent chain");

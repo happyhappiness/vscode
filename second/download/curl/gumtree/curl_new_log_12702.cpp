@@ -1,9 +1,11 @@
 fputs(
-"              This is done by first doing a request and checking the response-\n"
-"              headers,  thus  possibly  inducing  an extra network round-trip.\n"
-"              This is  used  instead  of  setting  a  specific  authentication\n"
-"              method,  which  you  can  do with --basic, --digest, --ntlm, and\n"
-"              --negotiate.\n"
+"              Disable the NPN TLS extension. NPN  is  enabled  by  default  if\n"
+"              libcurl  was built with an SSL library that supports NPN. NPN is\n"
+"              used by a libcurl that supports HTTP 2 to negotiate HTTP 2  sup-\n"
+"              port with the server during https sessions.\n"
 "\n"
-"              Note that using --anyauth is not recommended if you  do  uploads\n"
+"              (Added in 7.36.0)\n"
+"\n"
+"       --no-alpn\n"
+"              Disable  the  ALPN  TLS extension. ALPN is enabled by default if\n"
 , stdout);

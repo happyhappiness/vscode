@@ -1,11 +1,11 @@
 fputs(
-"              --location is used, this option can be used to prevent curl from\n"
-"              following  redirections  \"in absurdum\". By default, the limit is\n"
-"              set to 50 redirections. Set this option to -1 to make it  limit-\n"
-"              less.\n"
+"              recipient should be specified as the user name or user name  and\n"
+"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              When performing a mailing list expand (EXPN command), the recip-\n"
+"              ient should be specified using the mailing list  name,  such  as\n"
+"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
 "\n"
-"       --metalink\n"
-"              This  option  can  tell curl to parse and process a given URI as\n"
+"       --max-redirs <num>\n"
+"              Set  maximum  number  of  redirection-followings allowed. If -L,\n"
 , stdout);

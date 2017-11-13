@@ -1,55 +1,64 @@
-static int process_mkcol_body(request_rec *r)
+static int check_nonce(request_rec *r, digest_header_rec *resp,
+                       const digest_config_rec *conf)
 {
-    /* This is snarfed from ap_setup_client_block(). We could get pretty
-     * close to this behavior by passing REQUEST_NO_BODY, but we need to
-     * return HTTP_UNSUPPORTED_MEDIA_TYPE (while ap_setup_client_block
-     * returns HTTP_REQUEST_ENTITY_TOO_LARGE). */
+    apr_time_t dt;
+    int len;
+    time_rec nonce_time;
+    char tmp, hash[NONCE_HASH_LEN+1];
 
-    const char *tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
-    const char *lenp = apr_table_get(r->headers_in, "Content-Length");
-
-    /* make sure to set the Apache request fields properly. */
-    r->read_body = REQUEST_NO_BODY;
-    r->read_chunked = 0;
-    r->remaining = 0;
-
-    if (tenc) {
-        if (strcasecmp(tenc, "chunked")) {
-            /* Use this instead of Apache's default error string */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Unknown Transfer-Encoding %s", tenc);
-            return HTTP_NOT_IMPLEMENTED;
-        }
-
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        const char *pos = lenp;
-
-        while (apr_isdigit(*pos) || apr_isspace(*pos)) {
-            ++pos;
-        }
-
-        if (*pos != '\0') {
-            /* This supplies additional information for the default message. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
-
-        r->remaining = apr_atoi64(lenp);
+    if (strlen(resp->nonce) != NONCE_LEN) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: invalid nonce %s received - length is not %d",
+                      resp->nonce, NONCE_LEN);
+        note_digest_auth_failure(r, conf, resp, 1);
+        return HTTP_UNAUTHORIZED;
     }
 
-    if (r->read_chunked || r->remaining > 0) {
-        /* ### log something? */
+    tmp = resp->nonce[NONCE_TIME_LEN];
+    resp->nonce[NONCE_TIME_LEN] = '\0';
+    len = apr_base64_decode_binary(nonce_time.arr, resp->nonce);
+    gen_nonce_hash(hash, resp->nonce, resp->opaque, r->server, conf);
+    resp->nonce[NONCE_TIME_LEN] = tmp;
+    resp->nonce_time = nonce_time.time;
 
-        /* Apache will supply a default error for this. */
-        return HTTP_UNSUPPORTED_MEDIA_TYPE;
+    if (strcmp(hash, resp->nonce+NONCE_TIME_LEN)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: invalid nonce %s received - hash is not %s",
+                      resp->nonce, hash);
+        note_digest_auth_failure(r, conf, resp, 1);
+        return HTTP_UNAUTHORIZED;
     }
 
-    /*
-     * Get rid of the body. this will call ap_setup_client_block(), but
-     * our copy above has already verified its work.
-     */
-    return ap_discard_request_body(r);
+    dt = r->request_time - nonce_time.time;
+    if (conf->nonce_lifetime > 0 && dt < 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: invalid nonce %s received - user attempted "
+                      "time travel", resp->nonce);
+        note_digest_auth_failure(r, conf, resp, 1);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (conf->nonce_lifetime > 0) {
+        if (dt > conf->nonce_lifetime) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0,r,
+                          "Digest: user %s: nonce expired (%.2f seconds old "
+                          "- max lifetime %.2f) - sending new nonce",
+                          r->user, (double)apr_time_sec(dt),
+                          (double)apr_time_sec(conf->nonce_lifetime));
+            note_digest_auth_failure(r, conf, resp, 1);
+            return HTTP_UNAUTHORIZED;
+        }
+    }
+    else if (conf->nonce_lifetime == 0 && resp->client) {
+        if (memcmp(resp->client->last_nonce, resp->nonce, NONCE_LEN)) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Digest: user %s: one-time-nonce mismatch - sending "
+                          "new nonce", r->user);
+            note_digest_auth_failure(r, conf, resp, 1);
+            return HTTP_UNAUTHORIZED;
+        }
+    }
+    /* else (lifetime < 0) => never expires */
+
+    return OK;
 }

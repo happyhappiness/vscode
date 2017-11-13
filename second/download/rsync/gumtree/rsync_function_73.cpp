@@ -1,31 +1,23 @@
-void read_check(int f)
+static void delete_files(struct file_list *flist)
 {
-  int n;
+  struct file_list *local_file_list;
+  char *dot=".";
+  int i;
 
-  if (read_buffer_len == 0) {
-    read_buffer_p = read_buffer;
-  }
-
-  if ((n=num_waiting(f)) <= 0)
+  if (!(local_file_list = send_file_list(-1,recurse,1,&dot)))
     return;
 
-  if (read_buffer_p != read_buffer) {
-    memmove(read_buffer,read_buffer_p,read_buffer_len);
-    read_buffer_p = read_buffer;
-  }
-
-  if (n > (read_buffer_size - read_buffer_len)) {
-    read_buffer_size += n;
-    if (!read_buffer)
-      read_buffer = (char *)malloc(read_buffer_size);
-    else
-      read_buffer = (char *)realloc(read_buffer,read_buffer_size);
-    if (!read_buffer) out_of_memory("read check");      
-    read_buffer_p = read_buffer;      
-  }
-
-  n = read(f,read_buffer+read_buffer_len,n);
-  if (n > 0) {
-    read_buffer_len += n;
+  for (i=0;i<local_file_list->count;i++) {
+    if (!local_file_list->files[i].name) continue;
+    if (S_ISDIR(local_file_list->files[i].mode)) continue;
+    if (-1 == flist_find(flist,&local_file_list->files[i])) {
+      if (verbose)
+	fprintf(stderr,"deleting %s\n",local_file_list->files[i].name);
+      if (!dry_run) {
+	if (unlink(local_file_list->files[i].name) != 0)
+	  fprintf(stderr,"unlink %s : %s\n",
+		  local_file_list->files[i].name,strerror(errno));
+      }
+    }    
   }
 }

@@ -1,48 +1,44 @@
-static apr_status_t h2_task_process_request(h2_task *task, conn_rec *c)
+static int socache_status_hook(request_rec *r, int flags)
 {
-    const h2_request *req = task->request;
-    conn_state_t *cs = c->cs;
-    request_rec *r;
-
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  "h2_task(%s): create request_rec", task->id);
-    r = h2_request_create_rec(req, c);
-    if (r && (r->status == HTTP_OK)) {
-        ap_update_child_status(c->sbh, SERVER_BUSY_READ, r);
-        
-        if (cs) {
-            cs->state = CONN_STATE_HANDLER;
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): start process_request", task->id);
-        ap_process_request(r);
-        if (task->frozen) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                          "h2_task(%s): process_request frozen", task->id);
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): process_request done", task->id);
-        
-        /* After the call to ap_process_request, the
-         * request pool will have been deleted.  We set
-         * r=NULL here to ensure that any dereference
-         * of r that might be added later in this function
-         * will result in a segfault immediately instead
-         * of nondeterministic failures later.
-         */
-        if (cs) 
-            cs->state = CONN_STATE_WRITE_COMPLETION;
-        r = NULL;
-    }
-    else if (!r) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): create request_rec failed, r=NULL", task->id);
-    }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): create request_rec failed, r->status=%d", 
-                      task->id, r->status);
+    apr_status_t status = APR_SUCCESS;
+    cache_socache_conf *conf = ap_get_module_config(r->server->module_config,
+                                                    &cache_socache_module);
+    if (!conf->provider || !conf->provider->socache_provider ||
+        !conf->provider->socache_instance) {
+        return DECLINED;
     }
 
-    return APR_SUCCESS;
+    ap_rputs("<hr>\n"
+             "<table cellspacing=0 cellpadding=0>\n"
+             "<tr><td bgcolor=\"#000000\">\n"
+             "<b><font color=\"#ffffff\" face=\"Arial,Helvetica\">"
+             "mod_cache_socache Status:</font></b>\n"
+             "</td></tr>\n"
+             "<tr><td bgcolor=\"#ffffff\">\n", r);
+
+    if (socache_mutex) {
+        status = apr_global_mutex_lock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02816)
+                    "could not acquire lock for cache status");
+        }
+    }
+
+    if (status != APR_SUCCESS) {
+        ap_rputs("No cache status data available\n", r);
+    } else {
+        conf->provider->socache_provider->status(conf->provider->socache_instance,
+                                                 r, flags);
+    }
+
+    if (socache_mutex && status == APR_SUCCESS) {
+        status = apr_global_mutex_unlock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02817)
+                    "could not release lock for cache status");
+        }
+    }
+
+    ap_rputs("</td></tr>\n</table>\n", r);
+    return OK;
 }

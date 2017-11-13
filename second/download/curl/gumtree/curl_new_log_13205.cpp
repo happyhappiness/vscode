@@ -1,10 +1,12 @@
 fputs(
-"              curl  to  make  SSL-connections much more efficiently than using\n"
-"              --cacert if the --cacert file contains many CA certificates.\n"
+"              names the -w option supports, to allow easier extraction of use-\n"
+"              ful information after having run curl.\n"
 "\n"
-"              If this option is set, the default capath value will be ignored,\n"
-"              and if it is used several times, the last one will be used.\n"
+"       --egd-file <file>\n"
+"              (SSL) Specify the path name  to  the  Entropy  Gathering  Daemon\n"
+"              socket.  The  socket  is  used to seed the random engine for SSL\n"
+"              connections. See also the --random-file option.\n"
 "\n"
-"       --pinnedpubkey <pinned public key (hashes)>\n"
-"              (SSL)  Tells  curl  to  use  the  specified  public key file (or\n"
+"       --expect100-timeout <seconds>\n"
+"              (HTTP) Maximum time in seconds that you allow curl to wait for a\n"
 , stdout);

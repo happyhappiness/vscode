@@ -1,71 +1,51 @@
-static struct commit *get_base_commit(const char *base_commit,
-				      struct commit **list,
-				      int total)
+static void diff_words_show(struct diff_words_data *diff_words)
 {
-	struct commit *base = NULL;
-	struct commit **rev;
-	int i = 0, rev_nr = 0;
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	mmfile_t minus, plus;
+	struct diff_words_style *style = diff_words->style;
 
-	if (base_commit && strcmp(base_commit, "auto")) {
-		base = lookup_commit_reference_by_name(base_commit);
-		if (!base)
-			die(_("Unknown commit %s"), base_commit);
-	} else if ((base_commit && !strcmp(base_commit, "auto")) || base_auto) {
-		struct branch *curr_branch = branch_get(NULL);
-		const char *upstream = branch_get_upstream(curr_branch, NULL);
-		if (upstream) {
-			struct commit_list *base_list;
-			struct commit *commit;
-			unsigned char sha1[20];
+	struct diff_options *opt = diff_words->opt;
+	const char *line_prefix;
 
-			if (get_sha1(upstream, sha1))
-				die(_("Failed to resolve '%s' as a valid ref."), upstream);
-			commit = lookup_commit_or_die(sha1, "upstream base");
-			base_list = get_merge_bases_many(commit, total, list);
-			/* There should be one and only one merge base. */
-			if (!base_list || base_list->next)
-				die(_("Could not find exact merge base."));
-			base = base_list->item;
-			free_commit_list(base_list);
-		} else {
-			die(_("Failed to get upstream, if you want to record base commit automatically,\n"
-			      "please use git branch --set-upstream-to to track a remote branch.\n"
-			      "Or you could specify base commit by --base=<base-commit-id> manually."));
-		}
+	assert(opt);
+	line_prefix = diff_line_prefix(opt);
+
+	/* special case: only removal */
+	if (!diff_words->plus.text.size) {
+		fputs(line_prefix, diff_words->opt->file);
+		fn_out_diff_words_write_helper(diff_words->opt->file,
+			&style->old, style->newline,
+			diff_words->minus.text.size,
+			diff_words->minus.text.ptr, line_prefix);
+		diff_words->minus.text.size = 0;
+		return;
 	}
 
-	ALLOC_ARRAY(rev, total);
-	for (i = 0; i < total; i++)
-		rev[i] = list[i];
+	diff_words->current_plus = diff_words->plus.text.ptr;
+	diff_words->last_minus = 0;
 
-	rev_nr = total;
-	/*
-	 * Get merge base through pair-wise computations
-	 * and store it in rev[0].
-	 */
-	while (rev_nr > 1) {
-		for (i = 0; i < rev_nr / 2; i++) {
-			struct commit_list *merge_base;
-			merge_base = get_merge_bases(rev[2 * i], rev[2 * i + 1]);
-			if (!merge_base || merge_base->next)
-				die(_("Failed to find exact merge base"));
-
-			rev[i] = merge_base->item;
-		}
-
-		if (rev_nr % 2)
-			rev[i] = rev[2 * i];
-		rev_nr = (rev_nr + 1) / 2;
+	memset(&xpp, 0, sizeof(xpp));
+	memset(&xecfg, 0, sizeof(xecfg));
+	diff_words_fill(&diff_words->minus, &minus, diff_words->word_regex);
+	diff_words_fill(&diff_words->plus, &plus, diff_words->word_regex);
+	xpp.flags = 0;
+	/* as only the hunk header will be parsed, we need a 0-context */
+	xecfg.ctxlen = 0;
+	if (xdi_diff_outf(&minus, &plus, fn_out_diff_words_aux, diff_words,
+			  &xpp, &xecfg))
+		die("unable to generate word diff");
+	free(minus.ptr);
+	free(plus.ptr);
+	if (diff_words->current_plus != diff_words->plus.text.ptr +
+			diff_words->plus.text.size) {
+		if (color_words_output_graph_prefix(diff_words))
+			fputs(line_prefix, diff_words->opt->file);
+		fn_out_diff_words_write_helper(diff_words->opt->file,
+			&style->ctx, style->newline,
+			diff_words->plus.text.ptr + diff_words->plus.text.size
+			- diff_words->current_plus, diff_words->current_plus,
+			line_prefix);
 	}
-
-	if (!in_merge_bases(base, rev[0]))
-		die(_("base commit should be the ancestor of revision list"));
-
-	for (i = 0; i < total; i++) {
-		if (base == list[i])
-			die(_("base commit shouldn't be in revision list"));
-	}
-
-	free(rev);
-	return base;
+	diff_words->minus.text.size = diff_words->plus.text.size = 0;
 }

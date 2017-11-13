@@ -1,43 +1,58 @@
-static int lua_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                             apr_pool_t *ptemp, server_rec *s)
+static void dispatch_event(h2_session *session, h2_session_event_t ev, 
+                      int arg, const char *msg)
 {
-    apr_pool_t **pool;
-    const char *tempdir;
-    apr_status_t rs;
-
-    lua_ssl_val = APR_RETRIEVE_OPTIONAL_FN(ssl_var_lookup);
-    lua_ssl_is_https = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
+    switch (ev) {
+        case H2_SESSION_EV_INIT:
+            h2_session_ev_init(session, arg, msg);
+            break;            
+        case H2_SESSION_EV_LOCAL_GOAWAY:
+            h2_session_ev_local_goaway(session, arg, msg);
+            break;
+        case H2_SESSION_EV_REMOTE_GOAWAY:
+            h2_session_ev_remote_goaway(session, arg, msg);
+            break;
+        case H2_SESSION_EV_CONN_ERROR:
+            h2_session_ev_conn_error(session, arg, msg);
+            break;
+        case H2_SESSION_EV_PROTO_ERROR:
+            h2_session_ev_proto_error(session, arg, msg);
+            break;
+        case H2_SESSION_EV_CONN_TIMEOUT:
+            h2_session_ev_conn_timeout(session, arg, msg);
+            break;
+        case H2_SESSION_EV_NO_IO:
+            h2_session_ev_no_io(session, arg, msg);
+            break;
+        case H2_SESSION_EV_STREAM_READY:
+            h2_session_ev_stream_ready(session, arg, msg);
+            break;
+        case H2_SESSION_EV_DATA_READ:
+            h2_session_ev_data_read(session, arg, msg);
+            break;
+        case H2_SESSION_EV_NGH2_DONE:
+            h2_session_ev_ngh2_done(session, arg, msg);
+            break;
+        case H2_SESSION_EV_MPM_STOPPING:
+            h2_session_ev_mpm_stopping(session, arg, msg);
+            break;
+        case H2_SESSION_EV_PRE_CLOSE:
+            h2_session_ev_pre_close(session, arg, msg);
+            break;
+        case H2_SESSION_EV_STREAM_OPEN:
+            h2_session_ev_stream_open(session, arg, msg);
+            break;
+        case H2_SESSION_EV_STREAM_DONE:
+            h2_session_ev_stream_done(session, arg, msg);
+            break;
+        default:
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                          "h2_session(%ld): unknown event %d", 
+                          session->id, ev);
+            break;
+    }
     
-    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG)
-        return OK;
-
-    /* Create ivm mutex */
-    rs = ap_global_mutex_create(&lua_ivm_mutex, NULL, "lua-ivm-shm", NULL,
-                            s, pconf, 0);
-    if (APR_SUCCESS != rs) {
-        return HTTP_INTERNAL_SERVER_ERROR;
+    if (session->state == H2_SESSION_ST_DONE) {
+        apr_brigade_cleanup(session->bbtmp);
+        h2_mplx_abort(session->mplx);
     }
-
-    /* Create shared memory space */
-    rs = apr_temp_dir_get(&tempdir, pconf);
-    if (rs != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
-                 "mod_lua IVM: Failed to find temporary directory");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    lua_ivm_shmfile = apr_psprintf(pconf, "%s/httpd_lua_shm.%ld", tempdir,
-                           (long int)getpid());
-    rs = apr_shm_create(&lua_ivm_shm, sizeof(apr_pool_t**),
-                    (const char *) lua_ivm_shmfile, pconf);
-    if (rs != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
-            "mod_lua: Failed to create shared memory segment on file %s",
-                     lua_ivm_shmfile);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    pool = (apr_pool_t **)apr_shm_baseaddr_get(lua_ivm_shm);
-    apr_pool_create(pool, pconf);
-    apr_pool_cleanup_register(pconf, NULL, shm_cleanup_wrapper,
-                          apr_pool_cleanup_null);
-    return OK;
 }

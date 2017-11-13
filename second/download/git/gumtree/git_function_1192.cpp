@@ -1,32 +1,42 @@
-static const char *find_author_by_nickname(const char *name)
+static int apply_autostash(struct replay_opts *opts)
 {
-	struct rev_info revs;
-	struct commit *commit;
-	struct strbuf buf = STRBUF_INIT;
-	struct string_list mailmap = STRING_LIST_INIT_NODUP;
-	const char *av[20];
-	int ac = 0;
+	struct strbuf stash_sha1 = STRBUF_INIT;
+	struct child_process child = CHILD_PROCESS_INIT;
+	int ret = 0;
 
-	init_revisions(&revs, NULL);
-	strbuf_addf(&buf, "--author=%s", name);
-	av[++ac] = "--all";
-	av[++ac] = "-i";
-	av[++ac] = buf.buf;
-	av[++ac] = NULL;
-	setup_revisions(ac, av, &revs, NULL);
-	revs.mailmap = &mailmap;
-	read_mailmap(revs.mailmap, NULL);
-
-	if (prepare_revision_walk(&revs))
-		die(_("revision walk setup failed"));
-	commit = get_revision(&revs);
-	if (commit) {
-		struct pretty_print_context ctx = {0};
-		ctx.date_mode = DATE_NORMAL;
-		strbuf_release(&buf);
-		format_commit_message(commit, "%aN <%aE>", &buf, &ctx);
-		clear_mailmap(&mailmap);
-		return strbuf_detach(&buf, NULL);
+	if (!read_oneliner(&stash_sha1, rebase_path_autostash(), 1)) {
+		strbuf_release(&stash_sha1);
+		return 0;
 	}
-	die(_("No existing author found with '%s'"), name);
+	strbuf_trim(&stash_sha1);
+
+	child.git_cmd = 1;
+	child.no_stdout = 1;
+	child.no_stderr = 1;
+	argv_array_push(&child.args, "stash");
+	argv_array_push(&child.args, "apply");
+	argv_array_push(&child.args, stash_sha1.buf);
+	if (!run_command(&child))
+		printf(_("Applied autostash.\n"));
+	else {
+		struct child_process store = CHILD_PROCESS_INIT;
+
+		store.git_cmd = 1;
+		argv_array_push(&store.args, "stash");
+		argv_array_push(&store.args, "store");
+		argv_array_push(&store.args, "-m");
+		argv_array_push(&store.args, "autostash");
+		argv_array_push(&store.args, "-q");
+		argv_array_push(&store.args, stash_sha1.buf);
+		if (run_command(&store))
+			ret = error(_("cannot store %s"), stash_sha1.buf);
+		else
+			printf(_("Applying autostash resulted in conflicts.\n"
+				"Your changes are safe in the stash.\n"
+				"You can run \"git stash pop\" or"
+				" \"git stash drop\" at any time.\n"));
+	}
+
+	strbuf_release(&stash_sha1);
+	return ret;
 }

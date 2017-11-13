@@ -1,1 +1,4 @@
-ap_add_output_filter(logio_ttfb_filter_name, NULL, r, r->connection);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00179)
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);

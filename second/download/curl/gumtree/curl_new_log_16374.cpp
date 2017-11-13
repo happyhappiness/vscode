@@ -1,11 +1,11 @@
 fputs(
-"              Note  that  this  is the negated option name documented. You can\n"
-"              thus use --sessionid to enforce session-ID caching.\n"
+"              port. Use -V, --version  to  see  if  your  curl  supports  GSS-\n"
+"              API/SSPI or SPNEGO.\n"
 "\n"
-"              Added in 7.16.0.\n"
+"              When  using this option, you must also provide a fake -u, --user\n"
+"              option to activate the authentication code properly.  Sending  a\n"
+"              '-u  :'  is  enough  as  the user name and password from the -u,\n"
+"              --user option aren't actually used.\n"
 "\n"
-"       --noproxy <no-proxy-list>\n"
-"              Comma-separated list of hosts which do not use a proxy,  if  one\n"
-"              is  specified.  The only wildcard is a single * character, which\n"
-"              matches all hosts, and effectively disables the proxy. Each name\n"
+"              If this option is used several times,  only  the  first  one  is\n"
 , stdout);

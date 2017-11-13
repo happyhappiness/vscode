@@ -1,110 +1,96 @@
-static authz_status ldapdn_check_authorization(request_rec *r,
-                                             const char *require_args)
+void ssl_init_CheckServers(server_rec *base_server, apr_pool_t *p)
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    server_rec *s, *ps;
+    SSLSrvConfigRec *sc;
+    apr_hash_t *table;
+    const char *key;
+    apr_ssize_t klen;
 
-    util_ldap_connection_t *ldc = NULL;
+    BOOL conflict = FALSE;
 
-    const char *t;
+    /*
+     * Give out warnings when a server has HTTPS configured
+     * for the HTTP port or vice versa
+     */
+    for (s = base_server; s; s = s->next) {
+        sc = mySrvConfig(s);
 
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
+        if ((sc->enabled == SSL_ENABLED_TRUE) && (s->port == DEFAULT_HTTP_PORT)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: (%s) You configured HTTPS(%d) "
+                         "on the standard HTTP(%d) port!",
+                         ssl_util_vhostid(p, s),
+                         DEFAULT_HTTPS_PORT, DEFAULT_HTTP_PORT);
+        }
 
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
-    }
-
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_SEARCH); /* _comparedn is a searche */
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
-        return AUTHZ_DENIED;
+        if ((sc->enabled == SSL_ENABLED_FALSE) && (s->port == DEFAULT_HTTPS_PORT)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: (%s) You configured HTTP(%d) "
+                         "on the standard HTTPS(%d) port!",
+                         ssl_util_vhostid(p, s),
+                         DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT);
+        }
     }
 
     /*
-     * If we have been authenticated by some other module than mod_auth_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
+     * Give out warnings when more than one SSL-aware virtual server uses the
+     * same IP:port. This doesn't work because mod_ssl then will always use
+     * just the certificate/keys of one virtual host (which one cannot be said
+     * easily - but that doesn't matter here).
      */
+    table = apr_hash_make(p);
 
-    /* Check that we have a userid to start with */
-    if (!r->user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
-    }
+    for (s = base_server; s; s = s->next) {
+        char *addr;
 
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
+        sc = mySrvConfig(s);
 
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
-
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
+        if (!((sc->enabled == SSL_ENABLED_TRUE) && s->addrs)) {
+            continue;
         }
 
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-    }
+        apr_sockaddr_ip_get(&addr, s->addrs->host_addr);
+        key = apr_psprintf(p, "%s:%u", addr, s->addrs->host_port);
+        klen = strlen(key);
 
-    t = require_args;
-
-    if (req->dn == NULL || strlen(req->dn) == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                      "require dn: user's DN has not been defined; failing authorization",
-                      getpid());
-        return AUTHZ_DENIED;
-    }
-
-    result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, t, sec->compare_dn_on_server);
-    switch(result) {
-        case LDAP_COMPARE_TRUE: {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                          "require dn: authorization successful", getpid());
-            set_request_vars(r, LDAP_AUTHZ);
-            return AUTHZ_GRANTED;
+        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
+            ap_log_error(APLOG_MARK, 
+#ifdef OPENSSL_NO_TLSEXT
+                         APLOG_WARNING, 
+#else
+                         APLOG_DEBUG, 
+#endif
+                         0,
+                         base_server,
+#ifdef OPENSSL_NO_TLSEXT
+                         "Init: SSL server IP/port conflict: "
+#else
+                         "Init: SSL server IP/port overlap: "
+#endif
+                         "%s (%s:%d) vs. %s (%s:%d)",
+                         ssl_util_vhostid(p, s),
+                         (s->defn_name ? s->defn_name : "unknown"),
+                         s->defn_line_number,
+                         ssl_util_vhostid(p, ps),
+                         (ps->defn_name ? ps->defn_name : "unknown"),
+                         ps->defn_line_number);
+            conflict = TRUE;
+            continue;
         }
-        default: {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                          "require dn \"%s\": LDAP error [%s][%s]",
-                          getpid(), t, ldc->reason, ldap_err2string(result));
-        }
+
+        apr_hash_set(table, key, klen, s);
     }
 
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorize dn: authorization denied for user %s to %s",
-                  getpid(), r->user, r->uri);
-
-    return AUTHZ_DENIED;
-}
+    if (conflict) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server,
+#ifdef OPENSSL_NO_TLSEXT
+                     "Init: You should not use name-based "
+                     "virtual hosts in conjunction with SSL!!");
+#else
+                     "Init: Name-based SSL virtual hosts only "
+                     "work for clients with TLS server name indication "
+                     "support (RFC 4366)");
+#endif
+    }

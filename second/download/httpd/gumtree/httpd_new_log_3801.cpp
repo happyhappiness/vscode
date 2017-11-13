@@ -1,1 +1,1 @@
-ap_rputs("'></td></tr>\n", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, APLOGNO(01241) "%s", description);

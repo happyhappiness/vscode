@@ -1,2 +1,2 @@
-fprintf(FERROR,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,sender,recurse);
+fprintf(FERROR,"Error reading %d bytes : %s\n",
+	      4,ret==-1?strerror(errno):"EOF");

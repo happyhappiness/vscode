@@ -1,59 +1,71 @@
-static int merge(const struct rerere_id *id, const char *path)
+static void do_rerere_one_path(struct string_list_item *rr_item,
+			       struct string_list *update)
 {
-	FILE *f;
-	int ret;
-	mmfile_t cur = {NULL, 0}, base = {NULL, 0}, other = {NULL, 0};
-	mmbuffer_t result = {NULL, 0};
+	const char *path = rr_item->string;
+	struct rerere_id *id = rr_item->util;
+	struct rerere_dir *rr_dir = id->collection;
+	int variant;
 
-	/*
-	 * Normalize the conflicts in path and write it out to
-	 * "thisimage" temporary file.
-	 */
-	if (handle_file(path, NULL, rerere_path(id, "thisimage")) < 0) {
-		ret = 1;
-		goto out;
+	variant = id->variant;
+
+	/* Has the user resolved it already? */
+	if (variant >= 0) {
+		if (!handle_file(path, NULL, NULL)) {
+			copy_file(rerere_path(id, "postimage"), path, 0666);
+			id->collection->status[variant] |= RR_HAS_POSTIMAGE;
+			fprintf(stderr, "Recorded resolution for '%s'.\n", path);
+			free_rerere_id(rr_item);
+			rr_item->util = NULL;
+			return;
+		}
+		/*
+		 * There may be other variants that can cleanly
+		 * replay.  Try them and update the variant number for
+		 * this one.
+		 */
 	}
 
-	if (read_mmfile(&cur, rerere_path(id, "thisimage")) ||
-	    read_mmfile(&base, rerere_path(id, "preimage")) ||
-	    read_mmfile(&other, rerere_path(id, "postimage"))) {
-		ret = 1;
-		goto out;
+	/* Does any existing resolution apply cleanly? */
+	for (variant = 0; variant < rr_dir->status_nr; variant++) {
+		const int both = RR_HAS_PREIMAGE | RR_HAS_POSTIMAGE;
+		struct rerere_id vid = *id;
+
+		if ((rr_dir->status[variant] & both) != both)
+			continue;
+
+		vid.variant = variant;
+		if (merge(&vid, path))
+			continue; /* failed to replay */
+
+		/*
+		 * If there already is a different variant that applies
+		 * cleanly, there is no point maintaining our own variant.
+		 */
+		if (0 <= id->variant && id->variant != variant)
+			remove_variant(id);
+
+		if (rerere_autoupdate)
+			string_list_insert(update, path);
+		else
+			fprintf(stderr,
+				"Resolved '%s' using previous resolution.\n",
+				path);
+		free_rerere_id(rr_item);
+		rr_item->util = NULL;
+		return;
 	}
 
-	/*
-	 * A three-way merge. Note that this honors user-customizable
-	 * low-level merge driver settings.
-	 */
-	ret = ll_merge(&result, path, &base, NULL, &cur, "", &other, "", NULL);
-	if (ret)
-		goto out;
+	/* None of the existing one applies; we need a new variant */
+	assign_variant(id);
 
-	/*
-	 * A successful replay of recorded resolution.
-	 * Mark that "postimage" was used to help gc.
-	 */
-	if (utime(rerere_path(id, "postimage"), NULL) < 0)
-		warning("failed utime() on %s: %s",
-			rerere_path(id, "postimage"),
-			strerror(errno));
-
-	/* Update "path" with the resolution */
-	f = fopen(path, "w");
-	if (!f)
-		return error("Could not open %s: %s", path,
-			     strerror(errno));
-	if (fwrite(result.ptr, result.size, 1, f) != 1)
-		error("Could not write %s: %s", path, strerror(errno));
-	if (fclose(f))
-		return error("Writing %s failed: %s", path,
-			     strerror(errno));
-
-out:
-	free(cur.ptr);
-	free(base.ptr);
-	free(other.ptr);
-	free(result.ptr);
-
-	return ret;
+	variant = id->variant;
+	handle_file(path, NULL, rerere_path(id, "preimage"));
+	if (id->collection->status[variant] & RR_HAS_POSTIMAGE) {
+		const char *path = rerere_path(id, "postimage");
+		if (unlink(path))
+			die_errno("cannot unlink stray '%s'", path);
+		id->collection->status[variant] &= ~RR_HAS_POSTIMAGE;
+	}
+	id->collection->status[variant] |= RR_HAS_PREIMAGE;
+	fprintf(stderr, "Recorded preimage for '%s'\n", path);
 }

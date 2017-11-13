@@ -1,1 +1,0 @@
-rprintf(FERROR, "io_printf() was too long for the buffer.\n");

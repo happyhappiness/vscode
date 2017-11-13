@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                            "proxy: BALANCER: (%s). No workers in balancer",
-                            (*balancer)->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "missing expr value for if "
+                      "element in %s", r->filename);

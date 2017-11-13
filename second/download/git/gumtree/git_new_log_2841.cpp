@@ -1,1 +1,3 @@
-error_errno(_("could not open '%s' for reading"), *paths);
+error(_("Cannot delete branch '%s' "
+					"checked out at '%s'"),
+				      bname.buf, wt->path);

@@ -1,1 +1,0 @@
-error(_("submodule '%s' has dirty index"), path);

@@ -1,11 +1,10 @@
 fputs(
-"              proxy, you can set proxy to \"\" to override it.\n"
+"                             started.  time_redirect shows the complete execu-\n"
+"                             tion time for multiple  redirections.  (Added  in\n"
+"                             7.12.3)\n"
 "\n"
-"              All operations that are performed over an HTTP proxy will trans-\n"
-"              parently be converted to HTTP. It means  that  certain  protocol\n"
-"              specific operations might not be available. This is not the case\n"
-"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
-"              ytunnel option.\n"
-"\n"
-"              User and password that might be provided in the proxy string are\n"
+"              time_starttransfer\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the first byte was just about to be  trans-\n"
+"                             ferred.  This  includes time_pretransfer and also\n"
 , stdout);

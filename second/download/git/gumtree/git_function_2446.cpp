@@ -1,92 +1,57 @@
-static int parse_archive_args(int argc, const char **argv,
-		const struct archiver **ar, struct archiver_args *args,
-		const char *name_hint, int is_remote)
+int parse_commit_buffer(struct commit *item, const void *buffer, unsigned long size)
 {
-	const char *format = NULL;
-	const char *base = NULL;
-	const char *remote = NULL;
-	const char *exec = NULL;
-	const char *output = NULL;
-	int compression_level = -1;
-	int verbose = 0;
-	int i;
-	int list = 0;
-	int worktree_attributes = 0;
-	struct option opts[] = {
-		OPT_GROUP(""),
-		OPT_STRING(0, "format", &format, N_("fmt"), N_("archive format")),
-		OPT_STRING(0, "prefix", &base, N_("prefix"),
-			N_("prepend prefix to each pathname in the archive")),
-		OPT_STRING('o', "output", &output, N_("file"),
-			N_("write the archive to this file")),
-		OPT_BOOL(0, "worktree-attributes", &worktree_attributes,
-			N_("read .gitattributes in working directory")),
-		OPT__VERBOSE(&verbose, N_("report archived files on stderr")),
-		OPT__COMPR('0', &compression_level, N_("store only"), 0),
-		OPT__COMPR('1', &compression_level, N_("compress faster"), 1),
-		OPT__COMPR_HIDDEN('2', &compression_level, 2),
-		OPT__COMPR_HIDDEN('3', &compression_level, 3),
-		OPT__COMPR_HIDDEN('4', &compression_level, 4),
-		OPT__COMPR_HIDDEN('5', &compression_level, 5),
-		OPT__COMPR_HIDDEN('6', &compression_level, 6),
-		OPT__COMPR_HIDDEN('7', &compression_level, 7),
-		OPT__COMPR_HIDDEN('8', &compression_level, 8),
-		OPT__COMPR('9', &compression_level, N_("compress better"), 9),
-		OPT_GROUP(""),
-		OPT_BOOL('l', "list", &list,
-			N_("list supported archive formats")),
-		OPT_GROUP(""),
-		OPT_STRING(0, "remote", &remote, N_("repo"),
-			N_("retrieve the archive from remote repository <repo>")),
-		OPT_STRING(0, "exec", &exec, N_("command"),
-			N_("path to the remote git-upload-archive command")),
-		OPT_END()
-	};
+	const char *tail = buffer;
+	const char *bufptr = buffer;
+	struct object_id parent;
+	struct commit_list **pptr;
+	struct commit_graft *graft;
+	const int tree_entry_len = GIT_SHA1_HEXSZ + 5;
+	const int parent_entry_len = GIT_SHA1_HEXSZ + 7;
 
-	argc = parse_options(argc, argv, NULL, opts, archive_usage, 0);
+	if (item->object.parsed)
+		return 0;
+	item->object.parsed = 1;
+	tail += size;
+	if (tail <= bufptr + tree_entry_len + 1 || memcmp(bufptr, "tree ", 5) ||
+			bufptr[tree_entry_len] != '\n')
+		return error("bogus commit object %s", sha1_to_hex(item->object.sha1));
+	if (get_sha1_hex(bufptr + 5, parent.hash) < 0)
+		return error("bad tree pointer in commit %s",
+			     sha1_to_hex(item->object.sha1));
+	item->tree = lookup_tree(parent.hash);
+	bufptr += tree_entry_len + 1; /* "tree " + "hex sha1" + "\n" */
+	pptr = &item->parents;
 
-	if (remote)
-		die("Unexpected option --remote");
-	if (exec)
-		die("Option --exec can only be used together with --remote");
-	if (output)
-		die("Unexpected option --output");
+	graft = lookup_commit_graft(item->object.sha1);
+	while (bufptr + parent_entry_len < tail && !memcmp(bufptr, "parent ", 7)) {
+		struct commit *new_parent;
 
-	if (!base)
-		base = "";
-
-	if (list) {
-		for (i = 0; i < nr_archivers; i++)
-			if (!is_remote || archivers[i]->flags & ARCHIVER_REMOTE)
-				printf("%s\n", archivers[i]->name);
-		exit(0);
+		if (tail <= bufptr + parent_entry_len + 1 ||
+		    get_sha1_hex(bufptr + 7, parent.hash) ||
+		    bufptr[parent_entry_len] != '\n')
+			return error("bad parents in commit %s", sha1_to_hex(item->object.sha1));
+		bufptr += parent_entry_len + 1;
+		/*
+		 * The clone is shallow if nr_parent < 0, and we must
+		 * not traverse its real parents even when we unhide them.
+		 */
+		if (graft && (graft->nr_parent < 0 || grafts_replace_parents))
+			continue;
+		new_parent = lookup_commit(parent.hash);
+		if (new_parent)
+			pptr = &commit_list_insert(new_parent, pptr)->next;
 	}
-
-	if (!format && name_hint)
-		format = archive_format_from_filename(name_hint);
-	if (!format)
-		format = "tar";
-
-	/* We need at least one parameter -- tree-ish */
-	if (argc < 1)
-		usage_with_options(archive_usage, opts);
-	*ar = lookup_archiver(format);
-	if (!*ar || (is_remote && !((*ar)->flags & ARCHIVER_REMOTE)))
-		die("Unknown archive format '%s'", format);
-
-	args->compression_level = Z_DEFAULT_COMPRESSION;
-	if (compression_level != -1) {
-		if ((*ar)->flags & ARCHIVER_WANT_COMPRESSION_LEVELS)
-			args->compression_level = compression_level;
-		else {
-			die("Argument not supported for format '%s': -%d",
-					format, compression_level);
+	if (graft) {
+		int i;
+		struct commit *new_parent;
+		for (i = 0; i < graft->nr_parent; i++) {
+			new_parent = lookup_commit(graft->parent[i].hash);
+			if (!new_parent)
+				continue;
+			pptr = &commit_list_insert(new_parent, pptr)->next;
 		}
 	}
-	args->verbose = verbose;
-	args->base = base;
-	args->baselen = strlen(base);
-	args->worktree_attributes = worktree_attributes;
+	item->date = parse_commit_date(bufptr, tail);
 
-	return argc;
+	return 0;
 }

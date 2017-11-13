@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                            0, ap_server_conf, APLOGNO(00167)
-                            "long lost child came home! (pid %ld)", (long)pid.pid);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01885) "FIPS mode failed");

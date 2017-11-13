@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "unable to create or access scoreboard \"%s\" "
-                     "(name-based shared memory failure)", fname);
+ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0,
+                          cmd->pool,
+                          "Warning: DocumentRoot [%s] does not exist",
+                          arg);

@@ -1,1 +1,1 @@
-rprintf(FINFO,"clearing exclude list\n");
+fprintf(FINFO,"recv_files(%d) starting\n",flist->count);

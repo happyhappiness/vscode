@@ -1,1 +1,1 @@
-die(_("Unknown commit %s"), base_commit);
+die(_("Failed to resolve '%s' as a valid ref."), upstream);

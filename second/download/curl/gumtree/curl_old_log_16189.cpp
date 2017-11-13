@@ -1,11 +1,8 @@
 fputs(
-"              -c, --cookie-jar in the same command line is common.\n"
-"\n"
-"       --create-dirs\n"
-"              When used in conjunction with the -o, --output option, curl will\n"
-"              create  the  necessary local directory hierarchy as needed. This\n"
-"              option creates the dirs mentioned with the -o, --output  option,\n"
-"              nothing  else.  If  the --output file name uses no dir or if the\n"
-"              dirs it mentions already exist, no dir will be created.\n"
-"\n"
+"              HOST2:PORT2 instead.  This option is suitable to direct requests\n"
+"              at a specific server, e.g. at a specific cluster node in a clus-\n"
+"              ter of servers. This option is only used to establish  the  net-\n"
+"              work  connection.  It  does NOT affect the hostname/port that is\n"
+"              used for TLS/SSL (e.g. SNI, certificate verification) or for the\n"
+"              application  protocols.  \"HOST1\"  and  \"PORT1\"  may be the empty\n"
 , stdout);

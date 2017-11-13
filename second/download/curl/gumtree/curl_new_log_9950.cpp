@@ -1,9 +1,10 @@
 fputs(
-"              second  and  then for all forthcoming retries it will double the\n"
-"              waiting time until it reaches 10 minutes which then will be  the\n"
-"              delay  between  the rest of the retries.  By using --retry-delay\n"
-"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
-"              --retry-max-time  to  limit  the total time allowed for retries.\n"
-"              (Added in 7.12.3)\n"
+"       --raw  (HTTP) When used, it disables all internal HTTP decoding of con-\n"
+"              tent  or  transfer  encodings  and  instead makes them passed on\n"
+"              unaltered, raw. (Added in 7.16.2)\n"
 "\n"
+"       --remote-name-all\n"
+"              This option changes the default action for all given URLs to  be\n"
+"              dealt with as if -O, --remote-name were used for each one. So if\n"
+"              you want to disable that for a specific URL after --remote-name-\n"
 , stdout);

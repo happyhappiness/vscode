@@ -1,70 +1,111 @@
-static void fix_hostname(request_rec *r)
+static void usage(process_rec *process)
 {
-    char *host, *scope_id;
-    char *dst;
-    apr_port_t port;
-    apr_status_t rv;
-    const char *c;
+    const char *bin = process->argv[0];
+    int pad_len = strlen(bin);
 
-    /* According to RFC 2616, Host header field CAN be blank. */
-    if (!*r->hostname) {
-        return;
-    }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
 
-    /* apr_parse_addr_port will interpret a bare integer as a port
-     * which is incorrect in this context.  So treat it separately.
-     */
-    for (c = r->hostname; apr_isdigit(*c); ++c);
-    if (!*c) {  /* pure integer */
-        return;
-    }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-C \"directive\"] [-c \"directive\"]", pad_len, " ");
 
-    rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
-    if (rv != APR_SUCCESS || scope_id) {
-        goto bad;
-    }
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-w] [-k start|restart|stop|shutdown] [-n service_name]",
+                 pad_len, " ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k install|config|uninstall] [-n service_name]",
+                 pad_len, " ");
+#else
+/* XXX not all MPMs support signalling the server in general or graceful-stop
+ * in particular
+ */
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad_len, " ");
+#endif
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-v] [-V] [-h] [-l] [-L] [-t] [-T] [-S] [-X]",
+                 pad_len, " ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Options:");
 
-    if (port) {
-        /* Don't throw the Host: header's port number away:
-           save it in parsed_uri -- ap_get_server_port() needs it! */
-        /* @@@ XXX there should be a better way to pass the port.
-         *         Like r->hostname, there should be a r->portno
-         */
-        r->parsed_uri.port = port;
-        r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
-    }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -D name            : define a name for use in "
+                 "<IfDefine name> directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -d directory       : specify an alternate initial "
+                 "ServerRoot");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -f file            : specify an alternate ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -C \"directive\"     : process directive before reading "
+                 "config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"     : process directive after reading "
+                 "config files");
 
-    /* if the hostname is an IPv6 numeric address string, it was validated
-     * already; otherwise, further validation is needed
-     */
-    if (r->hostname[0] != '[') {
-        for (dst = host; *dst; dst++) {
-            if (apr_islower(*dst)) {
-                /* leave char unchanged */
-            }
-            else if (*dst == '.') {
-                if (*(dst + 1) == '.') {
-                    goto bad;
-                }
-            }
-            else if (apr_isupper(*dst)) {
-                *dst = apr_tolower(*dst);
-            }
-            else if (*dst == '/' || *dst == '\\') {
-                goto bad;
-            }
-        }
-        /* strip trailing gubbins */
-        if (dst > host && dst[-1] == '.') {
-            dst[-1] = '\0';
-        }
-    }
-    r->hostname = host;
-    return;
+#ifdef NETWARE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set screen name");
+#endif
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set service name and use its "
+                 "ServerConfigFile and ServerRoot");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k start           : tell Apache to start");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k restart         : tell running Apache to do a graceful "
+                 "restart");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k stop|shutdown   : tell running Apache to shutdown");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k install         : install an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k config          : change startup Options of an Apache "
+                 "service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k uninstall       : uninstall an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -w                 : hold open the console window on error");
+#endif
 
-bad:
-    r->status = HTTP_BAD_REQUEST;
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00550)
-                  "Client sent malformed Host header");
-    return;
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -e level           : show startup errors of level "
+                 "(see LogLevel)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -E file            : log startup errors to file");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -v                 : show version number");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -V                 : show compile settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -h                 : list available command line options "
+                 "(this page)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -l                 : list compiled in modules");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -L                 : list available configuration "
+                 "directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_VHOSTS  : show parsed vhost settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_RUN_CFG : show parsed run settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -S                 : a synonym for -t -D DUMP_VHOSTS -D DUMP_RUN_CFG");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_MODULES : show all loaded modules ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -M                 : a synonym for -t -D DUMP_MODULES");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_INCLUDES: show all included configuration files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                 : run syntax check for config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -T                 : start without DocumentRoot(s) check");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -X                 : debug mode (only one worker, do not detach)");
+
+    destroy_and_exit_process(process, 1);
 }

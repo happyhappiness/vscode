@@ -1,2 +1,2 @@
-fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
+die(_("parse_object_buffer failed on %s for %s"),
+		    oid_to_hex(tagged), ref->refname);

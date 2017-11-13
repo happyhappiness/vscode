@@ -1,11 +1,14 @@
-static int blame_chunk_cb(long start_a, long count_a,
-			  long start_b, long count_b, void *data)
+struct tag *lookup_tag(const unsigned char *sha1)
 {
-	struct blame_chunk_cb_data *d = data;
-	if (start_a - start_b != d->offset)
-		die("internal error in blame::blame_chunk_cb");
-	blame_chunk(&d->dstq, &d->srcq, start_b, start_a - start_b,
-		    start_b + count_b, d->parent);
-	d->offset = start_a + count_a - (start_b + count_b);
-	return 0;
+	struct object *obj = lookup_object(sha1);
+	if (!obj)
+		return create_object(sha1, OBJ_TAG, alloc_tag_node());
+	if (!obj->type)
+		obj->type = OBJ_TAG;
+	if (obj->type != OBJ_TAG) {
+		error("Object %s is a %s, not a tag",
+		      sha1_to_hex(sha1), typename(obj->type));
+		return NULL;
+	}
+	return (struct tag *) obj;
 }

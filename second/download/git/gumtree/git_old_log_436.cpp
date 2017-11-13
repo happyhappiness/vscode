@@ -1,1 +1,2 @@
-die("dumb http transport does not support --depth");
+error(_("No note found for object %s."),
+			       sha1_to_hex(object));

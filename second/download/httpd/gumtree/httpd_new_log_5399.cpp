@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, r->server, APLOGNO(02996)
-                         "Child %ld failed to try and acquire lock",
-                         (long int)getpid());
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00320)
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);

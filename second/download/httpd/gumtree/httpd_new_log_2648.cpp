@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01772)
-                          "invalid nc %s received - no nonce count allowed when qop=none",
-                          snc);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Failed to acquire DBD connection from pool!");

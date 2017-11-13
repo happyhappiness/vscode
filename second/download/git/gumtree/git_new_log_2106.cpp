@@ -1,1 +1,2 @@
-die(_("unable to update %s"), head_ref.buf);
+die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), existing);

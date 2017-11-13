@@ -1,5 +1,3 @@
-error(opts->action == REPLAY_REVERT
-		      ? _("could not revert %s... %s")
-		      : _("could not apply %s... %s"),
-		      find_unique_abbrev(commit->object.oid.hash, DEFAULT_ABBREV),
-		      msg.subject);
+printf("%06o #%d %s %.8s\n",
+		       ce->ce_mode, ce_stage(ce), ce->name,
+		       sha1_to_hex(ce->sha1));

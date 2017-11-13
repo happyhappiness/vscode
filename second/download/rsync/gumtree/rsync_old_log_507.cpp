@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s is uptodate\n",fname);
+fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);

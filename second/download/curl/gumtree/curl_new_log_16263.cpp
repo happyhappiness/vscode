@@ -1,11 +1,11 @@
 fputs(
-"              incoming cookies, which may be handy if  you're  using  this  in\n"
-"              combination  with  the  -L, --location option or do multiple URL\n"
-"              transfers on the same invoke.\n"
+"              dir  given the current user in your system). On Windows, it then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
 "\n"
-"              The file format of the file to read cookies from should be plain\n"
-"              HTTP  headers  (Set-Cookie style) or the Netscape/Mozilla cookie\n"
-"              file format.\n"
+"              2)  On  windows, if there is no _curlrc file in the home dir, it\n"
+"              checks for one in the same dir the curl executable is placed. On\n"
+"              Unix-like  systems,  it will simply try to load .curlrc from the\n"
+"              determined home dir.\n"
 "\n"
-"              The file specified with -b, --cookie is only used as  input.  No\n"
 , stdout);

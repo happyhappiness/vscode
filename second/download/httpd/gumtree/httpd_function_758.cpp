@@ -1,78 +1,126 @@
-static apr_status_t ssl_io_filter_buffer(ap_filter_t *f,
-                                         apr_bucket_brigade *bb,
-                                         ap_input_mode_t mode,
-                                         apr_read_type_e block,
-                                         apr_off_t bytes)
+static int read_type_map(apr_file_t **map, negotiation_state *neg,
+                         request_rec *rr)
 {
-    struct modssl_buffer_ctx *ctx = f->ctx;
-    apr_status_t rv;
+    request_rec *r = neg->r;
+    apr_file_t *map_ = NULL;
+    apr_status_t status;
+    char buffer[MAX_STRING_LEN];
+    enum header_state hstate;
+    struct var_rec mime_info;
+    int has_content;
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                  "read from buffered SSL brigade, mode %d, "
-                  "%" APR_OFF_T_FMT " bytes",
-                  mode, bytes);
+    if (!map)
+        map = &map_;
 
-    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
-        return APR_ENOTIMPL;
-    }
+    /* We are not using multiviews */
+    neg->count_multiviews_variants = 0;
 
-    if (mode == AP_MODE_READBYTES) {
-        apr_bucket *e;
-
-        /* Partition the buffered brigade. */
-        rv = apr_brigade_partition(ctx->bb, bytes, &e);
-        if (rv && rv != APR_INCOMPLETE) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                          "could not partition buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
+    if ((status = apr_file_open(map, rr->filename, APR_READ | APR_BUFFERED,
+                APR_OS_DEFAULT, neg->pool)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "cannot access type map file: %s", rr->filename);
+        if (APR_STATUS_IS_ENOTDIR(status) || APR_STATUS_IS_ENOENT(status)) {
+            return HTTP_NOT_FOUND;
         }
-
-        /* If the buffered brigade contains less then the requested
-         * length, just pass it all back. */
-        if (rv == APR_INCOMPLETE) {
-            APR_BRIGADE_CONCAT(bb, ctx->bb);
-        } else {
-            apr_bucket *d = APR_BRIGADE_FIRST(ctx->bb);
-
-            e = APR_BUCKET_PREV(e);
-            
-            /* Unsplice the partitioned segment and move it into the
-             * passed-in brigade; no convenient way to do this with
-             * the APR_BRIGADE_* macros. */
-            APR_RING_UNSPLICE(d, e, link);
-            APR_RING_SPLICE_HEAD(&bb->list, d, e, apr_bucket, link);
-
-            APR_BRIGADE_CHECK_CONSISTENCY(bb);
-            APR_BRIGADE_CHECK_CONSISTENCY(ctx->bb);
-        }
-    }
-    else {
-        /* Split a line into the passed-in brigade. */
-        rv = apr_brigade_split_line(bb, ctx->bb, mode, bytes);
-
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                          "could not split line from buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
+        else {
+            return HTTP_FORBIDDEN;
         }
     }
 
-    if (APR_BRIGADE_EMPTY(ctx->bb)) {
-        apr_bucket *e = APR_BRIGADE_LAST(bb);
-        
-        /* Ensure that the brigade is terminated by an EOS if the
-         * buffered request body has been entirely consumed. */
-        if (e == APR_BRIGADE_SENTINEL(bb) || !APR_BUCKET_IS_EOS(e)) {
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
+    clean_var_rec(&mime_info);
+    has_content = 0;
+
+    do {
+        hstate = get_header_line(buffer, MAX_STRING_LEN, *map);
+
+        if (hstate == header_seen) {
+            char *body1 = lcase_header_name_return_body(buffer, neg->r);
+            const char *body;
+
+            if (body1 == NULL) {
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+
+            strip_paren_comments(body1);
+            body = body1;
+
+            if (!strncmp(buffer, "uri:", 4)) {
+                mime_info.file_name = ap_get_token(neg->pool, &body, 0);
+            }
+            else if (!strncmp(buffer, "content-type:", 13)) {
+                struct accept_rec accept_info;
+
+                get_entry(neg->pool, &accept_info, body);
+                set_mime_fields(&mime_info, &accept_info);
+                has_content = 1;
+            }
+            else if (!strncmp(buffer, "content-length:", 15)) {
+                char *errp;
+                apr_off_t number;
+
+                if (apr_strtoff(&number, body, &errp, 10)
+                    || *errp || number < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Parse error in type map, Content-Length: "
+                                  "'%s' in %s is invalid.",
+                                  body, r->filename);
+                    break;
+                }
+                mime_info.bytes = number;
+                has_content = 1;
+            }
+            else if (!strncmp(buffer, "content-language:", 17)) {
+                mime_info.content_languages = do_languages_line(neg->pool,
+                                                                &body);
+                has_content = 1;
+            }
+            else if (!strncmp(buffer, "content-encoding:", 17)) {
+                mime_info.content_encoding = ap_get_token(neg->pool, &body, 0);
+                has_content = 1;
+            }
+            else if (!strncmp(buffer, "description:", 12)) {
+                char *desc = apr_pstrdup(neg->pool, body);
+                char *cp;
+
+                for (cp = desc; *cp; ++cp) {
+                    if (*cp=='\n') *cp=' ';
+                }
+                if (cp>desc) *(cp-1)=0;
+                mime_info.description = desc;
+            }
+            else if (!strncmp(buffer, "body:", 5)) {
+                char *tag = apr_pstrdup(neg->pool, body);
+                char *eol = strchr(tag, '\0');
+                apr_size_t len = MAX_STRING_LEN;
+                while (--eol >= tag && apr_isspace(*eol))
+                    *eol = '\0';
+                if ((mime_info.body = get_body(buffer, &len, tag, *map)) < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Syntax error in type map, no end tag '%s'"
+                                  "found in %s for Body: content.",
+                                  tag, r->filename);
+                     break;
+                }
+                mime_info.bytes = len;
+                mime_info.file_name = apr_filepath_name_get(rr->filename);
+            }
         }
+        else {
+            if (*mime_info.file_name && has_content) {
+                void *new_var = apr_array_push(neg->avail_vars);
 
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                      "buffered SSL brigade now exhausted; removing filter");
-        ap_remove_input_filter(f);
-    }
+                memcpy(new_var, (void *) &mime_info, sizeof(var_rec));
+            }
 
-    return APR_SUCCESS;
+            clean_var_rec(&mime_info);
+            has_content = 0;
+        }
+    } while (hstate != header_eof);
+
+    if (map_)
+        apr_file_close(map_);
+
+    set_vlist_validator(r, rr);
+
+    return OK;
 }

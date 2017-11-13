@@ -1,93 +1,104 @@
-static int winnt_check_config(apr_pool_t *pconf, apr_pool_t *plog,
-                              apr_pool_t *ptemp, server_rec* s)
+static void ap_proxy_read_headers(request_rec *r, request_rec *rr,
+                                  char *buffer, int size,
+                                  conn_rec *c, int *pread_len)
 {
-    int is_parent;
-    static int restart_num = 0;
-    int startup = 0;
+    int len;
+    char *value, *end;
+    char field[MAX_STRING_LEN];
+    int saw_headers = 0;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *psc;
+    proxy_dir_conf *dconf;
 
-    /* We want this only in the parent and only the first time around */
-    is_parent = (parent_pid == my_pid);
-    if (is_parent && restart_num++ == 0) {
-        startup = 1;
-    }
+    dconf = ap_get_module_config(r->per_dir_config, &proxy_module);
+    psc = (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
 
-    if (thread_limit > MAX_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadLimit of %d exceeds compile-time "
-                         "limit of", thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
-        } else if (is_parent) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
-        }
-        thread_limit = MAX_THREAD_LIMIT;
-    }
-    else if (thread_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadLimit of %d not allowed, "
-                         "increasing to 1.", thread_limit);
-        } else if (is_parent) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
-        }
-        thread_limit = 1;
-    }
+    r->headers_out = apr_table_make(r->pool, 20);
+    *pread_len = 0;
 
-    /* You cannot change ThreadLimit across a restart; ignore
-     * any such attempts.
+    /*
+     * Read header lines until we get the empty separator line, a read error,
+     * the connection closes (EOF), or we timeout.
      */
-    if (!first_thread_limit) {
-        first_thread_limit = thread_limit;
-    }
-    else if (thread_limit != first_thread_limit) {
-        /* Don't need a startup console version here */
-        if (is_parent) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "changing ThreadLimit to %d from original value "
-                         "of %d not allowed during restart",
-                         thread_limit, first_thread_limit);
-        }
-        thread_limit = first_thread_limit;
-    }
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                  "Headers received from backend:");
+    while ((len = ap_getline(buffer, size, rr, 1)) > 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "%s", buffer);
 
-    if (ap_threads_per_child > thread_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", ap_threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         thread_limit, thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ThreadLimit "
-                         "directive.");
-        } else if (is_parent) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         ap_threads_per_child, thread_limit);
-        }
-        ap_threads_per_child = thread_limit;
-    }
-    else if (ap_threads_per_child < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", ap_threads_per_child);
-        } else if (is_parent) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         ap_threads_per_child);
-        }
-        ap_threads_per_child = 1;
-    }
+        if (!(value = strchr(buffer, ':'))) {     /* Find the colon separator */
 
-    return OK;
+            /* We may encounter invalid headers, usually from buggy
+             * MS IIS servers, so we need to determine just how to handle
+             * them. We can either ignore them, assume that they mark the
+             * start-of-body (eg: a missing CRLF) or (the default) mark
+             * the headers as totally bogus and return a 500. The sole
+             * exception is an extra "HTTP/1.0 200, OK" line sprinkled
+             * in between the usual MIME headers, which is a favorite
+             * IIS bug.
+             */
+             /* XXX: The mask check is buggy if we ever see an HTTP/1.10 */
+
+            if (!apr_date_checkmask(buffer, "HTTP/#.# ###*")) {
+                if (psc->badopt == bad_error) {
+                    /* Nope, it wasn't even an extra HTTP header. Give up. */
+                    r->headers_out = NULL;
+                    return ;
+                }
+                else if (psc->badopt == bad_body) {
+                    /* if we've already started loading headers_out, then
+                     * return what we've accumulated so far, in the hopes
+                     * that they are useful; also note that we likely pre-read
+                     * the first line of the response.
+                     */
+                    if (saw_headers) {
+                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: Starting body due to bogus non-header in headers "
+                         "returned by %s (%s)", r->uri, r->method);
+                        *pread_len = len;
+                        return ;
+                    } else {
+                         ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: No HTTP headers "
+                         "returned by %s (%s)", r->uri, r->method);
+                        return ;
+                    }
+                }
+            }
+            /* this is the psc->badopt == bad_ignore case */
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: Ignoring bogus HTTP header "
+                         "returned by %s (%s)", r->uri, r->method);
+            continue;
+        }
+
+        *value = '\0';
+        ++value;
+        /* XXX: RFC2068 defines only SP and HT as whitespace, this test is
+         * wrong... and so are many others probably.
+         */
+        while (apr_isspace(*value))
+            ++value;            /* Skip to start of value   */
+
+        /* should strip trailing whitespace as well */
+        for (end = &value[strlen(value)-1]; end > value && apr_isspace(*end); --
+end)
+            *end = '\0';
+
+        /* make sure we add so as not to destroy duplicated headers
+         * Modify headers requiring canonicalisation and/or affected
+         * by ProxyPassReverse and family with process_proxy_header
+         */
+        process_proxy_header(r, dconf, buffer, value) ;
+        saw_headers = 1;
+
+        /* the header was too long; at the least we should skip extra data */
+        if (len >= size - 1) {
+            while ((len = ap_getline(field, MAX_STRING_LEN, rr, 1))
+                    >= MAX_STRING_LEN - 1) {
+                /* soak up the extra data */
+            }
+            if (len == 0) /* time to exit the larger loop as well */
+                break;
+        }
+    }
 }

@@ -1,130 +1,261 @@
-static const char *
-    add_pass(cmd_parms *cmd, void *dummy, const char *arg, int is_regex)
+static apr_status_t inflate_out_filter(ap_filter_t *f,
+                                      apr_bucket_brigade *bb)
 {
-    server_rec *s = cmd->server;
-    proxy_server_conf *conf =
-    (proxy_server_conf *) ap_get_module_config(s->module_config, &proxy_module);
-    struct proxy_alias *new;
-    char *f = cmd->path;
-    char *r = NULL;
-    char *word;
-    apr_table_t *params = apr_table_make(cmd->pool, 5);
-    const apr_array_header_t *arr;
-    const apr_table_entry_t *elts;
-    int i;
-    int use_regex = is_regex;
-    unsigned int flags = 0;
+    int zlib_method;
+    int zlib_flags;
+    int deflate_init = 1;
+    apr_bucket *bkt;
+    request_rec *r = f->r;
+    deflate_ctx *ctx = f->ctx;
+    int zRC;
+    apr_status_t rv;
+    deflate_filter_config *c;
 
-    while (*arg) {
-        word = ap_getword_conf(cmd->pool, &arg);
-        if (!f) {
-            if (!strcmp(word, "~")) {
-                if (is_regex) {
-                    return "ProxyPassMatch invalid syntax ('~' usage).";
-                }
-                use_regex = 1;
-                continue;
-            }
-            f = word;
-        }
-        else if (!r) {
-            r = word;
-        }
-        else if (!strcasecmp(word,"nocanon")) {
-            flags |= PROXYPASS_NOCANON;
-        }
-        else if (!strcasecmp(word,"interpolate")) {
-            flags |= PROXYPASS_INTERPOLATE;
-        }
-        else {
-            char *val = strchr(word, '=');
-            if (!val) {
-                if (cmd->path) {
-                    if (*r == '/') {
-                        return "ProxyPass|ProxyPassMatch can not have a path when defined in "
-                               "a location.";
-                    }
-                    else {
-                        return "Invalid ProxyPass|ProxyPassMatch parameter. Parameter must "
-                               "be in the form 'key=value'.";
-                    }
-                }
-                else {
-                    return "Invalid ProxyPass|ProxyPassMatch parameter. Parameter must be "
-                           "in the form 'key=value'.";
-                }
-            }
-            else
-                *val++ = '\0';
-            apr_table_setn(params, word, val);
-        }
-    };
-
-    if (r == NULL)
-        return "ProxyPass|ProxyPassMatch needs a path when not defined in a location";
-
-    new = apr_array_push(conf->aliases);
-    new->fake = apr_pstrdup(cmd->pool, f);
-    new->real = apr_pstrdup(cmd->pool, r);
-    new->flags = flags;
-    if (use_regex) {
-        new->regex = ap_pregcomp(cmd->pool, f, AP_REG_EXTENDED);
-        if (new->regex == NULL)
-            return "Regular expression could not be compiled.";
-    }
-    else {
-        new->regex = NULL;
+    /* Do nothing if asked to filter nothing. */
+    if (APR_BRIGADE_EMPTY(bb)) {
+        return APR_SUCCESS;
     }
 
-    if (r[0] == '!' && r[1] == '\0')
-        return NULL;
+    c = ap_get_module_config(r->server->module_config, &deflate_module);
 
-    arr = apr_table_elts(params);
-    elts = (const apr_table_entry_t *)arr->elts;
-    /* Distinguish the balancer from worker */
-    if (strncasecmp(r, "balancer:", 9) == 0) {
-        proxy_balancer *balancer = ap_proxy_get_balancer(cmd->pool, conf, r);
-        if (!balancer) {
-            const char *err = ap_proxy_add_balancer(&balancer,
-                                                    cmd->pool,
-                                                    conf, r);
-            if (err)
-                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
-        }
-        for (i = 0; i < arr->nelts; i++) {
-            const char *err = set_balancer_param(conf, cmd->pool, balancer, elts[i].key,
-                                                 elts[i].val);
-            if (err)
-                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
-        }
-    }
-    else {
-        proxy_worker *worker = ap_proxy_get_worker(cmd->temp_pool, conf, r);
-        int reuse = 0;
-        if (!worker) {
-            const char *err = ap_proxy_add_worker(&worker, cmd->pool, conf, r);
-            if (err)
-                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
-            PROXY_COPY_CONF_PARAMS(worker, conf);
-        } else {
-            reuse = 1;
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
-                         "Sharing worker '%s' instead of creating new worker '%s'",
-                         worker->name, new->real);
+    if (!ctx) {
+        int found = 0;
+        char *token;
+        const char *encoding;
+
+        /* only work on main request/no subrequests */
+        if (!ap_is_initial_req(r)) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
         }
 
-        for (i = 0; i < arr->nelts; i++) {
-            if (reuse) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                             "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
-                             elts[i].key, elts[i].val, worker->name);
-            } else {
-                const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
-                                                   elts[i].val);
-                if (err)
-                    return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
+        /* Let's see what our current Content-Encoding is.
+         * If gzip is present, don't gzip again.  (We could, but let's not.)
+         */
+        encoding = apr_table_get(r->headers_out, "Content-Encoding");
+        if (encoding) {
+            const char *tmp = encoding;
+
+            token = ap_get_token(r->pool, &tmp, 0);
+            while (token && token[0]) {
+                if (!strcasecmp(token, "gzip")) {
+                    found = 1;
+                    break;
+                }
+                /* Otherwise, skip token */
+                tmp++;
+                token = ap_get_token(r->pool, &tmp, 0);
             }
         }
+
+        if (found == 0) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
+        apr_table_unset(r->headers_out, "Content-Encoding");
+
+        /* No need to inflate HEAD or 204/304 */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(bb))) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
+
+
+        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
+        ctx->proc_bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
+
+
+        zRC = inflateInit2(&ctx->stream, c->windowSize);
+
+        if (zRC != Z_OK) {
+            f->ctx = NULL;
+            inflateEnd(&ctx->stream);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "unable to init Zlib: "
+                          "inflateInit2 returned %d: URL %s",
+                          zRC, r->uri);
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
+
+        /* initialize deflate output buffer */
+        ctx->stream.next_out = ctx->buffer;
+        ctx->stream.avail_out = c->bufferSize;
+
+        deflate_init = 0;
     }
-    return NULL;
+
+    for (bkt = APR_BRIGADE_FIRST(bb);
+         bkt != APR_BRIGADE_SENTINEL(bb);
+         bkt = APR_BUCKET_NEXT(bkt))
+    {
+        const char *data;
+        apr_size_t len;
+
+        /* If we actually see the EOS, that means we screwed up! */
+        /* no it doesn't - not in a HEAD or 204/304 */
+        if (APR_BUCKET_IS_EOS(bkt)) {
+            inflateEnd(&ctx->stream);
+            return ap_pass_brigade(f->next, bb);
+        }
+
+        if (APR_BUCKET_IS_FLUSH(bkt)) {
+            apr_bucket *tmp_heap;
+            zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
+            if (zRC != Z_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Inflate error %d on flush", zRC);
+                inflateEnd(&ctx->stream);
+                return APR_EGENERAL;
+            }
+
+            ctx->stream.next_out = ctx->buffer;
+            len = c->bufferSize - ctx->stream.avail_out;
+
+            ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+            tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                             NULL, f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+            ctx->stream.avail_out = c->bufferSize;
+
+            /* Move everything to the returning brigade. */
+            APR_BUCKET_REMOVE(bkt);
+            break;
+        }
+
+        /* read */
+        apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
+
+        /* first bucket contains zlib header */
+        if (!deflate_init++) {
+            if (len < 10) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Insufficient data for inflate");
+                return APR_EGENERAL;
+            }
+            else  {
+                zlib_method = data[2];
+                zlib_flags = data[3];
+                if (zlib_method != Z_DEFLATED) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "inflate: data not deflated!");
+                    ap_remove_output_filter(f);
+                    return ap_pass_brigade(f->next, bb);
+                }
+                if (data[0] != deflate_magic[0] ||
+                    data[1] != deflate_magic[1] ||
+                    (zlib_flags & RESERVED) != 0) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "inflate: bad header");
+                    return APR_EGENERAL ;
+                }
+                data += 10 ;
+                len -= 10 ;
+           }
+           if (zlib_flags & EXTRA_FIELD) {
+               unsigned int bytes = (unsigned int)(data[0]);
+               bytes += ((unsigned int)(data[1])) << 8;
+               bytes += 2;
+               if (len < bytes) {
+                   ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                 "inflate: extra field too big (not "
+                                 "supported)");
+                   return APR_EGENERAL;
+               }
+               data += bytes;
+               len -= bytes;
+           }
+           if (zlib_flags & ORIG_NAME) {
+               while (len-- && *data++);
+           }
+           if (zlib_flags & COMMENT) {
+               while (len-- && *data++);
+           }
+           if (zlib_flags & HEAD_CRC) {
+                len -= 2;
+                data += 2;
+           }
+        }
+
+        /* pass through zlib inflate. */
+        ctx->stream.next_in = (unsigned char *)data;
+        ctx->stream.avail_in = len;
+
+        zRC = Z_OK;
+
+        while (ctx->stream.avail_in != 0) {
+            if (ctx->stream.avail_out == 0) {
+                apr_bucket *tmp_heap;
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                  NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                ctx->stream.avail_out = c->bufferSize;
+            }
+
+            zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+
+            if (zRC == Z_STREAM_END) {
+                break;
+            }
+
+            if (zRC != Z_OK) {
+                    inflateEnd(&ctx->stream);
+                    return APR_EGENERAL;
+            }
+        }
+        if (zRC == Z_STREAM_END) {
+            apr_bucket *tmp_heap, *eos;
+
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Zlib: Inflated %ld to %ld : URL %s",
+                          ctx->stream.total_in, ctx->stream.total_out,
+                          r->uri);
+
+            len = c->bufferSize - ctx->stream.avail_out;
+
+            ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+            tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                              NULL, f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+            ctx->stream.avail_out = c->bufferSize;
+
+            /* Is the remaining 8 bytes already in the avail stream? */
+            if (ctx->stream.avail_in >= 8) {
+                unsigned long compCRC, compLen;
+                compCRC = getLong(ctx->stream.next_in);
+                if (ctx->crc != compCRC) {
+                    inflateEnd(&ctx->stream);
+                    return APR_EGENERAL;
+                }
+                ctx->stream.next_in += 4;
+                compLen = getLong(ctx->stream.next_in);
+                if (ctx->stream.total_out != compLen) {
+                    inflateEnd(&ctx->stream);
+                    return APR_EGENERAL;
+                }
+            }
+            else {
+                /* FIXME: We need to grab the 8 verification bytes
+                 * from the wire! */
+                inflateEnd(&ctx->stream);
+                return APR_EGENERAL;
+            }
+
+            inflateEnd(&ctx->stream);
+
+            eos = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, eos);
+            break;
+        }
+
+    }
+
+    rv = ap_pass_brigade(f->next, ctx->proc_bb);
+    apr_brigade_cleanup(ctx->proc_bb);
+    return rv ;
 }

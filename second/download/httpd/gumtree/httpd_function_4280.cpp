@@ -1,120 +1,264 @@
-static int verify_ocsp_status(X509 *cert, X509_STORE_CTX *ctx, conn_rec *c, 
-                              SSLSrvConfigRec *sc, server_rec *s,
-                              apr_pool_t *pool) 
+static int balancer_handler(request_rec *r)
 {
-    int rc = V_OCSP_CERTSTATUS_GOOD;
-    OCSP_RESPONSE *response = NULL;
-    OCSP_BASICRESP *basicResponse = NULL;
-    OCSP_REQUEST *request = NULL;
-    OCSP_CERTID *certID = NULL;
-    apr_uri_t *ruri;
-   
-    ruri = determine_responder_uri(sc, cert, c, pool);
-    if (!ruri) {
-        return V_OCSP_CERTSTATUS_UNKNOWN;
-    }
+    void *sconf = r->server->module_config;
+    proxy_server_conf *conf = (proxy_server_conf *)
+        ap_get_module_config(sconf, &proxy_module);
+    proxy_balancer *balancer, *bsel = NULL;
+    proxy_worker *worker, *wsel = NULL;
+    proxy_worker **workers = NULL;
+    apr_table_t *params = apr_table_make(r->pool, 10);
+    int access_status;
+    int i, n;
+    const char *name;
 
-    request = create_request(ctx, cert, &certID, s, pool);
-    if (request) {
-        /* Use default I/O timeout for the server. */
-        response = modssl_dispatch_ocsp_request(ruri, 
-                                                mySrvFromConn(c)->timeout,
-                                                request, c, pool);
-    }
+    /* is this for us? */
+    if (strcmp(r->handler, "balancer-manager"))
+        return DECLINED;
+    r->allowed = (AP_METHOD_BIT << M_GET);
+    if (r->method_number != M_GET)
+        return DECLINED;
 
-    if (!request || !response) {
-        rc = V_OCSP_CERTSTATUS_UNKNOWN;
-    }
-    
-    if (rc == V_OCSP_CERTSTATUS_GOOD) {
-        int r = OCSP_response_status(response);
-
-        if (r != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "OCSP response not successful: %d", rc);
-            rc = V_OCSP_CERTSTATUS_UNKNOWN;
+    if (r->args) {
+        char *args = apr_pstrdup(r->pool, r->args);
+        char *tok, *val;
+        while (args && *args) {
+            if ((val = ap_strchr(args, '='))) {
+                *val++ = '\0';
+                if ((tok = ap_strchr(val, '&')))
+                    *tok++ = '\0';
+                /*
+                 * Special case: workers are allowed path information
+                 */
+                if ((access_status = ap_unescape_url(val)) != OK)
+                    if (strcmp(args, "w") || (access_status !=  HTTP_NOT_FOUND))
+                        return access_status;
+                apr_table_setn(params, args, val);
+                args = tok;
+            }
+            else
+                return HTTP_BAD_REQUEST;
         }
     }
     
-    if (rc == V_OCSP_CERTSTATUS_GOOD) {
-        basicResponse = OCSP_response_get1_basic(response);
-        if (!basicResponse) {
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                          "could not retrieve OCSP basic response");
-            rc = V_OCSP_CERTSTATUS_UNKNOWN;
-        }
+    /* Check that the supplied nonce matches this server's nonce;
+     * otherwise ignore all parameters, to prevent a CSRF attack. */
+    if (*balancer_nonce &&
+        ((name = apr_table_get(params, "nonce")) == NULL 
+        || strcmp(balancer_nonce, name) != 0)) {
+        apr_table_clear(params);
     }
-    
-    if (rc == V_OCSP_CERTSTATUS_GOOD) {
-        if (OCSP_check_nonce(request, basicResponse) != 1) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                        "Bad OCSP responder answer (bad nonce)");
-            rc = V_OCSP_CERTSTATUS_UNKNOWN;
-        }
-    }
-    
-    if (rc == V_OCSP_CERTSTATUS_GOOD) {
-        /* TODO: allow flags configuration. */
-        if (OCSP_basic_verify(basicResponse, NULL, ctx->ctx, 0) != 1) {
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                        "failed to verify the OCSP response");
-            rc = V_OCSP_CERTSTATUS_UNKNOWN;
-        }
-    }
-    
-    if (rc == V_OCSP_CERTSTATUS_GOOD) {
-        int reason = -1, status;
-        ASN1_GENERALIZEDTIME *thisup = NULL, *nextup = NULL;
 
-        rc = OCSP_resp_find_status(basicResponse, certID, &status,
-                                   &reason, NULL, &thisup, &nextup);
-        if (rc != 1) {
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-            ssl_log_cxerror(SSLLOG_MARK, APLOG_ERR, 0, c, cert,
-                            "failed to retrieve OCSP response status");
-            rc = V_OCSP_CERTSTATUS_UNKNOWN;
-        }
-        else {
-            rc = status;
-        }
+    if ((name = apr_table_get(params, "b")))
+        bsel = ap_proxy_get_balancer(r->pool, conf,
+            apr_pstrcat(r->pool, "balancer://", name, NULL));
+    if ((name = apr_table_get(params, "w"))) {
+        proxy_worker *ws;
 
-        /* TODO: make these configurable. */
-#define MAX_SKEW (60)
-#define MAX_AGE (360)
-
-        /* Check whether the response is inside the defined validity
-         * period; otherwise fail.  */
-        if (rc != V_OCSP_CERTSTATUS_UNKNOWN) {
-            int vrc  = OCSP_check_validity(thisup, nextup, MAX_SKEW, MAX_AGE);
-            
-            if (vrc != 1) {
-                ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-                ssl_log_cxerror(SSLLOG_MARK, APLOG_ERR, 0, c, cert,
-                                "OCSP response outside validity period");
-                rc = V_OCSP_CERTSTATUS_UNKNOWN;
+        ws = ap_proxy_get_worker(r->pool, conf, name);
+        if (bsel && ws) {
+            workers = (proxy_worker **)bsel->workers->elts;
+            for (n = 0; n < bsel->workers->nelts; n++) {
+                worker = *workers;
+                if (strcasecmp(worker->name, ws->name) == 0) {
+                    wsel = worker;
+                    break;
+                }
+                ++workers;
             }
         }
-
-        {
-            int level = 
-                (status == V_OCSP_CERTSTATUS_GOOD) ? APLOG_INFO : APLOG_ERR;
-            const char *result = 
-                status == V_OCSP_CERTSTATUS_GOOD ? "good" : 
-                (status == V_OCSP_CERTSTATUS_REVOKED ? "revoked" : "unknown");
-
-            ssl_log_cxerror(SSLLOG_MARK, level, 0, c, cert,
-                            "OCSP validation completed, "
-                            "certificate status: %s (%d, %d)",
-                            result, status, reason);
-        }
     }
-    
-    if (request) OCSP_REQUEST_free(request);
-    if (response) OCSP_RESPONSE_free(response);
-    if (basicResponse) OCSP_BASICRESP_free(basicResponse);
-    /* certID is freed when the request is freed */
+    /* First set the params */
+    /*
+     * Note that it is not possible set the proxy_balancer because it is not
+     * in shared memory.
+     */
+    if (wsel) {
+        const char *val;
+        if ((val = apr_table_get(params, "lf"))) {
+            int ival = atoi(val);
+            if (ival >= 1 && ival <= 100) {
+                wsel->s->lbfactor = ival;
+                if (bsel)
+                    recalc_factors(bsel);
+            }
+        }
+        if ((val = apr_table_get(params, "wr"))) {
+            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
+                strcpy(wsel->s->route, val);
+            else
+                *wsel->s->route = '\0';
+        }
+        if ((val = apr_table_get(params, "rr"))) {
+            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
+                strcpy(wsel->s->redirect, val);
+            else
+                *wsel->s->redirect = '\0';
+        }
+        if ((val = apr_table_get(params, "dw"))) {
+            if (!strcasecmp(val, "Disable"))
+                wsel->s->status |= PROXY_WORKER_DISABLED;
+            else if (!strcasecmp(val, "Enable"))
+                wsel->s->status &= ~PROXY_WORKER_DISABLED;
+        }
+        if ((val = apr_table_get(params, "ls"))) {
+            int ival = atoi(val);
+            if (ival >= 0 && ival <= 99) {
+                wsel->s->lbset = ival;
+             }
+        }
 
-    return rc;
+    }
+    if (apr_table_get(params, "xml")) {
+        ap_set_content_type(r, "text/xml");
+        ap_rputs("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", r);
+        ap_rputs("<httpd:manager xmlns:httpd=\"http://httpd.apache.org\">\n", r);
+        ap_rputs("  <httpd:balancers>\n", r);
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++) {
+            ap_rputs("    <httpd:balancer>\n", r);
+            ap_rvputs(r, "      <httpd:name>", balancer->name, "</httpd:name>\n", NULL);
+            ap_rputs("      <httpd:workers>\n", r);
+            workers = (proxy_worker **)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                worker = *workers;
+                ap_rputs("        <httpd:worker>\n", r);
+                ap_rvputs(r, "          <httpd:scheme>", worker->scheme,
+                          "</httpd:scheme>\n", NULL);
+                ap_rvputs(r, "          <httpd:hostname>", worker->hostname,
+                          "</httpd:hostname>\n", NULL);
+               ap_rprintf(r, "          <httpd:loadfactor>%d</httpd:loadfactor>\n",
+                          worker->s->lbfactor);
+                ap_rputs("        </httpd:worker>\n", r);
+                ++workers;
+            }
+            ap_rputs("      </httpd:workers>\n", r);
+            ap_rputs("    </httpd:balancer>\n", r);
+            ++balancer;
+        }
+        ap_rputs("  </httpd:balancers>\n", r);
+        ap_rputs("</httpd:manager>", r);
+    }
+    else {
+        ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+        ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head><title>Balancer Manager</title></head>\n", r);
+        ap_rputs("<body><h1>Load Balancer Manager for ", r);
+        ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
+        ap_rvputs(r, "<dl><dt>Server Version: ",
+                  ap_get_server_description(), "</dt>\n", NULL);
+        ap_rvputs(r, "<dt>Server Built: ",
+                  ap_get_server_built(), "\n</dt></dl>\n", NULL);
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++) {
+
+            ap_rputs("<hr />\n<h3>LoadBalancer Status for ", r);
+            ap_rvputs(r, balancer->name, "</h3>\n\n", NULL);
+            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
+                "<th>StickySession</th><th>Timeout</th><th>FailoverAttempts</th><th>Method</th>"
+                "</tr>\n<tr>", r);
+            if (balancer->sticky) {
+                if (strcmp(balancer->sticky, balancer->sticky_path)) {
+                    ap_rvputs(r, "<td>", balancer->sticky, " | ",
+                              balancer->sticky_path, NULL);
+                }
+                else {
+                    ap_rvputs(r, "<td>", balancer->sticky, NULL);
+                }
+            }
+            else {
+                ap_rputs("<td> - ", r);
+            }
+            ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
+                apr_time_sec(balancer->timeout));
+            ap_rprintf(r, "<td>%d</td>\n", balancer->max_attempts);
+            ap_rprintf(r, "<td>%s</td>\n",
+                       balancer->lbmethod->name);
+            ap_rputs("</table>\n<br />", r);
+            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
+                "<th>Worker URL</th>"
+                "<th>Route</th><th>RouteRedir</th>"
+                "<th>Factor</th><th>Set</th><th>Status</th>"
+                "<th>Elected</th><th>To</th><th>From</th>"
+                "</tr>\n", r);
+
+            workers = (proxy_worker **)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                char fbuf[50];
+                worker = *workers;
+                ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "&nonce=", balancer_nonce, 
+                          "\">", NULL);
+                ap_rvputs(r, worker->name, "</a></td>", NULL);
+                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
+                          NULL);
+                ap_rvputs(r, "</td><td>",
+                          ap_escape_html(r->pool, worker->s->redirect), NULL);
+                ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
+                ap_rprintf(r, "<td>%d</td><td>", worker->s->lbset);
+                if (worker->s->status & PROXY_WORKER_DISABLED)
+                   ap_rputs("Dis ", r);
+                if (worker->s->status & PROXY_WORKER_IN_ERROR)
+                   ap_rputs("Err ", r);
+                if (worker->s->status & PROXY_WORKER_STOPPED)
+                   ap_rputs("Stop ", r);
+                if (worker->s->status & PROXY_WORKER_HOT_STANDBY)
+                   ap_rputs("Stby ", r);
+                if (PROXY_WORKER_IS_USABLE(worker))
+                    ap_rputs("Ok", r);
+                if (!PROXY_WORKER_IS_INITIALIZED(worker))
+                    ap_rputs("-", r);
+                ap_rputs("</td>", r);
+                ap_rprintf(r, "<td>%" APR_SIZE_T_FMT "</td><td>", worker->s->elected);
+                ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
+                ap_rputs("</td><td>", r);
+                ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
+                ap_rputs("</td></tr>\n", r);
+
+                ++workers;
+            }
+            ap_rputs("</table>\n", r);
+            ++balancer;
+        }
+        ap_rputs("<hr />\n", r);
+        if (wsel && bsel) {
+            ap_rputs("<h3>Edit worker settings for ", r);
+            ap_rvputs(r, wsel->name, "</h3>\n", NULL);
+            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
+            ap_rvputs(r, r->uri, "\">\n<dl>", NULL);
+            ap_rputs("<table><tr><td>Load factor:</td><td><input name=\"lf\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbfactor);
+            ap_rputs("<tr><td>LB Set:</td><td><input name=\"ls\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbset);
+            ap_rputs("<tr><td>Route:</td><td><input name=\"wr\" type=text ", r);
+            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
+                      NULL);
+            ap_rputs("\"></td></tr>\n", r);
+            ap_rputs("<tr><td>Route Redirect:</td><td><input name=\"rr\" type=text ", r);
+            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
+                      NULL);
+            ap_rputs("\"></td></tr>\n", r);
+            ap_rputs("<tr><td>Status:</td><td>Disabled: <input name=\"dw\" value=\"Disable\" type=radio", r);
+            if (wsel->s->status & PROXY_WORKER_DISABLED)
+                ap_rputs(" checked", r);
+            ap_rputs("> | Enabled: <input name=\"dw\" value=\"Enable\" type=radio", r);
+            if (!(wsel->s->status & PROXY_WORKER_DISABLED))
+                ap_rputs(" checked", r);
+            ap_rputs("></td></tr>\n", r);
+            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
+            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
+            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
+            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
+            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
+                      "\">\n", NULL);
+            ap_rvputs(r, "<input type=hidden name=\"nonce\" value=\"", 
+                      balancer_nonce, "\">\n", NULL);
+            ap_rvputs(r, "</form>\n", NULL);
+            ap_rputs("<hr />\n", r);
+        }
+        ap_rputs(ap_psignature("",r), r);
+        ap_rputs("</body></html>\n", r);
+    }
+    return OK;
 }

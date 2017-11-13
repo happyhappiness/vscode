@@ -1,1 +1,1 @@
-die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+die("sha1 mismatch in blob %s", sha1_to_hex(sha1));

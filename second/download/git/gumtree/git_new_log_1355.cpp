@@ -1,1 +1,1 @@
-xgetcwd();
+printf("%s\n", commands[i].cmd);

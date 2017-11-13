@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00265)
-                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02245)
+                                 "Init: SSLPassPhraseDialog builtin is not "
+                                 "supported on Win32 (key file "
+                                 "%s)", szPath);

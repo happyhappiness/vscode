@@ -1,1 +1,2 @@
-error_errno("can't write crash report %s", loc);
+die ("Can't find replacement commit for tag %s\n",
+					     oid_to_hex(&tag->object.oid));

@@ -1,1 +1,1 @@
-printf("Total PUT:              %" APR_INT64_T_FMT "\n", totalposted);
+printf("No named substrings\n");

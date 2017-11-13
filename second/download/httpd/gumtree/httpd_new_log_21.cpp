@@ -1,3 +1,2 @@
-fprintf(stderr, "%s: could not open config directory %s: %s\n",
-                    ap_server_argv0, path,
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+fprintf(stderr, "%s: wildcard patterns not allowed in Include "
+                        "%s\n", ap_server_argv0, fname);

@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
-                                      0, r, "[%d] auth_ldap authorise: "
-                                      "require attribute: authorisation "
-                                      "successful", getpid());
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "disk_cache: Recalled cached URL info header %s",  dobj->name);

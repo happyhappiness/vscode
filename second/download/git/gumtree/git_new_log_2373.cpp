@@ -1,1 +1,0 @@
-strbuf_write(&pp->buffered_output, stderr);

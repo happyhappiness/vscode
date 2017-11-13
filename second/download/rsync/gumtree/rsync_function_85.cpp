@@ -1,30 +1,31 @@
-void add_exclude_list(char *pattern,char ***list)
+void read_check(int f)
 {
-  int len=0;
-  if (list && *list)
-    for (; (*list)[len]; len++) ;
+  int n;
 
-  if (strcmp(pattern,"!") == 0) {
-    if (verbose > 2)
-      fprintf(stderr,"clearing exclude list\n");
-    while ((len)--) 
-      free((*list)[len]);
-    free((*list));
-    *list = NULL;
+  if (read_buffer_len == 0) {
+    read_buffer_p = read_buffer;
+  }
+
+  if ((n=num_waiting(f)) <= 0)
     return;
+
+  if (read_buffer_p != read_buffer) {
+    memmove(read_buffer,read_buffer_p,read_buffer_len);
+    read_buffer_p = read_buffer;
   }
 
-  if (!*list) {
-    *list = (char **)malloc(sizeof(char *)*2);
-  } else {
-    *list = (char **)realloc(*list,sizeof(char *)*(len+2));
+  if (n > (read_buffer_size - read_buffer_len)) {
+    read_buffer_size += n;
+    if (!read_buffer)
+      read_buffer = (char *)malloc(read_buffer_size);
+    else
+      read_buffer = (char *)realloc(read_buffer,read_buffer_size);
+    if (!read_buffer) out_of_memory("read check");      
+    read_buffer_p = read_buffer;      
   }
 
-  if (!*list || !((*list)[len] = strdup(pattern)))
-    out_of_memory("add_exclude");
-
-  if (verbose > 2)
-    fprintf(stderr,"add_exclude(%s)\n",pattern);
-  
-  (*list)[len+1] = NULL;
+  n = read(f,read_buffer+read_buffer_len,n);
+  if (n > 0) {
+    read_buffer_len += n;
+  }
 }

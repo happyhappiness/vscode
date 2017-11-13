@@ -1,3 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(02612)
-                        "failed to create mod_socache_shmcb socache "
-                        "instance: %s", errmsg);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(00783)
+                "Cache already locked for stale cached URL, "
+                "pretend it is fresh: %s",
+                r->unparsed_uri);

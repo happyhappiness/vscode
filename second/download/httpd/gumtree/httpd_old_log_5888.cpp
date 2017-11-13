@@ -1,1 +1,1 @@
-ap_rputs("Disabled", r);
+ap_add_output_filter("H1_TO_H2", env, NULL, c);

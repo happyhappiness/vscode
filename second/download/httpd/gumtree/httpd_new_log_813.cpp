@@ -1,3 +1,3 @@
-apr_psprintf(p, "Syntax error on line %d of %s: %s",
-                            parms.err_directive->line_num,
-                            parms.err_directive->filename, error);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "proxy: %s: disabled connection for (%s)",
+                         proxy_function, worker->hostname);

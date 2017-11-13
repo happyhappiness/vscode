@@ -1,78 +1,73 @@
-static void set_signals(void)
+int ssl_init_ssl_connection(conn_rec *c, request_rec *r)
 {
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-#endif
+    SSLSrvConfigRec *sc;
+    SSL *ssl;
+    SSLConnRec *sslconn = myConnConfig(c);
+    char *vhost_md5;
+    modssl_ctx_t *mctx;
+    server_rec *server;
 
-    if (!one_process) {
-        ap_fatal_signal_setup(ap_server_conf, pconf);
+    if (!sslconn) {
+        sslconn = ssl_init_connection_ctx(c);
     }
+    server = sslconn->server;
+    sc = mySrvConfig(server);
 
-#ifndef NO_USE_SIGACTION
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
-#ifdef AP_SIG_GRACEFUL_STOP
-    if (sigaction(AP_SIG_GRACEFUL_STOP, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
-#endif
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
-#endif
-#ifdef SIGXCPU
-    sa.sa_handler = SIG_DFL;
-    if (sigaction(SIGXCPU, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGXCPU)");
-#endif
-#ifdef SIGXFSZ
-    sa.sa_handler = SIG_DFL;
-    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGXFSZ)");
-#endif
-#ifdef SIGPIPE
-    sa.sa_handler = SIG_IGN;
-    if (sigaction(SIGPIPE, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGPIPE)");
-#endif
-
-    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy
-     * processing one
+    /*
+     * Seed the Pseudo Random Number Generator (PRNG)
      */
-    sigaddset(&sa.sa_mask, SIGHUP);
-    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
-    sa.sa_handler = restart;
-    if (sigaction(SIGHUP, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");
-    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(" AP_SIG_GRACEFUL_STRING ")");
-#else
-    if (!one_process) {
-#ifdef SIGXCPU
-        apr_signal(SIGXCPU, SIG_DFL);
-#endif /* SIGXCPU */
-#ifdef SIGXFSZ
-        apr_signal(SIGXFSZ, SIG_DFL);
-#endif /* SIGXFSZ */
+    ssl_rand_seed(server, c->pool, SSL_RSCTX_CONNECT, "");
+
+    mctx = sslconn->is_proxy ? sc->proxy : sc->server;
+
+    /*
+     * Create a new SSL connection with the configured server SSL context and
+     * attach this to the socket. Additionally we register this attachment
+     * so we can detach later.
+     */
+    if (!(ssl = SSL_new(mctx->ssl_ctx))) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "Unable to create a new SSL connection from the SSL "
+                      "context");
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, server);
+
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */
     }
 
-    apr_signal(SIGTERM, sig_term);
-#ifdef SIGHUP
-    apr_signal(SIGHUP, restart);
-#endif /* SIGHUP */
-#ifdef AP_SIG_GRACEFUL
-    apr_signal(AP_SIG_GRACEFUL, restart);
-#endif /* AP_SIG_GRACEFUL */
-#ifdef AP_SIG_GRACEFUL_STOP
-    apr_signal(AP_SIG_GRACEFUL_STOP, sig_term);
-#endif /* AP_SIG_GRACEFUL */
-#ifdef SIGPIPE
-    apr_signal(SIGPIPE, SIG_IGN);
-#endif /* SIGPIPE */
+    vhost_md5 = ap_md5_binary(c->pool, (unsigned char *)sc->vhost_id,
+                              sc->vhost_id_len);
 
+    if (!SSL_set_session_id_context(ssl, (unsigned char *)vhost_md5,
+                                    APR_MD5_DIGESTSIZE*2))
+    {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "Unable to set session id context to '%s'", vhost_md5);
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, server);
+
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */
+    }
+
+    SSL_set_app_data(ssl, c);
+    SSL_set_app_data2(ssl, NULL); /* will be request_rec */
+
+    sslconn->ssl = ssl;
+
+    /*
+     *  Configure callbacks for SSL connection
+     */
+    SSL_set_tmp_rsa_callback(ssl, ssl_callback_TmpRSA);
+    SSL_set_tmp_dh_callback(ssl,  ssl_callback_TmpDH);
+#ifndef OPENSSL_NO_EC
+    SSL_set_tmp_ecdh_callback(ssl, ssl_callback_TmpECDH);
 #endif
+
+    SSL_set_verify_result(ssl, X509_V_OK);
+
+    ssl_io_filter_init(c, r, ssl);
+
+    return APR_SUCCESS;
 }

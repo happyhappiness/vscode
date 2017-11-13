@@ -1,236 +1,213 @@
-int main(int argc, const char * const argv[])
+int main (int argc, const char * const argv[])
 {
-    apr_file_t *fpw = NULL;
-    char line[MAX_STRING_LEN];
-    char *pwfilename = NULL;
-    char *user = NULL;
-    char tn[] = "htpasswd.tmp.XXXXXX";
-    char *dirname;
-    char *scratch, cp[MAX_STRING_LEN];
-    int found = 0;
-    int i;
-    unsigned mask = 0;
-    apr_pool_t *pool;
-    int existing_file = 0;
-    struct passwd_ctx ctx = { 0 };
-#if APR_CHARSET_EBCDIC
+    char buf[BUFSIZE];
+    apr_size_t nRead, nWrite;
+    apr_file_t *f_stdin;
+    apr_file_t *f_stdout;
+    apr_getopt_t *opt;
     apr_status_t rv;
-    apr_xlate_t *to_ascii;
+    char c;
+    const char *opt_arg;
+    const char *err = NULL;
+#if APR_FILES_AS_SOCKETS
+    apr_pollfd_t pollfd = { 0 };
+    apr_status_t pollret = APR_SUCCESS;
+    int polltimeout;
 #endif
 
     apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate);
-    apr_pool_create(&pool, NULL);
-    apr_pool_abort_set(abort_on_oom, pool);
-    apr_file_open_stderr(&errfile, pool);
-    ctx.pool = pool;
-    ctx.alg = ALG_APMD5;
+    atexit(apr_terminate);
 
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, pool);
-    if (rv) {
-        apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d" NL, rv);
-        exit(1);
-    }
-    rv = apr_SHA1InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d" NL, rv);
-        exit(1);
-    }
-    rv = apr_MD5InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d" NL, rv);
-        exit(1);
-    }
-#endif /*APR_CHARSET_EBCDIC*/
+    memset(&config, 0, sizeof config);
+    memset(&status, 0, sizeof status);
+    status.rotateReason = ROTATE_NONE;
 
-    check_args(argc, argv, &ctx, &mask, &user, &pwfilename);
+    apr_pool_create(&status.pool, NULL);
+    apr_getopt_init(&opt, status.pool, argc, argv);
+#if APR_FILES_AS_SOCKETS
+    while ((rv = apr_getopt(opt, "lL:p:ftvecn:", &c, &opt_arg)) == APR_SUCCESS) {
+#else
+    while ((rv = apr_getopt(opt, "lL:p:ftven:", &c, &opt_arg)) == APR_SUCCESS) {
+#endif
+        switch (c) {
+        case 'l':
+            config.use_localtime = 1;
+            break;
+        case 'L':
+            config.linkfile = opt_arg;
+            break;
+        case 'p':
+            config.postrotate_prog = opt_arg;
+            break;
+        case 'f':
+            config.force_open = 1;
+            break;
+        case 't':
+            config.truncate = 1;
+            break;
+        case 'v':
+            config.verbose = 1;
+            break;
+        case 'e':
+            config.echo = 1;
+            break;
+#if APR_FILES_AS_SOCKETS
+        case 'c':
+            config.create_empty = 1;
+            break;
+#endif
+        case 'n':
+            config.num_files = atoi(opt_arg);
+            status.fileNum = -1;
+            break;
+        }
+    }
+
+    if (rv != APR_EOF) {
+        usage(argv[0], NULL /* specific error message already issued */ );
+    }
 
     /*
-     * Only do the file checks if we're supposed to frob it.
+     * After the initial flags we need 2 to 4 arguments,
+     * the file name, either the rotation interval time or size
+     * or both of them, and optionally the UTC offset.
      */
-    if (!(mask & APHTP_NOFILE)) {
-        existing_file = exists(pwfilename, pool);
-        if (existing_file) {
-            /*
-             * Check that this existing file is readable and writable.
-             */
-            if (!accessible(pool, pwfilename, APR_FOPEN_READ|APR_FOPEN_WRITE)) {
-                apr_file_printf(errfile, "%s: cannot open file %s for "
-                                "read/write access" NL, argv[0], pwfilename);
-                exit(ERR_FILEPERM);
+    if ((argc - opt->ind < 2) || (argc - opt->ind > 4) ) {
+        usage(argv[0], "Incorrect number of arguments");
+    }
+
+    config.szLogRoot = argv[opt->ind++];
+
+    /* Read in the remaining flags, namely time, size and UTC offset. */
+    for(; opt->ind < argc; opt->ind++) {
+        if ((err = get_time_or_size(&config, argv[opt->ind],
+                                    opt->ind < argc - 1 ? 0 : 1)) != NULL) {
+            usage(argv[0], err);
+        }
+    }
+
+    config.use_strftime = (strchr(config.szLogRoot, '%') != NULL);
+
+    if (config.use_strftime && config.num_files > 0) { 
+        fprintf(stderr, "Cannot use -n with %% in filename\n");
+        exit(1);
+    }
+
+    if (status.fileNum == -1 && config.num_files < 1) { 
+        fprintf(stderr, "Invalid -n argument\n");
+        exit(1);
+    }
+
+    if (apr_file_open_stdin(&f_stdin, status.pool) != APR_SUCCESS) {
+        fprintf(stderr, "Unable to open stdin\n");
+        exit(1);
+    }
+
+    if (apr_file_open_stdout(&f_stdout, status.pool) != APR_SUCCESS) {
+        fprintf(stderr, "Unable to open stdout\n");
+        exit(1);
+    }
+
+    /*
+     * Write out result of config parsing if verbose is set.
+     */
+    if (config.verbose) {
+        dumpConfig(&config);
+    }
+
+#if APR_FILES_AS_SOCKETS
+    if (config.create_empty && config.tRotation) {
+        pollfd.p = status.pool;
+        pollfd.desc_type = APR_POLL_FILE;
+        pollfd.reqevents = APR_POLLIN;
+        pollfd.desc.f = f_stdin;
+    }
+#endif
+
+    /*
+     * Immediately open the logfile as we start, if we were forced
+     * to do so via '-f'.
+     */
+    if (config.force_open) {
+        doRotate(&config, &status);
+    }
+
+    for (;;) {
+        nRead = sizeof(buf);
+#if APR_FILES_AS_SOCKETS
+        if (config.create_empty && config.tRotation) {
+            polltimeout = status.tLogEnd ? status.tLogEnd - get_now(&config) : config.tRotation;
+            if (polltimeout <= 0) {
+                pollret = APR_TIMEUP;
+            }
+            else {
+                pollret = apr_poll(&pollfd, 1, &pollret, apr_time_from_sec(polltimeout));
+            }
+        }
+        if (pollret == APR_SUCCESS) {
+            rv = apr_file_read(f_stdin, buf, &nRead);
+            if (APR_STATUS_IS_EOF(rv)) {
+                break;
+            }
+            else if (rv != APR_SUCCESS) {
+                exit(3);
+            }
+        }
+        else if (pollret == APR_TIMEUP) {
+            *buf = 0;
+            nRead = 0;
+        }
+        else {
+            fprintf(stderr, "Unable to poll stdin\n");
+            exit(5);
+        }
+#else /* APR_FILES_AS_SOCKETS */
+        rv = apr_file_read(f_stdin, buf, &nRead);
+        if (APR_STATUS_IS_EOF(rv)) {
+            break;
+        }
+        else if (rv != APR_SUCCESS) {
+            exit(3);
+        }
+#endif /* APR_FILES_AS_SOCKETS */
+        checkRotate(&config, &status);
+        if (status.rotateReason != ROTATE_NONE) {
+            doRotate(&config, &status);
+        }
+
+        nWrite = nRead;
+        rv = apr_file_write_full(status.current.fd, buf, nWrite, &nWrite);
+        if (nWrite != nRead) {
+            char strerrbuf[120];
+            apr_off_t cur_offset;
+
+            cur_offset = 0;
+            if (apr_file_seek(status.current.fd, APR_CUR, &cur_offset) != APR_SUCCESS) {
+                cur_offset = -1;
+            }
+            apr_strerror(rv, strerrbuf, sizeof strerrbuf);
+            status.nMessCount++;
+            apr_snprintf(status.errbuf, sizeof status.errbuf,
+                         "Error %d writing to log file at offset %" APR_OFF_T_FMT ". "
+                         "%10d messages lost (%s)\n",
+                         rv, cur_offset, status.nMessCount, strerrbuf);
+            nWrite = strlen(status.errbuf);
+            apr_file_trunc(status.current.fd, 0);
+            if (apr_file_write_full(status.current.fd, status.errbuf, nWrite, NULL) != APR_SUCCESS) {
+                fprintf(stderr, "Error writing to the file %s\n", status.current.name);
+                exit(2);
             }
         }
         else {
-            /*
-             * Error out if -c was omitted for this non-existant file.
-             */
-            if (!(mask & APHTP_NEWFILE)) {
-                apr_file_printf(errfile,
-                        "%s: cannot modify file %s; use '-c' to create it" NL,
-                        argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
-            /*
-             * As it doesn't exist yet, verify that we can create it.
-             */
-            if (!accessible(pool, pwfilename, APR_FOPEN_WRITE|APR_FOPEN_CREATE)) {
-                apr_file_printf(errfile, "%s: cannot create file %s" NL,
-                                argv[0], pwfilename);
-                exit(ERR_FILEPERM);
+            status.nMessCount++;
+        }
+        if (config.echo) {
+            if (apr_file_write_full(f_stdout, buf, nRead, &nWrite)) {
+                fprintf(stderr, "Unable to write to stdout\n");
+                exit(4);
             }
         }
     }
 
-    /*
-     * All the file access checks (if any) have been made.  Time to go to work;
-     * try to create the record for the username in question.  If that
-     * fails, there's no need to waste any time on file manipulations.
-     * Any error message text is returned in the record buffer, since
-     * the mkrecord() routine doesn't have access to argv[].
-     */
-    if ((mask & (APHTP_DELUSER|APHTP_VERIFY)) == 0) {
-        i = mkrecord(&ctx, user);
-        if (i != 0) {
-            apr_file_printf(errfile, "%s: %s" NL, argv[0], ctx.errstr);
-            exit(i);
-        }
-        if (mask & APHTP_NOFILE) {
-            printf("%s" NL, ctx.out);
-            exit(0);
-        }
-    }
-
-    if ((mask & APHTP_VERIFY) == 0) {
-        /*
-         * We can access the files the right way, and we have a record
-         * to add or update.  Let's do it..
-         */
-        if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
-            apr_file_printf(errfile, "%s: could not determine temp dir" NL,
-                            argv[0]);
-            exit(ERR_FILEPERM);
-        }
-        dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
-
-        if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
-            apr_file_printf(errfile, "%s: unable to create temporary file %s" NL,
-                            argv[0], dirname);
-            exit(ERR_FILEPERM);
-        }
-    }
-
-    /*
-     * If we're not creating a new file, copy records from the existing
-     * one to the temporary file until we find the specified user.
-     */
-    if (existing_file && !(mask & APHTP_NEWFILE)) {
-        if (apr_file_open(&fpw, pwfilename, APR_READ | APR_BUFFERED,
-                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
-            apr_file_printf(errfile, "%s: unable to read file %s" NL,
-                            argv[0], pwfilename);
-            exit(ERR_FILEPERM);
-        }
-        while (apr_file_gets(line, sizeof(line), fpw) == APR_SUCCESS) {
-            char *colon;
-
-            strcpy(cp, line);
-            scratch = cp;
-            while (apr_isspace(*scratch)) {
-                ++scratch;
-            }
-
-            if (!*scratch || (*scratch == '#')) {
-                putline(ftemp, line);
-                continue;
-            }
-            /*
-             * See if this is our user.
-             */
-            colon = strchr(scratch, ':');
-            if (colon != NULL) {
-                *colon = '\0';
-            }
-            else {
-                /*
-                 * If we've not got a colon on the line, this could well
-                 * not be a valid htpasswd file.
-                 * We should bail at this point.
-                 */
-                apr_file_printf(errfile, "%s: The file %s does not appear "
-                                         "to be a valid htpasswd file." NL,
-                                argv[0], pwfilename);
-                apr_file_close(fpw);
-                exit(ERR_INVALID);
-            }
-            if (strcmp(user, scratch) != 0) {
-                putline(ftemp, line);
-                continue;
-            }
-            else {
-                /* We found the user we were looking for */
-                found++;
-                if ((mask & APHTP_DELUSER)) {
-                    /* Delete entry from the file */
-                    apr_file_printf(errfile, "Deleting ");
-                }
-                else if ((mask & APHTP_VERIFY)) {
-                    /* Verify */
-                    char *hash = colon + 1;
-                    size_t len;
-
-                    len = strcspn(hash, "\r\n");
-                    if (len == 0) {
-                        apr_file_printf(errfile, "Empty hash for user %s" NL,
-                                        user);
-                        exit(ERR_INVALID);
-                    }
-                    hash[len] = '\0';
-
-                    i = verify(&ctx, hash);
-                    if (i != 0) {
-                        apr_file_printf(errfile, "%s" NL, ctx.errstr);
-                        exit(i);
-                    }
-                }
-                else {
-                    /* Update entry */
-                    apr_file_printf(errfile, "Updating ");
-                    putline(ftemp, ctx.out);
-                }
-            }
-        }
-        apr_file_close(fpw);
-    }
-    if (!found) {
-        if (mask & APHTP_DELUSER) {
-            apr_file_printf(errfile, "User %s not found" NL, user);
-            exit(0);
-        }
-        else if (mask & APHTP_VERIFY) {
-            apr_file_printf(errfile, "User %s not found" NL, user);
-            exit(ERR_BADUSER);
-        }
-        else {
-            apr_file_printf(errfile, "Adding ");
-            putline(ftemp, ctx.out);
-        }
-    }
-    if (mask & APHTP_VERIFY) {
-        apr_file_printf(errfile, "Password for user %s correct." NL, user);
-        exit(0);
-    }
-
-    apr_file_printf(errfile, "password for user %s" NL, user);
-
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
-        APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s" NL,
-                        argv[0], pwfilename);
-        exit(ERR_FILEPERM);
-    }
-    apr_file_close(ftemp);
-    return 0;
+    return 0; /* reached only at stdin EOF. */
 }

@@ -1,11 +1,9 @@
 fputs(
-"              certificate/private  key  in the system or user keychain, or the\n"
-"              path to a PKCS#12-encoded certificate and private  key.  If  you\n"
-"              want to use a file from the current directory, please precede it\n"
-"              with \"./\" prefix, in order to avoid confusion with a nickname.\n"
+"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
+"              optional password isn't specified, it will be queried for on the\n"
+"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
+"              that is the private key and  the  private  certificate  concate-\n"
+"              nated! See --cert and --key to specify them independently.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --engine <name>\n"
-"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
 , stdout);

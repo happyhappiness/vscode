@@ -1,1 +1,1 @@
-state_attach_puts (notation->value, s);
+state_attach_puts (uids->uid, s);

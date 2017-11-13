@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01320)
-                     "LDAP: SSL support unavailable%s%s",
-                     result_err ? ": " : "",
-                     result_err ? result_err->reason : "");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00814)
+                     "Cannot open socache DBM file `%s' for status "
+                     "retrival",
+                     ctx->data_file);

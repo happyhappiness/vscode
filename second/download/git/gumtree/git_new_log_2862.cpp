@@ -1,1 +1,1 @@
-printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));
+printf("prerequisite-patch-id: %s\n", oid_to_hex(&bases->patch_id[i]));

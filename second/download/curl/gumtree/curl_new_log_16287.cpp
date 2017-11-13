@@ -1,10 +1,9 @@
 fputs(
-"              See  also  --dns-interface  and --dns-ipv4-addr. --dns-ipv6-addr\n"
-"              requires that the underlying libcurl was  built  to  support  c-\n"
-"              ares. Added in 7.33.0.\n"
+"              If  any of these options is used more than once on the same com-\n"
+"              mand line, the data pieces specified  will  be  merged  together\n"
+"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"       --dns-servers <addresses>\n"
-"              Set  the  list  of  DNS servers to be used instead of the system\n"
-"              default.  The list of IP addresses should be separated with com-\n"
-"              mas. Port numbers may also optionally be given as :<port-number>\n"
+"              If  you  start  the data with the letter @, the rest should be a\n"
 , stdout);

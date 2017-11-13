@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02825)
-                          "Can't evaluate alias expression: %s", err);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         APLOGNO(00370) "Failed to create the '%s' service",
+                         mpm_display_name);

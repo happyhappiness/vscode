@@ -1,1 +1,1 @@
-die("revision walk setup failed");
+die("'git status --porcelain=2' failed in submodule %s", path);

@@ -1,1 +1,1 @@
-die("BUG: command is empty");
+warning("alternate disabled by http.followRedirects: %s", url);

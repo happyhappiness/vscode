@@ -1,9 +1,12 @@
 fputs(
-"              -c, --cookie-jar option.\n"
+"              and not for example try IPv4.\n"
 "\n"
-"              Exercise  caution  if  you  are  using  this option and multiple\n"
-"              transfers may occur.  If you use the NAME1=VALUE1; format, or in\n"
-"              a  file  use  the  Set-Cookie format and don't specify a domain,\n"
-"              then the cookie is sent for any domain (even after redirects are\n"
-"              followed)  and cannot be modified by a server-set cookie. If the\n"
+"       -a, --append\n"
+"              (FTP/SFTP) When used in an upload, this makes curl append to the\n"
+"              target file instead  of  overwriting  it.  If  the  remote  file\n"
+"              doesn't  exist,  it  will  be  created.   Note that this flag is\n"
+"              ignored by some SFTP servers (including OpenSSH).\n"
+"\n"
+"       -A, --user-agent <agent string>\n"
+"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
 , stdout);

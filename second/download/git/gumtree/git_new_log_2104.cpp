@@ -1,1 +1,1 @@
-die(_("stage should be between 1 and 3 or all"));
+git_die_config(key, "unknown notes merge strategy %s", value);

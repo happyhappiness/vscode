@@ -1,4 +1,4 @@
-apr_file_printf(errfile,
-                            "Could not write the pid file '%s': %s" APR_EOL_STR,
-                            pidfilename,
-                            apr_strerror(status, errmsg, sizeof errmsg));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE6, 0, r,
+                  "from notes: user: %s, pw: %s, method: %s, mimetype: %s",
+                  user ? *user : "<null>", pw ? *pw : "<null>",
+                  method ? *method : "<null>", mimetype ? *mimetype : "<null>");

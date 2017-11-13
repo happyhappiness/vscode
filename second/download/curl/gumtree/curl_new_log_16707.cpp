@@ -1,11 +1,9 @@
 puts(
-"          content part from a file, prefix the file name with the\n"
-"          letter <. The difference between @ and < is then that @\n"
-"          makes a file get attached in the post as a file upload,\n"
-"          while the < makes a text field and just  get  the  con�\n"
-"          tents for that text field from a file.\n"
-"          Example,  to  send  your  password  file to the server,\n"
-"          where 'password' is the name of the form-field to which\n"
-"          /etc/passwd will be the input:\n"
-"\n"
+"          the HTTP server, in a way that can emulate as if a user\n"
+"          has filled in a HTML form and pressed the  submit  but�\n"
+"          ton.  Note  that  the data is sent exactly as specified\n"
+"          with no extra processing (with all newlines  cut  off).\n"
+"          The  data  is  expected  to be \"url-encoded\". This will\n"
+"          cause curl to pass the data to  the  server  using  the\n"
+"          content-type application/x-www-form-urlencoded. Compare\n"
 );

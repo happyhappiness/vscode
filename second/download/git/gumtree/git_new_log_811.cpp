@@ -1,1 +1,1 @@
-die("unable to get object type for %s", oid_to_hex(&old));
+warning("ignoring alternate with unknown protocol: %s", url);

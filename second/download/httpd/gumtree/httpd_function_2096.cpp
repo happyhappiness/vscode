@@ -1,16 +1,46 @@
-static void copyright(void)
+void ssl_log_cxerror(const char *file, int line, int level, 
+                     apr_status_t rv, conn_rec *c, X509 *cert,
+                     const char *format, ...)
 {
-    if (!use_html) {
-        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 655654 $>");
-        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
-        printf("\n");
+    va_list ap;
+    char buf[HUGE_STRING_LEN];
+    char *sname, *iname, *serial;
+    BIGNUM *bn;
+    
+    if (APLOG_IS_LEVEL(mySrvFromConn(c),level)) {
+        /* Bail early since the rest of this function is expensive. */
+        return;
     }
-    else {
-        printf("<p>\n");
-        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 655654 $");
-        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
-        printf("</p>\n<p>\n");
+
+    sname = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+    iname = X509_NAME_oneline(X509_get_issuer_name(cert),  NULL, 0);
+    bn = ASN1_INTEGER_to_BN(X509_get_serialNumber(cert), NULL);
+    serial = bn && !BN_is_zero(bn) ? BN_bn2hex(bn) : NULL;
+    
+    va_start(ap, format);
+    apr_vsnprintf(buf, sizeof buf, format, ap);
+    va_end(ap);
+
+    ap_log_cerror(file, line, APLOG_MODULE_INDEX, level, rv, c,
+                  "%s [subject: %s, issuer: %s, serial: %s]",
+                  buf,
+                  sname ? sname : "-unknown-",
+                  iname ? iname : "-unknown-",
+                  serial ? serial : "-unknown-");
+
+    if (sname) {
+        modssl_free(sname);
+    }
+    
+    if (iname) {
+        modssl_free(iname);
+    }
+    
+    if (serial) {
+        modssl_free(serial);
+    }
+
+    if (bn) {
+        BN_free(bn);
     }
 }

@@ -1,22 +1,27 @@
-static void check_safe_crlf(const char *path, enum crlf_action crlf_action,
-			    struct text_stat *old_stats, struct text_stat *new_stats,
-			    enum safe_crlf checksafe)
+static void add_conflicted_stages_file(struct apply_state *state,
+				       struct patch *patch)
 {
-	if (old_stats->crlf && !new_stats->crlf ) {
-		/*
-		 * CRLFs would not be restored by checkout
-		 */
-		if (checksafe == SAFE_CRLF_WARN)
-			warning("CRLF will be replaced by LF in %s.\nThe file will have its original line endings in your working directory.", path);
-		else /* i.e. SAFE_CRLF_FAIL */
-			die("CRLF would be replaced by LF in %s.", path);
-	} else if (old_stats->lonelf && !new_stats->lonelf ) {
-		/*
-		 * CRLFs would be added by checkout
-		 */
-		if (checksafe == SAFE_CRLF_WARN)
-			warning("LF will be replaced by CRLF in %s.\nThe file will have its original line endings in your working directory.", path);
-		else /* i.e. SAFE_CRLF_FAIL */
-			die("LF would be replaced by CRLF in %s", path);
+	int stage, namelen;
+	unsigned ce_size, mode;
+	struct cache_entry *ce;
+
+	if (!state->update_index)
+		return;
+	namelen = strlen(patch->new_name);
+	ce_size = cache_entry_size(namelen);
+	mode = patch->new_mode ? patch->new_mode : (S_IFREG | 0644);
+
+	remove_file_from_cache(patch->new_name);
+	for (stage = 1; stage < 4; stage++) {
+		if (is_null_oid(&patch->threeway_stage[stage - 1]))
+			continue;
+		ce = xcalloc(1, ce_size);
+		memcpy(ce->name, patch->new_name, namelen);
+		ce->ce_mode = create_ce_mode(mode);
+		ce->ce_flags = create_ce_flags(stage);
+		ce->ce_namelen = namelen;
+		hashcpy(ce->sha1, patch->threeway_stage[stage - 1].hash);
+		if (add_cache_entry(ce, ADD_CACHE_OK_TO_ADD) < 0)
+			die(_("unable to add cache entry for %s"), patch->new_name);
 	}
 }

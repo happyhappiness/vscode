@@ -1,1 +1,1 @@
-die(_("unrecognized %%(if) argument: %s"), arg);
+error(_("could not commit staged changes."));

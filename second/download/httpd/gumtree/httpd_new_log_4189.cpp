@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02209)
-                     "CA certificate: %s",
-                     SSL_X509_NAME_to_string(ptemp, name, 0));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00872) "APR_BUCKET_IS_EOS");

@@ -1,34 +1,55 @@
-void ssl_io_filter_init(conn_rec *c, request_rec *r, SSL *ssl)
+static proxy_worker *find_session_route(proxy_balancer *balancer,
+                                        request_rec *r,
+                                        char **route,
+                                        const char **sticky_used,
+                                        char **url)
 {
-    ssl_filter_ctx_t *filter_ctx;
+    proxy_worker *worker = NULL;
 
-    filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
-
-    filter_ctx->config          = myConnConfig(c);
-
-    ap_add_output_filter(ssl_io_coalesce, NULL, r, c);
-
-    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
-                                                       filter_ctx, r, c);
-
-    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
-    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);
-
-    /* We insert a clogging input filter. Let the core know. */
-    c->clogging_input_filters = 1;
-
-    ssl_io_input_add_filter(filter_ctx, c, r, ssl);
-
-    SSL_set_bio(ssl, filter_ctx->pbioRead, filter_ctx->pbioWrite);
-    filter_ctx->pssl            = ssl;
-
-    apr_pool_cleanup_register(c->pool, (void*)filter_ctx,
-                              ssl_io_filter_cleanup, apr_pool_cleanup_null);
-
-    if (APLOG_CS_IS_LEVEL(c, mySrvFromConn(c), APLOG_TRACE4)) {
-        BIO_set_callback(SSL_get_rbio(ssl), ssl_io_data_cb);
-        BIO_set_callback_arg(SSL_get_rbio(ssl), (void *)ssl);
+    if (!balancer->sticky)
+        return NULL;
+    /* Try to find the sticky route inside url */
+    *route = get_path_param(r->pool, *url, balancer->sticky_path, balancer->scolonsep);
+    if (*route) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: BALANCER: Found value %s for "
+                     "stickysession %s", *route, balancer->sticky_path);
+        *sticky_used =  balancer->sticky_path;
     }
-
-    return;
+    else {
+        *route = get_cookie_param(r, balancer->sticky);
+        if (*route) {
+            *sticky_used =  balancer->sticky;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: BALANCER: Found value %s for "
+                         "stickysession %s", *route, balancer->sticky);
+        }
+    }
+    /*
+     * If we found a value for sticksession, find the first '.' within.
+     * Everything after '.' (if present) is our route.
+     */
+    if ((*route) && ((*route = strchr(*route, '.')) != NULL ))
+        (*route)++;
+    if ((*route) && (**route)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                  "proxy: BALANCER: Found route %s", *route);
+        /* We have a route in path or in cookie
+         * Find the worker that has this route defined.
+         */
+        worker = find_route_worker(balancer, *route, r);
+        if (worker && strcmp(*route, worker->s->route)) {
+            /*
+             * Notice that the route of the worker chosen is different from
+             * the route supplied by the client.
+             */
+            apr_table_setn(r->subprocess_env, "BALANCER_ROUTE_CHANGED", "1");
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: BALANCER: Route changed from %s to %s",
+                         *route, worker->s->route);
+        }
+        return worker;
+    }
+    else
+        return NULL;
 }

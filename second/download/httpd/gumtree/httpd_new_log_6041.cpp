@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c,
-                      "h2_task(%s): send_out (%ld bytes)", 
-                      task->id, (long)written);
+ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
+                  "h2_push_diary_digest_set: diary now with %d entries, mask_bits=%d", 
+                  (int)diary->entries->nelts, diary->mask_bits);

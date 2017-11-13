@@ -1,2 +1,1 @@
-rprintf(FERROR, "inflate flush returned %d (%d bytes)\n",
-			    r, n);
+rprintf(FINFO,"recv_files(%d) starting\n",flist->count);

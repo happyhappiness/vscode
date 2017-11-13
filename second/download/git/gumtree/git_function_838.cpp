@@ -1,30 +1,64 @@
-static void setup_git_env(void)
+static int read_populate_todo(struct todo_list *todo_list,
+			struct replay_opts *opts)
 {
-	struct strbuf sb = STRBUF_INIT;
-	const char *gitfile;
-	const char *shallow_file;
-	const char *replace_ref_base;
+	const char *todo_file = get_todo_path(opts);
+	int fd, res;
 
-	git_dir = getenv(GIT_DIR_ENVIRONMENT);
-	if (!git_dir) {
-		if (!startup_info->have_repository)
-			die("BUG: setup_git_env called without repository");
-		git_dir = DEFAULT_GIT_DIR_ENVIRONMENT;
+	strbuf_reset(&todo_list->buf);
+	fd = open(todo_file, O_RDONLY);
+	if (fd < 0)
+		return error_errno(_("could not open '%s'"), todo_file);
+	if (strbuf_read(&todo_list->buf, fd, 0) < 0) {
+		close(fd);
+		return error(_("could not read '%s'."), todo_file);
 	}
-	gitfile = read_gitfile(git_dir);
-	git_dir = xstrdup(gitfile ? gitfile : git_dir);
-	if (get_common_dir(&sb, git_dir))
-		git_common_dir_env = 1;
-	git_common_dir = strbuf_detach(&sb, NULL);
-	git_object_dir = git_path_from_env(DB_ENVIRONMENT, git_common_dir,
-					   "objects", &git_db_env);
-	git_index_file = git_path_from_env(INDEX_ENVIRONMENT, git_dir,
-					   "index", &git_index_env);
-	git_graft_file = git_path_from_env(GRAFT_ENVIRONMENT, git_common_dir,
-					   "info/grafts", &git_graft_env);
-	if (getenv(NO_REPLACE_OBJECTS_ENVIRONMENT))
-		check_replace_refs = 0;
-	replace_ref_base = getenv(GIT_REPLACE_REF_BASE_ENVIRONMENT);
-	git_replace_ref_base = xstrdup(replace_ref_base ? replace_ref_base
-							  : "refs/replace/");
-	namespace = expand_namespace(getenv(GIT_NAMESPACE_ENVIRONMENT)
+	close(fd);
+
+	res = parse_insn_buffer(todo_list->buf.buf, todo_list);
+	if (res) {
+		if (is_rebase_i(opts))
+			return error(_("please fix this using "
+				       "'git rebase --edit-todo'."));
+		return error(_("unusable instruction sheet: '%s'"), todo_file);
+	}
+
+	if (!todo_list->nr &&
+	    (!is_rebase_i(opts) || !file_exists(rebase_path_done())))
+		return error(_("no commits parsed."));
+
+	if (!is_rebase_i(opts)) {
+		enum todo_command valid =
+			opts->action == REPLAY_PICK ? TODO_PICK : TODO_REVERT;
+		int i;
+
+		for (i = 0; i < todo_list->nr; i++)
+			if (valid == todo_list->items[i].command)
+				continue;
+			else if (valid == TODO_PICK)
+				return error(_("cannot cherry-pick during a revert."));
+			else
+				return error(_("cannot revert during a cherry-pick."));
+	}
+
+	if (is_rebase_i(opts)) {
+		struct todo_list done = TODO_LIST_INIT;
+		FILE *f = fopen(rebase_path_msgtotal(), "w");
+
+		if (strbuf_read_file(&done.buf, rebase_path_done(), 0) > 0 &&
+				!parse_insn_buffer(done.buf.buf, &done))
+			todo_list->done_nr = count_commands(&done);
+		else
+			todo_list->done_nr = 0;
+
+		todo_list->total_nr = todo_list->done_nr
+			+ count_commands(todo_list);
+		todo_list_release(&done);
+
+		if (f) {
+			fprintf(f, "%d\n", todo_list->total_nr);
+			fclose(f);
+		}
+	}
+
+	return 0;
+}

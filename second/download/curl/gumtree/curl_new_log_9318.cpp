@@ -1,9 +1,10 @@
 fputs(
-"       The  short  \"single-dash\"  form  of the options, -d for example, may be\n"
-"       used with or without a space between it and its value, although a space\n"
-"       is  a  recommended  separator.  The long \"double-dash\" form, --data for\n"
-"       example, requires a space between it and its value.\n"
+"       If  you  specify  URL  without protocol:// prefix, curl will attempt to\n"
+"       guess what protocol you might want. It will then default  to  HTTP  but\n"
+"       try  other  protocols based on often-used host name prefixes. For exam-\n"
+"       ple, for host names starting with \"ftp.\" curl will assume you  want  to\n"
+"       speak FTP.\n"
 "\n"
-"       Short version options that don't need any additional values can be used\n"
-"       immediately  next  to  each other, like for example you can specify all\n"
+"       curl  will  do  its best to use what you pass to it as a URL. It is not\n"
+"       trying to validate it as a syntactically correct URL by any  means  but\n"
 , stdout);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Starting %d worker threads.",
-                 my_pid, ap_threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                    "Failed to open Certificate Path `%s'",
+                    ca_path);

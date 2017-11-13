@@ -1,1 +1,1 @@
-warning(_("no common commits"));
+die(_("pack exceeds maximum allowed size"));

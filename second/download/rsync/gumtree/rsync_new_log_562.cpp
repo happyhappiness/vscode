@@ -1,2 +1,1 @@
-rprintf(FINFO,"send_files mapped %s of size %d\n",
-			  fname,(int)st.st_size);
+rprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));

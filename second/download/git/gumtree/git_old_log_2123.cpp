@@ -1,1 +1,1 @@
-printf("%s (%d):\n", log->list.items[i].string, onelines->nr);
+die(_("-b and -B are mutually exclusive"));

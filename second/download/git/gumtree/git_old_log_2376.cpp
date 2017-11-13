@@ -1,1 +1,1 @@
-fputs(pp->buffered_output.buf, stderr);
+die_errno("Could not rewind output message file");

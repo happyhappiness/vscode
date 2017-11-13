@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, r->pool, APLOGNO(01471) "Lua error: %s",
-                  lua_response);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00825)
+                 "subcache_num = %u", header->subcache_num);

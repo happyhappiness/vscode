@@ -1,10 +1,11 @@
 fputs(
-"              requests into GET requests when following a 301 redirection. The\n"
-"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
-"              the  conversion  by  default to maintain consistency. However, a\n"
-"              server may require a POST to remain a POST after  such  a  redi-\n"
-"              rection.  This  option is meaningful only when using -L, --loca-\n"
-"              tion (Added in 7.17.1)\n"
+"              requests that curl knows will not be sent to a proxy.\n"
 "\n"
-"       --post302\n"
+"              This option can be used  multiple  times  to  add/replace/remove\n"
+"              multiple headers.\n"
+"              (Added in 7.37.0)\n"
+"       -p, --proxytunnel\n"
+"              When an HTTP proxy is used (-x, --proxy), this option will cause\n"
+"              non-HTTP protocols  to  attempt  to  tunnel  through  the  proxy\n"
+"              instead  of merely using it to do HTTP-like operations. The tun-\n"
 , stdout);

@@ -1,29 +1,13 @@
-static int git_default_branch_config(const char *var, const char *value)
+static int create_seq_dir(void)
 {
-	if (!strcmp(var, "branch.autosetupmerge")) {
-		if (value && !strcasecmp(value, "always")) {
-			git_branch_track = BRANCH_TRACK_ALWAYS;
-			return 0;
-		}
-		git_branch_track = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp(var, "branch.autosetuprebase")) {
-		if (!value)
-			return config_error_nonbool(var);
-		else if (!strcmp(value, "never"))
-			autorebase = AUTOREBASE_NEVER;
-		else if (!strcmp(value, "local"))
-			autorebase = AUTOREBASE_LOCAL;
-		else if (!strcmp(value, "remote"))
-			autorebase = AUTOREBASE_REMOTE;
-		else if (!strcmp(value, "always"))
-			autorebase = AUTOREBASE_ALWAYS;
-		else
-			return error("Malformed value for %s", var);
-		return 0;
-	}
+	const char *seq_dir = git_path(SEQ_DIR);
 
-	/* Add other config variables here and to Documentation/config.txt. */
+	if (file_exists(seq_dir)) {
+		error(_("a cherry-pick or revert is already in progress"));
+		advise(_("try \"git cherry-pick (--continue | --quit | --abort)\""));
+		return -1;
+	}
+	else if (mkdir(seq_dir, 0777) < 0)
+		die_errno(_("Could not create sequencer directory %s"), seq_dir);
 	return 0;
 }

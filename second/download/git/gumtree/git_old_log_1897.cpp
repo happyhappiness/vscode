@@ -1,2 +1,2 @@
-fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), sha1_to_hex(obj->sha1));
+die("an empty %s object %s?",
+		    typename(type), sha1_to_hex(sha1));

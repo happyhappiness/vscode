@@ -1,20 +1,19 @@
-static struct ref_entry *create_ref_entry(const char *refname,
-					  const unsigned char *sha1, int flag,
-					  int check_name)
+static time_t gm_time_t(timestamp_t time, int tz)
 {
-	int len;
-	struct ref_entry *ref;
+	int minutes;
 
-	if (check_name &&
-	    check_refname_format(refname, REFNAME_ALLOW_ONELEVEL))
-		die("Reference has invalid format: '%s'", refname);
-	if (!check_name && !refname_is_safe(refname))
-		die("Reference has invalid name: '%s'", refname);
-	len = strlen(refname) + 1;
-	ref = xmalloc(sizeof(struct ref_entry) + len);
-	hashcpy(ref->u.value.sha1, sha1);
-	hashclr(ref->u.value.peeled);
-	memcpy(ref->name, refname, len);
-	ref->flag = flag;
-	return ref;
+	minutes = tz < 0 ? -tz : tz;
+	minutes = (minutes / 100)*60 + (minutes % 100);
+	minutes = tz < 0 ? -minutes : minutes;
+
+	if (minutes > 0) {
+		if (unsigned_add_overflows(time, minutes * 60))
+			die("Timestamp+tz too large: %"PRItime" +%04d",
+			    time, tz);
+	} else if (time < -minutes * 60)
+		die("Timestamp before Unix epoch: %"PRItime" %04d", time, tz);
+	time += minutes * 60;
+	if (date_overflows(time))
+		die("Timestamp too large for this system: %"PRItime, time);
+	return (time_t)time;
 }

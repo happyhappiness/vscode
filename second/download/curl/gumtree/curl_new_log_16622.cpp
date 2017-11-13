@@ -1,14 +1,6 @@
-puts(
-"          specified, it will be queried for on the terminal. Note\n"
-"          that  this  certificate is the private key and the pri�\n"
-"          vate certificate concatenated!\n"
-"\n"
-"          If this option is used several times, the last one will\n"
-"          be used.\n"
-"\n"
-"     --cacert <CA certificate>\n"
-"          (HTTPS)  Tells  curl  to  use the specified certificate\n"
-"          file to verify the peer. The certificate must be in PEM\n"
-"          format.\n"
-"\n"
-);
+puts(" -i/--include       Include the HTTP-header in the output (H)\n"
+       " -I/--head          Fetch document info only (HTTP HEAD/FTP SIZE)\n"
+       "    --interface <interface> Specify the interface to be used\n"
+       "    --krb4 <level>  Enable krb4 with specified security level (F)\n"
+       " -K/--config        Specify which config file to read\n"
+       " -l/--list-only     List only names of an FTP directory (F)");

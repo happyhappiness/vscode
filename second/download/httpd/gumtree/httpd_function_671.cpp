@@ -1,36 +1,51 @@
-static void dump_loaded_modules(apr_pool_t *p, server_rec *s)
+static void cgid_maint(int reason, void *data, apr_wait_t status)
 {
-    ap_module_symbol_t *modie;
-    ap_module_symbol_t *modi;
-    so_server_conf *sconf;
-    int i;
-    apr_file_t *out = NULL;
+    apr_proc_t *proc = data;
+    int mpm_state;
+    int stopping;
 
-    if (!ap_exists_config_define("DUMP_MODULES")) {
-        return;
-    }
-
-    apr_file_open_stderr(&out, p);
-
-    apr_file_printf(out, "Loaded Modules:\n");
-
-    sconf = (so_server_conf *)ap_get_module_config(s->module_config,
-                                                   &so_module);
-    for (i = 0; ; i++) {
-        modi = &ap_prelinked_module_symbols[i];
-        if (modi->name != NULL) {
-            apr_file_printf(out, " %s (static)\n", modi->name);
-        }
-        else {
+    switch (reason) {
+        case APR_OC_REASON_DEATH:
+            apr_proc_other_child_unregister(data);
+            /* If apache is not terminating or restarting,
+             * restart the cgid daemon
+             */
+            stopping = 1; /* if MPM doesn't support query,
+                           * assume we shouldn't restart daemon
+                           */
+            if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state) == APR_SUCCESS &&
+                mpm_state != AP_MPMQ_STOPPING) {
+                stopping = 0;
+            }
+            if (!stopping) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                             "cgid daemon process died, restarting");
+                cgid_start(root_pool, root_server, proc);
+            }
             break;
-        }
-    }
+        case APR_OC_REASON_RESTART:
+            /* don't do anything; server is stopping or restarting */
+            apr_proc_other_child_unregister(data);
+            break;
+        case APR_OC_REASON_LOST:
+            /* Restart the child cgid daemon process */
+            apr_proc_other_child_unregister(data);
+            cgid_start(root_pool, root_server, proc);
+            break;
+        case APR_OC_REASON_UNREGISTER:
+            /* we get here when pcgi is cleaned up; pcgi gets cleaned
+             * up when pconf gets cleaned up
+             */
+            kill(proc->pid, SIGHUP); /* send signal to daemon telling it to die */
 
-    modie = (ap_module_symbol_t *)sconf->loaded_modules->elts;
-    for (i = 0; i < sconf->loaded_modules->nelts; i++) {
-        modi = &modie[i];
-        if (modi->name != NULL) {
-            apr_file_printf(out, " %s (shared)\n", modi->name);
-        }
+            /* Remove the cgi socket, we must do it here in order to try and
+             * guarantee the same permissions as when the socket was created.
+             */
+            if (unlink(sockname) < 0 && errno != ENOENT) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, errno, NULL,
+                             "Couldn't unlink unix domain socket %s",
+                             sockname);
+            }
+            break;
     }
 }

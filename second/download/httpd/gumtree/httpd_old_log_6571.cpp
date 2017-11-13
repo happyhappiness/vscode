@@ -1,1 +1,0 @@
-apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);

@@ -1,1 +1,2 @@
-fprintf(FERROR,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
+fprintf(FINFO,"%s -> %s\n",
+		fname,file->link);

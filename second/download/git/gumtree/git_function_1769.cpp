@@ -1,41 +1,51 @@
-static int sequencer_rollback(struct replay_opts *opts)
+static void diff_words_show(struct diff_words_data *diff_words)
 {
-	const char *filename;
-	FILE *f;
-	unsigned char sha1[20];
-	struct strbuf buf = STRBUF_INIT;
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	mmfile_t minus, plus;
+	struct diff_words_style *style = diff_words->style;
 
-	filename = git_path(SEQ_HEAD_FILE);
-	f = fopen(filename, "r");
-	if (!f && errno == ENOENT) {
-		/*
-		 * There is no multiple-cherry-pick in progress.
-		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
-		 * a single-cherry-pick in progress, abort that.
-		 */
-		return rollback_single_pick();
+	struct diff_options *opt = diff_words->opt;
+	const char *line_prefix;
+
+	assert(opt);
+	line_prefix = diff_line_prefix(opt);
+
+	/* special case: only removal */
+	if (!diff_words->plus.text.size) {
+		fputs(line_prefix, diff_words->opt->file);
+		fn_out_diff_words_write_helper(diff_words->opt->file,
+			&style->old, style->newline,
+			diff_words->minus.text.size,
+			diff_words->minus.text.ptr, line_prefix);
+		diff_words->minus.text.size = 0;
+		return;
 	}
-	if (!f)
-		return error(_("cannot open %s: %s"), filename,
-						strerror(errno));
-	if (strbuf_getline(&buf, f, '\n')) {
-		error(_("cannot read %s: %s"), filename, ferror(f) ?
-			strerror(errno) : _("unexpected end of file"));
-		fclose(f);
-		goto fail;
+
+	diff_words->current_plus = diff_words->plus.text.ptr;
+	diff_words->last_minus = 0;
+
+	memset(&xpp, 0, sizeof(xpp));
+	memset(&xecfg, 0, sizeof(xecfg));
+	diff_words_fill(&diff_words->minus, &minus, diff_words->word_regex);
+	diff_words_fill(&diff_words->plus, &plus, diff_words->word_regex);
+	xpp.flags = 0;
+	/* as only the hunk header will be parsed, we need a 0-context */
+	xecfg.ctxlen = 0;
+	if (xdi_diff_outf(&minus, &plus, fn_out_diff_words_aux, diff_words,
+			  &xpp, &xecfg))
+		die("unable to generate word diff");
+	free(minus.ptr);
+	free(plus.ptr);
+	if (diff_words->current_plus != diff_words->plus.text.ptr +
+			diff_words->plus.text.size) {
+		if (color_words_output_graph_prefix(diff_words))
+			fputs(line_prefix, diff_words->opt->file);
+		fn_out_diff_words_write_helper(diff_words->opt->file,
+			&style->ctx, style->newline,
+			diff_words->plus.text.ptr + diff_words->plus.text.size
+			- diff_words->current_plus, diff_words->current_plus,
+			line_prefix);
 	}
-	fclose(f);
-	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
-		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
-			filename);
-		goto fail;
-	}
-	if (reset_for_rollback(sha1))
-		goto fail;
-	remove_sequencer_state();
-	strbuf_release(&buf);
-	return 0;
-fail:
-	strbuf_release(&buf);
-	return -1;
+	diff_words->minus.text.size = diff_words->plus.text.size = 0;
 }

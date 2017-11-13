@@ -1,10 +1,9 @@
 fputs(
-"              enforced  by  using an URL that ends with \";type=A\". This option\n"
-"              causes data sent to stdout to be in text mode for win32 systems.\n"
+"              This is done by first doing a request and checking the response-\n"
+"              headers,  thus  possibly  inducing  an extra network round-trip.\n"
+"              This is  used  instead  of  setting  a  specific  authentication\n"
+"              method,  which  you  can  do with --basic, --digest, --ntlm, and\n"
+"              --negotiate.\n"
 "\n"
-"       --basic\n"
-"              (HTTP) Tells curl to use  HTTP  Basic  authentication  with  the\n"
-"              remote  host.  This  is  the  default and this option is usually\n"
-"              pointless, unless you use it to override a previously set option\n"
-"              that  sets  a  different  authentication method (such as --ntlm,\n"
+"              Note that using --anyauth is not recommended if you  do  uploads\n"
 , stdout);

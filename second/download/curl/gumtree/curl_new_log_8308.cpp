@@ -1,1 +1,0 @@
-snprintf(output, outlen, "%s:", label);

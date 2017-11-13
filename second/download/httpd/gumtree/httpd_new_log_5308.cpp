@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): failed to create stream obj %d",
-                      session->id, is->id, nid);
+ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0,
+                     NULL, APLOGNO(00451) "no listening sockets available, shutting down");

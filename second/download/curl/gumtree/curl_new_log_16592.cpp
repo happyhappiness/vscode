@@ -1,11 +1,11 @@
 puts(
-"  can also specify the long options without the dashes to make it more\n"
-"  readable. You can separate the options and the parameter with spaces, or\n"
-"  with = or :. Comments can be used within the file. If the first letter on a\n"
-"  line is a '#'-letter the rest of the line is treated as a comment.\n"
+"  ';type=<mime type>' to the file name. You can also post contents of several\n"
+"  files in one field. So that the field name 'coolfiles' can be sent three\n"
+"  files with different content types in a manner similar to:\n"
 "\n"
-"  If you want the parameter to contain spaces, you must inclose the entire\n"
-"  parameter within double quotes (\"). Within those quotes, you specify a\n"
-"  quote as \\\".\n"
+"        curl -F \"coolfiles=@fil1.gif;type=image/gif,fil2.txt,fil3.html\" \\\n"
+"        http://www.post.com/postit.cgi\n"
 "\n"
+"  If content-type is not specified, curl will try to guess from the extension\n"
+"  (it only knows a few), or use the previously specified type (from an earlier\n"
 );

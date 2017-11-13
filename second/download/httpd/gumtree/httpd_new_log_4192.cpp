@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02210)
-                    "Failed to load SSLCACertificateFile: %s", ca_file);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00875)
+                      "got %" APR_SIZE_T_FMT " bytes of data", bufsiz);

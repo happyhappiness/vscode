@@ -1,10 +1,10 @@
 fputs(
-"       -v, --verbose\n"
-"              Be more  verbose/talkative  during  the  operation.  Useful  for\n"
-"              debugging  and  seeing  what's going on \"under the hood\". A line\n"
-"              starting with '>' means \"header data\" sent by  curl,  '<'  means\n"
-"              \"header  data\"  received by curl that is hidden in normal cases,\n"
-"              and a line starting with '*' means additional info  provided  by\n"
-"              curl.\n"
+"              the server to succesfully obtain a Kerberos Ticket. If you don't\n"
+"              then the initial authentication handshake may fail.\n"
 "\n"
+"              When  using  NTLM,  the user name can be specified simply as the\n"
+"              user name, without the domain, if there is a single  domain  and\n"
+"              forest in your setup for example.\n"
+"\n"
+"              To  specify  the domain name use either Down-Level Logon Name or\n"
 , stdout);

@@ -1,1 +1,0 @@
-fprintf(stderr, "giving up\n");

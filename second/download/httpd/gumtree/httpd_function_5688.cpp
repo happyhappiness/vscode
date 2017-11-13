@@ -1,234 +1,176 @@
-static int event_check_config(apr_pool_t *p, apr_pool_t *plog,
-                              apr_pool_t *ptemp, server_rec *s)
+static int uldap_cache_compare(request_rec *r, util_ldap_connection_t *ldc,
+                               const char *url, const char *dn,
+                               const char *attrib, const char *value)
 {
-    int startup = 0;
+    int result = 0;
+    util_url_node_t *curl;
+    util_url_node_t curnode;
+    util_compare_node_t *compare_nodep;
+    util_compare_node_t the_compare_node;
+    apr_time_t curtime = 0; /* silence gcc -Wall */
+    int failures = 0;
 
-    /* the reverse of pre_config, we want this only the first time around */
-    if (retained->module_loads == 1) {
-        startup = 1;
+    util_ldap_state_t *st = (util_ldap_state_t *)
+                            ap_get_module_config(r->server->module_config,
+                                                 &ldap_module);
+
+    /* get cache entry (or create one) */
+    LDAP_CACHE_LOCK();
+    curnode.url = url;
+    curl = util_ald_cache_fetch(st->util_ldap_cache, &curnode);
+    if (curl == NULL) {
+        curl = util_ald_create_caches(st, url);
     }
+    LDAP_CACHE_UNLOCK();
 
-    if (server_limit > MAX_SERVER_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00497)
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00498)
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
+    if (curl) {
+        /* make a comparison to the cache */
+        LDAP_CACHE_LOCK();
+        curtime = apr_time_now();
+
+        the_compare_node.dn = (char *)dn;
+        the_compare_node.attrib = (char *)attrib;
+        the_compare_node.value = (char *)value;
+        the_compare_node.result = 0;
+        the_compare_node.sgl_processed = 0;
+        the_compare_node.subgroupList = NULL;
+
+        compare_nodep = util_ald_cache_fetch(curl->compare_cache,
+                                             &the_compare_node);
+
+        if (compare_nodep != NULL) {
+            /* found it... */
+            if (curtime - compare_nodep->lastcompare > st->compare_cache_ttl) {
+                /* ...but it is too old */
+                util_ald_cache_remove(curl->compare_cache, compare_nodep);
+            }
+            else {
+                /* ...and it is good */
+                if (LDAP_COMPARE_TRUE == compare_nodep->result) {
+                    ldc->reason = "Comparison true (cached)";
+                }
+                else if (LDAP_COMPARE_FALSE == compare_nodep->result) {
+                    ldc->reason = "Comparison false (cached)";
+                }
+                else if (LDAP_NO_SUCH_ATTRIBUTE == compare_nodep->result) {
+                    ldc->reason = "Comparison no such attribute (cached)";
+                }
+                else {
+                    ldc->reason = apr_psprintf(r->pool, 
+                                              "Comparison undefined: (%d): %s (adding to cache)", 
+                                              result, ldap_err2string(result));
+                }
+
+                /* record the result code to return with the reason... */
+                result = compare_nodep->result;
+                /* and unlock this read lock */
+                LDAP_CACHE_UNLOCK();
+
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
+                              "ldap_compare_s(%pp, %s, %s, %s) = %s (cached)", 
+                              ldc->ldap, dn, attrib, value, ldap_err2string(result));
+                return result;
+            }
         }
-        server_limit = MAX_SERVER_LIMIT;
+        /* unlock this read lock */
+        LDAP_CACHE_UNLOCK();
     }
-    else if (server_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00499)
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00500)
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
+
+start_over:
+    if (failures > st->retries) {
+        return result;
+    }
+
+    if (failures > 0 && st->retry_delay > 0) {
+        apr_sleep(st->retry_delay);
+    }
+
+    if (LDAP_SUCCESS != (result = uldap_connection_open(r, ldc))) {
+        /* connect failed */
+        return result;
+    }
+
+    result = ldap_compare_s(ldc->ldap,
+                            (char *)dn,
+                            (char *)attrib,
+                            (char *)value);
+    if (AP_LDAP_IS_SERVER_DOWN(result)) {
+        /* connection failed - try again */
+        ldc->reason = "ldap_compare_s() failed with server down";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
+    }
+    if (result == LDAP_TIMEOUT && failures == 0) {
+        /*
+         * we are reusing a connection that doesn't seem to be active anymore
+         * (firewall state drop?), let's try a new connection.
+         */
+        ldc->reason = "ldap_compare_s() failed with timeout";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
+    }
+
+    ldc->last_backend_conn = r->request_time;
+    ldc->reason = "Comparison complete";
+    if ((LDAP_COMPARE_TRUE == result) ||
+        (LDAP_COMPARE_FALSE == result) ||
+        (LDAP_NO_SUCH_ATTRIBUTE == result)) {
+        if (curl) {
+            /* compare completed; caching result */
+            LDAP_CACHE_LOCK();
+            the_compare_node.lastcompare = curtime;
+            the_compare_node.result = result;
+            the_compare_node.sgl_processed = 0;
+            the_compare_node.subgroupList = NULL;
+
+            /* If the node doesn't exist then insert it, otherwise just update
+             * it with the last results
+             */
+            compare_nodep = util_ald_cache_fetch(curl->compare_cache,
+                                                 &the_compare_node);
+            if (   (compare_nodep == NULL)
+                || (strcmp(the_compare_node.dn, compare_nodep->dn) != 0)
+                || (strcmp(the_compare_node.attrib,compare_nodep->attrib) != 0)
+                || (strcmp(the_compare_node.value, compare_nodep->value) != 0))
+            {
+                void *junk;
+
+                junk = util_ald_cache_insert(curl->compare_cache,
+                                             &the_compare_node);
+                if (junk == NULL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01287)
+                                  "cache_compare: Cache insertion failure.");
+                }
+            }
+            else {
+                compare_nodep->lastcompare = curtime;
+                compare_nodep->result = result;
+            }
+            LDAP_CACHE_UNLOCK();
         }
-        server_limit = 1;
-    }
 
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
-     */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
-    }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00501)
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
-    }
-
-    if (thread_limit > MAX_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00502)
-                         "WARNING: ThreadLimit of %d exceeds compile-time "
-                         "limit of", thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00503)
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
+        if (LDAP_COMPARE_TRUE == result) {
+            ldc->reason = "Comparison true (adding to cache)";
         }
-        thread_limit = MAX_THREAD_LIMIT;
-    }
-    else if (thread_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00504)
-                         "WARNING: ThreadLimit of %d not allowed, "
-                         "increasing to 1.", thread_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00505)
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
+        else if (LDAP_COMPARE_FALSE == result) {
+            ldc->reason = "Comparison false (adding to cache)";
         }
-        thread_limit = 1;
-    }
-
-    /* you cannot change ThreadLimit across a restart; ignore
-     * any such attempts
-     */
-    if (!retained->first_thread_limit) {
-        retained->first_thread_limit = thread_limit;
-    }
-    else if (thread_limit != retained->first_thread_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00506)
-                     "changing ThreadLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     thread_limit, retained->first_thread_limit);
-        thread_limit = retained->first_thread_limit;
-    }
-
-    if (threads_per_child > thread_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00507)
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         thread_limit, thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ThreadLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00508)
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         threads_per_child, thread_limit);
+        else if (LDAP_NO_SUCH_ATTRIBUTE == result) {
+            ldc->reason = "Comparison no such attribute (adding to cache)";
         }
-        threads_per_child = thread_limit;
-    }
-    else if (threads_per_child < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00509)
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", threads_per_child);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00510)
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         threads_per_child);
+        else {
+            ldc->reason = apr_psprintf(r->pool, 
+                                       "Comparison undefined: (%d): %s (adding to cache)", 
+                                        result, ldap_err2string(result));
         }
-        threads_per_child = 1;
     }
 
-    if (max_workers < threads_per_child) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00511)
-                         "WARNING: MaxRequestWorkers of %d is less than "
-                         "ThreadsPerChild of", max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d, increasing to %d.  MaxRequestWorkers must be at "
-                         "least as large",
-                         threads_per_child, threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " as the number of threads in a single server.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00512)
-                         "MaxRequestWorkers of %d is less than ThreadsPerChild "
-                         "of %d, increasing to match",
-                         max_workers, threads_per_child);
-        }
-        max_workers = threads_per_child;
-    }
-
-    ap_daemons_limit = max_workers / threads_per_child;
-
-    if (max_workers % threads_per_child) {
-        int tmp_max_workers = ap_daemons_limit * threads_per_child;
-
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00513)
-                         "WARNING: MaxRequestWorkers of %d is not an integer "
-                         "multiple of", max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d,", threads_per_child,
-                         tmp_max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " for a maximum of %d servers.",
-                         ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00514)
-                         "MaxRequestWorkers of %d is not an integer multiple "
-                         "of ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d", max_workers, threads_per_child,
-                         tmp_max_workers);
-        }
-        max_workers = tmp_max_workers;
-    }
-
-    if (ap_daemons_limit > server_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00515)
-                         "WARNING: MaxRequestWorkers of %d would require %d "
-                         "servers and ", max_workers, ap_daemons_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " would exceed ServerLimit of %d, decreasing to %d.",
-                         server_limit, server_limit * threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ServerLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00516)
-                         "MaxRequestWorkers of %d would require %d servers and "
-                         "exceed ServerLimit of %d, decreasing to %d",
-                         max_workers, ap_daemons_limit, server_limit,
-                         server_limit * threads_per_child);
-        }
-        ap_daemons_limit = server_limit;
-    }
-
-    /* ap_daemons_to_start > ap_daemons_limit checked in ap_mpm_run() */
-    if (ap_daemons_to_start < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00517)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00518)
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
-    }
-
-    if (min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00519)
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", min_spare_threads);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00520)
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         min_spare_threads);
-        }
-        min_spare_threads = 1;
-    }
-
-    /* max_spare_threads < min_spare_threads + threads_per_child
-     * checked in ap_mpm_run()
-     */
-
-    return OK;
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
+                  "ldap_compare_s(%pp, %s, %s, %s) = %s", 
+                  ldc->ldap, dn, attrib, value, ldap_err2string(result));
+    return result;
 }

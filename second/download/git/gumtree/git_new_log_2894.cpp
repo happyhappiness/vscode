@@ -1,2 +1,2 @@
-usage_with_options(git_submodule_helper_usage,
-				   module_clone_options);
+die(_("submodule--helper subcommand must be "
+		      "called with a subcommand"));

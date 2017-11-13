@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: cannot open file %s for "
-                                "read/write access\n", argv[0], pwfilename);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Parent: Could not set child process stdout");

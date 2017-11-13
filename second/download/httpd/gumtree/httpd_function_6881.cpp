@@ -1,308 +1,298 @@
-static apr_status_t dispatch(proxy_conn_rec *conn, proxy_dir_conf *conf,
-                             request_rec *r, apr_pool_t *setaside_pool,
-                             apr_uint16_t request_id)
+apr_status_t h2_session_process(h2_session *session, int async)
 {
-    apr_bucket_brigade *ib, *ob;
-    int seen_end_of_headers = 0, done = 0;
-    apr_status_t rv = APR_SUCCESS;
-    int script_error_status = HTTP_OK;
-    conn_rec *c = r->connection;
-    struct iovec vec[2];
-    ap_fcgi_header header;
-    unsigned char farray[AP_FCGI_HEADER_LEN];
-    apr_pollfd_t pfd;
-    int header_state = HDR_STATE_READING_HEADERS;
- 
-    pfd.desc_type = APR_POLL_SOCKET;
-    pfd.desc.s = conn->sock;
-    pfd.p = r->pool;
-    pfd.reqevents = APR_POLLIN | APR_POLLOUT;
+    apr_status_t status = APR_SUCCESS;
+    conn_rec *c = session->c;
+    int rv, mpm_state, trace = APLOGctrace3(c);
 
-    ib = apr_brigade_create(r->pool, c->bucket_alloc);
-    ob = apr_brigade_create(r->pool, c->bucket_alloc);
+    if (trace) {
+        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                      "h2_session(%ld): process start, async=%d", 
+                      session->id, async);
+    }
+                  
+    if (c->cs) {
+        c->cs->state = CONN_STATE_WRITE_COMPLETION;
+    }
+    
+    while (session->state != H2_SESSION_ST_DONE) {
+        trace = APLOGctrace3(c);
+        session->have_read = session->have_written = 0;
 
-    while (! done) {
-        apr_interval_time_t timeout;
-        apr_size_t len;
-        int n;
-
-        /* We need SOME kind of timeout here, or virtually anything will
-         * cause timeout errors. */
-        apr_socket_timeout_get(conn->sock, &timeout);
-
-        rv = apr_poll(&pfd, 1, &n, timeout);
-        if (rv != APR_SUCCESS) {
-            if (APR_STATUS_IS_EINTR(rv)) {
-                continue;
-            }
-            break;
-        }
-
-        if (pfd.rtnevents & APR_POLLOUT) {
-            char writebuf[AP_IOBUFSIZE];
-            apr_size_t writebuflen;
-            int last_stdin = 0;
-            int nvec = 0;
-
-            rv = ap_get_brigade(r->input_filters, ib,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                sizeof(writebuf));
-            if (rv != APR_SUCCESS) {
-                break;
-            }
-
-            if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(ib))) {
-                last_stdin = 1;
-            }
-
-            writebuflen = sizeof(writebuf);
-
-            rv = apr_brigade_flatten(ib, writebuf, &writebuflen);
-
-            apr_brigade_cleanup(ib);
-
-            if (rv != APR_SUCCESS) {
-                break;
-            }
-
-            ap_fcgi_fill_in_header(&header, AP_FCGI_STDIN, request_id,
-                                   (apr_uint16_t) writebuflen, 0);
-            ap_fcgi_header_to_array(&header, farray);
-
-            vec[nvec].iov_base = (void *)farray;
-            vec[nvec].iov_len = sizeof(farray);
-            ++nvec;
-            if (writebuflen) {
-                vec[nvec].iov_base = writebuf;
-                vec[nvec].iov_len = writebuflen;
-                ++nvec;
-            }
-
-            rv = send_data(conn, vec, nvec, &len, 0);
-            if (rv != APR_SUCCESS) {
-                break;
-            }
-
-            if (last_stdin) {
-                pfd.reqevents = APR_POLLIN; /* Done with input data */
-
-                if (writebuflen) { /* empty AP_FCGI_STDIN not already sent? */
-                    ap_fcgi_fill_in_header(&header, AP_FCGI_STDIN, request_id,
-                                           0, 0);
-                    ap_fcgi_header_to_array(&header, farray);
-
-                    vec[0].iov_base = (void *)farray;
-                    vec[0].iov_len = sizeof(farray);
-
-                    rv = send_data(conn, vec, 1, &len, 1);
-                }
+        if (session->local.accepting 
+            && !ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state)) {
+            if (mpm_state == AP_MPMQ_STOPPING) {
+                dispatch_event(session, H2_SESSION_EV_MPM_STOPPING, 0, NULL);
             }
         }
-
-        if (pfd.rtnevents & APR_POLLIN) {
-            /* readbuf has one byte on the end that is always 0, so it's
-             * able to work with a strstr when we search for the end of
-             * the headers, even if we fill the entire length in the recv. */
-            char readbuf[AP_IOBUFSIZE + 1];
-            apr_size_t readbuflen;
-            apr_uint16_t clen, rid;
-            apr_bucket *b;
-            unsigned char plen;
-            unsigned char type, version;
-
-            memset(readbuf, 0, sizeof(readbuf));
-            memset(farray, 0, sizeof(farray));
-
-            /* First, we grab the header... */
-            rv = get_data_full(conn, (char *) farray, AP_FCGI_HEADER_LEN);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01067)
-                              "Failed to read FastCGI header");
-                break;
-            }
-
-#ifdef FCGI_DUMP_HEADERS
-            ap_log_rdata(APLOG_MARK, APLOG_DEBUG, r, "FastCGI header",
-                         farray, AP_FCGI_HEADER_LEN, 0);
-#endif
-
-            ap_fcgi_header_fields_from_array(&version, &type, &rid,
-                                             &clen, &plen, farray);
-
-            if (version != AP_FCGI_VERSION_1) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01068)
-                              "Got bogus version %d", (int)version);
-                rv = APR_EINVAL;
-                break;
-            }
-
-            if (rid != request_id) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01069)
-                              "Got bogus rid %d, expected %d",
-                              rid, request_id);
-                rv = APR_EINVAL;
-                break;
-            }
-
-recv_again:
-            if (clen > sizeof(readbuf) - 1) {
-                readbuflen = sizeof(readbuf) - 1;
-            } else {
-                readbuflen = clen;
-            }
-
-            /* Now get the actual data.  Yes it sucks to do this in a second
-             * recv call, this will eventually change when we move to real
-             * nonblocking recv calls. */
-            if (readbuflen != 0) {
-                rv = get_data(conn, readbuf, &readbuflen);
-                if (rv != APR_SUCCESS) {
-                    break;
+        
+        session->status[0] = '\0';
+        
+        switch (session->state) {
+            case H2_SESSION_ST_INIT:
+                ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_READ, c);
+                if (!h2_is_acceptable_connection(c, 1)) {
+                    update_child_status(session, SERVER_BUSY_READ, "inadequate security");
+                    h2_session_shutdown(session, NGHTTP2_INADEQUATE_SECURITY, NULL, 1);
+                } 
+                else {
+                    update_child_status(session, SERVER_BUSY_READ, "init");
+                    status = h2_session_start(session, &rv);
+                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03079)
+                                  "h2_session(%ld): started on %s:%d", session->id,
+                                  session->s->server_hostname,
+                                  c->local_addr->port);
+                    if (status != APR_SUCCESS) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                    }
+                    dispatch_event(session, H2_SESSION_EV_INIT, 0, NULL);
                 }
-                readbuf[readbuflen] = 0;
-            }
-
-            switch (type) {
-            case AP_FCGI_STDOUT:
-                if (clen != 0) {
-                    b = apr_bucket_transient_create(readbuf,
-                                                    readbuflen,
-                                                    c->bucket_alloc);
-
-                    APR_BRIGADE_INSERT_TAIL(ob, b);
-
-                    if (! seen_end_of_headers) {
-                        int st = handle_headers(r, &header_state, readbuf);
-
-                        if (st == 1) {
-                            int status;
-                            seen_end_of_headers = 1;
-
-                            status = ap_scan_script_header_err_brigade_ex(r, ob,
-                                NULL, APLOG_MODULE_INDEX);
-                            /* suck in all the rest */
-                            if (status != OK) {
-                                apr_bucket *tmp_b;
-                                apr_brigade_cleanup(ob);
-                                tmp_b = apr_bucket_eos_create(c->bucket_alloc);
-                                APR_BRIGADE_INSERT_TAIL(ob, tmp_b);
-                                r->status = status;
-                                ap_pass_brigade(r->output_filters, ob);
-                                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01070)
-                                              "Error parsing script headers");
-                                rv = APR_EINVAL;
-                                break;
-                            }
-
-                            if (conf->error_override &&
-                                ap_is_HTTP_ERROR(r->status)) {
-                                /*
-                                 * set script_error_status to discard
-                                 * everything after the headers
-                                 */
-                                script_error_status = r->status;
-                                /*
-                                 * prevent ap_die() from treating this as a
-                                 * recursive error, initially:
-                                 */
-                                r->status = HTTP_OK;
-                            }
-
-                            if (script_error_status == HTTP_OK) {
-                                rv = ap_pass_brigade(r->output_filters, ob);
-                                if (rv != APR_SUCCESS) {
-                                    break;
-                                }
-                            }
-                            apr_brigade_cleanup(ob);
-
-                            apr_pool_clear(setaside_pool);
+                break;
+                
+            case H2_SESSION_ST_IDLE:
+                /* make certain, we send everything before we idle */
+                h2_conn_io_flush(&session->io);
+                if (!session->keep_sync_until && async && !session->open_streams
+                    && !session->r && session->remote.emitted_count) {
+                    if (trace) {
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): async idle, nonblock read, "
+                                      "%d streams open", session->id, 
+                                      session->open_streams);
+                    }
+                    /* We do not return to the async mpm immediately, since under
+                     * load, mpms show the tendency to throw keep_alive connections
+                     * away very rapidly.
+                     * So, if we are still processing streams, we wait for the
+                     * normal timeout first and, on timeout, close.
+                     * If we have no streams, we still wait a short amount of
+                     * time here for the next frame to arrive, before handing
+                     * it to keep_alive processing of the mpm.
+                     */
+                    status = h2_session_read(session, 0);
+                    
+                    if (status == APR_SUCCESS) {
+                        session->have_read = 1;
+                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
+                    }
+                    else if (APR_STATUS_IS_EAGAIN(status) || APR_STATUS_IS_TIMEUP(status)) {
+                        if (apr_time_now() > session->idle_until) {
+                            dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, NULL);
                         }
                         else {
-                            /* We're still looking for the end of the
-                             * headers, so this part of the data will need
-                             * to persist. */
-                            apr_bucket_setaside(b, setaside_pool);
+                            status = APR_EAGAIN;
+                            goto out;
                         }
-                    } else {
-                        /* we've already passed along the headers, so now pass
-                         * through the content.  we could simply continue to
-                         * setaside the content and not pass until we see the
-                         * 0 content-length (below, where we append the EOS),
-                         * but that could be a huge amount of data; so we pass
-                         * along smaller chunks
-                         */
-                        if (script_error_status == HTTP_OK) {
-                            rv = ap_pass_brigade(r->output_filters, ob);
-                            if (rv != APR_SUCCESS) {
-                                break;
+                    }
+                    else {
+                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
+				      APLOGNO(03403)
+                                      "h2_session(%ld): idle, no data, error", 
+                                      session->id);
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, "timeout");
+                    }
+                }
+                else {
+                    if (trace) {
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): sync idle, stutter 1-sec, "
+                                      "%d streams open", session->id,
+                                      session->open_streams);
+                    }
+                    /* We wait in smaller increments, using a 1 second timeout.
+                     * That gives us the chance to check for MPMQ_STOPPING often. 
+                     */
+                    status = h2_mplx_idle(session->mplx);
+                    if (status != APR_SUCCESS) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
+                                       H2_ERR_ENHANCE_YOUR_CALM, "less is more");
+                    }
+                    h2_filter_cin_timeout_set(session->cin, apr_time_from_sec(1));
+                    status = h2_session_read(session, 1);
+                    if (status == APR_SUCCESS) {
+                        session->have_read = 1;
+                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
+                    }
+                    else if (status == APR_EAGAIN) {
+                        /* nothing to read */
+                    }
+                    else if (APR_STATUS_IS_TIMEUP(status)) {
+                        apr_time_t now = apr_time_now();
+                        if (now > session->keep_sync_until) {
+                            /* if we are on an async mpm, now is the time that
+                             * we may dare to pass control to it. */
+                            session->keep_sync_until = 0;
+                        }
+                        if (now > session->idle_until) {
+                            if (trace) {
+                                ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                              "h2_session(%ld): keepalive timeout",
+                                              session->id);
                             }
+                            dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, "timeout");
                         }
-                        apr_brigade_cleanup(ob);
-                    }
-
-                    /* If we didn't read all the data go back and get the
-                     * rest of it. */
-                    if (clen > readbuflen) {
-                        clen -= readbuflen;
-                        goto recv_again;
-                    }
-                } else {
-                    /* XXX what if we haven't seen end of the headers yet? */
-
-                    if (script_error_status == HTTP_OK) {
-                        b = apr_bucket_eos_create(c->bucket_alloc);
-                        APR_BRIGADE_INSERT_TAIL(ob, b);
-                        rv = ap_pass_brigade(r->output_filters, ob);
-                        if (rv != APR_SUCCESS) {
-                            break;
+                        else if (trace) {                        
+                            ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                          "h2_session(%ld): keepalive, %f sec left",
+                                          session->id, (session->idle_until - now) / 1000000.0f);
                         }
+                        /* continue reading handling */
                     }
-
-                    /* XXX Why don't we cleanup here?  (logic from AJP) */
+                    else if (APR_STATUS_IS_ECONNABORTED(status)
+                             || APR_STATUS_IS_ECONNRESET(status)
+                             || APR_STATUS_IS_EOF(status)
+                             || APR_STATUS_IS_EBADF(status)) {
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): input gone", session->id);
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                    }
+                    else {
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): idle(1 sec timeout) "
+                                      "read failed", session->id);
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, "error");
+                    }
                 }
+                
                 break;
-
-            case AP_FCGI_STDERR:
-                /* TODO: Should probably clean up this logging a bit... */
-                if (clen) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
-                                  "Got error '%s'", readbuf);
+                
+            case H2_SESSION_ST_BUSY:
+                if (nghttp2_session_want_read(session->ngh2)) {
+                    ap_update_child_status(session->c->sbh, SERVER_BUSY_READ, NULL);
+                    h2_filter_cin_timeout_set(session->cin, session->s->timeout);
+                    status = h2_session_read(session, 0);
+                    if (status == APR_SUCCESS) {
+                        session->have_read = 1;
+                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
+                    }
+                    else if (status == APR_EAGAIN) {
+                        /* nothing to read */
+                    }
+                    else if (APR_STATUS_IS_TIMEUP(status)) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, NULL);
+                        break;
+                    }
+                    else {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                    }
                 }
-
-                if (clen > readbuflen) {
-                    clen -= readbuflen;
-                    goto recv_again;
-                }
-                break;
-
-            case AP_FCGI_END_REQUEST:
-                done = 1;
-                break;
-
-            default:
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01072)
-                              "Got bogus record %d", type);
-                break;
-            }
-
-            if (plen) {
-                rv = get_data_full(conn, readbuf, plen);
-                if (rv != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  APLOGNO(02537) "Error occurred reading padding");
+                
+                /* trigger window updates, stream resumes and submits */
+                status = h2_mplx_dispatch_master_events(session->mplx, 
+                                                        on_stream_resume,
+                                                        session);
+                if (status != APR_SUCCESS) {
+                    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, c,
+                                  "h2_session(%ld): dispatch error", 
+                                  session->id);
+                    dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
+                                   H2_ERR_INTERNAL_ERROR, 
+                                   "dispatch error");
                     break;
                 }
-            }
+                
+                if (nghttp2_session_want_write(session->ngh2)) {
+                    ap_update_child_status(session->c->sbh, SERVER_BUSY_WRITE, NULL);
+                    status = h2_session_send(session);
+                    if (status != APR_SUCCESS) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
+                                       H2_ERR_INTERNAL_ERROR, "writing");
+                        break;
+                    }
+                }
+                
+                if (session->have_read || session->have_written) {
+                    if (session->wait_us) {
+                        session->wait_us = 0;
+                    }
+                }
+                else if (!nghttp2_session_want_write(session->ngh2)) {
+                    dispatch_event(session, H2_SESSION_EV_NO_IO, 0, NULL);
+                }
+                break;
+                
+            case H2_SESSION_ST_WAIT:
+                if (session->wait_us <= 0) {
+                    session->wait_us = 10;
+                    if (h2_conn_io_flush(&session->io) != APR_SUCCESS) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                        break;
+                    }
+                }
+                else {
+                    /* repeating, increase timer for graceful backoff */
+                    session->wait_us = H2MIN(session->wait_us*2, MAX_WAIT_MICROS);
+                }
+
+                if (trace) {
+                    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                                  "h2_session: wait for data, %ld micros", 
+                                  (long)session->wait_us);
+                }
+                status = h2_mplx_out_trywait(session->mplx, session->wait_us, 
+                                             session->iowait);
+                if (status == APR_SUCCESS) {
+                    session->wait_us = 0;
+                    dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
+                }
+                else if (APR_STATUS_IS_TIMEUP(status)) {
+                    /* go back to checking all inputs again */
+                    transit(session, "wait cycle", session->local.accepting? 
+                            H2_SESSION_ST_BUSY : H2_SESSION_ST_DONE);
+                }
+                else if (APR_STATUS_IS_ECONNRESET(status) 
+                         || APR_STATUS_IS_ECONNABORTED(status)) {
+                    dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                }
+                else {
+                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
+				  APLOGNO(03404)
+                                  "h2_session(%ld): waiting on conditional",
+                                  session->id);
+                    h2_session_shutdown(session, H2_ERR_INTERNAL_ERROR, 
+                                        "cond wait error", 0);
+                }
+                break;
+                
+            default:
+                ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
+                              APLOGNO(03080)
+                              "h2_session(%ld): unknown state %d", session->id, session->state);
+                dispatch_event(session, H2_SESSION_EV_PROTO_ERROR, 0, NULL);
+                break;
+        }
+
+        if (!nghttp2_session_want_read(session->ngh2) 
+                 && !nghttp2_session_want_write(session->ngh2)) {
+            dispatch_event(session, H2_SESSION_EV_NGH2_DONE, 0, NULL); 
+        }
+        if (session->reprioritize) {
+            h2_mplx_reprioritize(session->mplx, stream_pri_cmp, session);
+            session->reprioritize = 0;
         }
     }
-
-    apr_brigade_destroy(ib);
-    apr_brigade_destroy(ob);
-
-    if (script_error_status != HTTP_OK) {
-        ap_die(script_error_status, r); /* send ErrorDocument */
+    
+out:
+    if (trace) {
+        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                      "h2_session(%ld): [%s] process returns", 
+                      session->id, state_name(session->state));
+    }
+    
+    if ((session->state != H2_SESSION_ST_DONE)
+        && (APR_STATUS_IS_EOF(status)
+            || APR_STATUS_IS_ECONNRESET(status) 
+            || APR_STATUS_IS_ECONNABORTED(status))) {
+        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
     }
 
-    return rv;
+    status = APR_SUCCESS;
+    if (session->state == H2_SESSION_ST_DONE) {
+        status = APR_EOF;
+        if (!session->eoc_written) {
+            session->eoc_written = 1;
+            h2_conn_io_write_eoc(&session->io, session);
+        }
+    }
+    
+    return status;
 }

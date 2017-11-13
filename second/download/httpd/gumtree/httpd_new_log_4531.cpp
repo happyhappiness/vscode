@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00478)
-                     "apr_thread_join: unable to join the start " "thread");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00924)
+                     "worker %s shared already initialized", worker->s->name);

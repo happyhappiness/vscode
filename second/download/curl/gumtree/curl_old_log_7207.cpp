@@ -1,9 +1,11 @@
 fputs(
-"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
-"              is  mostly done to better enable scripts etc to better deal with\n"
-"              failed attempts. In normal cases when a  HTTP  server  fails  to\n"
-"              deliver  a  document,  it  returns  an  HTML document stating so\n"
-"              (which often also describes why and more). This flag  will  pre-\n"
-"              vent curl from outputting that and return error 22.\n"
+"              curl is built against OpenSSL, the directory must have been pro-\n"
+"              cessed  using  the c_rehash utility supplied with OpenSSL. Using\n"
+"              --capath can allow OpenSSL-powered curl to make  SSL-connections\n"
+"              much  more  efficiently than using --cacert if the --cacert file\n"
+"              contains many CA certificates.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -f, --fail\n"
 , stdout);

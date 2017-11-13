@@ -1,2 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
-                      "Error setting effective privileges");
+fprintf(stderr,
+            "Usage: %s [-l] <logfile> "
+            "{<rotation time in seconds>|<rotation size in megabytes>} "
+            "[offset minutes from UTC]\n\n",
+            argv0);

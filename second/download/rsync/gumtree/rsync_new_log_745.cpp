@@ -1,1 +1,1 @@
-out_of_memory("set_compression");
+out_of_memory("receive_file_entry");

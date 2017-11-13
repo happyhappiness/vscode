@@ -1,10 +1,11 @@
 fputs(
-"              and  make use of the mirrors listed within for failover if there\n"
-"              are errors (such as the file or server not being available).  It\n"
-"              will  also  verify  the hash of the file after the download com-\n"
-"              pletes. The Metalink file itself is downloaded and processed  in\n"
-"              memory and not stored in the local file system.\n"
+"              options that may be used during authentication. At present  only\n"
+"              IMAP,  POP3 and SMTP support login options. For more information\n"
+"              about the login options please see RFC 2384, RFC 5092  and  IETF\n"
+"              draft draft-earhart-url-smtp-00.txt (Added in 7.34.0).\n"
 "\n"
-"              Example to use a remote Metalink file:\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --mail-auth <address>\n"
+"              (SMTP)  Specify  a  single address. This will be used to specify\n"
 , stdout);

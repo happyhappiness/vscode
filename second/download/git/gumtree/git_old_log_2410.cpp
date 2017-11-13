@@ -1,1 +1,1 @@
-warning("unable to %s %s: %s", op, file, strerror(errno));
+printf(" %s", sha1_to_hex(children->item->object.sha1));

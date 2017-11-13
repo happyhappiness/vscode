@@ -1,4 +1,2 @@
-fprintf(stderr, "IMAP command '%s' returned response (%s) - %s\n",
-					 memcmp(cmdp->cmd, "LOGIN", 5) ?
-							cmdp->cmd : "LOGIN <user> <pass>",
-							arg, cmd ? cmd : "");
+error("delta base offset out of bound for %s",
+				      sha1_to_hex(entry->idx.sha1));

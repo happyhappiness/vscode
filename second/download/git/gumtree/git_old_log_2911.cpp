@@ -1,1 +1,1 @@
-warning("malloc failed: '%s'", strerror(errno));
+warning("realloc failed: '%s'", strerror(errno));

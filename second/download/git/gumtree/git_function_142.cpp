@@ -1,32 +1,23 @@
-static int get_trace_fd(const char *key, int *need_close)
+static struct object_entry *parse_treeish_dataref(const char **p)
 {
-	char *trace = getenv(key);
+	unsigned char sha1[20];
+	struct object_entry *e;
 
-	if (!trace || !strcmp(trace, "") ||
-	    !strcmp(trace, "0") || !strcasecmp(trace, "false"))
-		return 0;
-	if (!strcmp(trace, "1") || !strcasecmp(trace, "true"))
-		return STDERR_FILENO;
-	if (strlen(trace) == 1 && isdigit(*trace))
-		return atoi(trace);
-	if (is_absolute_path(trace)) {
-		int fd = open(trace, O_WRONLY | O_APPEND | O_CREAT, 0666);
-		if (fd == -1) {
-			fprintf(stderr,
-				"Could not open '%s' for tracing: %s\n"
-				"Defaulting to tracing on stderr...\n",
-				trace, strerror(errno));
-			return STDERR_FILENO;
-		}
-		*need_close = 1;
-		return fd;
+	if (**p == ':') {	/* <mark> */
+		e = find_mark(parse_mark_ref_space(p));
+		if (!e)
+			die("Unknown mark: %s", command_buf.buf);
+		hashcpy(sha1, e->idx.sha1);
+	} else {	/* <sha1> */
+		if (get_sha1_hex(*p, sha1))
+			die("Invalid dataref: %s", command_buf.buf);
+		e = find_object(sha1);
+		*p += 40;
+		if (*(*p)++ != ' ')
+			die("Missing space after tree-ish: %s", command_buf.buf);
 	}
 
-	fprintf(stderr, "What does '%s' for %s mean?\n", trace, key);
-	fprintf(stderr, "If you want to trace into a file, "
-		"then please set %s to an absolute pathname "
-		"(starting with /).\n", key);
-	fprintf(stderr, "Defaulting to tracing on stderr...\n");
-
-	return STDERR_FILENO;
+	while (!e || e->type != OBJ_TREE)
+		e = dereference(e, sha1);
+	return e;
 }

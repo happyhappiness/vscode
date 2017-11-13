@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_output(%s): opened and passed brigade", 
-                      output->env->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
+                         ap_server_conf,
+                         "processor unbind failed");

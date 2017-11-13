@@ -1,0 +1,1 @@
+error_errno(_("failed write to rev-list"));

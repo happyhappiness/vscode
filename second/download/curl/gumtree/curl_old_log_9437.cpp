@@ -1,9 +1,10 @@
 fputs(
-"              This  option  may  be used any number of times. To control where\n"
-"              this URL is written, use the -o, --output or the  -O,  --remote-\n"
-"              name options.\n"
-"       -v, --verbose\n"
-"              Makes  the  fetching  more  verbose/talkative. Mostly useful for\n"
-"              debugging. A line starting with '>' means \"header data\" sent  by\n"
-"              curl, '<' means \"header data\" received by curl that is hidden in\n"
+"              this option. The password can, still.\n"
+"\n"
+"              When using Kerberos V5 with a Windows based  server  you  should\n"
+"              include  the  Windows domain name in the user name, in order for\n"
+"              the server to succesfully obtain a Kerberos Ticket. If you don't\n"
+"              then the initial authentication handshake may fail.\n"
+"\n"
+"              When  using  NTLM,  the user name can be specified simply as the\n"
 , stdout);

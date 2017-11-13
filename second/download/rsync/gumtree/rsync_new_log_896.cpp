@@ -1,1 +1,1 @@
-out_of_memory("match_gnums");
+io_printf(f_out, "@ERROR: chdir failed\n");

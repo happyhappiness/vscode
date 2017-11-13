@@ -1,25 +1,76 @@
-apr_status_t h2_stream_set_response(h2_stream *stream, h2_response *response,
-                                    apr_bucket_brigade *bb)
+apr_status_t h2_session_write(h2_session *session, apr_interval_time_t timeout)
 {
-    apr_status_t status = APR_SUCCESS;
-    h2_sos *sos;
+    apr_status_t status = APR_EAGAIN;
+    h2_stream *stream = NULL;
+    int flush_output = 0;
     
-    if (!output_open(stream)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): output closed", 
-                      stream->session->id, stream->id);
-        return APR_ECONNRESET;
+    AP_DEBUG_ASSERT(session);
+    
+    /* Check that any pending window updates are sent. */
+    status = h2_session_update_windows(session);
+    if (status == APR_SUCCESS) {
+        flush_output = 1;
+    }
+    else if (status != APR_EAGAIN) {
+        return status;
     }
     
-    sos = h2_sos_mplx_create(stream, response);
-    if (sos->response->sos_filter) {
-        sos = h2_filter_sos_create(sos->response->sos_filter, sos); 
+    if (h2_session_want_write(session)) {
+        int rv;
+        status = APR_SUCCESS;
+        rv = nghttp2_session_send(session->ngh2);
+        if (rv != 0) {
+            ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                          "h2_session: send: %s", nghttp2_strerror(rv));
+            if (nghttp2_is_fatal(rv)) {
+                h2_session_abort_int(session, rv);
+                status = APR_ECONNABORTED;
+            }
+        }
+        flush_output = 1;
     }
-    stream->sos = sos;
     
-    status = stream->sos->buffer(stream->sos, bb);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
-                  "h2_stream(%ld-%d): set_response(%d)", 
-                  stream->session->id, stream->id, stream->sos->response->http_status);
+    /* If we have responses ready, submit them now. */
+    while ((stream = h2_mplx_next_submit(session->mplx, 
+                                         session->streams)) != NULL) {
+        status = h2_session_handle_response(session, stream);
+        flush_output = 1;
+    }
+    
+    if (h2_session_resume_streams_with_data(session) > 0) {
+        flush_output = 1;
+    }
+    
+    if (!flush_output && timeout > 0 && !h2_session_want_write(session)) {
+        status = h2_mplx_out_trywait(session->mplx, timeout, session->iowait);
+
+        if (status != APR_TIMEUP
+            && h2_session_resume_streams_with_data(session) > 0) {
+            flush_output = 1;
+        }
+        else {
+            /* nothing happened to ongoing streams, do some house-keeping */
+        }
+    }
+    
+    if (h2_session_want_write(session)) {
+        int rv;
+        status = APR_SUCCESS;
+        rv = nghttp2_session_send(session->ngh2);
+        if (rv != 0) {
+            ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                          "h2_session: send2: %s", nghttp2_strerror(rv));
+            if (nghttp2_is_fatal(rv)) {
+                h2_session_abort_int(session, rv);
+                status = APR_ECONNABORTED;
+            }
+        }
+        flush_output = 1;
+    }
+    
+    if (flush_output) {
+        h2_conn_io_flush(&session->io);
+    }
+    
     return status;
 }

@@ -1,22 +1,14 @@
-static void show_merge_in_progress(struct wt_status *s,
-				struct wt_status_state *state,
-				const char *color)
+static const char *make_backslash_path(const char *path)
 {
-	if (has_unmerged(s)) {
-		status_printf_ln(s, color, _("You have unmerged paths."));
-		if (s->hints) {
-			status_printf_ln(s, color,
-					 _("  (fix conflicts and run \"git commit\")"));
-			status_printf_ln(s, color,
-					 _("  (use \"git merge --abort\" to abort the merge)"));
-		}
-	} else {
-		s-> commitable = 1;
-		status_printf_ln(s, color,
-			_("All conflicts fixed but you are still merging."));
-		if (s->hints)
-			status_printf_ln(s, color,
-				_("  (use \"git commit\" to conclude merge)"));
+	static char buf[PATH_MAX + 1];
+	char *c;
+
+	if (strlcpy(buf, path, PATH_MAX) >= PATH_MAX)
+		die("Too long path: %.*s", 60, path);
+
+	for (c = buf; *c; c++) {
+		if (*c == '/')
+			*c = '\\';
 	}
-	wt_status_print_trailer(s);
+	return buf;
 }

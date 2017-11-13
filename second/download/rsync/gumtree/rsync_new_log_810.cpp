@@ -1,1 +1,1 @@
-fprintf(F," -l, --link-times            display the time on a symlink\n");
+rprintf(FERROR, "io_printf() was too long for the buffer.\n");

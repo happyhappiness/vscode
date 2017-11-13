@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf, APLOGNO(00056)
-                     "connect to listener on %pI", lp->bind_addr);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01949)
+                     "Failed to release OCSP stapling lock");

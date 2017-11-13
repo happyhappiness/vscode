@@ -1,1 +1,1 @@
-die(_("Unusable instruction sheet: %s"), git_path_todo_file());
+error(_("Failed to find tree of %s."), sha1_to_hex(sha1));

@@ -1,2 +1,4 @@
-apr_file_printf(out, "mod_example_hooks traced in non-loggable "
-                        "context: %s\n", note);
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, ap_server_conf,
+                             "All workers are busy, will close %d keep-alive "
+                             "connections",
+                             keepalive_q.count);

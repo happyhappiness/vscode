@@ -1,1 +1,1 @@
-fprintf(rev->diffopt.file, _("Final output: %d %s\n"), nr, stage);
+die(_("revision walk setup failed"));

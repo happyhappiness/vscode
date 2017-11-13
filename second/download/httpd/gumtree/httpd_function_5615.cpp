@@ -1,50 +1,64 @@
-static int lua_websocket_write(lua_State *L) 
+static void ssl_io_data_dump(server_rec *srvr,
+                             const char *s,
+                             long len)
 {
-    const char *string;
-    apr_status_t rv;
-    size_t len;
-    int raw = 0;
-    char prelude;
-    request_rec *r = ap_lua_check_request_rec(L, 1);
-    
-    if (lua_isboolean(L, 3)) {
-        raw = lua_toboolean(L, 3);
-    }
-    string = lua_tolstring(L, 2, &len);
-    
-    if (raw != 1) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Writing framed message to client");
-        
-        prelude = 0x81; /* text frame, FIN */
-        ap_rputc(prelude, r);
-        if (len < 126) {
-            ap_rputc(len, r);
-        } 
-        else if (len < 65535) {
-            apr_uint16_t slen = len;
-            ap_rputc(126, r); 
-            slen = htons(slen);
-            ap_rwrite((char*) &slen, 2, r);
+    char buf[256];
+    char tmp[64];
+    int i, j, rows, trunc;
+    unsigned char ch;
+
+    trunc = 0;
+    for(; (len > 0) && ((s[len-1] == ' ') || (s[len-1] == '\0')); len--)
+        trunc++;
+    rows = (len / DUMP_WIDTH);
+    if ((rows * DUMP_WIDTH) < len)
+        rows++;
+    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+            "+-------------------------------------------------------------------------+");
+    for(i = 0 ; i< rows; i++) {
+#if APR_CHARSET_EBCDIC
+        char ebcdic_text[DUMP_WIDTH];
+        j = DUMP_WIDTH;
+        if ((i * DUMP_WIDTH + j) > len)
+            j = len % DUMP_WIDTH;
+        if (j == 0)
+            j = DUMP_WIDTH;
+        memcpy(ebcdic_text,(char *)(s) + i * DUMP_WIDTH, j);
+        ap_xlate_proto_from_ascii(ebcdic_text, j);
+#endif /* APR_CHARSET_EBCDIC */
+        apr_snprintf(tmp, sizeof(tmp), "| %04x: ", i * DUMP_WIDTH);
+        apr_cpystrn(buf, tmp, sizeof(buf));
+        for (j = 0; j < DUMP_WIDTH; j++) {
+            if (((i * DUMP_WIDTH) + j) >= len)
+                apr_cpystrn(buf+strlen(buf), "   ", sizeof(buf)-strlen(buf));
+            else {
+                ch = ((unsigned char)*((char *)(s) + i * DUMP_WIDTH + j)) & 0xff;
+                apr_snprintf(tmp, sizeof(tmp), "%02x%c", ch , j==7 ? '-' : ' ');
+                apr_cpystrn(buf+strlen(buf), tmp, sizeof(buf)-strlen(buf));
+            }
         }
-        else {
-            apr_uint64_t llen = len;
-            ap_rputc(127, r);
-            llen = ap_ntoh64(&llen); /* ntoh doubles as hton */
-            ap_rwrite((char*) &llen, 8, r);
+        apr_cpystrn(buf+strlen(buf), " ", sizeof(buf)-strlen(buf));
+        for (j = 0; j < DUMP_WIDTH; j++) {
+            if (((i * DUMP_WIDTH) + j) >= len)
+                apr_cpystrn(buf+strlen(buf), " ", sizeof(buf)-strlen(buf));
+            else {
+                ch = ((unsigned char)*((char *)(s) + i * DUMP_WIDTH + j)) & 0xff;
+#if APR_CHARSET_EBCDIC
+                apr_snprintf(tmp, sizeof(tmp), "%c", (ch >= 0x20 && ch <= 0x7F) ? ebcdic_text[j] : '.');
+#else /* APR_CHARSET_EBCDIC */
+                apr_snprintf(tmp, sizeof(tmp), "%c", ((ch >= ' ') && (ch <= '~')) ? ch : '.');
+#endif /* APR_CHARSET_EBCDIC */
+                apr_cpystrn(buf+strlen(buf), tmp, sizeof(buf)-strlen(buf));
+            }
         }
+        apr_cpystrn(buf+strlen(buf), " |", sizeof(buf)-strlen(buf));
+        ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+                     "%s", buf);
     }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Writing raw message to client");
-    }
-    ap_rwrite(string, len, r);
-    rv = ap_rflush(r);
-    if (rv == APR_SUCCESS) {
-        lua_pushboolean(L, 1);
-    }
-    else {
-        lua_pushboolean(L, 0);
-    }
-    return 1;
+    if (trunc > 0)
+        ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+                "| %04ld - <SPACES/NULS>", len + trunc);
+    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+            "+-------------------------------------------------------------------------+");
+    return;
 }

@@ -1,1 +1,2 @@
-fprintf(stderr, "    -m method       Method name\n");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
+                      H2_STRM_MSG(stream, "added trailers"));

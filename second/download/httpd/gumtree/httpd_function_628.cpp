@@ -1,198 +1,608 @@
-static int show_server_settings(request_rec * r)
+static int parse_expr(request_rec *r, include_ctx_t *ctx, const char *expr,
+                      int *was_error, int *was_unmatched, char *debug)
 {
-    server_rec *serv = r->server;
-    int max_daemons, forked, threaded;
+    struct parse_node {
+        struct parse_node *left, *right, *parent;
+        struct token token;
+        int value, done;
+    } *root, *current, *new;
+    const char *parse;
+    char* buffer;
+    int retval = 0;
+    apr_size_t debug_pos = 0;
 
-    ap_rputs("<h2><a name=\"server\">Server Settings</a></h2>", r);
-    ap_rprintf(r,
-               "<dl><dt><strong>Server Version:</strong> "
-               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
-               ap_get_server_version());
-    ap_rprintf(r,
-               "<dt><strong>Server Built:</strong> "
-               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
-               ap_get_server_built());
-    ap_rprintf(r,
-               "<dt><strong>Module Magic Number:</strong> "
-               "<tt>%d:%d</tt></dt>\n", MODULE_MAGIC_NUMBER_MAJOR,
-               MODULE_MAGIC_NUMBER_MINOR);
-    ap_rprintf(r,
-               "<dt><strong>Hostname/port:</strong> "
-               "<tt>%s:%u</tt></dt>\n", ap_get_server_name(r),
-               ap_get_server_port(r));
-    ap_rprintf(r,
-               "<dt><strong>Timeouts:</strong> "
-               "<tt>connection: %d &nbsp;&nbsp; "
-               "keep-alive: %d</tt></dt>",
-               (int) (apr_time_sec(serv->timeout)),
-               (int) (apr_time_sec(serv->timeout)));
-    ap_mpm_query(AP_MPMQ_MAX_DAEMON_USED, &max_daemons);
-    ap_mpm_query(AP_MPMQ_IS_THREADED, &threaded);
-    ap_mpm_query(AP_MPMQ_IS_FORKED, &forked);
-    ap_rprintf(r, "<dt><strong>MPM Name:</strong> <tt>%s</tt></dt>\n",
-               ap_show_mpm());
-    ap_rprintf(r,
-               "<dt><strong>MPM Information:</strong> "
-               "<tt>Max Daemons: %d Threaded: %s Forked: %s</tt></dt>\n",
-               max_daemons, threaded ? "yes" : "no", forked ? "yes" : "no");
-    ap_rprintf(r,
-               "<dt><strong>Server Architecture:</strong> "
-               "<tt>%ld-bit</tt></dt>\n", 8 * (long) sizeof(void *));
-    ap_rprintf(r,
-               "<dt><strong>Server Root:</strong> "
-               "<tt>%s</tt></dt>\n", ap_server_root);
-    ap_rprintf(r,
-               "<dt><strong>Config File:</strong> "
-               "<tt>%s</tt></dt>\n", ap_conftree->filename);
+    debug[debug_pos] = '\0';
+    *was_error       = 0;
+    *was_unmatched   = 0;
+    if ((parse = expr) == (char *) NULL) {
+        return (0);
+    }
+    root = current = (struct parse_node *) NULL;
 
-    ap_rputs("<dt><strong>Server Built With:</strong>\n"
-             "<tt style=\"white-space: pre;\">\n", r);
+    /* Create Parse Tree */
+    while (1) {
+        new = (struct parse_node *) apr_palloc(r->pool,
+                                           sizeof(struct parse_node));
+        new->parent = new->left = new->right = (struct parse_node *) NULL;
+        new->done = 0;
+        if ((parse = get_ptoken(r, parse, &new->token, was_unmatched)) == 
+            (char *) NULL) {
+            break;
+        }
+        switch (new->token.type) {
 
-    /* TODO: Not all of these defines are getting set like they do in main.c.
-     *       Missing some headers?
-     */
-
-#ifdef BIG_SECURITY_HOLE
-    ap_rputs(" -D BIG_SECURITY_HOLE\n", r);
+        case token_string:
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], 
+                                  "     Token: string (%s)\n", 
+                                  new->token.value);
 #endif
+            if (current == (struct parse_node *) NULL) {
+                root = current = new;
+                break;
+            }
+            switch (current->token.type) {
+            case token_string:
+                current->token.value = apr_pstrcat(r->pool,
+                                                   current->token.value,
+                                                   current->token.value[0] ? " " : "",
+                                                   new->token.value,
+                                                   NULL);
+                                                   
+                break;
+            case token_eq:
+            case token_ne:
+            case token_and:
+            case token_or:
+            case token_lbrace:
+            case token_not:
+            case token_ge:
+            case token_gt:
+            case token_le:
+            case token_lt:
+                new->parent = current;
+                current = current->right = new;
+                break;
+            default:
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);
+                *was_error = 1;
+                return retval;
+            }
+            break;
 
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    ap_rputs(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n", r);
+        case token_re:
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], 
+                                  "     Token: regex (%s)\n", 
+                                  new->token.value);
 #endif
+            if (current == (struct parse_node *) NULL) {
+                root = current = new;
+                break;
+            }
+            switch (current->token.type) {
+            case token_eq:
+            case token_ne:
+            case token_and:
+            case token_or:
+            case token_lbrace:
+            case token_not:
+                new->parent = current;
+                current = current->right = new;
+                break;
+            default:
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);
+                *was_error = 1;
+                return retval;
+            }
+            break;
 
-#ifdef OS
-    ap_rputs(" -D OS=\"" OS "\"\n", r);
+        case token_and:
+        case token_or:
+#ifdef DEBUG_INCLUDE
+            memcpy (&debug[debug_pos], "     Token: and/or\n",
+                    sizeof ("     Token: and/or\n"));
+            debug_pos += sizeof ("     Token: and/or\n");
 #endif
+            if (current == (struct parse_node *) NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);
+                *was_error = 1;
+                return retval;
+            }
+            /* Percolate upwards */
+            while (current != (struct parse_node *) NULL) {
+                switch (current->token.type) {
+                case token_string:
+                case token_re:
+                case token_group:
+                case token_not:
+                case token_eq:
+                case token_ne:
+                case token_and:
+                case token_or:
+                case token_ge:
+                case token_gt:
+                case token_le:
+                case token_lt:
+                    current = current->parent;
+                    continue;
+                case token_lbrace:
+                    break;
+                default:
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                "Invalid expression \"%s\" in file %s",
+                                expr, r->filename);
+                    *was_error = 1;
+                    return retval;
+                }
+                break;
+            }
+            if (current == (struct parse_node *) NULL) {
+                new->left = root;
+                new->left->parent = new;
+                new->parent = (struct parse_node *) NULL;
+                root = new;
+            }
+            else {
+                new->left = current->right;
+                new->left->parent = new;
+                current->right = new;
+                new->parent = current;
+            }
+            current = new;
+            break;
 
-#ifdef APACHE_MPM_DIR
-    ap_rputs(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n", r);
+        case token_not:
+#ifdef DEBUG_INCLUDE
+            memcpy(&debug[debug_pos], "     Token: not\n",
+                    sizeof("     Token: not\n"));
+            debug_pos += sizeof("     Token: not\n");
 #endif
+            if (current == (struct parse_node *) NULL) {
+                root = current = new;
+                break;
+            }
+            /* Percolate upwards */
+            if (current != (struct parse_node *) NULL) {
+                switch (current->token.type) {
+                case token_not:
+                case token_eq:
+                case token_ne:
+                case token_and:
+                case token_or:
+                case token_lbrace:
+                case token_ge:
+                case token_gt:
+                case token_le:
+                case token_lt:
+                    break;
+                default:
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Invalid expression \"%s\" in file %s",
+                                  expr, r->filename);
+                    *was_error = 1;
+                    return retval;
+                }
+            }
+            if (current == (struct parse_node *) NULL) {
+                new->left = root;
+                new->left->parent = new;
+                new->parent = (struct parse_node *) NULL;
+                root = new;
+            }
+            else {
+                new->left = current->right;
+                current->right = new;
+                new->parent = current;
+            }
+            current = new;
+            break;
 
-#ifdef HAVE_SHMGET
-    ap_rputs(" -D HAVE_SHMGET\n", r);
+        case token_eq:
+        case token_ne:
+        case token_ge:
+        case token_gt:
+        case token_le:
+        case token_lt:
+#ifdef DEBUG_INCLUDE
+            memcpy(&debug[debug_pos], "     Token: eq/ne/ge/gt/le/lt\n",
+                    sizeof("     Token: eq/ne/ge/gt/le/lt\n"));
+            debug_pos += sizeof("     Token: eq/ne/ge/gt/le/lt\n");
 #endif
+            if (current == (struct parse_node *) NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Invalid expression \"%s\" in file %s",
+                              expr, r->filename);
+                *was_error = 1;
+                return retval;
+            }
+            /* Percolate upwards */
+            while (current != (struct parse_node *) NULL) {
+                switch (current->token.type) {
+                case token_string:
+                case token_re:
+                case token_group:
+                    current = current->parent;
+                    continue;
+                case token_lbrace:
+                case token_and:
+                case token_or:
+                    break;
+                case token_not:
+                case token_eq:
+                case token_ne:
+                case token_ge:
+                case token_gt:
+                case token_le:
+                case token_lt:
+                default:
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                "Invalid expression \"%s\" in file %s",
+                                expr, r->filename);
+                    *was_error = 1;
+                    return retval;
+                }
+                break;
+            }
+            if (current == (struct parse_node *) NULL) {
+                new->left = root;
+                new->left->parent = new;
+                new->parent = (struct parse_node *) NULL;
+                root = new;
+            }
+            else {
+                new->left = current->right;
+                new->left->parent = new;
+                current->right = new;
+                new->parent = current;
+            }
+            current = new;
+            break;
 
-#if APR_FILE_BASED_SHM
-    ap_rputs(" -D APR_FILE_BASED_SHM\n", r);
+        case token_rbrace:
+#ifdef DEBUG_INCLUDE
+            memcpy (&debug[debug_pos], "     Token: rbrace\n",
+                    sizeof ("     Token: rbrace\n"));
+            debug_pos += sizeof ("     Token: rbrace\n");
 #endif
+            while (current != (struct parse_node *) NULL) {
+                if (current->token.type == token_lbrace) {
+                    current->token.type = token_group;
+                    break;
+                }
+                current = current->parent;
+            }
+            if (current == (struct parse_node *) NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Unmatched ')' in \"%s\" in file %s",
+                            expr, r->filename);
+                *was_error = 1;
+                return retval;
+            }
+            break;
 
-#if APR_HAS_SENDFILE
-    ap_rputs(" -D APR_HAS_SENDFILE\n", r);
+        case token_lbrace:
+#ifdef DEBUG_INCLUDE
+            memcpy (&debug[debug_pos], "     Token: lbrace\n",
+                    sizeof ("     Token: lbrace\n"));
+            debug_pos += sizeof ("     Token: lbrace\n");
 #endif
+            if (current == (struct parse_node *) NULL) {
+                root = current = new;
+                break;
+            }
+            /* Percolate upwards */
+            if (current != (struct parse_node *) NULL) {
+                switch (current->token.type) {
+                case token_not:
+                case token_eq:
+                case token_ne:
+                case token_and:
+                case token_or:
+                case token_lbrace:
+                case token_ge:
+                case token_gt:
+                case token_le:
+                case token_lt:
+                    break;
+                case token_string:
+                case token_re:
+                case token_group:
+                default:
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                "Invalid expression \"%s\" in file %s",
+                                expr, r->filename);
+                    *was_error = 1;
+                    return retval;
+                }
+            }
+            if (current == (struct parse_node *) NULL) {
+                new->left = root;
+                new->left->parent = new;
+                new->parent = (struct parse_node *) NULL;
+                root = new;
+            }
+            else {
+                new->left = current->right;
+                current->right = new;
+                new->parent = current;
+            }
+            current = new;
+            break;
+        default:
+            break;
+        }
+    }
 
-#if APR_HAS_MMAP
-    ap_rputs(" -D APR_HAS_MMAP\n", r);
+    /* Evaluate Parse Tree */
+    current = root;
+    while (current != (struct parse_node *) NULL) {
+        switch (current->token.type) {
+        case token_string:
+#ifdef DEBUG_INCLUDE
+            memcpy (&debug[debug_pos], "     Evaluate string\n",
+                    sizeof ("     Evaluate string\n"));
+            debug_pos += sizeof ("     Evaluate string\n");
 #endif
+            buffer = ap_ssi_parse_string(r, ctx, current->token.value, NULL, 
+                                         MAX_STRING_LEN, 0);
+            current->token.value = buffer;
+            current->value = (current->token.value[0] != '\0');
+            current->done = 1;
+            current = current->parent;
+            break;
 
-#ifdef NO_WRITEV
-    ap_rputs(" -D NO_WRITEV\n", r);
-#endif
+        case token_re:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "No operator before regex of expr \"%s\" in file %s",
+                          expr, r->filename);
+            *was_error = 1;
+            return retval;
 
-#ifdef NO_LINGCLOSE
-    ap_rputs(" -D NO_LINGCLOSE\n", r);
+        case token_and:
+        case token_or:
+#ifdef DEBUG_INCLUDE
+            memcpy(&debug[debug_pos], "     Evaluate and/or\n",
+                    sizeof("     Evaluate and/or\n"));
+            debug_pos += sizeof("     Evaluate and/or\n");
 #endif
+            if (current->left  == (struct parse_node *) NULL ||
+                current->right == (struct parse_node *) NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Invalid expression \"%s\" in file %s",
+                              expr, r->filename);
+                *was_error = 1;
+                return retval;
+            }
+            if (!current->left->done) {
+                switch (current->left->token.type) {
+                case token_string:
+                    buffer = ap_ssi_parse_string(r, ctx, current->left->token.value,
+                                                 NULL, MAX_STRING_LEN, 0);
+                    current->left->token.value = buffer;
+                    current->left->value = 
+                                       (current->left->token.value[0] != '\0');
+                    current->left->done = 1;
+                    break;
+                default:
+                    current = current->left;
+                    continue;
+                }
+            }
+            if (!current->right->done) {
+                switch (current->right->token.type) {
+                case token_string:
+                    buffer = ap_ssi_parse_string(r, ctx, current->right->token.value,
+                                                 NULL, MAX_STRING_LEN, 0);
+                    current->right->token.value = buffer;
+                    current->right->value = 
+                                      (current->right->token.value[0] != '\0');
+                    current->right->done = 1;
+                    break;
+                default:
+                    current = current->right;
+                    continue;
+                }
+            }
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], "     Left: %c\n",
+                                  current->left->value ? '1' : '0');
+            debug_pos += sprintf (&debug[debug_pos], "     Right: %c\n",
+                                  current->right->value ? '1' : '0');
+#endif
+            if (current->token.type == token_and) {
+                current->value = current->left->value && current->right->value;
+            }
+            else {
+                current->value = current->left->value || current->right->value;
+            }
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], "     Returning %c\n",
+                                  current->value ? '1' : '0');
+#endif
+            current->done = 1;
+            current = current->parent;
+            break;
 
-#if APR_HAVE_IPV6
-    ap_rputs(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ", r);
-#ifdef AP_ENABLE_V4_MAPPED
-    ap_rputs("enabled)\n", r);
-#else
-    ap_rputs("disabled)\n", r);
+        case token_eq:
+        case token_ne:
+#ifdef DEBUG_INCLUDE
+            memcpy (&debug[debug_pos], "     Evaluate eq/ne\n",
+                    sizeof ("     Evaluate eq/ne\n"));
+            debug_pos += sizeof ("     Evaluate eq/ne\n");
 #endif
+            if ((current->left == (struct parse_node *) NULL) ||
+                (current->right == (struct parse_node *) NULL) ||
+                (current->left->token.type != token_string) ||
+                ((current->right->token.type != token_string) &&
+                 (current->right->token.type != token_re))) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);
+                *was_error = 1;
+                return retval;
+            }
+            buffer = ap_ssi_parse_string(r, ctx, current->left->token.value,
+                                         NULL, MAX_STRING_LEN, 0);
+            current->left->token.value = buffer;
+            buffer = ap_ssi_parse_string(r, ctx, current->right->token.value,
+                                         NULL, MAX_STRING_LEN, 0);
+            current->right->token.value = buffer;
+            if (current->right->token.type == token_re) {
+#ifdef DEBUG_INCLUDE
+                debug_pos += sprintf (&debug[debug_pos],
+                                      "     Re Compare (%s) with /%s/\n",
+                                      current->left->token.value,
+                                      current->right->token.value);
 #endif
+                current->value =
+                    re_check(r, ctx, current->left->token.value,
+                             current->right->token.value);
+            }
+            else {
+#ifdef DEBUG_INCLUDE
+                debug_pos += sprintf (&debug[debug_pos],
+                                      "     Compare (%s) with (%s)\n",
+                                      current->left->token.value,
+                                      current->right->token.value);
+#endif
+                current->value =
+                    (strcmp(current->left->token.value,
+                            current->right->token.value) == 0);
+            }
+            if (current->token.type == token_ne) {
+                current->value = !current->value;
+            }
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], "     Returning %c\n",
+                                  current->value ? '1' : '0');
+#endif
+            current->done = 1;
+            current = current->parent;
+            break;
+        case token_ge:
+        case token_gt:
+        case token_le:
+        case token_lt:
+#ifdef DEBUG_INCLUDE
+            memcpy (&debug[debug_pos], "     Evaluate ge/gt/le/lt\n",
+                    sizeof ("     Evaluate ge/gt/le/lt\n"));
+            debug_pos += sizeof ("     Evaluate ge/gt/le/lt\n");
+#endif
+            if ((current->left == (struct parse_node *) NULL) ||
+                (current->right == (struct parse_node *) NULL) ||
+                (current->left->token.type != token_string) ||
+                (current->right->token.type != token_string)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);
+                *was_error = 1;
+                return retval;
+            }
+            buffer = ap_ssi_parse_string(r, ctx, current->left->token.value,
+                                         NULL, MAX_STRING_LEN, 0);
+            current->left->token.value = buffer;
+            buffer = ap_ssi_parse_string(r, ctx, current->right->token.value,
+                                         NULL, MAX_STRING_LEN, 0);
+            current->right->token.value = buffer;
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos],
+                                  "     Compare (%s) with (%s)\n",
+                                  current->left->token.value,
+                                  current->right->token.value);
+#endif
+            current->value =
+                strcmp(current->left->token.value,
+                       current->right->token.value);
+            if (current->token.type == token_ge) {
+                current->value = current->value >= 0;
+            }
+            else if (current->token.type == token_gt) {
+                current->value = current->value > 0;
+            }
+            else if (current->token.type == token_le) {
+                current->value = current->value <= 0;
+            }
+            else if (current->token.type == token_lt) {
+                current->value = current->value < 0;
+            }
+            else {
+                current->value = 0;     /* Don't return -1 if unknown token */
+            }
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], "     Returning %c\n",
+                                  current->value ? '1' : '0');
+#endif
+            current->done = 1;
+            current = current->parent;
+            break;
 
-#if APR_USE_FLOCK_SERIALIZE
-    ap_rputs(" -D APR_USE_FLOCK_SERIALIZE\n", r);
+        case token_not:
+            if (current->right != (struct parse_node *) NULL) {
+                if (!current->right->done) {
+                    current = current->right;
+                    continue;
+                }
+                current->value = !current->right->value;
+            }
+            else {
+                current->value = 0;
+            }
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], "     Evaluate !: %c\n",
+                                  current->value ? '1' : '0');
 #endif
+            current->done = 1;
+            current = current->parent;
+            break;
 
-#if APR_USE_SYSVSEM_SERIALIZE
-    ap_rputs(" -D APR_USE_SYSVSEM_SERIALIZE\n", r);
+        case token_group:
+            if (current->right != (struct parse_node *) NULL) {
+                if (!current->right->done) {
+                    current = current->right;
+                    continue;
+                }
+                current->value = current->right->value;
+            }
+            else {
+                current->value = 1;
+            }
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], "     Evaluate (): %c\n",
+                                  current->value ? '1' : '0');
 #endif
+            current->done = 1;
+            current = current->parent;
+            break;
 
-#if APR_USE_POSIXSEM_SERIALIZE
-    ap_rputs(" -D APR_USE_POSIXSEM_SERIALIZE\n", r);
-#endif
+        case token_lbrace:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "Unmatched '(' in \"%s\" in file %s",
+                        expr, r->filename);
+            *was_error = 1;
+            return retval;
 
-#if APR_USE_FCNTL_SERIALIZE
-    ap_rputs(" -D APR_USE_FCNTL_SERIALIZE\n", r);
-#endif
+        case token_rbrace:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "Unmatched ')' in \"%s\" in file %s",
+                        expr, r->filename);
+            *was_error = 1;
+            return retval;
 
-#if APR_USE_PROC_PTHREAD_SERIALIZE
-    ap_rputs(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n", r);
-#endif
-#if APR_PROCESS_LOCK_IS_GLOBAL
-    ap_rputs(" -D APR_PROCESS_LOCK_IS_GLOBAL\n", r);
-#endif
+        default:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "bad token type");
+            *was_error = 1;
+            return retval;
+        }
+    }
 
-#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
-    ap_rputs(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n", r);
-#endif
-
-#if APR_HAS_OTHER_CHILD
-    ap_rputs(" -D APR_HAS_OTHER_CHILD\n", r);
-#endif
-
-#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
-    ap_rputs(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n", r);
-#endif
-
-#ifdef BUFFERED_LOGS
-    ap_rputs(" -D BUFFERED_LOGS\n", r);
-#ifdef PIPE_BUF
-    ap_rputs(" -D PIPE_BUF=%ld\n", (long) PIPE_BUF, r);
-#endif
-#endif
-
-#if APR_CHARSET_EBCDIC
-    ap_rputs(" -D APR_CHARSET_EBCDIC\n", r);
-#endif
-
-#ifdef NEED_HASHBANG_EMUL
-    ap_rputs(" -D NEED_HASHBANG_EMUL\n", r);
-#endif
-
-#ifdef SHARED_CORE
-    ap_rputs(" -D SHARED_CORE\n", r);
-#endif
-
-/* This list displays the compiled in default paths: */
-#ifdef HTTPD_ROOT
-    ap_rputs(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n", r);
-#endif
-
-#ifdef SUEXEC_BIN
-    ap_rputs(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n", r);
-#endif
-
-#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
-    ap_rputs(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n", r);
-#endif
-
-#ifdef DEFAULT_PIDLOG
-    ap_rputs(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n", r);
-#endif
-
-#ifdef DEFAULT_SCOREBOARD
-    ap_rputs(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n", r);
-#endif
-
-#ifdef DEFAULT_LOCKFILE
-    ap_rputs(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n", r);
-#endif
-
-#ifdef DEFAULT_ERRORLOG
-    ap_rputs(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n", r);
-#endif
-
-
-#ifdef AP_TYPES_CONFIG_FILE
-    ap_rputs(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n", r);
-#endif
-
-#ifdef SERVER_CONFIG_FILE
-    ap_rputs(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n", r);
-#endif
-    ap_rputs("</tt></dt>\n", r);
-    ap_rputs("</dl><hr />", r);
-    return 0;
+    retval = (root == (struct parse_node *) NULL) ? 0 : root->value;
+    return (retval);
 }

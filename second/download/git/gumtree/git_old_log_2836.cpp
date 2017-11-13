@@ -1,2 +1,2 @@
-warning("could not create file '%s': %s",
-			filename, strerror(errno));
+die("could not read file '%s': %s", filename,
+				strerror(errno));

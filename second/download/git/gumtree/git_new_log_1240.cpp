@@ -1,1 +1,1 @@
-die("%s", err.buf);
+printf("num commits: %d\n", sb.num_commits);

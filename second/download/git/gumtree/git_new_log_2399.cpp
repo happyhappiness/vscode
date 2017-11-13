@@ -1,1 +1,1 @@
-error_errno("cannot stat '%s'", path);
+die(_("no URLs configured for remote '%s'"), remotename);

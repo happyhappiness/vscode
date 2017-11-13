@@ -1,84 +1,90 @@
-static int find_header(const char *line, unsigned long size, int *hdrsize, struct patch *patch)
+static void finish_request(struct transfer_request *request)
 {
-	unsigned long offset, len;
+	struct http_pack_request *preq;
+	struct http_object_request *obj_req;
 
-	patch->is_toplevel_relative = 0;
-	patch->is_rename = patch->is_copy = 0;
-	patch->is_new = patch->is_delete = -1;
-	patch->old_mode = patch->new_mode = 0;
-	patch->old_name = patch->new_name = NULL;
-	for (offset = 0; size > 0; offset += len, size -= len, line += len, linenr++) {
-		unsigned long nextlen;
+	request->curl_result = request->slot->curl_result;
+	request->http_code = request->slot->http_code;
+	request->slot = NULL;
 
-		len = linelen(line, size);
-		if (!len)
-			break;
+	/* Keep locks active */
+	check_locks();
 
-		/* Testing this early allows us to take a few shortcuts.. */
-		if (len < 6)
-			continue;
+	if (request->headers != NULL)
+		curl_slist_free_all(request->headers);
 
-		/*
-		 * Make sure we don't find any unconnected patch fragments.
-		 * That's a sign that we didn't find a header, and that a
-		 * patch has become corrupted/broken up.
-		 */
-		if (!memcmp("@@ -", line, 4)) {
-			struct fragment dummy;
-			if (parse_fragment_header(line, len, &dummy) < 0)
-				continue;
-			die(_("patch fragment without header at line %d: %.*s"),
-			    linenr, (int)len-1, line);
-		}
-
-		if (size < len + 6)
-			break;
-
-		/*
-		 * Git patch? It might not have a real patch, just a rename
-		 * or mode change, so we handle that specially
-		 */
-		if (!memcmp("diff --git ", line, 11)) {
-			int git_hdr_len = parse_git_header(line, len, size, patch);
-			if (git_hdr_len <= len)
-				continue;
-			if (!patch->old_name && !patch->new_name) {
-				if (!patch->def_name)
-					die(Q_("git diff header lacks filename information when removing "
-					       "%d leading pathname component (line %d)",
-					       "git diff header lacks filename information when removing "
-					       "%d leading pathname components (line %d)",
-					       p_value),
-					    p_value, linenr);
-				patch->old_name = xstrdup(patch->def_name);
-				patch->new_name = xstrdup(patch->def_name);
-			}
-			if (!patch->is_delete && !patch->new_name)
-				die("git diff header lacks filename information "
-				    "(line %d)", linenr);
-			patch->is_toplevel_relative = 1;
-			*hdrsize = git_hdr_len;
-			return offset;
-		}
-
-		/* --- followed by +++ ? */
-		if (memcmp("--- ", line,  4) || memcmp("+++ ", line + len, 4))
-			continue;
-
-		/*
-		 * We only accept unified patches, so we want it to
-		 * at least have "@@ -a,b +c,d @@\n", which is 14 chars
-		 * minimum ("@@ -0,0 +1 @@\n" is the shortest).
-		 */
-		nextlen = linelen(line + len, size - len);
-		if (size < nextlen + 14 || memcmp("@@ -", line + len + nextlen, 4))
-			continue;
-
-		/* Ok, we'll consider it a patch */
-		parse_traditional_patch(line, line+len, patch);
-		*hdrsize = len + nextlen;
-		linenr += 2;
-		return offset;
+	/* URL is reused for MOVE after PUT */
+	if (request->state != RUN_PUT) {
+		free(request->url);
+		request->url = NULL;
 	}
-	return -1;
+
+	if (request->state == RUN_MKCOL) {
+		if (request->curl_result == CURLE_OK ||
+		    request->http_code == 405) {
+			remote_dir_exists[request->obj->sha1[0]] = 1;
+			start_put(request);
+		} else {
+			fprintf(stderr, "MKCOL %s failed, aborting (%d/%ld)\n",
+				sha1_to_hex(request->obj->sha1),
+				request->curl_result, request->http_code);
+			request->state = ABORTED;
+			aborted = 1;
+		}
+	} else if (request->state == RUN_PUT) {
+		if (request->curl_result == CURLE_OK) {
+			start_move(request);
+		} else {
+			fprintf(stderr,	"PUT %s failed, aborting (%d/%ld)\n",
+				sha1_to_hex(request->obj->sha1),
+				request->curl_result, request->http_code);
+			request->state = ABORTED;
+			aborted = 1;
+		}
+	} else if (request->state == RUN_MOVE) {
+		if (request->curl_result == CURLE_OK) {
+			if (push_verbosely)
+				fprintf(stderr, "    sent %s\n",
+					sha1_to_hex(request->obj->sha1));
+			request->obj->flags |= REMOTE;
+			release_request(request);
+		} else {
+			fprintf(stderr, "MOVE %s failed, aborting (%d/%ld)\n",
+				sha1_to_hex(request->obj->sha1),
+				request->curl_result, request->http_code);
+			request->state = ABORTED;
+			aborted = 1;
+		}
+	} else if (request->state == RUN_FETCH_LOOSE) {
+		obj_req = (struct http_object_request *)request->userData;
+
+		if (finish_http_object_request(obj_req) == 0)
+			if (obj_req->rename == 0)
+				request->obj->flags |= (LOCAL | REMOTE);
+
+		/* Try fetching packed if necessary */
+		if (request->obj->flags & LOCAL) {
+			release_http_object_request(obj_req);
+			release_request(request);
+		} else
+			start_fetch_packed(request);
+
+	} else if (request->state == RUN_FETCH_PACKED) {
+		int fail = 1;
+		if (request->curl_result != CURLE_OK) {
+			fprintf(stderr, "Unable to get pack file %s\n%s",
+				request->url, curl_errorstr);
+		} else {
+			preq = (struct http_pack_request *)request->userData;
+
+			if (preq) {
+				if (finish_http_pack_request(preq) == 0)
+					fail = 0;
+				release_http_pack_request(preq);
+			}
+		}
+		if (fail)
+			repo->can_update_info_refs = 0;
+		release_request(request);
+	}
 }

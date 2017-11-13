@@ -1,1 +1,1 @@
-printw ("%d%%)", (int) (100 * last_offset / sb.st_size));
+mutt_yesorno(msg, 1);

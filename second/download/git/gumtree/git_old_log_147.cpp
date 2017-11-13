@@ -1,1 +1,1 @@
-die("git diff-tree: internal error");
+fprintf(stderr, "Skipping server %s, no user\n", srvc->host);

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_STARTUP, rv, NULL,
-                "Could not open pipe-of-death.");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                    "ajp_marshal_into_msgb: "
+                    "Error appending attribute %s=%s",
+                    key, val);

@@ -1,1 +1,1 @@
-fprintf(FERROR,"skipping long-named directory %s\n",fname);
+fprintf(FERROR,"send_files phase=%d\n",phase);

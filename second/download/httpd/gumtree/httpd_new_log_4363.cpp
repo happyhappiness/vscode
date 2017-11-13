@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01935)
-                     "stapling_check_response: certificate ID not present in response!");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                  "connection complete to %pI (%s)",
+                  connect_addr, connectname);

@@ -1,61 +1,45 @@
-static int parse_single_patch(const char *line, unsigned long size, struct patch *patch)
+static int get_delta(struct rev_info *revs, struct remote_lock *lock)
 {
-	unsigned long offset = 0;
-	unsigned long oldlines = 0, newlines = 0, context = 0;
-	struct fragment **fragp = &patch->fragments;
+	int i;
+	struct commit *commit;
+	struct object_list **p = &objects;
+	int count = 0;
 
-	while (size > 4 && !memcmp(line, "@@ -", 4)) {
-		struct fragment *fragment;
-		int len;
-
-		fragment = xcalloc(1, sizeof(*fragment));
-		fragment->linenr = linenr;
-		len = parse_fragment(line, size, patch, fragment);
-		if (len <= 0)
-			die(_("corrupt patch at line %d"), linenr);
-		fragment->patch = line;
-		fragment->size = len;
-		oldlines += fragment->oldlines;
-		newlines += fragment->newlines;
-		context += fragment->leading + fragment->trailing;
-
-		*fragp = fragment;
-		fragp = &fragment->next;
-
-		offset += len;
-		line += len;
-		size -= len;
+	while ((commit = get_revision(revs)) != NULL) {
+		p = process_tree(commit->tree, p);
+		commit->object.flags |= LOCAL;
+		if (!(commit->object.flags & UNINTERESTING))
+			count += add_send_request(&commit->object, lock);
 	}
 
-	/*
-	 * If something was removed (i.e. we have old-lines) it cannot
-	 * be creation, and if something was added it cannot be
-	 * deletion.  However, the reverse is not true; --unified=0
-	 * patches that only add are not necessarily creation even
-	 * though they do not have any old lines, and ones that only
-	 * delete are not necessarily deletion.
-	 *
-	 * Unfortunately, a real creation/deletion patch do _not_ have
-	 * any context line by definition, so we cannot safely tell it
-	 * apart with --unified=0 insanity.  At least if the patch has
-	 * more than one hunk it is not creation or deletion.
-	 */
-	if (patch->is_new < 0 &&
-	    (oldlines || (patch->fragments && patch->fragments->next)))
-		patch->is_new = 0;
-	if (patch->is_delete < 0 &&
-	    (newlines || (patch->fragments && patch->fragments->next)))
-		patch->is_delete = 0;
+	for (i = 0; i < revs->pending.nr; i++) {
+		struct object_array_entry *entry = revs->pending.objects + i;
+		struct object *obj = entry->item;
+		const char *name = entry->name;
 
-	if (0 < patch->is_new && oldlines)
-		die(_("new file %s depends on old contents"), patch->new_name);
-	if (0 < patch->is_delete && newlines)
-		die(_("deleted file %s still has contents"), patch->old_name);
-	if (!patch->is_delete && !newlines && context)
-		fprintf_ln(stderr,
-			   _("** warning: "
-			     "file %s becomes empty but is not deleted"),
-			   patch->new_name);
+		if (obj->flags & (UNINTERESTING | SEEN))
+			continue;
+		if (obj->type == OBJ_TAG) {
+			obj->flags |= SEEN;
+			p = add_one_object(obj, p);
+			continue;
+		}
+		if (obj->type == OBJ_TREE) {
+			p = process_tree((struct tree *)obj, p);
+			continue;
+		}
+		if (obj->type == OBJ_BLOB) {
+			p = process_blob((struct blob *)obj, p);
+			continue;
+		}
+		die("unknown pending object %s (%s)", sha1_to_hex(obj->sha1), name);
+	}
 
-	return offset;
+	while (objects) {
+		if (!(objects->item->flags & UNINTERESTING))
+			count += add_send_request(objects->item, lock);
+		objects = objects->next;
+	}
+
+	return count;
 }

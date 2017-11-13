@@ -1,1 +1,1 @@
-die("Failed to read ref NOTES_MERGE_PARTIAL");
+die("BUG: patch to %s is not a creation", patch->old_name);

@@ -1,1 +1,1 @@
-die(_("Not a valid object name: '%s'"), mergetag_data->argv[i]);
+die("mktree did not return an object name");

@@ -1,91 +1,74 @@
-static int diff_get_patch_id(struct diff_options *options, unsigned char *sha1)
+int main(int argc, char **argv)
 {
-	struct diff_queue_struct *q = &diff_queued_diff;
-	int i;
-	git_SHA_CTX ctx;
-	struct patch_id_t data;
-	char buffer[PATH_MAX * 4 + 20];
+	struct strbuf all_msgs = STRBUF_INIT;
+	int total;
+	int nongit_ok;
 
-	git_SHA1_Init(&ctx);
-	memset(&data, 0, sizeof(struct patch_id_t));
-	data.ctx = &ctx;
+	git_extract_argv0_path(argv[0]);
 
-	for (i = 0; i < q->nr; i++) {
-		xpparam_t xpp;
-		xdemitconf_t xecfg;
-		mmfile_t mf1, mf2;
-		struct diff_filepair *p = q->queue[i];
-		int len1, len2;
+	git_setup_gettext();
 
-		memset(&xpp, 0, sizeof(xpp));
-		memset(&xecfg, 0, sizeof(xecfg));
-		if (p->status == 0)
-			return error("internal diff status error");
-		if (p->status == DIFF_STATUS_UNKNOWN)
-			continue;
-		if (diff_unmodified_pair(p))
-			continue;
-		if ((DIFF_FILE_VALID(p->one) && S_ISDIR(p->one->mode)) ||
-		    (DIFF_FILE_VALID(p->two) && S_ISDIR(p->two->mode)))
-			continue;
-		if (DIFF_PAIR_UNMERGED(p))
-			continue;
+	setup_git_directory_gently(&nongit_ok);
+	git_imap_config();
 
-		diff_fill_sha1_info(p->one);
-		diff_fill_sha1_info(p->two);
-		if (fill_mmfile(&mf1, p->one) < 0 ||
-				fill_mmfile(&mf2, p->two) < 0)
-			return error("unable to read files to diff");
+	argc = parse_options(argc, (const char **)argv, "", imap_send_options, imap_send_usage, 0);
 
-		len1 = remove_space(p->one->path, strlen(p->one->path));
-		len2 = remove_space(p->two->path, strlen(p->two->path));
-		if (p->one->mode == 0)
-			len1 = snprintf(buffer, sizeof(buffer),
-					"diff--gita/%.*sb/%.*s"
-					"newfilemode%06o"
-					"---/dev/null"
-					"+++b/%.*s",
-					len1, p->one->path,
-					len2, p->two->path,
-					p->two->mode,
-					len2, p->two->path);
-		else if (p->two->mode == 0)
-			len1 = snprintf(buffer, sizeof(buffer),
-					"diff--gita/%.*sb/%.*s"
-					"deletedfilemode%06o"
-					"---a/%.*s"
-					"+++/dev/null",
-					len1, p->one->path,
-					len2, p->two->path,
-					p->one->mode,
-					len1, p->one->path);
-		else
-			len1 = snprintf(buffer, sizeof(buffer),
-					"diff--gita/%.*sb/%.*s"
-					"---a/%.*s"
-					"+++b/%.*s",
-					len1, p->one->path,
-					len2, p->two->path,
-					len1, p->one->path,
-					len2, p->two->path);
-		git_SHA1_Update(&ctx, buffer, len1);
+	if (argc)
+		usage_with_options(imap_send_usage, imap_send_options);
 
-		if (diff_filespec_is_binary(p->one) ||
-		    diff_filespec_is_binary(p->two)) {
-			git_SHA1_Update(&ctx, sha1_to_hex(p->one->sha1), 40);
-			git_SHA1_Update(&ctx, sha1_to_hex(p->two->sha1), 40);
-			continue;
+#ifndef USE_CURL_FOR_IMAP_SEND
+	if (use_curl) {
+		warning("--curl not supported in this build");
+		use_curl = 0;
+	}
+#elif defined(NO_OPENSSL)
+	if (!use_curl) {
+		warning("--no-curl not supported in this build");
+		use_curl = 1;
+	}
+#endif
+
+	if (!server.port)
+		server.port = server.use_ssl ? 993 : 143;
+
+	if (!server.folder) {
+		fprintf(stderr, "no imap store specified\n");
+		return 1;
+	}
+	if (!server.host) {
+		if (!server.tunnel) {
+			fprintf(stderr, "no imap host specified\n");
+			return 1;
 		}
-
-		xpp.flags = 0;
-		xecfg.ctxlen = 3;
-		xecfg.flags = 0;
-		if (xdi_diff_outf(&mf1, &mf2, patch_id_consume, &data,
-				  &xpp, &xecfg))
-			return error("unable to generate patch-id diff for %s",
-				     p->one->path);
+		server.host = "tunnel";
 	}
 
-	git_SHA1_Final(sha1, &ctx);
-	return 0;
+	/* read the messages */
+	if (read_message(stdin, &all_msgs)) {
+		fprintf(stderr, "error reading input\n");
+		return 1;
+	}
+
+	if (all_msgs.len == 0) {
+		fprintf(stderr, "nothing to send\n");
+		return 1;
+	}
+
+	total = count_messages(&all_msgs);
+	if (!total) {
+		fprintf(stderr, "no messages to send\n");
+		return 1;
+	}
+
+	/* write it to the imap server */
+
+	if (server.tunnel)
+		return append_msgs_to_imap(&server, &all_msgs, total);
+
+#ifdef USE_CURL_FOR_IMAP_SEND
+	if (use_curl)
+		return curl_append_msgs_to_imap(&server, &all_msgs, total);
+#endif
+
+	return append_msgs_to_imap(&server, &all_msgs, total);
 }

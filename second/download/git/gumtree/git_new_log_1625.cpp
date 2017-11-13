@@ -1,1 +1,1 @@
-warning("ignoring broken ref %s", refname);
+optbug(opts, "invalid short name");

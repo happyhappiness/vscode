@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  Server: %s",
-                          server);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                              "h2_stream(%ld-%d): too many header lines", 
+                              stream->session->id, stream->id);

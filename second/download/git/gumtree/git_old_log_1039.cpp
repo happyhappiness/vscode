@@ -1,3 +1,2 @@
-fprintf(stderr, "cache-tree update-one (%d ent, %d subtree) %s\n",
-		it->entry_count, it->subtree_nr,
-		sha1_to_hex(it->sha1));
+error("unknown core.untrackedCache value '%s'; "
+		      "using 'keep' default value", v);

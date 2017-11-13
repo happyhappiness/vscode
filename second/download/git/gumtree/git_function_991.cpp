@@ -1,42 +1,47 @@
-static void show_pack_info(int stat_only)
+static void export_blob(const unsigned char *sha1)
 {
-	int i, baseobjects = nr_objects - nr_ref_deltas - nr_ofs_deltas;
-	unsigned long *chain_histogram = NULL;
+	unsigned long size;
+	enum object_type type;
+	char *buf;
+	struct object *object;
+	int eaten;
 
-	if (deepest_delta)
-		chain_histogram = xcalloc(deepest_delta, sizeof(unsigned long));
+	if (no_data)
+		return;
 
-	for (i = 0; i < nr_objects; i++) {
-		struct object_entry *obj = &objects[i];
+	if (is_null_sha1(sha1))
+		return;
 
-		if (is_delta_type(obj->type))
-			chain_histogram[obj_stat[i].delta_depth - 1]++;
-		if (stat_only)
-			continue;
-		printf("%s %-6s %lu %lu %"PRIuMAX,
-		       sha1_to_hex(obj->idx.sha1),
-		       typename(obj->real_type), obj->size,
-		       (unsigned long)(obj[1].idx.offset - obj->idx.offset),
-		       (uintmax_t)obj->idx.offset);
-		if (is_delta_type(obj->type)) {
-			struct object_entry *bobj = &objects[obj_stat[i].base_object_no];
-			printf(" %u %s", obj_stat[i].delta_depth, sha1_to_hex(bobj->idx.sha1));
-		}
-		putchar('\n');
+	object = lookup_object(sha1);
+	if (object && object->flags & SHOWN)
+		return;
+
+	if (anonymize) {
+		buf = anonymize_blob(&size);
+		object = (struct object *)lookup_blob(sha1);
+		eaten = 0;
+	} else {
+		buf = read_sha1_file(sha1, &type, &size);
+		if (!buf)
+			die ("Could not read blob %s", sha1_to_hex(sha1));
+		if (check_sha1_signature(sha1, buf, size, typename(type)) < 0)
+			die("sha1 mismatch in blob %s", sha1_to_hex(sha1));
+		object = parse_object_buffer(sha1, type, size, buf, &eaten);
 	}
 
-	if (baseobjects)
-		printf_ln(Q_("non delta: %d object",
-			     "non delta: %d objects",
-			     baseobjects),
-			  baseobjects);
-	for (i = 0; i < deepest_delta; i++) {
-		if (!chain_histogram[i])
-			continue;
-		printf_ln(Q_("chain length = %d: %lu object",
-			     "chain length = %d: %lu objects",
-			     chain_histogram[i]),
-			  i + 1,
-			  chain_histogram[i]);
-	}
+	if (!object)
+		die("Could not read blob %s", sha1_to_hex(sha1));
+
+	mark_next_object(object);
+
+	printf("blob\nmark :%"PRIu32"\ndata %lu\n", last_idnum, size);
+	if (size && fwrite(buf, size, 1, stdout) != 1)
+		die_errno ("Could not write blob '%s'", sha1_to_hex(sha1));
+	printf("\n");
+
+	show_progress();
+
+	object->flags |= SHOWN;
+	if (!eaten)
+		free(buf);
 }

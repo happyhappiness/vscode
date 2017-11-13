@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
-                "encryption driver not configured, "
-                "no SessionCryptoDriver set");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    "((%lx & %lx) != %lx) = %d", v, l, l, matched);

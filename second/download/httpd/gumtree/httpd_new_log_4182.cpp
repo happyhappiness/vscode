@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02207)
-                 "loaded %d client certs for SSL proxy",
-                 ncerts);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01118)
+                 "proxy: roundrobin index: %d (%d)",
+                 ctx->index, (int)getpid());

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Invalid tag for set "
-                          "directive in %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "could not partition buffered SSL brigade");

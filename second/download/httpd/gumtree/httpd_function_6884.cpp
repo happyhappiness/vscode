@@ -1,154 +1,298 @@
-static int ap_proxy_wstunnel_request(apr_pool_t *p, request_rec *r,
-                                proxy_conn_rec *conn,
-                                proxy_worker *worker,
-                                proxy_server_conf *conf,
-                                apr_uri_t *uri,
-                                char *url, char *server_portstr)
+apr_status_t h2_session_process(h2_session *session, int async)
 {
-    apr_status_t rv = APR_SUCCESS;
-    apr_pollset_t *pollset;
-    apr_pollfd_t pollfd;
-    const apr_pollfd_t *signalled;
-    apr_int32_t pollcnt, pi;
-    apr_int16_t pollevent;
-    conn_rec *c = r->connection;
-    apr_socket_t *sock = conn->sock;
-    conn_rec *backconn = conn->connection;
-    int client_error = 0;
-    char *buf;
-    apr_bucket_brigade *header_brigade;
-    apr_bucket *e;
-    char *old_cl_val = NULL;
-    char *old_te_val = NULL;
-    apr_bucket_brigade *bb = apr_brigade_create(p, c->bucket_alloc);
-    apr_socket_t *client_socket = ap_get_conn_socket(c);
+    apr_status_t status = APR_SUCCESS;
+    conn_rec *c = session->c;
+    int rv, mpm_state, trace = APLOGctrace3(c);
 
-    header_brigade = apr_brigade_create(p, backconn->bucket_alloc);
-
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "sending request");
-
-    rv = ap_proxy_create_hdrbrgd(p, header_brigade, r, conn,
-                                 worker, conf, uri, url, server_portstr,
-                                 &old_cl_val, &old_te_val);
-    if (rv != OK) {
-        return rv;
+    if (trace) {
+        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                      "h2_session(%ld): process start, async=%d", 
+                      session->id, async);
     }
-
-    buf = apr_pstrcat(p, "Upgrade: WebSocket", CRLF, "Connection: Upgrade", CRLF, CRLF, NULL);
-    ap_xlate_proto_to_ascii(buf, strlen(buf));
-    e = apr_bucket_pool_create(buf, strlen(buf), p, c->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(header_brigade, e);
-
-    if ((rv = ap_proxy_pass_brigade(c->bucket_alloc, r, conn, backconn,
-                                    header_brigade, 1)) != OK)
-        return rv;
-
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "setting up poll()");
-
-    if ((rv = apr_pollset_create(&pollset, 2, p, 0)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02443)
-                      "error apr_pollset_create()");
-        return HTTP_INTERNAL_SERVER_ERROR;
+                  
+    if (c->cs) {
+        c->cs->state = CONN_STATE_WRITE_COMPLETION;
     }
+    
+    while (session->state != H2_SESSION_ST_DONE) {
+        trace = APLOGctrace3(c);
+        session->have_read = session->have_written = 0;
 
-#if 0
-    apr_socket_opt_set(sock, APR_SO_NONBLOCK, 1);
-    apr_socket_opt_set(sock, APR_SO_KEEPALIVE, 1);
-    apr_socket_opt_set(client_socket, APR_SO_NONBLOCK, 1);
-    apr_socket_opt_set(client_socket, APR_SO_KEEPALIVE, 1);
-#endif
-
-    pollfd.p = p;
-    pollfd.desc_type = APR_POLL_SOCKET;
-    pollfd.reqevents = APR_POLLIN;
-    pollfd.desc.s = sock;
-    pollfd.client_data = NULL;
-    apr_pollset_add(pollset, &pollfd);
-
-    pollfd.desc.s = client_socket;
-    apr_pollset_add(pollset, &pollfd);
-
-
-    r->output_filters = c->output_filters;
-    r->proto_output_filters = c->output_filters;
-    r->input_filters = c->input_filters;
-    r->proto_input_filters = c->input_filters;
-
-    remove_reqtimeout(r->input_filters);
-
-    while (1) { /* Infinite loop until error (one side closes the connection) */
-        if ((rv = apr_pollset_poll(pollset, -1, &pollcnt, &signalled))
-            != APR_SUCCESS) {
-            if (APR_STATUS_IS_EINTR(rv)) {
-                continue;
+        if (session->local.accepting 
+            && !ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state)) {
+            if (mpm_state == AP_MPMQ_STOPPING) {
+                dispatch_event(session, H2_SESSION_EV_MPM_STOPPING, 0, NULL);
             }
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02444) "error apr_poll()");
-            return HTTP_INTERNAL_SERVER_ERROR;
         }
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02445)
-                      "woke from poll(), i=%d", pollcnt);
-
-        for (pi = 0; pi < pollcnt; pi++) {
-            const apr_pollfd_t *cur = &signalled[pi];
-
-            if (cur->desc.s == sock) {
-                pollevent = cur->rtnevents;
-                if (pollevent & APR_POLLIN) {
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02446)
-                                  "sock was readable");
-                    rv = proxy_wstunnel_transfer(r, backconn, c, bb, "sock");
+        
+        session->status[0] = '\0';
+        
+        switch (session->state) {
+            case H2_SESSION_ST_INIT:
+                ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_READ, c);
+                if (!h2_is_acceptable_connection(c, 1)) {
+                    update_child_status(session, SERVER_BUSY_READ, "inadequate security");
+                    h2_session_shutdown(session, NGHTTP2_INADEQUATE_SECURITY, NULL, 1);
+                } 
+                else {
+                    update_child_status(session, SERVER_BUSY_READ, "init");
+                    status = h2_session_start(session, &rv);
+                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03079)
+                                  "h2_session(%ld): started on %s:%d", session->id,
+                                  session->s->server_hostname,
+                                  c->local_addr->port);
+                    if (status != APR_SUCCESS) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
                     }
-                else if ((pollevent & APR_POLLERR)
-                         || (pollevent & APR_POLLHUP)) {
-                         rv = APR_EPIPE;
-                         ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02447)
-                                       "err/hup on backconn");
+                    dispatch_event(session, H2_SESSION_EV_INIT, 0, NULL);
                 }
-                else { 
-                    rv = APR_EGENERAL;
-                    ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02605)
-                            "unknown event on backconn %d", pollevent);
+                break;
+                
+            case H2_SESSION_ST_IDLE:
+                /* make certain, we send everything before we idle */
+                h2_conn_io_flush(&session->io);
+                if (!session->keep_sync_until && async && !session->open_streams
+                    && !session->r && session->remote.emitted_count) {
+                    if (trace) {
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): async idle, nonblock read, "
+                                      "%d streams open", session->id, 
+                                      session->open_streams);
+                    }
+                    /* We do not return to the async mpm immediately, since under
+                     * load, mpms show the tendency to throw keep_alive connections
+                     * away very rapidly.
+                     * So, if we are still processing streams, we wait for the
+                     * normal timeout first and, on timeout, close.
+                     * If we have no streams, we still wait a short amount of
+                     * time here for the next frame to arrive, before handing
+                     * it to keep_alive processing of the mpm.
+                     */
+                    status = h2_session_read(session, 0);
+                    
+                    if (status == APR_SUCCESS) {
+                        session->have_read = 1;
+                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
+                    }
+                    else if (APR_STATUS_IS_EAGAIN(status) || APR_STATUS_IS_TIMEUP(status)) {
+                        if (apr_time_now() > session->idle_until) {
+                            dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, NULL);
+                        }
+                        else {
+                            status = APR_EAGAIN;
+                            goto out;
+                        }
+                    }
+                    else {
+                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
+				      APLOGNO(03403)
+                                      "h2_session(%ld): idle, no data, error", 
+                                      session->id);
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, "timeout");
+                    }
                 }
-                if (rv != APR_SUCCESS)
-                    client_error = 1;
-            }
-            else if (cur->desc.s == client_socket) {
-                pollevent = cur->rtnevents;
-                if (pollevent & APR_POLLIN) {
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02448)
-                                  "client was readable");
-                    rv = proxy_wstunnel_transfer(r, c, backconn, bb, "client");
+                else {
+                    if (trace) {
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): sync idle, stutter 1-sec, "
+                                      "%d streams open", session->id,
+                                      session->open_streams);
+                    }
+                    /* We wait in smaller increments, using a 1 second timeout.
+                     * That gives us the chance to check for MPMQ_STOPPING often. 
+                     */
+                    status = h2_mplx_idle(session->mplx);
+                    if (status != APR_SUCCESS) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
+                                       H2_ERR_ENHANCE_YOUR_CALM, "less is more");
+                    }
+                    h2_filter_cin_timeout_set(session->cin, apr_time_from_sec(1));
+                    status = h2_session_read(session, 1);
+                    if (status == APR_SUCCESS) {
+                        session->have_read = 1;
+                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
+                    }
+                    else if (status == APR_EAGAIN) {
+                        /* nothing to read */
+                    }
+                    else if (APR_STATUS_IS_TIMEUP(status)) {
+                        apr_time_t now = apr_time_now();
+                        if (now > session->keep_sync_until) {
+                            /* if we are on an async mpm, now is the time that
+                             * we may dare to pass control to it. */
+                            session->keep_sync_until = 0;
+                        }
+                        if (now > session->idle_until) {
+                            if (trace) {
+                                ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                              "h2_session(%ld): keepalive timeout",
+                                              session->id);
+                            }
+                            dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, "timeout");
+                        }
+                        else if (trace) {                        
+                            ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                          "h2_session(%ld): keepalive, %f sec left",
+                                          session->id, (session->idle_until - now) / 1000000.0f);
+                        }
+                        /* continue reading handling */
+                    }
+                    else if (APR_STATUS_IS_ECONNABORTED(status)
+                             || APR_STATUS_IS_ECONNRESET(status)
+                             || APR_STATUS_IS_EOF(status)
+                             || APR_STATUS_IS_EBADF(status)) {
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): input gone", session->id);
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                    }
+                    else {
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): idle(1 sec timeout) "
+                                      "read failed", session->id);
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, "error");
+                    }
                 }
-                else if ((pollevent & APR_POLLERR)
-                        || (pollevent & APR_POLLHUP)) {
-                    rv = APR_EPIPE;
-                    c->aborted = 1;
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02607)
-                            "err/hup on client conn");
+                
+                break;
+                
+            case H2_SESSION_ST_BUSY:
+                if (nghttp2_session_want_read(session->ngh2)) {
+                    ap_update_child_status(session->c->sbh, SERVER_BUSY_READ, NULL);
+                    h2_filter_cin_timeout_set(session->cin, session->s->timeout);
+                    status = h2_session_read(session, 0);
+                    if (status == APR_SUCCESS) {
+                        session->have_read = 1;
+                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
+                    }
+                    else if (status == APR_EAGAIN) {
+                        /* nothing to read */
+                    }
+                    else if (APR_STATUS_IS_TIMEUP(status)) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, NULL);
+                        break;
+                    }
+                    else {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                    }
                 }
-                else { 
-                    rv = APR_EGENERAL;
-                    ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02606)
-                            "unknown event on client conn %d", pollevent);
+                
+                /* trigger window updates, stream resumes and submits */
+                status = h2_mplx_dispatch_master_events(session->mplx, 
+                                                        on_stream_resume,
+                                                        session);
+                if (status != APR_SUCCESS) {
+                    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, c,
+                                  "h2_session(%ld): dispatch error", 
+                                  session->id);
+                    dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
+                                   H2_ERR_INTERNAL_ERROR, 
+                                   "dispatch error");
+                    break;
                 }
-            }
-            else {
-                rv = APR_EBADF;
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02449)
-                              "unknown socket in pollset");
-            }
+                
+                if (nghttp2_session_want_write(session->ngh2)) {
+                    ap_update_child_status(session->c->sbh, SERVER_BUSY_WRITE, NULL);
+                    status = h2_session_send(session);
+                    if (status != APR_SUCCESS) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
+                                       H2_ERR_INTERNAL_ERROR, "writing");
+                        break;
+                    }
+                }
+                
+                if (session->have_read || session->have_written) {
+                    if (session->wait_us) {
+                        session->wait_us = 0;
+                    }
+                }
+                else if (!nghttp2_session_want_write(session->ngh2)) {
+                    dispatch_event(session, H2_SESSION_EV_NO_IO, 0, NULL);
+                }
+                break;
+                
+            case H2_SESSION_ST_WAIT:
+                if (session->wait_us <= 0) {
+                    session->wait_us = 10;
+                    if (h2_conn_io_flush(&session->io) != APR_SUCCESS) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                        break;
+                    }
+                }
+                else {
+                    /* repeating, increase timer for graceful backoff */
+                    session->wait_us = H2MIN(session->wait_us*2, MAX_WAIT_MICROS);
+                }
 
+                if (trace) {
+                    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                                  "h2_session: wait for data, %ld micros", 
+                                  (long)session->wait_us);
+                }
+                status = h2_mplx_out_trywait(session->mplx, session->wait_us, 
+                                             session->iowait);
+                if (status == APR_SUCCESS) {
+                    session->wait_us = 0;
+                    dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
+                }
+                else if (APR_STATUS_IS_TIMEUP(status)) {
+                    /* go back to checking all inputs again */
+                    transit(session, "wait cycle", session->local.accepting? 
+                            H2_SESSION_ST_BUSY : H2_SESSION_ST_DONE);
+                }
+                else if (APR_STATUS_IS_ECONNRESET(status) 
+                         || APR_STATUS_IS_ECONNABORTED(status)) {
+                    dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                }
+                else {
+                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
+				  APLOGNO(03404)
+                                  "h2_session(%ld): waiting on conditional",
+                                  session->id);
+                    h2_session_shutdown(session, H2_ERR_INTERNAL_ERROR, 
+                                        "cond wait error", 0);
+                }
+                break;
+                
+            default:
+                ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
+                              APLOGNO(03080)
+                              "h2_session(%ld): unknown state %d", session->id, session->state);
+                dispatch_event(session, H2_SESSION_EV_PROTO_ERROR, 0, NULL);
+                break;
         }
-        if (rv != APR_SUCCESS) {
-            break;
+
+        if (!nghttp2_session_want_read(session->ngh2) 
+                 && !nghttp2_session_want_write(session->ngh2)) {
+            dispatch_event(session, H2_SESSION_EV_NGH2_DONE, 0, NULL); 
+        }
+        if (session->reprioritize) {
+            h2_mplx_reprioritize(session->mplx, stream_pri_cmp, session);
+            session->reprioritize = 0;
         }
     }
-
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                  "finished with poll() - cleaning up");
-
-    if (client_error) {
-        return HTTP_INTERNAL_SERVER_ERROR;
+    
+out:
+    if (trace) {
+        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                      "h2_session(%ld): [%s] process returns", 
+                      session->id, state_name(session->state));
     }
-    return OK;
+    
+    if ((session->state != H2_SESSION_ST_DONE)
+        && (APR_STATUS_IS_EOF(status)
+            || APR_STATUS_IS_ECONNRESET(status) 
+            || APR_STATUS_IS_ECONNABORTED(status))) {
+        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+    }
+
+    status = APR_SUCCESS;
+    if (session->state == H2_SESSION_ST_DONE) {
+        status = APR_EOF;
+        if (!session->eoc_written) {
+            session->eoc_written = 1;
+            h2_conn_io_write_eoc(&session->io, session);
+        }
+    }
+    
+    return status;
 }

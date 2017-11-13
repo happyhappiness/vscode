@@ -1,126 +1,103 @@
-static int read_type_map(apr_file_t **map, negotiation_state *neg,
-                         request_rec *rr)
+static int shmcb_subcache_store(server_rec *s, SHMCBHeader *header,
+                                SHMCBSubcache *subcache, 
+                                unsigned char *data, unsigned int data_len,
+                                const unsigned char *id, unsigned int id_len,
+                                apr_time_t expiry)
 {
-    request_rec *r = neg->r;
-    apr_file_t *map_ = NULL;
-    apr_status_t status;
-    char buffer[MAX_STRING_LEN];
-    enum header_state hstate;
-    struct var_rec mime_info;
-    int has_content;
+    unsigned int data_offset, new_idx, id_offset;
+    SHMCBIndex *idx;
+    unsigned int total_len = id_len + data_len;
 
-    if (!map)
-        map = &map_;
-
-    /* We are not using multiviews */
-    neg->count_multiviews_variants = 0;
-
-    if ((status = apr_file_open(map, rr->filename, APR_READ | APR_BUFFERED,
-                APR_OS_DEFAULT, neg->pool)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "cannot access type map file: %s", rr->filename);
-        if (APR_STATUS_IS_ENOTDIR(status) || APR_STATUS_IS_ENOENT(status)) {
-            return HTTP_NOT_FOUND;
-        }
-        else {
-            return HTTP_FORBIDDEN;
-        }
+    /* Sanity check the input */
+    if (total_len > header->subcache_data_size) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "inserting socache entry larger (%d) than subcache data area (%d)",
+                     total_len, header->subcache_data_size);
+        return -1;
     }
 
-    clean_var_rec(&mime_info);
-    has_content = 0;
+    /* First reclaim space from removed and expired records. */
+    shmcb_subcache_expire(s, header, subcache, apr_time_now());
 
-    do {
-        hstate = get_header_line(buffer, MAX_STRING_LEN, *map);
+    /* Loop until there is enough space to insert
+     * XXX: This should first compress out-of-order expiries and
+     * removed records, and then force-remove oldest-first
+     */
+    if (header->subcache_data_size - subcache->data_used < total_len
+        || subcache->idx_used == header->index_num) {
+        unsigned int loop = 0;
 
-        if (hstate == header_seen) {
-            char *body1 = lcase_header_name_return_body(buffer, neg->r);
-            const char *body;
+        idx = SHMCB_INDEX(subcache, subcache->idx_pos);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "about to force-expire, subcache: idx_used=%d, "
+                     "data_used=%d", subcache->idx_used, subcache->data_used);
+        do {
+            SHMCBIndex *idx2;
 
-            if (body1 == NULL) {
-                return HTTP_INTERNAL_SERVER_ERROR;
+            /* Adjust the indexes by one */
+            subcache->idx_pos = SHMCB_CYCLIC_INCREMENT(subcache->idx_pos, 1,
+                                                       header->index_num);
+            subcache->idx_used--;
+            if (!subcache->idx_used) {
+                /* There's nothing left */
+                subcache->data_used = 0;
+                break;
             }
+            /* Adjust the data */
+            idx2 = SHMCB_INDEX(subcache, subcache->idx_pos);
+            subcache->data_used -= SHMCB_CYCLIC_SPACE(idx->data_pos, idx2->data_pos,
+                                                      header->subcache_data_size);
+            subcache->data_pos = idx2->data_pos;
+            /* Stats */
+            header->stat_scrolled++;
+            /* Loop admin */
+            idx = idx2;
+            loop++;
+        } while (header->subcache_data_size - subcache->data_used < total_len);
 
-            strip_paren_comments(body1);
-            body = body1;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "finished force-expire, subcache: idx_used=%d, "
+                     "data_used=%d", subcache->idx_used, subcache->data_used);
+    }
 
-            if (!strncmp(buffer, "uri:", 4)) {
-                mime_info.file_name = ap_get_token(neg->pool, &body, 0);
-            }
-            else if (!strncmp(buffer, "content-type:", 13)) {
-                struct accept_rec accept_info;
-
-                get_entry(neg->pool, &accept_info, body);
-                set_mime_fields(&mime_info, &accept_info);
-                has_content = 1;
-            }
-            else if (!strncmp(buffer, "content-length:", 15)) {
-                char *errp;
-                apr_off_t number;
-
-                if (apr_strtoff(&number, body, &errp, 10)
-                    || *errp || number < 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Parse error in type map, Content-Length: "
-                                  "'%s' in %s is invalid.",
-                                  body, r->filename);
-                    break;
-                }
-                mime_info.bytes = number;
-                has_content = 1;
-            }
-            else if (!strncmp(buffer, "content-language:", 17)) {
-                mime_info.content_languages = do_languages_line(neg->pool,
-                                                                &body);
-                has_content = 1;
-            }
-            else if (!strncmp(buffer, "content-encoding:", 17)) {
-                mime_info.content_encoding = ap_get_token(neg->pool, &body, 0);
-                has_content = 1;
-            }
-            else if (!strncmp(buffer, "description:", 12)) {
-                char *desc = apr_pstrdup(neg->pool, body);
-                char *cp;
-
-                for (cp = desc; *cp; ++cp) {
-                    if (*cp=='\n') *cp=' ';
-                }
-                if (cp>desc) *(cp-1)=0;
-                mime_info.description = desc;
-            }
-            else if (!strncmp(buffer, "body:", 5)) {
-                char *tag = apr_pstrdup(neg->pool, body);
-                char *eol = strchr(tag, '\0');
-                apr_size_t len = MAX_STRING_LEN;
-                while (--eol >= tag && apr_isspace(*eol))
-                    *eol = '\0';
-                if ((mime_info.body = get_body(buffer, &len, tag, *map)) < 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Syntax error in type map, no end tag '%s'"
-                                  "found in %s for Body: content.",
-                                  tag, r->filename);
-                     break;
-                }
-                mime_info.bytes = len;
-                mime_info.file_name = apr_filepath_name_get(rr->filename);
-            }
-        }
-        else {
-            if (*mime_info.file_name && has_content) {
-                void *new_var = apr_array_push(neg->avail_vars);
-
-                memcpy(new_var, (void *) &mime_info, sizeof(var_rec));
-            }
-
-            clean_var_rec(&mime_info);
-            has_content = 0;
-        }
-    } while (hstate != header_eof);
-
-    if (map_)
-        apr_file_close(map_);
-
-    set_vlist_validator(r, rr);
-
-    return OK;
+    /* HERE WE ASSUME THAT THE NEW ENTRY SHOULD GO ON THE END! I'M NOT
+     * CHECKING WHETHER IT SHOULD BE GENUINELY "INSERTED" SOMEWHERE.
+     *
+     * We aught to fix that.  httpd (never mind third party modules)
+     * does not promise to perform any processing in date order
+     * (c.f. FAQ "My log entries are not in date order!")
+     */
+    /* Insert the id */
+    id_offset = SHMCB_CYCLIC_INCREMENT(subcache->data_pos, subcache->data_used,
+                                       header->subcache_data_size);
+    shmcb_cyclic_ntoc_memcpy(header->subcache_data_size,
+                             SHMCB_DATA(header, subcache), id_offset,
+                             id, id_len);
+    subcache->data_used += id_len;
+    /* Insert the data */
+    data_offset = SHMCB_CYCLIC_INCREMENT(subcache->data_pos, subcache->data_used,
+                                         header->subcache_data_size);
+    shmcb_cyclic_ntoc_memcpy(header->subcache_data_size,
+                             SHMCB_DATA(header, subcache), data_offset,
+                             data, data_len);
+    subcache->data_used += data_len;
+    /* Insert the index */
+    new_idx = SHMCB_CYCLIC_INCREMENT(subcache->idx_pos, subcache->idx_used,
+                                     header->index_num);
+    idx = SHMCB_INDEX(subcache, new_idx);
+    idx->expires = expiry;
+    idx->data_pos = id_offset;
+    idx->data_used = total_len;
+    idx->id_len = id_len;
+    idx->removed = 0;
+    subcache->idx_used++;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "insert happened at idx=%d, data=(%u:%u)", new_idx, 
+                 id_offset, data_offset);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "finished insert, subcache: idx_pos/idx_used=%d/%d, "
+                 "data_pos/data_used=%d/%d",
+                 subcache->idx_pos, subcache->idx_used,
+                 subcache->data_pos, subcache->data_used);
+    return 0;
 }

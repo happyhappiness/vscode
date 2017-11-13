@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "missing argument for exec element in %s",
-                      r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "unable to init Zlib: "
+                          "inflateInit2 returned %d: URL %s",
+                          zRC, r->uri);

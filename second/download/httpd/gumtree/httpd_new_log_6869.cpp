@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                    "lua: Error while executing filter: %s",
-                        lua_tostring(L, -1));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
+                                      H2_SSSN_MSG(session, "input gone"));

@@ -1,1 +1,1 @@
-error("too many parameters");
+error("unable to create directory for %s", newrefname);

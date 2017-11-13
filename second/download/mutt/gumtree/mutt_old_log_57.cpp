@@ -1,1 +1,1 @@
-mutt_yesorno(msg, 1);
+(mutt_yesorno (tmp, 1);

@@ -1,4 +1,3 @@
-printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
-               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
-               trstring, tdstring, tdstring,
-               (double) (totalread + totalposted) / 1024 / timetaken);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02422)
+                          "HTTP Request Line; URI must not contain a "
+                          "username/password");

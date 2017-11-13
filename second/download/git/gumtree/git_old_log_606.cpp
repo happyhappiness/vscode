@@ -1,2 +1,1 @@
-fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), describe_object(obj));
+error(_("Your local changes would be overwritten by cherry-pick."));

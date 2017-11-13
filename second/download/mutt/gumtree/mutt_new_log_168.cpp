@@ -1,1 +1,1 @@
-state_puts (t1, s);
+state_puts (p, s);

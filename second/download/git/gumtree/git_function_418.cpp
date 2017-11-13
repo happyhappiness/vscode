@@ -1,57 +1,36 @@
-static int merge_one_change_manual(struct notes_merge_options *o,
-				   struct notes_merge_pair *p,
-				   struct notes_tree *t)
+static void prepare_note_data(const unsigned char *object, struct note_data *d,
+		const unsigned char *old_note)
 {
-	const char *lref = o->local_ref ? o->local_ref : "local version";
-	const char *rref = o->remote_ref ? o->remote_ref : "remote version";
+	if (d->use_editor || !d->given) {
+		int fd;
+		struct strbuf buf = STRBUF_INIT;
 
-	trace_printf("\t\t\tmerge_one_change_manual(obj = %.7s, base = %.7s, "
-	       "local = %.7s, remote = %.7s)\n",
-	       sha1_to_hex(p->obj), sha1_to_hex(p->base),
-	       sha1_to_hex(p->local), sha1_to_hex(p->remote));
+		/* write the template message before editing: */
+		d->edit_path = git_pathdup("NOTES_EDITMSG");
+		fd = open(d->edit_path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+		if (fd < 0)
+			die_errno(_("could not create file '%s'"), d->edit_path);
 
-	/* add "Conflicts:" section to commit message first time through */
-	if (!o->has_worktree)
-		strbuf_addstr(&(o->commit_msg), "\n\nConflicts:\n");
+		if (d->given)
+			write_or_die(fd, d->buf.buf, d->buf.len);
+		else if (old_note)
+			copy_obj_to_fd(fd, old_note);
 
-	strbuf_addf(&(o->commit_msg), "\t%s\n", sha1_to_hex(p->obj));
+		strbuf_addch(&buf, '\n');
+		strbuf_add_commented_lines(&buf, "\n", strlen("\n"));
+		strbuf_add_commented_lines(&buf, _(note_template), strlen(_(note_template)));
+		strbuf_addch(&buf, '\n');
+		write_or_die(fd, buf.buf, buf.len);
 
-	if (o->verbosity >= 2)
-		printf("Auto-merging notes for %s\n", sha1_to_hex(p->obj));
-	check_notes_merge_worktree(o);
-	if (is_null_sha1(p->local)) {
-		/* D/F conflict, checkout p->remote */
-		assert(!is_null_sha1(p->remote));
-		if (o->verbosity >= 1)
-			printf("CONFLICT (delete/modify): Notes for object %s "
-				"deleted in %s and modified in %s. Version from %s "
-				"left in tree.\n",
-				sha1_to_hex(p->obj), lref, rref, rref);
-		write_note_to_worktree(p->obj, p->remote);
-	} else if (is_null_sha1(p->remote)) {
-		/* D/F conflict, checkout p->local */
-		assert(!is_null_sha1(p->local));
-		if (o->verbosity >= 1)
-			printf("CONFLICT (delete/modify): Notes for object %s "
-				"deleted in %s and modified in %s. Version from %s "
-				"left in tree.\n",
-				sha1_to_hex(p->obj), rref, lref, lref);
-		write_note_to_worktree(p->obj, p->local);
-	} else {
-		/* "regular" conflict, checkout result of ll_merge() */
-		const char *reason = "content";
-		if (is_null_sha1(p->base))
-			reason = "add/add";
-		assert(!is_null_sha1(p->local));
-		assert(!is_null_sha1(p->remote));
-		if (o->verbosity >= 1)
-			printf("CONFLICT (%s): Merge conflict in notes for "
-				"object %s\n", reason, sha1_to_hex(p->obj));
-		ll_merge_in_worktree(o, p);
+		write_commented_object(fd, object);
+
+		close(fd);
+		strbuf_release(&buf);
+		strbuf_reset(&d->buf);
+
+		if (launch_editor(d->edit_path, &d->buf, NULL)) {
+			die(_("Please supply the note contents using either -m or -F option"));
+		}
+		strbuf_stripspace(&d->buf, 1);
 	}
-
-	trace_printf("\t\t\tremoving from partial merge result\n");
-	remove_note(t, p->obj);
-
-	return 1;
 }

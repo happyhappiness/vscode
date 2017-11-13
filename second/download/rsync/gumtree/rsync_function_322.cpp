@@ -1,65 +1,43 @@
-static int delete_file(char *fname)
+void do_hard_links(struct file_list *flist)
 {
-	DIR *d;
-	struct dirent *di;
-	char buf[MAXPATHLEN];
-	extern int force_delete;
-	struct stat st;
-	int ret;
+#if SUPPORT_HARD_LINKS
+  int i;
+  
+  if (!hlink_list) return;
 
-	if (do_unlink(fname) == 0 || errno == ENOENT) return 0;
+  for (i=1;i<hlink_count;i++) {
+    if (S_ISREG(hlink_list[i].mode) &&
+	S_ISREG(hlink_list[i-1].mode) &&
+	hlink_list[i].name && hlink_list[i-1].name &&
+	hlink_list[i].dev == hlink_list[i-1].dev &&
+	hlink_list[i].inode == hlink_list[i-1].inode) {
+      struct stat st1,st2;
 
-#if SUPPORT_LINKS
-	ret = lstat(fname, &st);
-#else
-	ret = stat(fname, &st);
-#endif
-	if (ret) {
-		fprintf(FERROR,"stat(%s) : %s\n", fname, strerror(errno));
-		return -1;
-	}
-
-	if (!S_ISDIR(st.st_mode)) {
-		fprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));
-		return -1;
-	}
-
-	if (do_rmdir(fname) == 0 || errno == ENOENT) return 0;
-	if (!force_delete || errno != ENOTEMPTY) {
-		fprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));
-		return -1;
-	}
-
-	/* now we do a recsursive delete on the directory ... */
-	d = opendir(fname);
-	if (!d) {
-		fprintf(FERROR,"opendir(%s): %s\n",
-			fname,strerror(errno));
-		return -1;
-	}
-
-	for (di=readdir(d); di; di=readdir(d)) {
-		if (strcmp(di->d_name,".")==0 ||
-		    strcmp(di->d_name,"..")==0)
-			continue;
-		strncpy(buf, fname, (MAXPATHLEN-strlen(di->d_name))-2);
-		strcat(buf, "/");
-		strcat(buf, di->d_name);
-		buf[MAXPATHLEN-1] = 0;
+      if (link_stat(hlink_list[i-1].name,&st1) != 0) continue;
+      if (link_stat(hlink_list[i].name,&st2) != 0) {
+	if (!dry_run && link(hlink_list[i-1].name,hlink_list[i].name) != 0) {
 		if (verbose > 0)
-			fprintf(FINFO,"deleting %s\n", buf);
-		if (delete_file(buf) != 0) {
-			closedir(d);
-			return -1;
-		}
-	}	
-
-	closedir(d);
-	
-	if (do_rmdir(fname) != 0) {
-		fprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));
-		return -1;
+			fprintf(FINFO,"link %s => %s : %s\n",
+				hlink_list[i].name,
+				hlink_list[i-1].name,strerror(errno));
+	  continue;
 	}
-
-	return 0;
+      } else {
+	if (st2.st_dev == st1.st_dev && st2.st_ino == st1.st_ino) continue;
+	
+	if (!dry_run && (unlink(hlink_list[i].name) != 0 ||
+			 link(hlink_list[i-1].name,hlink_list[i].name) != 0)) {
+		if (verbose > 0)
+			fprintf(FINFO,"link %s => %s : %s\n",
+				hlink_list[i].name,
+				hlink_list[i-1].name,strerror(errno));
+	  continue;
+	}
+      }
+      if (verbose > 0)
+	      fprintf(FINFO,"%s => %s\n",
+		      hlink_list[i].name,hlink_list[i-1].name);
+    }	
+  }
+#endif
 }

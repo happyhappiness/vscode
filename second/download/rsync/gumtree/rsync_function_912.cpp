@@ -1,34 +1,16 @@
-static char *finish_pre_exec(pid_t pid, int fd, char *request,
-			     char **early_argv, char **argv)
+static int add_a_group(int f_out, const char *gname)
 {
-	int j = 0, status = -1;
-
-	if (!request)
-		request = "(NONE)";
-
-	write_buf(fd, request, strlen(request)+1);
-	if (early_argv) {
-		for ( ; *early_argv; early_argv++)
-			write_buf(fd, *early_argv, strlen(*early_argv)+1);
-		j = 1; /* Skip arg0 name in argv. */
+	gid_t gid;
+	if (!group_to_gid(gname, &gid, True)) {
+		rprintf(FLOG, "Invalid gid %s\n", gname);
+		io_printf(f_out, "@ERROR: invalid gid %s\n", gname);
+		return -1;
 	}
-	for ( ; argv[j]; j++) {
-		write_buf(fd, argv[j], strlen(argv[j])+1);
-		if (argv[j][0] == '.' && argv[j][1] == '\0')
-			break;
+	if (gid_count == MAX_GID_LIST) {
+		rprintf(FLOG, "Too many groups specified via gid parameter.\n");
+		io_printf(f_out, "@ERROR: too many groups\n");
+		return -1;
 	}
-	write_byte(fd, 0);
-
-	close(fd);
-
-	if (wait_process(pid, &status, 0) < 0
-	 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-		char *e;
-		if (asprintf(&e, "pre-xfer exec returned failure (%d)%s%s\n",
-			     status, status < 0 ? ": " : "",
-			     status < 0 ? strerror(errno) : "") < 0)
-			out_of_memory("finish_pre_exec");
-		return e;
-	}
-	return NULL;
+	gid_list[gid_count++] = gid;
+	return 0;
 }

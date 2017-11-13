@@ -1,65 +1,39 @@
-static void prepare_packed_git_one(char *objdir, int local)
+int finalize_object_file(const char *tmpfile, const char *filename)
 {
-	struct strbuf path = STRBUF_INIT;
-	size_t dirnamelen;
-	DIR *dir;
-	struct dirent *de;
-	struct string_list garbage = STRING_LIST_INIT_DUP;
+	int ret = 0;
 
-	strbuf_addstr(&path, objdir);
-	strbuf_addstr(&path, "/pack");
-	dir = opendir(path.buf);
-	if (!dir) {
-		if (errno != ENOENT)
-			error("unable to open object pack directory: %s: %s",
-			      path.buf, strerror(errno));
-		strbuf_release(&path);
-		return;
+	if (object_creation_mode == OBJECT_CREATION_USES_RENAMES)
+		goto try_rename;
+	else if (link(tmpfile, filename))
+		ret = errno;
+
+	/*
+	 * Coda hack - coda doesn't like cross-directory links,
+	 * so we fall back to a rename, which will mean that it
+	 * won't be able to check collisions, but that's not a
+	 * big deal.
+	 *
+	 * The same holds for FAT formatted media.
+	 *
+	 * When this succeeds, we just return.  We have nothing
+	 * left to unlink.
+	 */
+	if (ret && ret != EEXIST) {
+	try_rename:
+		if (!rename(tmpfile, filename))
+			goto out;
+		ret = errno;
 	}
-	strbuf_addch(&path, '/');
-	dirnamelen = path.len;
-	while ((de = readdir(dir)) != NULL) {
-		struct packed_git *p;
-		size_t base_len;
-
-		if (is_dot_or_dotdot(de->d_name))
-			continue;
-
-		strbuf_setlen(&path, dirnamelen);
-		strbuf_addstr(&path, de->d_name);
-
-		base_len = path.len;
-		if (strip_suffix_mem(path.buf, &base_len, ".idx")) {
-			/* Don't reopen a pack we already have. */
-			for (p = packed_git; p; p = p->next) {
-				size_t len;
-				if (strip_suffix(p->pack_name, ".pack", &len) &&
-				    len == base_len &&
-				    !memcmp(p->pack_name, path.buf, len))
-					break;
-			}
-			if (p == NULL &&
-			    /*
-			     * See if it really is a valid .idx file with
-			     * corresponding .pack file that we can map.
-			     */
-			    (p = add_packed_git(path.buf, path.len, local)) != NULL)
-				install_packed_git(p);
+	unlink_or_warn(tmpfile);
+	if (ret) {
+		if (ret != EEXIST) {
+			return error("unable to write sha1 filename %s: %s", filename, strerror(ret));
 		}
-
-		if (!report_garbage)
-			continue;
-
-		if (ends_with(de->d_name, ".idx") ||
-		    ends_with(de->d_name, ".pack") ||
-		    ends_with(de->d_name, ".bitmap") ||
-		    ends_with(de->d_name, ".keep"))
-			string_list_append(&garbage, path.buf);
-		else
-			report_garbage(PACKDIR_FILE_GARBAGE, path.buf);
+		/* FIXME!!! Collision check here ? */
 	}
-	closedir(dir);
-	report_pack_garbage(&garbage);
-	string_list_clear(&garbage, 0);
-	strbuf_release(&path);
+
+out:
+	if (adjust_shared_perm(filename))
+		return error("unable to set permission to '%s'", filename);
+	return 0;
 }

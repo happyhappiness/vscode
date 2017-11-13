@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown value "
-                              "\"%s\" to parameter \"encoding\" of tag echo in "
-                              "%s", tag_val, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r,
+                      "authorization result of %s: %s "
+                      "(directive limited to other methods)",
+                      format_authz_command(r->pool, section),
+                      format_authz_result(auth_result));

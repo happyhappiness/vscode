@@ -1,10 +1,8 @@
 fputs(
-"              to 50 redirections. Set this option to -1 to make it unlimited.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -m, --max-time <time>\n"
-"              Maximum  time  in  seconds that you allow the whole operation to\n"
-"              take.  This is useful for preventing your batch jobs from  hang-\n"
-"              ing  for  hours due to slow networks or links going down.  Since\n"
+"              (HTTP) If the server reports that the requested page  has  moved\n"
+"              to a different location (indicated with a Location: header and a\n"
+"              3XX response code), this option will make curl redo the  request\n"
+"              on  the  new  place.  If used together with -i, --include or -I,\n"
+"              --head, headers from all requested pages  will  be  shown.  When\n"
+"              authentication  is  used, curl only sends its credentials to the\n"
 , stdout);

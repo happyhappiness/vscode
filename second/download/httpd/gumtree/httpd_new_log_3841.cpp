@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01142)
-                                  "Trying to run scheme_handler against proxy");
+apr_file_printf(out, "%s %s\n", dir->directive, dir->args);

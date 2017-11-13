@@ -1,2 +1,1 @@
-warning(_("empty strings as pathspecs will be made invalid in upcoming releases. "
-				  "please use . instead if you meant to match all paths"));
+die(_("failed to resolve '%s' as a valid ref."), split[1]->buf);

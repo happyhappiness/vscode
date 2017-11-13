@@ -1,46 +1,82 @@
-apr_status_t h2_stream_send_frame(h2_stream *stream, int ftype, int flags)
+static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    apr_status_t status = APR_SUCCESS;
-    int new_state, eos = 0;
+    static int restart_num = 0;
+    int startup = 0;
 
-    new_state = on_frame_send(stream->state, ftype);
-    if (new_state < 0) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
-                      H2_STRM_MSG(stream, "invalid frame %d send"), ftype);
-        AP_DEBUG_ASSERT(new_state > S_XXX);
-        return transit(stream, new_state);
+    /* we want this only the first time around */
+    if (restart_num++ == 0) {
+        startup = 1;
     }
-    
-    switch (ftype) {
-        case NGHTTP2_DATA:
-            eos = (flags & NGHTTP2_FLAG_END_STREAM);
-            break;
-            
-        case NGHTTP2_HEADERS:
-            eos = (flags & NGHTTP2_FLAG_END_STREAM);
-            break;
-            
-        case NGHTTP2_PUSH_PROMISE:
-                /* start pushed stream */
-                ap_assert(stream->request == NULL);
-                ap_assert(stream->rtmp != NULL);
-                status = h2_request_end_headers(stream->rtmp, stream->pool, 1);
-                if (status != APR_SUCCESS) {
-                    return status;
-                }
-                set_policy_for(stream, stream->rtmp);
-                stream->request = stream->rtmp;
-                stream->rtmp = NULL;
-            break;
-            
-        default:
-            break;
+
+    if (ap_threads_limit > HARD_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00228)
+                         "WARNING: MaxThreads of %d exceeds compile-time "
+                         "limit of", ap_threads_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the HARD_THREAD_LIMIT"
+                         "define in");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00229)
+                         "MaxThreads of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         ap_threads_limit, HARD_THREAD_LIMIT);
+        }
+        ap_threads_limit = HARD_THREAD_LIMIT;
     }
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
-                  H2_STRM_MSG(stream, "send frame %d, eos=%d"), ftype, eos);
-    status = transit(stream, new_state);
-    if (status == APR_SUCCESS && eos) {
-        status = transit(stream, on_event(stream, H2_SEV_CLOSED_L));
+    else if (ap_threads_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         APLOGNO(00230) "WARNING: MaxThreads of %d not allowed, "
+                         "increasing to 1.", ap_threads_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(02661)
+                         "MaxThreads of %d not allowed, increasing to 1",
+                         ap_threads_limit);
+        }
+        ap_threads_limit = 1;
     }
-    return status;
+
+    /* ap_threads_to_start > ap_threads_limit effectively checked in
+     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
+     */
+    if (ap_threads_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00231)
+                         "WARNING: StartThreads of %d not allowed, "
+                         "increasing to 1.", ap_threads_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00232)
+                         "StartThreads of %d not allowed, increasing to 1",
+                         ap_threads_to_start);
+        }
+        ap_threads_to_start = 1;
+    }
+
+    if (ap_threads_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00233)
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", ap_threads_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00234)
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         ap_threads_min_free);
+        }
+        ap_threads_min_free = 1;
+    }
+
+    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
+
+    return OK;
 }

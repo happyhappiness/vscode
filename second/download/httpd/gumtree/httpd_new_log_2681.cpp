@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r, APLOGNO(01796)
-                  "AuthType %s configured without corresponding module",
-                  ap_auth_type(r));
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main,
+                         "unable to replace stderr with error_log");

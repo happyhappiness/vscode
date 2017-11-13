@@ -1,3 +1,3 @@
-fprintf(stderr, "[%s] [crit] (%d) %s: %s failed "
-                        "to initial context, exiting\n", 
-                        ctimebuff, stat, (*argv)[0], failed);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), 
+                     ap_server_conf,
+                     "Child %d: Failed to create a qwait event.", my_pid);

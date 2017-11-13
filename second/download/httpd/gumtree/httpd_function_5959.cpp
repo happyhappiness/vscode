@@ -1,20 +1,41 @@
-static apr_status_t parse_status(h2_task *task, char *line)
+static void log_xlate_error(ap_filter_t *f, apr_status_t rv)
 {
-    h2_response_parser *parser = task->output.rparser;
-    int sindex = (apr_date_checkmask(line, "HTTP/#.# ###*")? 9 : 
-                  (apr_date_checkmask(line, "HTTP/# ###*")? 7 : 0));
-    if (sindex > 0) {
-        int k = sindex + 3;
-        char keepchar = line[k];
-        line[k] = '\0';
-        parser->http_status = atoi(&line[sindex]);
-        line[k] = keepchar;
-        parser->state = H2_RP_HEADER_LINE;
-        
-        return APR_SUCCESS;
+    charset_filter_ctx_t *ctx = f->ctx;
+    const char *msg;
+    char msgbuf[100];
+    apr_size_t len;
+
+    switch(ctx->ees) {
+    case EES_LIMIT:
+        rv = 0;
+        msg = APLOGNO(02193) "xlate filter - a built-in restriction was encountered";
+        break;
+    case EES_BAD_INPUT:
+        rv = 0;
+        msg = APLOGNO(02194) "xlate filter - an input character was invalid";
+        break;
+    case EES_BUCKET_READ:
+        rv = 0;
+        msg = APLOGNO(02195) "xlate filter - bucket read routine failed";
+        break;
+    case EES_INCOMPLETE_CHAR:
+        rv = 0;
+        strcpy(msgbuf, APLOGNO(02196) "xlate filter - incomplete char at end of input - ");
+        len = ctx->saved;
+
+        /* We must ensure not to process more than what would fit in the
+         * remaining of the destination buffer, including terminating NULL */
+        if (len > (sizeof(msgbuf) - strlen(msgbuf) - 1) / 2)
+            len = (sizeof(msgbuf) - strlen(msgbuf) - 1) / 2;
+
+        ap_bin2hex(ctx->buf, len, msgbuf + strlen(msgbuf));
+        msg = msgbuf;
+        break;
+    case EES_DOWNSTREAM:
+        msg = APLOGNO(02197) "xlate filter - an error occurred in a lower filter";
+        break;
+    default:
+        msg = APLOGNO(02198) "xlate filter - returning error";
     }
-    ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, task->c, APLOGNO(03467)
-                  "h2_task(%s): unable to parse status line: %s", 
-                  task->id, line);
-    return APR_EINVAL;
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(02997) "%s", msg);
 }

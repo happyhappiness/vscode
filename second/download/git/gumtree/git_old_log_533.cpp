@@ -1,1 +1,1 @@
-packet_write(1, "NAK\n");
+die("invalid shallow line: %s", line);

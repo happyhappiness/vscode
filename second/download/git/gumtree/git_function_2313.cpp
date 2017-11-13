@@ -1,63 +1,73 @@
-void syslog(int priority, const char *fmt, ...)
+static int print_ref_list(int kinds, int detached, int verbose, int abbrev, struct commit_list *with_commit, const char **pattern)
 {
-	WORD logtype;
-	char *str, *pos;
-	int str_len;
-	va_list ap;
+	int i;
+	struct append_ref_cb cb;
+	struct ref_list ref_list;
 
-	if (!ms_eventlog)
-		return;
+	memset(&ref_list, 0, sizeof(ref_list));
+	ref_list.kinds = kinds;
+	ref_list.verbose = verbose;
+	ref_list.abbrev = abbrev;
+	ref_list.with_commit = with_commit;
+	if (merge_filter != NO_FILTER)
+		init_revisions(&ref_list.revs, NULL);
+	cb.ref_list = &ref_list;
+	cb.pattern = pattern;
+	cb.ret = 0;
+	for_each_rawref(append_ref, &cb);
+	if (merge_filter != NO_FILTER) {
+		struct commit *filter;
+		filter = lookup_commit_reference_gently(merge_filter_ref, 0);
+		if (!filter)
+			die(_("object '%s' does not point to a commit"),
+			    sha1_to_hex(merge_filter_ref));
 
-	va_start(ap, fmt);
-	str_len = vsnprintf(NULL, 0, fmt, ap);
-	va_end(ap);
+		filter->object.flags |= UNINTERESTING;
+		add_pending_object(&ref_list.revs,
+				   (struct object *) filter, "");
+		ref_list.revs.limited = 1;
 
-	if (str_len < 0) {
-		warning("vsnprintf failed: '%s'", strerror(errno));
-		return;
-	}
+		if (prepare_revision_walk(&ref_list.revs))
+			die(_("revision walk setup failed"));
 
-	str = malloc(st_add(str_len, 1));
-	if (!str) {
-		warning("malloc failed: '%s'", strerror(errno));
-		return;
-	}
-
-	va_start(ap, fmt);
-	vsnprintf(str, str_len + 1, fmt, ap);
-	va_end(ap);
-
-	while ((pos = strstr(str, "%1")) != NULL) {
-		str = realloc(str, st_add(++str_len, 1));
-		if (!str) {
-			warning("realloc failed: '%s'", strerror(errno));
-			return;
+		for (i = 0; i < ref_list.index; i++) {
+			struct ref_item *item = &ref_list.list[i];
+			struct commit *commit = item->commit;
+			int is_merged = !!(commit->object.flags & UNINTERESTING);
+			item->ignore = is_merged != (merge_filter == SHOW_MERGED);
 		}
-		memmove(pos + 2, pos + 1, strlen(pos));
-		pos[1] = ' ';
+
+		for (i = 0; i < ref_list.index; i++) {
+			struct ref_item *item = &ref_list.list[i];
+			clear_commit_marks(item->commit, ALL_REV_FLAGS);
+		}
+		clear_commit_marks(filter, ALL_REV_FLAGS);
+
+		if (verbose)
+			ref_list.maxwidth = calc_maxwidth(&ref_list);
 	}
 
-	switch (priority) {
-	case LOG_EMERG:
-	case LOG_ALERT:
-	case LOG_CRIT:
-	case LOG_ERR:
-		logtype = EVENTLOG_ERROR_TYPE;
-		break;
+	qsort(ref_list.list, ref_list.index, sizeof(struct ref_item), ref_cmp);
 
-	case LOG_WARNING:
-		logtype = EVENTLOG_WARNING_TYPE;
-		break;
+	detached = (detached && (kinds & REF_LOCAL_BRANCH));
+	if (detached && match_patterns(pattern, "HEAD"))
+		show_detached(&ref_list);
 
-	case LOG_NOTICE:
-	case LOG_INFO:
-	case LOG_DEBUG:
-	default:
-		logtype = EVENTLOG_INFORMATION_TYPE;
-		break;
+	for (i = 0; i < ref_list.index; i++) {
+		int current = !detached &&
+			(ref_list.list[i].kind == REF_LOCAL_BRANCH) &&
+			!strcmp(ref_list.list[i].name, head);
+		char *prefix = (kinds != REF_REMOTE_BRANCH &&
+				ref_list.list[i].kind == REF_REMOTE_BRANCH)
+				? "remotes/" : "";
+		print_ref_item(&ref_list.list[i], ref_list.maxwidth, verbose,
+			       abbrev, current, prefix);
 	}
 
-	ReportEventA(ms_eventlog, logtype, 0, 0, NULL, 1, 0,
-	    (const char **)&str, NULL);
-	free(str);
+	free_ref_list(&ref_list);
+
+	if (cb.ret)
+		error(_("some refs could not be read"));
+
+	return cb.ret;
 }

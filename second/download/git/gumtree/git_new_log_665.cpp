@@ -1,1 +1,1 @@
-error(_("cannot store %s"), stash_sha1.buf);
+packet_write_fmt(fd, "shallow %s\n", oid_to_hex(&graft->oid));

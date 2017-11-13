@@ -1,1 +1,1 @@
-slprintf(pidbuf, sizeof(pidbuf), "%d\n", pid);
+rprintf(FERROR,"fork: %s\n",strerror(errno));

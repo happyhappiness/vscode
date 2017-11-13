@@ -1,152 +1,153 @@
-struct child_process *git_connect(int fd[2], const char *url,
-				  const char *prog, int flags)
+static void describe(const char *arg, int last_one)
 {
-	char *hostandport, *path;
-	struct child_process *conn = &no_fork;
-	enum protocol protocol;
-	struct strbuf cmd = STRBUF_INIT;
+	unsigned char sha1[20];
+	struct commit *cmit, *gave_up_on = NULL;
+	struct commit_list *list;
+	struct commit_name *n;
+	struct possible_tag all_matches[MAX_TAGS];
+	unsigned int match_cnt = 0, annotated_cnt = 0, cur_match;
+	unsigned long seen_commits = 0;
+	unsigned int unannotated_cnt = 0;
 
-	/* Without this we cannot rely on waitpid() to tell
-	 * what happened to our children.
-	 */
-	signal(SIGCHLD, SIG_DFL);
+	if (get_sha1(arg, sha1))
+		die(_("Not a valid object name %s"), arg);
+	cmit = lookup_commit_reference(sha1);
+	if (!cmit)
+		die(_("%s is not a valid '%s' object"), arg, commit_type);
 
-	protocol = parse_connect_url(url, &hostandport, &path);
-	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
-		printf("Diag: url=%s\n", url ? url : "NULL");
-		printf("Diag: protocol=%s\n", prot_name(protocol));
-		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
-		printf("Diag: path=%s\n", path ? path : "NULL");
-		conn = NULL;
-	} else if (protocol == PROTO_GIT) {
+	n = find_commit_name(cmit->object.sha1);
+	if (n && (tags || all || n->prio == 2)) {
 		/*
-		 * Set up virtual host information based on where we will
-		 * connect, unless the user has overridden us in
-		 * the environment.
+		 * Exact match to an existing ref.
 		 */
-		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
-		if (target_host)
-			target_host = xstrdup(target_host);
-		else
-			target_host = xstrdup(hostandport);
-
-		transport_check_allowed("git");
-
-		/* These underlying connection commands die() if they
-		 * cannot connect.
-		 */
-		if (git_use_proxy(hostandport))
-			conn = git_proxy_connect(fd, hostandport);
-		else
-			git_tcp_connect(fd, hostandport, flags);
-		/*
-		 * Separate original protocol components prog and path
-		 * from extended host header with a NUL byte.
-		 *
-		 * Note: Do not add any other headers here!  Doing so
-		 * will cause older git-daemon servers to crash.
-		 */
-		packet_write(fd[1],
-			     "%s %s%chost=%s%c",
-			     prog, path, 0,
-			     target_host, 0);
-		free(target_host);
-	} else {
-		conn = xmalloc(sizeof(*conn));
-		child_process_init(conn);
-
-		if (looks_like_command_line_option(path))
-			die("strange pathname '%s' blocked", path);
-
-		strbuf_addstr(&cmd, prog);
-		strbuf_addch(&cmd, ' ');
-		sq_quote_buf(&cmd, path);
-
-		/* remove repo-local variables from the environment */
-		conn->env = local_repo_env;
-		conn->use_shell = 1;
-		conn->in = conn->out = -1;
-		if (protocol == PROTO_SSH) {
-			const char *ssh;
-			int putty = 0, tortoiseplink = 0;
-			char *ssh_host = hostandport;
-			const char *port = NULL;
-			transport_check_allowed("ssh");
-			get_host_and_port(&ssh_host, &port);
-
-			if (!port)
-				port = get_port(ssh_host);
-
-			if (flags & CONNECT_DIAG_URL) {
-				printf("Diag: url=%s\n", url ? url : "NULL");
-				printf("Diag: protocol=%s\n", prot_name(protocol));
-				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
-				printf("Diag: port=%s\n", port ? port : "NONE");
-				printf("Diag: path=%s\n", path ? path : "NULL");
-
-				free(hostandport);
-				free(path);
-				free(conn);
-				return NULL;
-			}
-
-			if (looks_like_command_line_option(ssh_host))
-				die("strange hostname '%s' blocked", ssh_host);
-
-			ssh = getenv("GIT_SSH_COMMAND");
-			if (!ssh) {
-				const char *base;
-				char *ssh_dup;
-
-				/*
-				 * GIT_SSH is the no-shell version of
-				 * GIT_SSH_COMMAND (and must remain so for
-				 * historical compatibility).
-				 */
-				conn->use_shell = 0;
-
-				ssh = getenv("GIT_SSH");
-				if (!ssh)
-					ssh = "ssh";
-
-				ssh_dup = xstrdup(ssh);
-				base = basename(ssh_dup);
-
-				tortoiseplink = !strcasecmp(base, "tortoiseplink") ||
-					!strcasecmp(base, "tortoiseplink.exe");
-				putty = tortoiseplink ||
-					!strcasecmp(base, "plink") ||
-					!strcasecmp(base, "plink.exe");
-
-				free(ssh_dup);
-			}
-
-			argv_array_push(&conn->args, ssh);
-			if (flags & CONNECT_IPV4)
-				argv_array_push(&conn->args, "-4");
-			else if (flags & CONNECT_IPV6)
-				argv_array_push(&conn->args, "-6");
-			if (tortoiseplink)
-				argv_array_push(&conn->args, "-batch");
-			if (port) {
-				/* P is for PuTTY, p is for OpenSSH */
-				argv_array_push(&conn->args, putty ? "-P" : "-p");
-				argv_array_push(&conn->args, port);
-			}
-			argv_array_push(&conn->args, ssh_host);
-		} else {
-			transport_check_allowed("file");
-		}
-		argv_array_push(&conn->args, cmd.buf);
-
-		if (start_command(conn))
-			die("unable to fork");
-
-		fd[0] = conn->out; /* read from child's stdout */
-		fd[1] = conn->in;  /* write to child's stdin */
-		strbuf_release(&cmd);
+		display_name(n);
+		if (longformat)
+			show_suffix(0, n->tag ? n->tag->tagged->sha1 : sha1);
+		if (dirty)
+			printf("%s", dirty);
+		printf("\n");
+		return;
 	}
-	free(hostandport);
-	free(path);
-	return conn;
+
+	if (!max_candidates)
+		die(_("no tag exactly matches '%s'"), sha1_to_hex(cmit->object.sha1));
+	if (debug)
+		fprintf(stderr, _("searching to describe %s\n"), arg);
+
+	if (!have_util) {
+		struct hashmap_iter iter;
+		struct commit *c;
+		struct commit_name *n = hashmap_iter_first(&names, &iter);
+		for (; n; n = hashmap_iter_next(&iter)) {
+			c = lookup_commit_reference_gently(n->peeled, 1);
+			if (c)
+				c->util = n;
+		}
+		have_util = 1;
+	}
+
+	list = NULL;
+	cmit->object.flags = SEEN;
+	commit_list_insert(cmit, &list);
+	while (list) {
+		struct commit *c = pop_commit(&list);
+		struct commit_list *parents = c->parents;
+		seen_commits++;
+		n = c->util;
+		if (n) {
+			if (!tags && !all && n->prio < 2) {
+				unannotated_cnt++;
+			} else if (match_cnt < max_candidates) {
+				struct possible_tag *t = &all_matches[match_cnt++];
+				t->name = n;
+				t->depth = seen_commits - 1;
+				t->flag_within = 1u << match_cnt;
+				t->found_order = match_cnt;
+				c->object.flags |= t->flag_within;
+				if (n->prio == 2)
+					annotated_cnt++;
+			}
+			else {
+				gave_up_on = c;
+				break;
+			}
+		}
+		for (cur_match = 0; cur_match < match_cnt; cur_match++) {
+			struct possible_tag *t = &all_matches[cur_match];
+			if (!(c->object.flags & t->flag_within))
+				t->depth++;
+		}
+		if (annotated_cnt && !list) {
+			if (debug)
+				fprintf(stderr, _("finished search at %s\n"),
+					sha1_to_hex(c->object.sha1));
+			break;
+		}
+		while (parents) {
+			struct commit *p = parents->item;
+			parse_commit(p);
+			if (!(p->object.flags & SEEN))
+				commit_list_insert_by_date(p, &list);
+			p->object.flags |= c->object.flags;
+			parents = parents->next;
+
+			if (first_parent)
+				break;
+		}
+	}
+
+	if (!match_cnt) {
+		const unsigned char *sha1 = cmit->object.sha1;
+		if (always) {
+			printf("%s", find_unique_abbrev(sha1, abbrev));
+			if (dirty)
+				printf("%s", dirty);
+			printf("\n");
+			return;
+		}
+		if (unannotated_cnt)
+			die(_("No annotated tags can describe '%s'.\n"
+			    "However, there were unannotated tags: try --tags."),
+			    sha1_to_hex(sha1));
+		else
+			die(_("No tags can describe '%s'.\n"
+			    "Try --always, or create some tags."),
+			    sha1_to_hex(sha1));
+	}
+
+	qsort(all_matches, match_cnt, sizeof(all_matches[0]), compare_pt);
+
+	if (gave_up_on) {
+		commit_list_insert_by_date(gave_up_on, &list);
+		seen_commits--;
+	}
+	seen_commits += finish_depth_computation(&list, &all_matches[0]);
+	free_commit_list(list);
+
+	if (debug) {
+		for (cur_match = 0; cur_match < match_cnt; cur_match++) {
+			struct possible_tag *t = &all_matches[cur_match];
+			fprintf(stderr, " %-11s %8d %s\n",
+				prio_names[t->name->prio],
+				t->depth, t->name->path);
+		}
+		fprintf(stderr, _("traversed %lu commits\n"), seen_commits);
+		if (gave_up_on) {
+			fprintf(stderr,
+				_("more than %i tags found; listed %i most recent\n"
+				"gave up search at %s\n"),
+				max_candidates, max_candidates,
+				sha1_to_hex(gave_up_on->object.sha1));
+		}
+	}
+
+	display_name(all_matches[0].name);
+	if (abbrev)
+		show_suffix(all_matches[0].depth, cmit->object.sha1);
+	if (dirty)
+		printf("%s", dirty);
+	printf("\n");
+
+	if (!last_one)
+		clear_commit_marks(cmit, -1);
 }

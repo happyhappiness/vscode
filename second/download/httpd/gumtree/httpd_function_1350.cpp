@@ -1,35 +1,41 @@
-static char *get_password(const char *prompt)
+static apr_status_t htdbm_list(htdbm_t *htdbm)
 {
-    struct termios attr;
-    static char password[MAX_STRING_LEN];
-    int n=0;
-    fputs(prompt, stderr);
-    fflush(stderr);
+    apr_status_t rv;
+    apr_datum_t key, val;
+    char *rec, *cmnt;
+    char kb[MAX_STRING_LEN];
+    int i = 0;
 
-    if (tcgetattr(STDIN_FILENO, &attr) != 0)
-        return NULL;
-    attr.c_lflag &= ~(ECHO);
+    rv = apr_dbm_firstkey(htdbm->dbm, &key);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "Empty database -- %s\n", htdbm->filename);
+        return APR_ENOENT;
+    }
+    rec = apr_pcalloc(htdbm->pool, HUGE_STRING_LEN);
 
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
-        return NULL;
-    while ((password[n] = getchar()) != '\n') {
-        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
-            n++;
-        } else {
-            fprintf(stderr,"\n");
-            fputs(prompt, stderr);
-            fflush(stderr);
-            n = 0;
+    fprintf(stderr, "Dumping records from database -- %s\n", htdbm->filename);
+    fprintf(stderr, "    %-32sComment\n", "Username");
+    while (key.dptr != NULL) {
+        rv = apr_dbm_fetch(htdbm->dbm, key, &val);
+        if (rv != APR_SUCCESS) {
+            fprintf(stderr, "Failed getting data from %s\n", htdbm->filename);
+            return APR_EGENERAL;
         }
-    }
- 
-    password[n] = '\0';
-    printf("\n");
-    if (n > (MAX_STRING_LEN - 1)) {
-        password[MAX_STRING_LEN - 1] = '\0';
+        strncpy(kb, key.dptr, key.dsize);
+        kb[key.dsize] = '\0';
+        fprintf(stderr, "    %-32s", kb);
+        strncpy(rec, val.dptr, val.dsize);
+        rec[val.dsize] = '\0';
+        cmnt = strchr(rec, ':');
+        if (cmnt)
+            fprintf(stderr, "%s", cmnt + 1);
+        fprintf(stderr, "\n");
+        rv = apr_dbm_nextkey(htdbm->dbm, &key);
+        if (rv != APR_SUCCESS)
+            fprintf(stderr, "Failed getting NextKey\n");
+        ++i;
     }
 
-    attr.c_lflag |= ECHO;
-    tcsetattr(STDIN_FILENO, TCSANOW, &attr);
-    return (char*) &password;
+    fprintf(stderr, "Total #records : %d\n", i);
+    return APR_SUCCESS;
 }

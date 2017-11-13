@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf, APLOGNO(00427)
-                         "Parent: child process %lu exited with status %lu -- Aborting.",
-                         child_pid, exitcode);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c, APLOGNO(03310)
+                              "error setting alpn protos from '%s'", alpn_note);

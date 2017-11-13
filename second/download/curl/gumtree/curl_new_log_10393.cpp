@@ -1,11 +1,11 @@
 fputs(
-"              This option controls transfers and thus  will  not  affect  slow\n"
-"              connects  etc.  If this is a concern for you, try the --connect-\n"
-"              timeout option.\n"
+"              tions.  Common  additional HTTP requests include PUT and DELETE,\n"
+"              but related technologies like WebDAV offers PROPFIND, COPY, MOVE\n"
+"              and more.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              Normally  you  don't  need  this option. All sorts of GET, HEAD,\n"
+"              POST and PUT requests are rather invoked by using dedicated com-\n"
+"              mand line options.\n"
 "\n"
-"       -Y, --speed-limit <speed>\n"
-"              If a download is slower than this given speed (in bytes per sec-\n"
-"              ond)  for  speed-time seconds it gets aborted. speed-time is set\n"
+"              This  option  only  changes  the  actual  word  used in the HTTP\n"
 , stdout);

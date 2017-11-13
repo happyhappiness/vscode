@@ -1,1 +1,1 @@
-error_errno("cannot stat %s", arg);
+die(_("cannot prune in a precious-objects repo"));

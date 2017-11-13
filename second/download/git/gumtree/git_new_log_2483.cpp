@@ -1,1 +1,1 @@
-die("BUG: state->lock_file should not be NULL");
+printf(" %s", find_unique_abbrev(p->item->object.oid.hash, abbrev));

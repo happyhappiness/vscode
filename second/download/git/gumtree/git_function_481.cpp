@@ -1,77 +1,53 @@
-int sequencer_pick_revisions(struct replay_opts *opts)
+int cmd_upload_archive(int argc, const char **argv, const char *prefix)
 {
-	struct commit_list *todo_list = NULL;
-	unsigned char sha1[20];
-	int i;
-
-	if (opts->subcommand == REPLAY_NONE)
-		assert(opts->revs);
-
-	read_and_refresh_cache(opts);
+	struct child_process writer = { argv };
 
 	/*
-	 * Decide what to do depending on the arguments; a fresh
-	 * cherry-pick should be handled differently from an existing
-	 * one that is being continued
+	 * Set up sideband subprocess.
+	 *
+	 * We (parent) monitor and read from child, sending its fd#1 and fd#2
+	 * multiplexed out to our fd#1.  If the child dies, we tell the other
+	 * end over channel #3.
 	 */
-	if (opts->subcommand == REPLAY_REMOVE_STATE) {
-		remove_sequencer_state();
-		return 0;
+	argv[0] = "upload-archive--writer";
+	writer.out = writer.err = -1;
+	writer.git_cmd = 1;
+	if (start_command(&writer)) {
+		int err = errno;
+		packet_write(1, "NACK unable to spawn subprocess\n");
+		die("upload-archive: %s", strerror(err));
 	}
-	if (opts->subcommand == REPLAY_ROLLBACK)
-		return sequencer_rollback(opts);
-	if (opts->subcommand == REPLAY_CONTINUE)
-		return sequencer_continue(opts);
 
-	for (i = 0; i < opts->revs->pending.nr; i++) {
-		unsigned char sha1[20];
-		const char *name = opts->revs->pending.objects[i].name;
+	packet_write(1, "ACK\n");
+	packet_flush(1);
 
-		/* This happens when using --stdin. */
-		if (!strlen(name))
-			continue;
+	while (1) {
+		struct pollfd pfd[2];
 
-		if (!get_sha1(name, sha1)) {
-			if (!lookup_commit_reference_gently(sha1, 1)) {
-				enum object_type type = sha1_object_info(sha1, NULL);
-				die(_("%s: can't cherry-pick a %s"), name, typename(type));
+		pfd[0].fd = writer.out;
+		pfd[0].events = POLLIN;
+		pfd[1].fd = writer.err;
+		pfd[1].events = POLLIN;
+		if (poll(pfd, 2, -1) < 0) {
+			if (errno != EINTR) {
+				error_errno("poll failed resuming");
+				sleep(1);
 			}
-		} else
-			die(_("%s: bad revision"), name);
+			continue;
+		}
+		if (pfd[1].revents & POLLIN)
+			/* Status stream ready */
+			if (process_input(pfd[1].fd, 2))
+				continue;
+		if (pfd[0].revents & POLLIN)
+			/* Data stream ready */
+			if (process_input(pfd[0].fd, 1))
+				continue;
+
+		if (finish_command(&writer))
+			error_clnt("%s", deadchild);
+		packet_flush(1);
+		break;
 	}
-
-	/*
-	 * If we were called as "git cherry-pick <commit>", just
-	 * cherry-pick/revert it, set CHERRY_PICK_HEAD /
-	 * REVERT_HEAD, and don't touch the sequencer state.
-	 * This means it is possible to cherry-pick in the middle
-	 * of a cherry-pick sequence.
-	 */
-	if (opts->revs->cmdline.nr == 1 &&
-	    opts->revs->cmdline.rev->whence == REV_CMD_REV &&
-	    opts->revs->no_walk &&
-	    !opts->revs->cmdline.rev->flags) {
-		struct commit *cmit;
-		if (prepare_revision_walk(opts->revs))
-			die(_("revision walk setup failed"));
-		cmit = get_revision(opts->revs);
-		if (!cmit || get_revision(opts->revs))
-			die("BUG: expected exactly one commit from walk");
-		return single_pick(cmit, opts);
-	}
-
-	/*
-	 * Start a new cherry-pick/ revert sequence; but
-	 * first, make sure that an existing one isn't in
-	 * progress
-	 */
-
-	walk_revs_populate_todo(&todo_list, opts);
-	if (create_seq_dir() < 0)
-		return -1;
-	if (get_sha1("HEAD", sha1) && (opts->action == REPLAY_REVERT))
-		return error(_("Can't revert as initial commit"));
-	save_head(sha1_to_hex(sha1));
-	save_opts(opts);
-	return pick_commits(todo_list, opts);
+	return 0;
 }

@@ -1,437 +1,208 @@
-static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
+void server_options(char **args,int *argc)
 {
-	int argc = 0;
-	int maxargs;
-	char **argv;
-	char line[BIGPATHBUFLEN];
-	uid_t uid = (uid_t)-2;  /* canonically "nobody" */
-	gid_t gid = (gid_t)-2;
-	char *p, *err_msg = NULL;
-	char *name = lp_name(i);
-	int use_chroot = lp_use_chroot(i);
-	int start_glob = 0;
-	int ret, pre_exec_fd = -1;
-	pid_t pre_exec_pid = 0;
-	char *request = NULL;
+	int ac = *argc;
+	static char argstr[50];
+	static char bsize[30];
+	static char iotime[30];
+	static char mdelete[30];
+	static char mwindow[30];
+	static char bw[50];
+	/* Leave room for ``--(write|read)-batch='' */
+	static char fext[MAXPATHLEN + 15];
 
-	if (!allow_access(addr, host, lp_hosts_allow(i), lp_hosts_deny(i))) {
-		rprintf(FLOG, "rsync denied on module %s from %s (%s)\n",
-			name, host, addr);
-		if (!lp_list(i))
-			io_printf(f_out, "@ERROR: Unknown module '%s'\n", name);
-		else {
-			io_printf(f_out,
-				  "@ERROR: access denied to %s from %s (%s)\n",
-				  name, host, addr);
-		}
-		return -1;
+	int i, x;
+
+	if (blocking_io == -1)
+		blocking_io = 0;
+
+	args[ac++] = "--server";
+
+	if (daemon_over_rsh) {
+		args[ac++] = "--daemon";
+		*argc = ac;
+		/* if we're passing --daemon, we're done */
+		return;
 	}
 
-	if (am_daemon && am_server) {
-		rprintf(FLOG, "rsync allowed access on module %s from %s (%s)\n",
-			name, host, addr);
+	if (!am_sender)
+		args[ac++] = "--sender";
+
+	x = 1;
+	argstr[0] = '-';
+	for (i=0;i<verbose;i++)
+		argstr[x++] = 'v';
+
+	/* the -q option is intentionally left out */
+	if (make_backups)
+		argstr[x++] = 'b';
+	if (update_only)
+		argstr[x++] = 'u';
+	if (dry_run)
+		argstr[x++] = 'n';
+	if (preserve_links)
+		argstr[x++] = 'l';
+	if (copy_links)
+		argstr[x++] = 'L';
+
+	if (whole_file > 0)
+		argstr[x++] = 'W';
+	/* We don't need to send --no-whole-file, because it's the
+	 * default for remote transfers, and in any case old versions
+	 * of rsync will not understand it. */
+
+	if (preserve_hard_links)
+		argstr[x++] = 'H';
+	if (preserve_uid)
+		argstr[x++] = 'o';
+	if (preserve_gid)
+		argstr[x++] = 'g';
+	if (preserve_devices)
+		argstr[x++] = 'D';
+	if (preserve_times)
+		argstr[x++] = 't';
+	if (preserve_perms)
+		argstr[x++] = 'p';
+	if (recurse)
+		argstr[x++] = 'r';
+	if (always_checksum)
+		argstr[x++] = 'c';
+	if (cvs_exclude)
+		argstr[x++] = 'C';
+	if (ignore_times)
+		argstr[x++] = 'I';
+	if (relative_paths)
+		argstr[x++] = 'R';
+	if (one_file_system)
+		argstr[x++] = 'x';
+	if (sparse_files)
+		argstr[x++] = 'S';
+	if (do_compression)
+		argstr[x++] = 'z';
+
+	/* this is a complete hack - blame Rusty
+
+	   this is a hack to make the list_only (remote file list)
+	   more useful */
+	if (list_only && !recurse)
+		argstr[x++] = 'r';
+
+	argstr[x] = 0;
+
+	if (x != 1) args[ac++] = argstr;
+
+	if (block_size) {
+		snprintf(bsize,sizeof(bsize),"-B%d",block_size);
+		args[ac++] = bsize;
 	}
 
-	if (!claim_connection(lp_lock_file(i), lp_max_connections(i))) {
-		if (errno) {
-			rsyserr(FLOG, errno, "failed to open lock file %s",
-				lp_lock_file(i));
-			io_printf(f_out, "@ERROR: failed to open lock file\n");
-		} else {
-			rprintf(FLOG, "max connections (%d) reached\n",
-				lp_max_connections(i));
-			io_printf(f_out, "@ERROR: max connections (%d) reached -- try again later\n",
-				lp_max_connections(i));
-		}
-		return -1;
+	if (max_delete && am_sender) {
+		snprintf(mdelete,sizeof(mdelete),"--max-delete=%d",max_delete);
+		args[ac++] = mdelete;
 	}
 
-	auth_user = auth_server(f_in, f_out, i, host, addr, "@RSYNCD: AUTHREQD ");
-
-	if (!auth_user) {
-		io_printf(f_out, "@ERROR: auth failed on module %s\n", name);
-		return -1;
-	}
-
-	module_id = i;
-
-	if (lp_read_only(i))
-		read_only = 1;
-
-	if (lp_transfer_logging(i)) {
-		if (log_format_has(lp_log_format(i), 'i'))
-			daemon_log_format_has_i = 1;
-		if (daemon_log_format_has_i
-		    || log_format_has(lp_log_format(i), 'o'))
-			daemon_log_format_has_o_or_i = 1;
-	}
-
-	am_root = (MY_UID() == 0);
-
-	if (am_root) {
-		p = lp_uid(i);
-		if (!name_to_uid(p, &uid)) {
-			if (!isdigit(*(unsigned char *)p)) {
-				rprintf(FLOG, "Invalid uid %s\n", p);
-				io_printf(f_out, "@ERROR: invalid uid %s\n", p);
-				return -1;
-			}
-			uid = atoi(p);
-		}
-
-		p = lp_gid(i);
-		if (!name_to_gid(p, &gid)) {
-			if (!isdigit(*(unsigned char *)p)) {
-				rprintf(FLOG, "Invalid gid %s\n", p);
-				io_printf(f_out, "@ERROR: invalid gid %s\n", p);
-				return -1;
-			}
-			gid = atoi(p);
-		}
-	}
-
-	/* TODO: If we're not root, but the configuration requests
-	 * that we change to some uid other than the current one, then
-	 * log a warning. */
-
-	/* TODO: Perhaps take a list of gids, and make them into the
-	 * supplementary groups. */
-
-	if (use_chroot || (module_dirlen = strlen(lp_path(i))) == 1) {
-		module_dirlen = 0;
-		set_filter_dir("/", 1);
-	} else
-		set_filter_dir(lp_path(i), module_dirlen);
-
-	p = lp_filter(i);
-	parse_rule(&server_filter_list, p, MATCHFLG_WORD_SPLIT,
-		   XFLG_ABS_IF_SLASH);
-
-	p = lp_include_from(i);
-	parse_filter_file(&server_filter_list, p, MATCHFLG_INCLUDE,
-	    XFLG_ABS_IF_SLASH | XFLG_OLD_PREFIXES | XFLG_FATAL_ERRORS);
-
-	p = lp_include(i);
-	parse_rule(&server_filter_list, p,
-		   MATCHFLG_INCLUDE | MATCHFLG_WORD_SPLIT,
-		   XFLG_ABS_IF_SLASH | XFLG_OLD_PREFIXES);
-
-	p = lp_exclude_from(i);
-	parse_filter_file(&server_filter_list, p, 0,
-	    XFLG_ABS_IF_SLASH | XFLG_OLD_PREFIXES | XFLG_FATAL_ERRORS);
-
-	p = lp_exclude(i);
-	parse_rule(&server_filter_list, p, MATCHFLG_WORD_SPLIT,
-		   XFLG_ABS_IF_SLASH | XFLG_OLD_PREFIXES);
-
-	log_init();
-
-#ifdef HAVE_PUTENV
-	if (*lp_prexfer_exec(i) || *lp_postxfer_exec(i)) {
-		char *modname, *modpath, *hostaddr, *hostname, *username;
-		int status;
-		if (asprintf(&modname, "RSYNC_MODULE_NAME=%s", name) < 0
-		 || asprintf(&modpath, "RSYNC_MODULE_PATH=%s", lp_path(i)) < 0
-		 || asprintf(&hostaddr, "RSYNC_HOST_ADDR=%s", addr) < 0
-		 || asprintf(&hostname, "RSYNC_HOST_NAME=%s", host) < 0
-		 || asprintf(&username, "RSYNC_USER_NAME=%s", auth_user) < 0)
-			out_of_memory("rsync_module");
-		putenv(modname);
-		putenv(modpath);
-		putenv(hostaddr);
-		putenv(hostname);
-		putenv(username);
-		umask(orig_umask);
-		/* For post-xfer exec, fork a new process to run the rsync
-		 * daemon while this process waits for the exit status and
-		 * runs the indicated command at that point. */
-		if (*lp_postxfer_exec(i)) {
-			pid_t pid = fork();
-			if (pid < 0) {
-				rsyserr(FLOG, errno, "fork failed");
-				io_printf(f_out, "@ERROR: fork failed\n");
-				return -1;
-			}
-			if (pid) {
-				char *ret1, *ret2;
-				if (wait_process(pid, &status, 0) < 0)
-					status = -1;
-				if (asprintf(&ret1, "RSYNC_RAW_STATUS=%d", status) > 0)
-					putenv(ret1);
-				if (WIFEXITED(status))
-					status = WEXITSTATUS(status);
-				else
-					status = -1;
-				if (asprintf(&ret2, "RSYNC_EXIT_STATUS=%d", status) > 0)
-					putenv(ret2);
-				system(lp_postxfer_exec(i));
-				_exit(status);
-			}
-		}
-		/* For pre-xfer exec, fork a child process to run the indicated
-		 * command, though it first waits for the parent process to
-		 * send us the user's request via a pipe. */
-		if (*lp_prexfer_exec(i)) {
-			int fds[2];
-			if (pipe(fds) < 0 || (pre_exec_pid = fork()) < 0) {
-				rsyserr(FLOG, errno, "pre-xfer exec preparation failed");
-				io_printf(f_out, "@ERROR: pre-xfer exec preparation failed\n");
-				return -1;
-			}
-			if (pre_exec_pid == 0) {
-				char buf[BIGPATHBUFLEN];
-				int j, len;
-				close(fds[1]);
-				set_blocking(fds[0]);
-				len = read_arg_from_pipe(fds[0], buf, BIGPATHBUFLEN);
-				if (len <= 0)
-					_exit(1);
-				if (asprintf(&p, "RSYNC_REQUEST=%s", buf) < 0)
-					out_of_memory("rsync_module");
-				putenv(p);
-				for (j = 0; ; j++) {
-					len = read_arg_from_pipe(fds[0], buf,
-								 BIGPATHBUFLEN);
-					if (len <= 0) {
-						if (!len)
-							break;
-						_exit(1);
-					}
-					if (asprintf(&p, "RSYNC_ARG%d=%s", j, buf) < 0)
-						out_of_memory("rsync_module");
-					putenv(p);
-				}
-				close(fds[0]);
-				close(STDIN_FILENO);
-				close(STDOUT_FILENO);
-				status = system(lp_prexfer_exec(i));
-				if (!WIFEXITED(status))
-					_exit(1);
-				_exit(WEXITSTATUS(status));
-			}
-			close(fds[0]);
-			set_blocking(fds[1]);
-			pre_exec_fd = fds[1];
-		}
-		umask(0);
-	}
-#endif
-
-	if (use_chroot) {
-		/*
-		 * XXX: The 'use chroot' flag is a fairly reliable
-		 * source of confusion, because it fails under two
-		 * important circumstances: running as non-root,
-		 * running on Win32 (or possibly others).  On the
-		 * other hand, if you are running as root, then it
-		 * might be better to always use chroot.
-		 *
-		 * So, perhaps if we can't chroot we should just issue
-		 * a warning, unless a "require chroot" flag is set,
-		 * in which case we fail.
-		 */
-		if (chroot(lp_path(i))) {
-			rsyserr(FLOG, errno, "chroot %s failed",
-				lp_path(i));
-			io_printf(f_out, "@ERROR: chroot failed\n");
-			return -1;
-		}
-
-		if (!push_dir("/")) {
-			rsyserr(FLOG, errno, "chdir %s failed\n",
-				lp_path(i));
-			io_printf(f_out, "@ERROR: chdir failed\n");
-			return -1;
-		}
-
-	} else {
-		if (!push_dir(lp_path(i))) {
-			rsyserr(FLOG, errno, "chdir %s failed\n",
-				lp_path(i));
-			io_printf(f_out, "@ERROR: chdir failed\n");
-			return -1;
-		}
-		sanitize_paths = 1;
-	}
-
-	if (am_root) {
-		/* XXXX: You could argue that if the daemon is started
-		 * by a non-root user and they explicitly specify a
-		 * gid, then we should try to change to that gid --
-		 * this could be possible if it's already in their
-		 * supplementary groups. */
-
-		/* TODO: Perhaps we need to document that if rsyncd is
-		 * started by somebody other than root it will inherit
-		 * all their supplementary groups. */
-
-		if (setgid(gid)) {
-			rsyserr(FLOG, errno, "setgid %d failed", (int)gid);
-			io_printf(f_out, "@ERROR: setgid failed\n");
-			return -1;
-		}
-#ifdef HAVE_SETGROUPS
-		/* Get rid of any supplementary groups this process
-		 * might have inheristed. */
-		if (setgroups(1, &gid)) {
-			rsyserr(FLOG, errno, "setgroups failed");
-			io_printf(f_out, "@ERROR: setgroups failed\n");
-			return -1;
-		}
-#endif
-
-		if (setuid(uid)) {
-			rsyserr(FLOG, errno, "setuid %d failed", (int)uid);
-			io_printf(f_out, "@ERROR: setuid failed\n");
-			return -1;
-		}
-
-		am_root = (MY_UID() == 0);
-	}
-
-	if (lp_temp_dir(i) && *lp_temp_dir(i)) {
-		tmpdir = lp_temp_dir(i);
-		if (strlen(tmpdir) >= MAXPATHLEN - 10) {
-			rprintf(FLOG,
-				"the 'temp dir' value for %s is WAY too long -- ignoring.\n",
-				name);
-			tmpdir = NULL;
-		}
-	}
-
-	io_printf(f_out, "@RSYNCD: OK\n");
-
-	maxargs = MAX_ARGS;
-	if (!(argv = new_array(char *, maxargs)))
-		out_of_memory("rsync_module");
-	argv[argc++] = "rsyncd";
-
-	while (1) {
-		if (!read_line(f_in, line, sizeof line - 1))
-			return -1;
-
-		if (!*line)
-			break;
-
-		p = line;
-
-		if (argc == maxargs) {
-			maxargs += MAX_ARGS;
-			if (!(argv = realloc_array(argv, char *, maxargs)))
-				out_of_memory("rsync_module");
-		}
-		if (!(argv[argc] = strdup(p)))
-			out_of_memory("rsync_module");
-
-		switch (start_glob) {
-		case 0:
-			argc++;
-			if (strcmp(line, ".") == 0)
-				start_glob = 1;
-			break;
-		case 1:
-			if (pre_exec_pid) {
-				err_msg = finish_pre_exec(pre_exec_pid,
-							  pre_exec_fd, p,
-							  argc, argv);
-				pre_exec_pid = 0;
-			}
-			request = strdup(p);
-			start_glob = 2;
-			/* FALL THROUGH */
-		default:
-			if (!err_msg)
-				glob_expand(name, &argv, &argc, &maxargs);
-			break;
-		}
-	}
-
-	if (pre_exec_pid) {
-		err_msg = finish_pre_exec(pre_exec_pid, pre_exec_fd, request,
-					  argc, argv);
-	}
-
-	verbose = 0; /* future verbosity is controlled by client options */
-	ret = parse_arguments(&argc, (const char ***) &argv, 0);
-	quiet = 0; /* Don't let someone try to be tricky. */
-
-	if (filesfrom_fd == 0)
-		filesfrom_fd = f_in;
-
-	if (request) {
-		if (*auth_user) {
-			rprintf(FLOG, "rsync %s %s from %s@%s (%s)\n",
-				am_sender ? "on" : "to",
-				request, auth_user, host, addr);
-		} else {
-			rprintf(FLOG, "rsync %s %s from %s (%s)\n",
-				am_sender ? "on" : "to",
-				request, host, addr);
-		}
-		free(request);
-	}
-
-#ifndef DEBUG
-	/* don't allow the logs to be flooded too fast */
-	if (verbose > lp_max_verbosity(i))
-		verbose = lp_max_verbosity(i);
-#endif
-
-	if (protocol_version < 23
-	    && (protocol_version == 22 || am_sender))
-		io_start_multiplex_out();
-	else if (!ret || err_msg) {
-		/* We have to get I/O multiplexing started so that we can
-		 * get the error back to the client.  This means getting
-		 * the protocol setup finished first in later versions. */
-		setup_protocol(f_out, f_in);
-		if (!am_sender) {
-			/* Since we failed in our option parsing, we may not
-			 * have finished parsing that the client sent us a
-			 * --files-from option, so look for it manually.
-			 * Without this, the socket would be in the wrong
-			 * state for the upcoming error message. */
-			if (!files_from) {
-				int i;
-				for (i = 0; i < argc; i++) {
-					if (strncmp(argv[i], "--files-from", 12) == 0) {
-						files_from = "";
-						break;
-					}
-				}
-			}
-			if (files_from)
-				write_byte(f_out, 0);
-		}
-		io_start_multiplex_out();
-	}
-
-	if (!ret || err_msg) {
-		if (err_msg)
-			rprintf(FERROR, err_msg);
+	if (batch_prefix != NULL) {
+		char *fmt = "";
+		if (write_batch)
+			fmt = "--write-batch=%s";
 		else
-			option_error();
-		msleep(400);
-		exit_cleanup(RERR_UNSUPPORTED);
+		if (read_batch)
+			fmt = "--read-batch=%s";
+		snprintf(fext,sizeof(fext),fmt,batch_prefix);
+		args[ac++] = fext;
 	}
 
-	if (lp_timeout(i) && lp_timeout(i) > io_timeout)
-		set_io_timeout(lp_timeout(i));
-
-	/* If we have some incoming/outgoing chmod changes, append them to
-	 * any user-specified changes (making our changes have priority).
-	 * We also get a pointer to just our changes so that a receiver
-	 * process can use them separately if --perms wasn't specified. */
-	if (am_sender)
-		p = lp_outgoing_chmod(i);
-	else
-		p = lp_incoming_chmod(i);
-	if (*p && !(daemon_chmod_modes = parse_chmod(p, &chmod_modes))) {
-		rprintf(FLOG, "Invalid \"%sing chmod\" directive: %s\n",
-			am_sender ? "outgo" : "incom", p);
+	if (io_timeout) {
+		snprintf(iotime,sizeof(iotime),"--timeout=%d",io_timeout);
+		args[ac++] = iotime;
 	}
 
-	start_server(f_in, f_out, argc, argv);
+	if (bwlimit) {
+		snprintf(bw,sizeof(bw),"--bwlimit=%d",bwlimit);
+		args[ac++] = bw;
+	}
 
-	return 0;
+	if (backup_dir) {
+		args[ac++] = "--backup-dir";
+		args[ac++] = backup_dir;
+	}
+
+	/* Only send --suffix if it specifies a non-default value. */
+	if (strcmp(backup_suffix, backup_dir? "" : BACKUP_SUFFIX) != 0) {
+		char *s = new_array(char, 9+backup_suffix_len+1);
+		if (!s)
+			out_of_memory("server_options");
+		/* We use the following syntax to avoid weirdness with '~'. */
+		sprintf(s, "--suffix=%s", backup_suffix);
+		args[ac++] = s;
+	}
+
+	if (delete_mode && !delete_excluded)
+		args[ac++] = "--delete";
+
+	if (delete_excluded)
+		args[ac++] = "--delete-excluded";
+
+	if (size_only)
+		args[ac++] = "--size-only";
+
+	if (modify_window_set) {
+		snprintf(mwindow,sizeof(mwindow),"--modify-window=%d",
+			 modify_window);
+		args[ac++] = mwindow;
+	}
+
+	if (keep_partial)
+		args[ac++] = "--partial";
+
+	if (force_delete)
+		args[ac++] = "--force";
+
+	if (delete_after)
+		args[ac++] = "--delete-after";
+
+	if (ignore_errors)
+		args[ac++] = "--ignore-errors";
+
+	if (copy_unsafe_links)
+		args[ac++] = "--copy-unsafe-links";
+
+	if (safe_symlinks)
+		args[ac++] = "--safe-links";
+
+	if (numeric_ids)
+		args[ac++] = "--numeric-ids";
+
+	if (only_existing && am_sender)
+		args[ac++] = "--existing";
+
+	if (opt_ignore_existing && am_sender)
+		args[ac++] = "--ignore-existing";
+
+	if (tmpdir) {
+		args[ac++] = "--temp-dir";
+		args[ac++] = tmpdir;
+	}
+
+	if (compare_dest && am_sender) {
+		/* the server only needs this option if it is not the sender,
+		 *   and it may be an older version that doesn't know this
+		 *   option, so don't send it if client is the sender.
+		 */
+		args[ac++] = link_dest ? "--link-dest" : "--compare-dest";
+		args[ac++] = compare_dest;
+	}
+
+	if (files_from && (!am_sender || remote_filesfrom_file)) {
+		if (remote_filesfrom_file) {
+			args[ac++] = "--files-from";
+			args[ac++] = remote_filesfrom_file;
+			if (eol_nulls)
+				args[ac++] = "--from0";
+		} else {
+			args[ac++] = "--files-from=-";
+			args[ac++] = "--from0";
+		}
+	}
+
+	*argc = ac;
 }

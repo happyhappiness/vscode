@@ -1,63 +1,94 @@
-static const char *branch_get_push_1(struct branch *branch, struct strbuf *err)
+int git_config_rename_section_in_file(const char *config_filename,
+				      const char *old_name, const char *new_name)
 {
-	struct remote *remote;
+	int ret = 0, remove = 0;
+	char *filename_buf = NULL;
+	struct lock_file *lock;
+	int out_fd;
+	char buf[1024];
+	FILE *config_file;
+	struct stat st;
 
-	if (!branch)
-		return error_buf(err, _("HEAD does not point to a branch"));
-
-	remote = remote_get(pushremote_for_branch(branch, NULL));
-	if (!remote)
-		return error_buf(err,
-				 _("branch '%s' has no remote for pushing"),
-				 branch->name);
-
-	if (remote->push_refspec_nr) {
-		char *dst;
-		const char *ret;
-
-		dst = apply_refspecs(remote->push, remote->push_refspec_nr,
-				     branch->refname);
-		if (!dst)
-			return error_buf(err,
-					 _("push refspecs for '%s' do not include '%s'"),
-					 remote->name, branch->name);
-
-		ret = tracking_for_push_dest(remote, dst, err);
-		free(dst);
-		return ret;
+	if (new_name && !section_name_is_ok(new_name)) {
+		ret = error("invalid section name: %s", new_name);
+		goto out;
 	}
 
-	if (remote->mirror)
-		return tracking_for_push_dest(remote, branch->refname, err);
+	if (!config_filename)
+		config_filename = filename_buf = git_pathdup("config");
 
-	switch (push_default) {
-	case PUSH_DEFAULT_NOTHING:
-		return error_buf(err, _("push has no destination (push.default is 'nothing')"));
+	lock = xcalloc(1, sizeof(struct lock_file));
+	out_fd = hold_lock_file_for_update(lock, config_filename, 0);
+	if (out_fd < 0) {
+		ret = error("could not lock config file %s", config_filename);
+		goto out;
+	}
 
-	case PUSH_DEFAULT_MATCHING:
-	case PUSH_DEFAULT_CURRENT:
-		return tracking_for_push_dest(remote, branch->refname, err);
+	if (!(config_file = fopen(config_filename, "rb"))) {
+		/* no config file means nothing to rename, no error */
+		goto unlock_and_out;
+	}
 
-	case PUSH_DEFAULT_UPSTREAM:
-		return branch_get_upstream(branch, err);
+	fstat(fileno(config_file), &st);
 
-	case PUSH_DEFAULT_UNSPECIFIED:
-	case PUSH_DEFAULT_SIMPLE:
-		{
-			const char *up, *cur;
+	if (chmod(lock->filename, st.st_mode & 07777) < 0) {
+		ret = error("chmod on %s failed: %s",
+				lock->filename, strerror(errno));
+		goto out;
+	}
 
-			up = branch_get_upstream(branch, err);
-			if (!up)
-				return NULL;
-			cur = tracking_for_push_dest(remote, branch->refname, err);
-			if (!cur)
-				return NULL;
-			if (strcmp(cur, up))
-				return error_buf(err,
-						 _("cannot resolve 'simple' push to a single destination"));
-			return cur;
+	while (fgets(buf, sizeof(buf), config_file)) {
+		int i;
+		int length;
+		char *output = buf;
+		for (i = 0; buf[i] && isspace(buf[i]); i++)
+			; /* do nothing */
+		if (buf[i] == '[') {
+			/* it's a section */
+			int offset = section_name_match(&buf[i], old_name);
+			if (offset > 0) {
+				ret++;
+				if (new_name == NULL) {
+					remove = 1;
+					continue;
+				}
+				store.baselen = strlen(new_name);
+				if (!store_write_section(out_fd, new_name)) {
+					ret = write_error(lock->filename);
+					goto out;
+				}
+				/*
+				 * We wrote out the new section, with
+				 * a newline, now skip the old
+				 * section's length
+				 */
+				output += offset + i;
+				if (strlen(output) > 0) {
+					/*
+					 * More content means there's
+					 * a declaration to put on the
+					 * next line; indent with a
+					 * tab
+					 */
+					output -= 1;
+					output[0] = '\t';
+				}
+			}
+			remove = 0;
+		}
+		if (remove)
+			continue;
+		length = strlen(output);
+		if (write_in_full(out_fd, output, length) != length) {
+			ret = write_error(lock->filename);
+			goto out;
 		}
 	}
-
-	die("BUG: unhandled push situation");
+	fclose(config_file);
+unlock_and_out:
+	if (commit_lock_file(lock) < 0)
+		ret = error("could not commit config file %s", config_filename);
+out:
+	free(filename_buf);
+	return ret;
 }

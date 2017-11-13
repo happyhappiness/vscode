@@ -1,1 +1,1 @@
-die("%s not a valid tag", oid_to_hex(&oid));
+logerror("user-path too large: %s", rpath);

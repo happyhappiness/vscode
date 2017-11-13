@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "Authn cache: no credentials found for %s", user);
+ap_rvputs(r, "<a href=\"", r->uri, "?b=",
+                      balancer->name + sizeof("balancer://") - 1,
+                      "\">", NULL);

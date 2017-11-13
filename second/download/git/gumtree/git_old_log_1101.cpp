@@ -1,3 +1,1 @@
-error("cannot unpack %s from %s at offset %"PRIuMAX"",
-				    sha1_to_hex(entries[i].sha1), p->pack_name,
-				    (uintmax_t)entries[i].offset);
+die("Duplicated ref, and SHA1s don't match: %s", ref1->name);

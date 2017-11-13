@@ -1,1 +1,1 @@
-die("BUG: delete called with old_sha1 set to zeros");
+error_errno("Could not stat %s", filename);

@@ -1,1 +1,2 @@
-printf ("\nhcache backend: %s", mutt_hcache_backend ());
+printf ("\nlibidn: %s (compiled with %s)", stringprep_check_version (NULL), 
+	  STRINGPREP_VERSION);

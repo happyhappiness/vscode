@@ -1,11 +1,10 @@
 fputs(
-"              The only difference between this and the HTTP proxy option  (-x,\n"
-"              --proxy), is that attempts to use CONNECT through the proxy will\n"
-"              specify an HTTP 1.0 protocol instead of the default HTTP 1.1.\n"
+"              Tells   curl  to  use  the  listed  protocols  for  its  initial\n"
+"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
+"              arated,  and  are each a protocol name or 'all', optionally pre-\n"
+"              fixed by zero or more modifiers. Available modifiers are:\n"
 "\n"
-"       --pubkey <key>\n"
-"              (SSH) Public key file name. Allows you to  provide  your  public\n"
-"              key in this separate file.\n"
+"              +  Permit this protocol in addition to protocols already permit-\n"
+"                 ted (this is the default if no modifier is used).\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
 , stdout);

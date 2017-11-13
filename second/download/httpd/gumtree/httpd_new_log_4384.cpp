@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01956)
-                     "stapling_cb: setting response");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01068)
+                              "Got bogus version %d", (int) header.version);

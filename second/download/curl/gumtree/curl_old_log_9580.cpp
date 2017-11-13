@@ -1,11 +1,11 @@
 fputs(
-"  Note that by specifying -b you enable the \"cookie awareness\" and with -L\n"
-"  you can make curl follow a location: (which often is used in combination\n"
-"  with cookies). So that if a site sends cookies and a location, you can\n"
-"  use a non-existing file to trigger the cookie awareness like:\n"
+"    'Konqueror/1.0'             KDE File Manager desktop client\n"
+"    'Lynx/2.7.1 libwww-FM/2.14' Lynx command line browser\n"
 "\n"
-"        curl -L -b empty.txt www.example.com\n"
+"COOKIES\n"
 "\n"
-"  The file to read cookies from must be formatted using plain HTTP headers OR\n"
-"  as netscape's cookie file. Curl will determine what kind it is based on the\n"
+"  Cookies are generally used by web servers to keep state information at the\n"
+"  client's side. The server sets cookies by sending a response line in the\n"
+"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
+"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
 , stdout);

@@ -1,11 +1,9 @@
 fputs(
-"              requires that the underlying libcurl was  built  to  support  c-\n"
-"              ares. Added in 7.33.0.\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"       --dns-ipv4-addr <address>\n"
-"              (DNS)  Tell  curl  to  bind to <ip-address> when making IPv4 DNS\n"
-"              requests, so that the DNS requests originate from this  address.\n"
-"              The argument should be a single IPv4 address.\n"
-"\n"
-"              See  also  --dns-interface  and --dns-ipv6-addr. --dns-ipv4-addr\n"
+"              If  you  start  the data with the letter @, the rest should be a\n"
+"              file name to read the data from, or - if you want curl  to  read\n"
+"              the data from stdin. Multiple files can also be specified. Post-\n"
+"              ing data from a file named  from  a  file  like  that,  carriage\n"
 , stdout);

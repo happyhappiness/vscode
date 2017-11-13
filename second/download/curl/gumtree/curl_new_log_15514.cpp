@@ -1,10 +1,9 @@
 fputs(
-"              with  '>'  means  \"header  data\" sent by curl, '<' means \"header\n"
-"              data\" received by curl that is hidden in  normal  cases,  and  a\n"
-"              line starting with '*' means additional info provided by curl.\n"
+"              You can specify one -T, --upload-file for each URL on  the  com-\n"
+"              mand  line.  Each -T, --upload-file + URL pair specifies what to\n"
+"              upload and to where. curl also supports \"globbing\"  of  the  -T,\n"
+"              --upload-file  argument,  meaning  that  you can upload multiple\n"
+"              files to a single URL by using the same URL globbing style  sup-\n"
+"              ported in the URL, like this:\n"
 "\n"
-"              If you only want HTTP headers in the output, -i, --include might\n"
-"              be the option you're looking for.\n"
-"\n"
-"              If you think this option still doesn't give you enough  details,\n"
 , stdout);

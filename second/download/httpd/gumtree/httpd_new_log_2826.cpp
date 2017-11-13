@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01637)
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
+fprintf(out, "%d,%.3f\n", i, t);

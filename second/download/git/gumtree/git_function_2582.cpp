@@ -1,34 +1,42 @@
-static void diff_flush_raw(struct diff_filepair *p, struct diff_options *opt)
+static int merge(const char *name, const char *path)
 {
-	int line_termination = opt->line_termination;
-	int inter_name_termination = line_termination ? '\t' : '\0';
+	int ret;
+	mmfile_t cur = {NULL, 0}, base = {NULL, 0}, other = {NULL, 0};
+	mmbuffer_t result = {NULL, 0};
 
-	fprintf(opt->file, "%s", diff_line_prefix(opt));
-	if (!(opt->output_format & DIFF_FORMAT_NAME_STATUS)) {
-		fprintf(opt->file, ":%06o %06o %s ", p->one->mode, p->two->mode,
-			diff_unique_abbrev(p->one->sha1, opt->abbrev));
-		fprintf(opt->file, "%s ", diff_unique_abbrev(p->two->sha1, opt->abbrev));
+	if (handle_file(path, NULL, rerere_path(name, "thisimage")) < 0)
+		return 1;
+
+	if (read_mmfile(&cur, rerere_path(name, "thisimage")) ||
+			read_mmfile(&base, rerere_path(name, "preimage")) ||
+			read_mmfile(&other, rerere_path(name, "postimage"))) {
+		ret = 1;
+		goto out;
 	}
-	if (p->score) {
-		fprintf(opt->file, "%c%03d%c", p->status, similarity_index(p),
-			inter_name_termination);
-	} else {
-		fprintf(opt->file, "%c%c", p->status, inter_name_termination);
+	ret = ll_merge(&result, path, &base, NULL, &cur, "", &other, "", NULL);
+	if (!ret) {
+		FILE *f;
+
+		if (utime(rerere_path(name, "postimage"), NULL) < 0)
+			warning("failed utime() on %s: %s",
+					rerere_path(name, "postimage"),
+					strerror(errno));
+		f = fopen(path, "w");
+		if (!f)
+			return error("Could not open %s: %s", path,
+				     strerror(errno));
+		if (fwrite(result.ptr, result.size, 1, f) != 1)
+			error("Could not write %s: %s", path, strerror(errno));
+		if (fclose(f))
+			return error("Writing %s failed: %s", path,
+				     strerror(errno));
 	}
 
-	if (p->status == DIFF_STATUS_COPIED ||
-	    p->status == DIFF_STATUS_RENAMED) {
-		const char *name_a, *name_b;
-		name_a = p->one->path;
-		name_b = p->two->path;
-		strip_prefix(opt->prefix_length, &name_a, &name_b);
-		write_name_quoted(name_a, opt->file, inter_name_termination);
-		write_name_quoted(name_b, opt->file, line_termination);
-	} else {
-		const char *name_a, *name_b;
-		name_a = p->one->mode ? p->one->path : p->two->path;
-		name_b = NULL;
-		strip_prefix(opt->prefix_length, &name_a, &name_b);
-		write_name_quoted(name_a, opt->file, line_termination);
-	}
+out:
+	free(cur.ptr);
+	free(base.ptr);
+	free(other.ptr);
+	free(result.ptr);
+
+	return ret;
 }

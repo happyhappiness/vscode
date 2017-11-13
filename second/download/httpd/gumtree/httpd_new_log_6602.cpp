@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(02467)
-                    "cache: Invalidating all cached entities in response to '%s' request for %s",
-                    r->method, r->uri);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
+                          "h2_ngn_shed(%ld): engine %s has queued task %s, "
+                          "frozen=%d, aborting",
+                          shed->c->id, ngn->id, task->id, task->frozen);

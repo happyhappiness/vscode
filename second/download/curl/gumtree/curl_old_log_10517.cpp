@@ -1,12 +1,9 @@
 fputs(
-"       --no-keepalive\n"
-"              Disables the use of keepalive messages on the TCP connection, as\n"
-"              by default curl enables them.\n"
+"              cally used for FTP on Unix. If used with HTTP, curl will  enable\n"
+"              user  authentication.  See netrc(4) or ftp(1) for details on the\n"
+"              file format. Curl will not complain if that  file  doesn't  have\n"
+"              the  right permissions (it should not be either world- or group-\n"
+"              readable). The environment variable \"HOME\" is used to  find  the\n"
+"              home directory.\n"
 "\n"
-"              Note that this is the negated option name  documented.  You  can\n"
-"              thus use --keepalive to enforce keepalive.\n"
-"\n"
-"       --no-sessionid\n"
-"              (SSL)  Disable curl's use of SSL session-ID caching.  By default\n"
-"              all transfers are done using the cache. Note that while  nothing\n"
 , stdout);

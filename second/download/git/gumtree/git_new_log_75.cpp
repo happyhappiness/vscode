@@ -1,1 +1,1 @@
-die("invalid ref format: %s", ref.buf);
+die(_("Could not read the index"));

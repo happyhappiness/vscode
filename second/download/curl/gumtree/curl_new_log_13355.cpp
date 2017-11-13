@@ -1,8 +1,11 @@
 fputs(
-"              verify  the  peer.  Multiple paths can be provided by separating\n"
-"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
-"              be  in  PEM  format,  and  if curl is built against OpenSSL, the\n"
-"              directory must have been processed using  the  c_rehash  utility\n"
-"              supplied  with OpenSSL. Using --capath can allow OpenSSL-powered\n"
-"              curl to make SSL-connections much more  efficiently  than  using\n"
+"    'Mozilla/3.04 (Win95; U)'    Netscape Version 3 for Windows 95\n"
+"    'Mozilla/2.02 (OS/2; U)'     Netscape Version 2 for OS/2\n"
+"    'Mozilla/4.04 [en] (X11; U; AIX 4.2; Nav)'           NS for AIX\n"
+"    'Mozilla/4.05 [en] (X11; U; Linux 2.0.32 i586)'      NS for Linux\n"
+"\n"
+"  Note that Internet Explorer tries hard to be compatible in every way:\n"
+"    'Mozilla/4.0 (compatible; MSIE 4.01; Windows 95)'    MSIE for W95\n"
+"\n"
+"  Mozilla is not the only possible User-Agent name:\n"
 , stdout);

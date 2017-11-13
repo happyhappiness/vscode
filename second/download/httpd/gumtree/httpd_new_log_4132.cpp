@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01877)
-                     "Init: Skipping generating temporary "
-                     "%d bit RSA private key in FIPS mode", bits);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+               "ajp_read_header: ajp_ilink_received %s (0x%02x)",
+               ajp_type_str(result), result);

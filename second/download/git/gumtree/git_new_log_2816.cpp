@@ -1,1 +1,1 @@
-die("%s", err.buf);
+fprintf_ln(stderr, "    git pull %s %s", _("<remote>"), _("<branch>"));

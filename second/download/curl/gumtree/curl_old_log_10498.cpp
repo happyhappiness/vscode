@@ -1,11 +1,10 @@
 fputs(
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
+"              make the request. (Added in 7.21.5)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --local-port <num>[-num]\n"
-"              Set a preferred number or range of local port numbers to use for\n"
-"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
-"              scarce resource that will be busy at times so setting this range\n"
+"       -L, --location\n"
+"              (HTTP/HTTPS)  If  the server reports that the requested page has\n"
+"              moved to a different location (indicated with a Location: header\n"
+"              and  a  3XX  response code), this option will make curl redo the\n"
+"              request on the new place. If used together with -i, --include or\n"
+"              -I, --head, headers from all requested pages will be shown. When\n"
 , stdout);

@@ -1,1 +1,2 @@
-die("BUG: setup_git_env called without repository");
+error(_("please fix this using "
+				       "'git rebase --edit-todo'."));

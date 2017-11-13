@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, errno,
-                         NULL, "ufork: Possible mis-configuration "
-                         "for user %s - Aborting.", user);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "proxy: FD: failed to create dummy socket");

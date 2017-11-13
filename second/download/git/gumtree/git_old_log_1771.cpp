@@ -1,2 +1,1 @@
-error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
-			filename);
+die("unable to generate diffstat for %s", one->path);

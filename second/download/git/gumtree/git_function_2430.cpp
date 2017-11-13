@@ -1,22 +1,9 @@
-static void show_merge_in_progress(struct wt_status *s,
-				struct wt_status_state *state,
-				const char *color)
+static void add_object_buffer(struct object *object, char *buffer, unsigned long size)
 {
-	if (has_unmerged(s)) {
-		status_printf_ln(s, color, _("You have unmerged paths."));
-		if (s->hints) {
-			status_printf_ln(s, color,
-					 _("  (fix conflicts and run \"git commit\")"));
-			status_printf_ln(s, color,
-					 _("  (use \"git merge --abort\" to abort the merge)"));
-		}
-	} else {
-		s-> commitable = 1;
-		status_printf_ln(s, color,
-			_("All conflicts fixed but you are still merging."));
-		if (s->hints)
-			status_printf_ln(s, color,
-				_("  (use \"git commit\" to conclude merge)"));
-	}
-	wt_status_print_trailer(s);
+	struct obj_buffer *obj;
+	obj = xcalloc(1, sizeof(struct obj_buffer));
+	obj->buffer = buffer;
+	obj->size = size;
+	if (add_decoration(&obj_decorate, object, obj))
+		die("object %s tried to add buffer twice!", sha1_to_hex(object->sha1));
 }

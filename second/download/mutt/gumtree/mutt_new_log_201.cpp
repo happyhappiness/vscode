@@ -1,1 +1,1 @@
-puts (*envp);
+state_puts(" ", s);

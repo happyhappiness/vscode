@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
-                          "unable to control socket non-blocking status");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);

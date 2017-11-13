@@ -1,1 +1,0 @@
-fprintf(lock->lk->tempfile.fp, "ref: %s\n", target);

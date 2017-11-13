@@ -1,1 +1,1 @@
-printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));
+die("unable to generate diff for %s", pair->one->path);

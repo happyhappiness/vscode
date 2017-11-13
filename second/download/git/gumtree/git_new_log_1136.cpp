@@ -1,1 +1,1 @@
-die("oops (%s)", oid_to_hex(oid));
+die(_("'%s' not recognized as a git repository"), git_dir);

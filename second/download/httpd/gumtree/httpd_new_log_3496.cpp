@@ -1,2 +1,2 @@
-ap_log_rerror(dbg.source, dbg.currentline, APLOG_MODULE_INDEX, level, 0,
-                  r, "%s", msg);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00820)
+                     "shared memory segment too small");

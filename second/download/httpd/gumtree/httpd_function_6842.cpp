@@ -1,51 +1,125 @@
-static int authn_cache_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                                   apr_pool_t *ptmp, server_rec *s)
+static h2_session *h2_session_create_int(conn_rec *c,
+                                         request_rec *r,
+                                         h2_ctx *ctx, 
+                                         h2_workers *workers)
 {
-    apr_status_t rv;
-    static struct ap_socache_hints authn_cache_hints = {64, 32, 60000000};
-    const char *errmsg;
+    nghttp2_session_callbacks *callbacks = NULL;
+    nghttp2_option *options = NULL;
+    uint32_t n;
 
-    if (!configured) {
-        return OK;    /* don't waste the overhead of creating mutex & cache */
+    apr_pool_t *pool = NULL;
+    apr_status_t status = apr_pool_create(&pool, c->pool);
+    h2_session *session;
+    if (status != APR_SUCCESS) {
+        return NULL;
     }
-    if (socache_provider == NULL) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(01674)
-                      "Please select a socache provider with AuthnCacheSOCache "
-                      "(no default found on this platform). Maybe you need to "
-                      "load mod_socache_shmcb or another socache module first");
-        return 500; /* An HTTP status would be a misnomer! */
-    }
+    apr_pool_tag(pool, "h2_session");
 
-    /* We have socache_provider, but do not have socache_instance. This should
-     * happen only when using "default" socache_provider, so create default
-     * socache_instance in this case. */
-    if (socache_instance == NULL) {
-        errmsg = socache_provider->create(&socache_instance, NULL,
-                                          ptmp, pconf);
-        if (errmsg) {
-            ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(02612)
-                        "failed to create mod_socache_shmcb socache "
-                        "instance: %s", errmsg);
-            return 500;
+    session = apr_pcalloc(pool, sizeof(h2_session));
+    if (session) {
+        int rv;
+        nghttp2_mem *mem;
+        
+        session->id = c->id;
+        session->c = c;
+        session->r = r;
+        session->s = h2_ctx_server_get(ctx);
+        session->pool = pool;
+        session->config = h2_config_sget(session->s);
+        session->workers = workers;
+        
+        session->state = H2_SESSION_ST_INIT;
+        session->local.accepting = 1;
+        session->remote.accepting = 1;
+        
+        apr_pool_pre_cleanup_register(pool, session, session_pool_cleanup);
+        
+        session->max_stream_count = h2_config_geti(session->config, 
+                                                   H2_CONF_MAX_STREAMS);
+        session->max_stream_mem = h2_config_geti(session->config, 
+                                                 H2_CONF_STREAM_MAX_MEM);
+
+        status = apr_thread_cond_create(&session->iowait, session->pool);
+        if (status != APR_SUCCESS) {
+            return NULL;
+        }
+        
+        session->mplx = h2_mplx_create(c, session->pool, session->config, 
+                                       session->s->timeout, workers);
+        
+        h2_mplx_set_consumed_cb(session->mplx, update_window, session);
+        
+        /* Install the connection input filter that feeds the session */
+        session->cin = h2_filter_cin_create(session->pool, 
+                                            h2_session_receive, session);
+        ap_add_input_filter("H2_IN", session->cin, r, c);
+
+        h2_conn_io_init(&session->io, c, session->config);
+        session->bbtmp = apr_brigade_create(session->pool, c->bucket_alloc);
+        
+        status = init_callbacks(c, &callbacks);
+        if (status != APR_SUCCESS) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, c, APLOGNO(02927) 
+                          "nghttp2: error in init_callbacks");
+            h2_session_destroy(session);
+            return NULL;
+        }
+        
+        rv = nghttp2_option_new(&options);
+        if (rv != 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
+                          APLOGNO(02928) "nghttp2_option_new: %s", 
+                          nghttp2_strerror(rv));
+            h2_session_destroy(session);
+            return NULL;
+        }
+        nghttp2_option_set_peer_max_concurrent_streams(
+            options, (uint32_t)session->max_stream_count);
+        /* We need to handle window updates ourself, otherwise we
+         * get flooded by nghttp2. */
+        nghttp2_option_set_no_auto_window_update(options, 1);
+        
+        if (APLOGctrace6(c)) {
+            mem = apr_pcalloc(session->pool, sizeof(nghttp2_mem));
+            mem->mem_user_data = session;
+            mem->malloc    = session_malloc;
+            mem->free      = session_free;
+            mem->calloc    = session_calloc;
+            mem->realloc   = session_realloc;
+            
+            rv = nghttp2_session_server_new3(&session->ngh2, callbacks,
+                                             session, options, mem);
+        }
+        else {
+            rv = nghttp2_session_server_new2(&session->ngh2, callbacks,
+                                             session, options);
+        }
+        nghttp2_session_callbacks_del(callbacks);
+        nghttp2_option_del(options);
+        
+        if (rv != 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
+                          APLOGNO(02929) "nghttp2_session_server_new: %s",
+                          nghttp2_strerror(rv));
+            h2_session_destroy(session);
+            return NULL;
+        }
+         
+        n = h2_config_geti(session->config, H2_CONF_PUSH_DIARY_SIZE);
+        session->push_diary = h2_push_diary_create(session->pool, n);
+        
+        if (APLOGcdebug(c)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03200)
+                          "h2_session(%ld) created, max_streams=%d, "
+                          "stream_mem=%d, workers_limit=%d, workers_max=%d, "
+                          "push_diary(type=%d,N=%d)",
+                          session->id, (int)session->max_stream_count, 
+                          (int)session->max_stream_mem,
+                          session->mplx->workers_limit, 
+                          session->mplx->workers_max, 
+                          session->push_diary->dtype, 
+                          (int)session->push_diary->N);
         }
     }
-
-    rv = ap_global_mutex_create(&authn_cache_mutex, NULL,
-                                authn_cache_id, NULL, s, pconf, 0);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01675)
-                      "failed to create %s mutex", authn_cache_id);
-        return 500; /* An HTTP status would be a misnomer! */
-    }
-    apr_pool_cleanup_register(pconf, NULL, remove_lock, apr_pool_cleanup_null);
-
-    rv = socache_provider->init(socache_instance, authn_cache_id,
-                                &authn_cache_hints, s, pconf);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01677)
-                      "failed to initialise %s cache", authn_cache_id);
-        return 500; /* An HTTP status would be a misnomer! */
-    }
-    apr_pool_cleanup_register(pconf, (void*)s, destroy_cache, apr_pool_cleanup_null);
-    return OK;
+    return session;
 }

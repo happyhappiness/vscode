@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00277)
-                             "apr_thread_join: unable to join listener thread");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01966)
+                                 "Init: Failed to create pass phrase pipe '%s'",
+                                 sc->server->pphrase_dialog_path);

@@ -1,1 +1,2 @@
-die("BUG: create ref with null new_sha1");
+fprintf(pack_edges, " %s",
+							oid_to_hex(&b->oid));

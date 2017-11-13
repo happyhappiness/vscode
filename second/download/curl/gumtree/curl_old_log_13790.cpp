@@ -1,12 +1,9 @@
 fputs(
-"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              forces a LIST command to be performed instead of RETR.  This  is\n"
+"              particularly  useful if the user wants to see if a specific mes-\n"
+"              sage id exists on the server and what size it is.\n"
 "\n"
-"              If  you  also use the -Y, --speed-limit option, that option will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --local-port <num>[-num]\n"
+"              Note: When combined with -X, --request  <command>,  this  option\n"
+"              can be used to send an UIDL command instead, so the user may use\n"
+"              the email's unique identifier rather than  it's  message  id  to\n"
 , stdout);

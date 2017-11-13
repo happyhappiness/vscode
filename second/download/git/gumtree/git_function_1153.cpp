@@ -1,43 +1,52 @@
-static int push_check(int argc, const char **argv, const char *prefix)
+static int setup_named_sock(char *listen_addr, int listen_port, struct socketlist *socklist)
 {
-	struct remote *remote;
+	struct sockaddr_in sin;
+	int sockfd;
+	long flags;
 
-	if (argc < 2)
-		die("submodule--helper push-check requires at least 1 argument");
+	memset(&sin, 0, sizeof sin);
+	sin.sin_family = AF_INET;
+	sin.sin_port = htons(listen_port);
 
-	/*
-	 * The remote must be configured.
-	 * This is to avoid pushing to the exact same URL as the parent.
-	 */
-	remote = pushremote_get(argv[1]);
-	if (!remote || remote->origin == REMOTE_UNCONFIGURED)
-		die("remote '%s' not configured", argv[1]);
-
-	/* Check the refspec */
-	if (argc > 2) {
-		int i, refspec_nr = argc - 2;
-		struct ref *local_refs = get_local_heads();
-		struct refspec *refspec = parse_push_refspec(refspec_nr,
-							     argv + 2);
-
-		for (i = 0; i < refspec_nr; i++) {
-			struct refspec *rs = refspec + i;
-
-			if (rs->pattern || rs->matching)
-				continue;
-
-			/*
-			 * LHS must match a single ref
-			 * NEEDSWORK: add logic to special case 'HEAD' once
-			 * working with submodules in a detached head state
-			 * ceases to be the norm.
-			 */
-			if (count_refspec_match(rs->src, local_refs, NULL) != 1)
-				die("src refspec '%s' must name a ref",
-				    rs->src);
-		}
-		free_refspec(refspec_nr, refspec);
+	if (listen_addr) {
+		/* Well, host better be an IP address here. */
+		if (inet_pton(AF_INET, listen_addr, &sin.sin_addr.s_addr) <= 0)
+			return 0;
+	} else {
+		sin.sin_addr.s_addr = htonl(INADDR_ANY);
 	}
 
-	return 0;
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0)
+		return 0;
+
+	if (set_reuse_addr(sockfd)) {
+		logerror("Could not set SO_REUSEADDR: %s", strerror(errno));
+		close(sockfd);
+		return 0;
+	}
+
+	if ( bind(sockfd, (struct sockaddr *)&sin, sizeof sin) < 0 ) {
+		logerror("Could not listen to %s: %s",
+			 ip2str(AF_INET, (struct sockaddr *)&sin, sizeof(sin)),
+			 strerror(errno));
+		close(sockfd);
+		return 0;
+	}
+
+	if (listen(sockfd, 5) < 0) {
+		logerror("Could not listen to %s: %s",
+			 ip2str(AF_INET, (struct sockaddr *)&sin, sizeof(sin)),
+			 strerror(errno));
+		close(sockfd);
+		return 0;
+	}
+
+	flags = fcntl(sockfd, F_GETFD, 0);
+	if (flags >= 0)
+		fcntl(sockfd, F_SETFD, flags | FD_CLOEXEC);
+
+	ALLOC_GROW(socklist->list, socklist->nr + 1, socklist->alloc);
+	socklist->list[socklist->nr++] = sockfd;
+	return 1;
 }

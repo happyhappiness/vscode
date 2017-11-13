@@ -1,186 +1,85 @@
-int main(int argc, const char * const argv[])
+static void win9x_accept(void * dummy)
 {
-    apr_file_t *fpw = NULL;
-    char record[MAX_STRING_LEN];
-    char line[MAX_STRING_LEN];
-    char *password = NULL;
-    char *pwfilename = NULL;
-    char *user = NULL;
-    char *tn;
-    char scratch[MAX_STRING_LEN];
-    int found = 0;
-    int i;
-    int alg = ALG_CRYPT;
-    int mask = 0;
-    apr_pool_t *pool;
-    int existing_file = 0;
-#if APR_CHARSET_EBCDIC
-    apr_status_t rv;
-    apr_xlate_t *to_ascii;
-#endif
+    struct timeval tv;
+    fd_set main_fds;
+    int wait_time = 1;
+    int csd;
+    SOCKET nsd = INVALID_SOCKET;
+    struct sockaddr_in sa_client;
+    int count_select_errors = 0;
+    int rc;
+    int clen;
+    ap_listen_rec *lr;
+    struct fd_set listenfds;
+    SOCKET listenmaxfd = INVALID_SOCKET;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(apr_terminate);
-#ifdef NETWARE
-    atexit(nwTerminate);
-#endif
-    apr_pool_create(&pool, NULL);
-    apr_file_open_stderr(&errfile, pool);
-
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, pool);
-    if (rv) {
-        apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);
-        exit(1);
-    }
-    rv = apr_SHA1InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d\n", rv);
-        exit(1);
-    }
-    rv = apr_MD5InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d\n", rv);
-        exit(1);
-    }
-#endif /*APR_CHARSET_EBCDIC*/
-
-    check_args(pool, argc, argv, &alg, &mask, &user, &pwfilename, &password);
-
-
-#if defined(WIN32) || defined(NETWARE)
-    if (alg == ALG_CRYPT) {
-        alg = ALG_APMD5;
-        apr_file_printf(errfile, "Automatically using MD5 format.\n");
-    }
-#endif
-
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-    if (alg == ALG_PLAIN) {
-        apr_file_printf(errfile,"Warning: storing passwords as plain text "
-                        "might just not work on this platform.\n");
-    }
-#endif
-
-    /*
-     * Only do the file checks if we're supposed to frob it.
+    /* Setup the listeners 
+     * ToDo: Use apr_poll()
      */
-    if (!(mask & APHTP_NOFILE)) {
-        existing_file = exists(pwfilename, pool);
-        if (existing_file) {
-            /*
-             * Check that this existing file is readable and writable.
-             */
-            if (!accessible(pool, pwfilename, APR_READ | APR_APPEND)) {
-                apr_file_printf(errfile, "%s: cannot open file %s for "
-                                "read/write access\n", argv[0], pwfilename);
-                exit(ERR_FILEPERM);
+    FD_ZERO(&listenfds);
+    for (lr = ap_listeners; lr; lr = lr->next) {
+        if (lr->sd != NULL) {
+            apr_os_sock_get(&nsd, lr->sd);
+            FD_SET(nsd, &listenfds);
+            if (listenmaxfd == INVALID_SOCKET || nsd > listenmaxfd) {
+                listenmaxfd = nsd;
             }
-        }
-        else {
-            /*
-             * Error out if -c was omitted for this non-existant file.
-             */
-            if (!(mask & APHTP_NEWFILE)) {
-                apr_file_printf(errfile,
-                        "%s: cannot modify file %s; use '-c' to create it\n",
-                        argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
-            /*
-             * As it doesn't exist yet, verify that we can create it.
-             */
-            if (!accessible(pool, pwfilename, APR_CREATE | APR_WRITE)) {
-                apr_file_printf(errfile, "%s: cannot create file %s\n",
-                                argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "Child %d: Listening on port %d.", my_pid, lr->bind_addr->port);
         }
     }
 
-    /*
-     * All the file access checks (if any) have been made.  Time to go to work;
-     * try to create the record for the username in question.  If that
-     * fails, there's no need to waste any time on file manipulations.
-     * Any error message text is returned in the record buffer, since
-     * the mkrecord() routine doesn't have access to argv[].
-     */
-    i = mkrecord(user, record, sizeof(record) - 1,
-                 password, alg);
-    if (i != 0) {
-        apr_file_printf(errfile, "%s: %s\n", argv[0], record);
-        exit(i);
-    }
-    if (mask & APHTP_NOFILE) {
-        printf("%s\n", record);
-        exit(0);
-    }
+    head_listener = ap_listeners;
 
-    /*
-     * We can access the files the right way, and we have a record
-     * to add or update.  Let's do it..
-     */
-    tn = get_tempname(pool);
-    if (apr_file_mktemp(&ftemp, tn, 0, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
-                        argv[0], tn);
-        exit(ERR_FILEPERM);
-    }
+    while (!shutdown_in_progress) {
+	tv.tv_sec = wait_time;
+	tv.tv_usec = 0;
+	memcpy(&main_fds, &listenfds, sizeof(fd_set));
 
-    /*
-     * If we're not creating a new file, copy records from the existing
-     * one to the temporary file until we find the specified user.
-     */
-    if (existing_file && !(mask & APHTP_NEWFILE)) {
-        if (apr_file_open(&fpw, pwfilename, APR_READ | APR_BUFFERED,
-                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
-            apr_file_printf(errfile, "%s: unable to read file %s\n", 
-                            argv[0], pwfilename);
-            exit(ERR_FILEPERM);
+	rc = select(listenmaxfd + 1, &main_fds, NULL, NULL, &tv);
+
+        if (rc == 0 || (rc == SOCKET_ERROR && APR_STATUS_IS_EINTR(apr_get_netos_error()))) {
+            count_select_errors = 0;    /* reset count of errors */            
+            continue;
         }
-        while (apr_file_gets(line, sizeof(line), fpw) == APR_SUCCESS) {
-            char *colon;
-
-            if ((line[0] == '#') || (line[0] == '\0')) {
-                putline(ftemp, line);
-                continue;
-            }
-            strcpy(scratch, line);
-            /*
-             * See if this is our user.
+        else if (rc == SOCKET_ERROR) {
+            /* A "real" error occurred, log it and increment the count of
+             * select errors. This count is used to ensure we don't go into
+             * a busy loop of continuous errors.
              */
-            colon = strchr(scratch, ':');
-            if (colon != NULL) {
-                *colon = '\0';
+            ap_log_error(APLOG_MARK, APLOG_INFO, apr_get_netos_error(), ap_server_conf, 
+                         "select failed with error %d", apr_get_netos_error());
+            count_select_errors++;
+            if (count_select_errors > MAX_SELECT_ERRORS) {
+                shutdown_in_progress = 1;
+                ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(), ap_server_conf,
+                             "Too many errors in select loop. Child process exiting.");
+                break;
             }
-            if (strcmp(user, scratch) != 0) {
-                putline(ftemp, line);
-                continue;
-            }
-            else {
-                /* We found the user we were looking for, add him to the file.
-                 */
-                apr_file_printf(errfile, "Updating ");
-                putline(ftemp, record);
-                found++;
-            }
-        }
-        apr_file_close(fpw);
-    }
-    if (!found) {
-        apr_file_printf(errfile, "Adding ");
-        putline(ftemp, record);
-    }
-    apr_file_printf(errfile, "password for user %s\n", user);
+	} else {
+	    ap_listen_rec *lr;
 
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(tn, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
-        APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
-        exit(ERR_FILEPERM);
+	    lr = find_ready_listener(&main_fds);
+	    if (lr != NULL) {
+                /* fetch the native socket descriptor */
+                apr_os_sock_get(&nsd, lr->sd);
+	    }
+	}
+
+	do {
+            clen = sizeof(sa_client);
+            csd = accept(nsd, (struct sockaddr *) &sa_client, &clen);
+        } while (csd < 0 && APR_STATUS_IS_EINTR(apr_get_netos_error()));
+
+	if (csd < 0) {
+            if (APR_STATUS_IS_ECONNABORTED(apr_get_netos_error())) {
+		ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(), ap_server_conf,
+			    "accept: (client socket)");
+            }
+	}
+	else {
+	    add_job(csd);
+	}
     }
-    apr_file_close(ftemp);
-    return 0;
+    SetEvent(exit_event);
 }

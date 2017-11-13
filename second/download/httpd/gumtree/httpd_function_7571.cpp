@@ -1,358 +1,316 @@
-static apr_status_t inflate_out_filter(ap_filter_t *f,
-                                      apr_bucket_brigade *bb)
+static int cgid_handler(request_rec *r)
 {
-    apr_bucket *e;
-    request_rec *r = f->r;
-    deflate_ctx *ctx = f->ctx;
-    int zRC;
+    int retval, nph, dbpos;
+    char *argv0, *dbuf;
+    apr_bucket_brigade *bb;
+    apr_bucket *b;
+    cgid_server_conf *conf;
+    int is_included;
+    int seen_eos, child_stopped_reading;
+    int sd;
+    char **env;
+    apr_file_t *tempsock;
+    struct cleanup_script_info *info;
     apr_status_t rv;
-    deflate_filter_config *c;
-    deflate_dirconf_t *dc;
+    cgid_dirconf *dc;
 
-    /* Do nothing if asked to filter nothing. */
-    if (APR_BRIGADE_EMPTY(bb)) {
-        return APR_SUCCESS;
+    if (strcmp(r->handler, CGI_MAGIC_TYPE) && strcmp(r->handler, "cgi-script")) {
+        return DECLINED;
     }
 
-    c = ap_get_module_config(r->server->module_config, &deflate_module);
-    dc = ap_get_module_config(r->per_dir_config, &deflate_module);
+    conf = ap_get_module_config(r->server->module_config, &cgid_module);
+    dc = ap_get_module_config(r->per_dir_config, &cgid_module);
 
-    if (!ctx) {
+    
+    is_included = !strcmp(r->protocol, "INCLUDED");
 
-        /*
-         * Only work on main request, not subrequests,
-         * that are not a 204 response with no content
-         * and not a partial response to a Range request,
-         * and only when Content-Encoding ends in gzip.
-         */
-        if (!ap_is_initial_req(r) || (r->status == HTTP_NO_CONTENT) ||
-            (apr_table_get(r->headers_out, "Content-Range") != NULL) ||
-            (check_gzip(r, r->headers_out, r->err_headers_out) == 0)
-           ) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        /*
-         * At this point we have decided to filter the content, so change
-         * important content metadata before sending any response out.
-         * Content-Encoding was already reset by the check_gzip() call.
-         */
-        apr_table_unset(r->headers_out, "Content-Length");
-        apr_table_unset(r->headers_out, "Content-MD5");
-        deflate_check_etag(r, "gunzip");
-
-        /* For a 304 response, only change the headers */
-        if (r->status == HTTP_NOT_MODIFIED) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
-        ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
-        ctx->libz_end_func = inflateEnd;
-        ctx->validation_buffer = NULL;
-        ctx->validation_buffer_length = 0;
-
-        zRC = inflateInit2(&ctx->stream, c->windowSize);
-
-        if (zRC != Z_OK) {
-            f->ctx = NULL;
-            inflateEnd(&ctx->stream);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01397)
-                          "unable to init Zlib: "
-                          "inflateInit2 returned %d: URL %s",
-                          zRC, r->uri);
-            /*
-             * Remove ourselves as it does not make sense to return:
-             * We are not able to init libz and pass data down the chain
-             * compressed.
-             */
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        /*
-         * Register a cleanup function to ensure that we cleanup the internal
-         * libz resources.
-         */
-        apr_pool_cleanup_register(r->pool, ctx, deflate_ctx_cleanup,
-                                  apr_pool_cleanup_null);
-
-        /* initialize inflate output buffer */
-        ctx->stream.next_out = ctx->buffer;
-        ctx->stream.avail_out = c->bufferSize;
+    if ((argv0 = strrchr(r->filename, '/')) != NULL) {
+        argv0++;
+    }
+    else {
+        argv0 = r->filename;
     }
 
-    while (!APR_BRIGADE_EMPTY(bb))
+    nph = !(strncmp(argv0, "nph-", 4));
+
+    argv0 = r->filename;
+
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r)) {
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01262)
+                "Options ExecCGI is off in this directory");
+    }
+
+    if (nph && is_included) {
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01263)
+                "attempt to include NPH CGI script");
+    }
+
+#if defined(OS2) || defined(WIN32)
+#error mod_cgid does not work on this platform.  If you teach it to, look
+#error at mod_cgi.c for required code in this path.
+#else
+    if (r->finfo.filetype == APR_NOFILE) {
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(01264)
+                "script not found or unable to stat");
+    }
+#endif
+    if (r->finfo.filetype == APR_DIR) {
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01265)
+                "attempt to invoke directory as script");
+    }
+
+    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
+        r->path_info && *r->path_info)
     {
-        const char *data;
-        apr_bucket *b;
-        apr_size_t len;
+        /* default to accept */
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(01266)
+                               "AcceptPathInfo off disallows user's path");
+    }
+/*
+    if (!ap_suexec_enabled) {
+        if (!ap_can_exec(&r->finfo))
+            return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01267)
+                                   "file permissions deny server execution");
+    }
+*/
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+    env = ap_create_environment(r->pool, r->subprocess_env);
 
-        e = APR_BRIGADE_FIRST(bb);
+    if ((retval = connect_to_daemon(&sd, r, conf)) != OK) {
+        return retval;
+    }
 
-        if (APR_BUCKET_IS_EOS(e)) {
-            /*
-             * We are really done now. Ensure that we never return here, even
-             * if a second EOS bucket falls down the chain. Thus remove
-             * ourselves.
-             */
-            ap_remove_output_filter(f);
-            /* should be zero already anyway */
-            ctx->stream.avail_in = 0;
-            /*
-             * Flush the remaining data from the zlib buffers. It is correct
-             * to use Z_SYNC_FLUSH in this case and not Z_FINISH as in the
-             * deflate case. In the inflate case Z_FINISH requires to have a
-             * large enough output buffer to put ALL data in otherwise it
-             * fails, whereas in the deflate case you can empty a filled output
-             * buffer and call it again until no more output can be created.
-             */
-            flush_libz_buffer(ctx, c, f->c->bucket_alloc, inflate, Z_SYNC_FLUSH,
-                              UPDATE_CRC);
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01398)
-                          "Zlib: Inflated %ld to %ld : URL %s",
-                          ctx->stream.total_in, ctx->stream.total_out, r->uri);
+    rv = send_req(sd, r, argv0, env, CGI_REQ);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01268)
+                     "write to cgi daemon process");
+    }
 
-            if (ctx->validation_buffer_length == VALIDATION_SIZE) {
-                unsigned long compCRC, compLen;
-                compCRC = getLong(ctx->validation_buffer);
-                if (ctx->crc != compCRC) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01399)
-                                  "Zlib: Checksum of inflated stream invalid");
-                    return APR_EGENERAL;
-                }
-                ctx->validation_buffer += VALIDATION_SIZE / 2;
-                compLen = getLong(ctx->validation_buffer);
-                /* gzip stores original size only as 4 byte value */
-                if ((ctx->stream.total_out & 0xFFFFFFFF) != compLen) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01400)
-                                  "Zlib: Length of inflated stream invalid");
-                    return APR_EGENERAL;
-                }
+    info = apr_palloc(r->pool, sizeof(struct cleanup_script_info));
+    info->r = r;
+    info->conn_id = r->connection->id;
+    info->conf = conf;
+    apr_pool_cleanup_register(r->pool, info,
+                              cleanup_script,
+                              apr_pool_cleanup_null);
+    /* We are putting the socket discriptor into an apr_file_t so that we can
+     * use a pipe bucket to send the data to the client.  APR will create
+     * a cleanup for the apr_file_t which will close the socket, so we'll
+     * get rid of the cleanup we registered when we created the socket.
+     */
+
+    apr_os_pipe_put_ex(&tempsock, &sd, 1, r->pool);
+    if (dc->timeout > 0) { 
+        apr_file_pipe_timeout_set(tempsock, dc->timeout);
+    }
+    else { 
+        apr_file_pipe_timeout_set(tempsock, r->server->timeout);
+    }
+    apr_pool_cleanup_kill(r->pool, (void *)((long)sd), close_unix_socket);
+
+    /* Transfer any put/post args, CERN style...
+     * Note that we already ignore SIGPIPE in the core server.
+     */
+    bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    seen_eos = 0;
+    child_stopped_reading = 0;
+    dbuf = NULL;
+    dbpos = 0;
+    if (conf->logname) {
+        dbuf = apr_palloc(r->pool, conf->bufbytes + 1);
+    }
+    do {
+        apr_bucket *bucket;
+
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
+
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_TIMEUP(rv)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01269)
+                              "Timeout during reading request entity data");
+                return HTTP_REQUEST_TIME_OUT;
             }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01401)
-                              "Zlib: Validation bytes not present");
-                return APR_EGENERAL;
-            }
-
-            inflateEnd(&ctx->stream);
-            /* No need for cleanup any longer */
-            apr_pool_cleanup_kill(r->pool, ctx, deflate_ctx_cleanup);
-
-            /* Remove EOS from the old list, and insert into the new. */
-            APR_BUCKET_REMOVE(e);
-            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
-
-            /*
-             * Okay, we've seen the EOS.
-             * Time to pass it along down the chain.
-             */
-            return ap_pass_brigade(f->next, ctx->bb);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01270)
+                          "Error reading request entity data");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
 
-        if (APR_BUCKET_IS_FLUSH(e)) {
-            apr_status_t rv;
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {
+            const char *data;
+            apr_size_t len;
 
-            /* flush the remaining data from the zlib buffers */
-            zRC = flush_libz_buffer(ctx, c, f->c->bucket_alloc, inflate,
-                                    Z_SYNC_FLUSH, UPDATE_CRC);
-            if (zRC == Z_STREAM_END) {
-                if (ctx->validation_buffer == NULL) {
-                    ctx->validation_buffer = apr_pcalloc(f->r->pool,
-                                                         VALIDATION_SIZE);
-                }
-            }
-            else if (zRC != Z_OK) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01402)
-                              "Zlib error %d flushing inflate buffer (%s)",
-                              zRC, ctx->stream.msg);
-                return APR_EGENERAL;
-            }
-
-            /* Remove flush bucket from old brigade anf insert into the new. */
-            APR_BUCKET_REMOVE(e);
-            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
-            rv = ap_pass_brigade(f->next, ctx->bb);
-            if (rv != APR_SUCCESS) {
-                return rv;
-            }
-            continue;
-        }
-
-        if (APR_BUCKET_IS_METADATA(e)) {
-            /*
-             * Remove meta data bucket from old brigade and insert into the
-             * new.
-             */
-            APR_BUCKET_REMOVE(e);
-            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
-            continue;
-        }
-
-        /* read */
-        apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
-        if (!len) {
-            apr_bucket_delete(e);
-            continue;
-        }
-        if (len > INT_MAX) {
-            apr_bucket_split(e, INT_MAX);
-            apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
-        }
-
-        /* first bucket contains zlib header */
-        if (ctx->header_len < sizeof(ctx->header)) {
-            apr_size_t rem;
-
-            rem = sizeof(ctx->header) - ctx->header_len;
-            if (len < rem) {
-                memcpy(ctx->header + ctx->header_len, data, len);
-                ctx->header_len += len;
-                apr_bucket_delete(e);
-                continue;
-            }
-            memcpy(ctx->header + ctx->header_len, data, rem);
-            ctx->header_len += rem;
-            {
-                int zlib_method;
-                zlib_method = ctx->header[2];
-                if (zlib_method != Z_DEFLATED) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01404)
-                                  "inflate: data not deflated!");
-                    ap_remove_output_filter(f);
-                    return ap_pass_brigade(f->next, bb);
-                }
-                if (ctx->header[0] != deflate_magic[0] ||
-                    ctx->header[1] != deflate_magic[1]) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01405)
-                                      "inflate: bad header");
-                    return APR_EGENERAL ;
-                }
-                ctx->zlib_flags = ctx->header[3];
-                if ((ctx->zlib_flags & RESERVED)) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02620)
-                                  "inflate: bad flags %02x",
-                                  ctx->zlib_flags);
-                    return APR_EGENERAL;
-                }
-            }
-            if (len == rem) {
-                apr_bucket_delete(e);
-                continue;
-            }
-            data += rem;
-            len -= rem;
-        }
-
-        if (ctx->zlib_flags) {
-            rv = consume_zlib_flags(ctx, &data, &len);
-            if (rv == APR_SUCCESS) {
-                ctx->zlib_flags = 0;
-            }
-            if (!len) {
-                apr_bucket_delete(e);
-                continue;
-            }
-        }
-
-        /* pass through zlib inflate. */
-        ctx->stream.next_in = (unsigned char *)data;
-        ctx->stream.avail_in = len;
-
-        if (ctx->validation_buffer) {
-            if (ctx->validation_buffer_length < VALIDATION_SIZE) {
-                apr_size_t copy_size;
-
-                copy_size = VALIDATION_SIZE - ctx->validation_buffer_length;
-                if (copy_size > ctx->stream.avail_in)
-                    copy_size = ctx->stream.avail_in;
-                memcpy(ctx->validation_buffer + ctx->validation_buffer_length,
-                       ctx->stream.next_in, copy_size);
-                /* Saved copy_size bytes */
-                ctx->stream.avail_in -= copy_size;
-                ctx->validation_buffer_length += copy_size;
-            }
-            if (ctx->stream.avail_in) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01407)
-                              "Zlib: %d bytes of garbage at the end of "
-                              "compressed stream.", ctx->stream.avail_in);
-                /*
-                 * There is nothing worth consuming for zlib left, because it is
-                 * either garbage data or the data has been copied to the
-                 * validation buffer (processing validation data is no business
-                 * for zlib). So set ctx->stream.avail_in to zero to indicate
-                 * this to the following while loop.
-                 */
-                ctx->stream.avail_in = 0;
-            }
-        }
-
-        while (ctx->stream.avail_in != 0) {
-            if (ctx->stream.avail_out == 0) {
-
-                if (!check_ratio(r, ctx, dc)) {
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02650)
-                            "Inflated content ratio is larger than the "
-                            "configured limit %i by %i time(s)",
-                            dc->ratio_limit, dc->ratio_burst);
-                    return APR_EINVAL;
-                }
-
-                ctx->stream.next_out = ctx->buffer;
-                len = c->bufferSize - ctx->stream.avail_out;
-
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                b = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                           NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
-                ctx->stream.avail_out = c->bufferSize;
-                /* Send what we have right now to the next filter. */
-                rv = ap_pass_brigade(f->next, ctx->bb);
-                if (rv != APR_SUCCESS) {
-                    return rv;
-                }
-            }
-
-            zRC = inflate(&ctx->stream, Z_NO_FLUSH);
-
-            if (zRC == Z_STREAM_END) {
-                /*
-                 * We have inflated all data. Now try to capture the
-                 * validation bytes. We may not have them all available
-                 * right now, but capture what is there.
-                 */
-                ctx->validation_buffer = apr_pcalloc(f->r->pool,
-                                                     VALIDATION_SIZE);
-                if (ctx->stream.avail_in > VALIDATION_SIZE) {
-                    ctx->validation_buffer_length = VALIDATION_SIZE;
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01408)
-                                  "Zlib: %d bytes of garbage at the end of "
-                                  "compressed stream.",
-                                  ctx->stream.avail_in - VALIDATION_SIZE);
-                } else if (ctx->stream.avail_in > 0) {
-                           ctx->validation_buffer_length = ctx->stream.avail_in;
-                }
-                if (ctx->validation_buffer_length)
-                    memcpy(ctx->validation_buffer, ctx->stream.next_in,
-                           ctx->validation_buffer_length);
+            if (APR_BUCKET_IS_EOS(bucket)) {
+                seen_eos = 1;
                 break;
             }
 
-            if (zRC != Z_OK) {
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01409)
-                              "Zlib error %d inflating data (%s)", zRC,
-                              ctx->stream.msg);
-                return APR_EGENERAL;
+            /* We can't do much with this. */
+            if (APR_BUCKET_IS_FLUSH(bucket)) {
+                continue;
+            }
+
+            /* If the child stopped, we still must read to EOS. */
+            if (child_stopped_reading) {
+                continue;
+            }
+
+            /* read */
+            apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
+
+            if (conf->logname && dbpos < conf->bufbytes) {
+                int cursize;
+
+                if ((dbpos + len) > conf->bufbytes) {
+                    cursize = conf->bufbytes - dbpos;
+                }
+                else {
+                    cursize = len;
+                }
+                memcpy(dbuf + dbpos, data, cursize);
+                dbpos += cursize;
+            }
+
+            /* Keep writing data to the child until done or too much time
+             * elapses with no progress or an error occurs.
+             */
+            rv = apr_file_write_full(tempsock, data, len, NULL);
+
+            if (rv != APR_SUCCESS) {
+                /* silly script stopped reading, soak up remaining message */
+                child_stopped_reading = 1;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,  APLOGNO(02651)
+                              "Error writing request body to script %s", 
+                              r->filename);
+
             }
         }
+        apr_brigade_cleanup(bb);
+    }
+    while (!seen_eos);
 
-        apr_bucket_delete(e);
+    if (conf->logname) {
+        dbuf[dbpos] = '\0';
     }
 
-    apr_brigade_cleanup(bb);
-    return APR_SUCCESS;
+    /* we're done writing, or maybe we didn't write at all;
+     * force EOF on child's stdin so that the cgi detects end (or
+     * absence) of data
+     */
+    shutdown(sd, 1);
+
+    /* Handle script return... */
+    if (!nph) {
+        conn_rec *c = r->connection;
+        const char *location;
+        char sbuf[MAX_STRING_LEN];
+        int ret;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_pipe_create(tempsock, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+
+        if ((ret = ap_scan_script_header_err_brigade_ex(r, bb, sbuf,
+                                                        APLOG_MODULE_INDEX)))
+        {
+            ret = log_script(r, conf, ret, dbuf, sbuf, bb, NULL);
+
+            /*
+             * ret could be HTTP_NOT_MODIFIED in the case that the CGI script
+             * does not set an explicit status and ap_meets_conditions, which
+             * is called by ap_scan_script_header_err_brigade, detects that
+             * the conditions of the requests are met and the response is
+             * not modified.
+             * In this case set r->status and return OK in order to prevent
+             * running through the error processing stack as this would
+             * break with mod_cache, if the conditions had been set by
+             * mod_cache itself to validate a stale entity.
+             * BTW: We circumvent the error processing stack anyway if the
+             * CGI script set an explicit status code (whatever it is) and
+             * the only possible values for ret here are:
+             *
+             * HTTP_NOT_MODIFIED          (set by ap_meets_conditions)
+             * HTTP_PRECONDITION_FAILED   (set by ap_meets_conditions)
+             * HTTP_INTERNAL_SERVER_ERROR (if something went wrong during the
+             * processing of the response of the CGI script, e.g broken headers
+             * or a crashed CGI process).
+             */
+            if (ret == HTTP_NOT_MODIFIED) {
+                r->status = ret;
+                return OK;
+            }
+
+            return ret;
+        }
+
+        location = apr_table_get(r->headers_out, "Location");
+
+        if (location && location[0] == '/' && r->status == 200) {
+
+            /* Soak up all the script output */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            /* This redirect needs to be a GET no matter what the original
+             * method was.
+             */
+            r->method = "GET";
+            r->method_number = M_GET;
+
+            /* We already read the message body (if any), so don't allow
+             * the redirected request to think it has one. We can ignore
+             * Transfer-Encoding, since we used REQUEST_CHUNKED_ERROR.
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
+
+            ap_internal_redirect_handler(location, r);
+            return OK;
+        }
+        else if (location && r->status == 200) {
+            /* XXX: Note that if a script wants to produce its own Redirect
+             * body, it now has to explicitly *say* "Status: 302"
+             */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            return HTTP_MOVED_TEMPORARILY;
+        }
+
+        rv = ap_pass_brigade(r->output_filters, bb);
+        if (rv != APR_SUCCESS) { 
+            /* APLOG_ERR because the core output filter message is at error,
+             * but doesn't know it's passing CGI output 
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02550) "Failed to flush CGI output to client");
+        }
+    }
+
+    if (nph) {
+        conn_rec *c = r->connection;
+        struct ap_filter_t *cur;
+
+        /* get rid of all filters up through protocol...  since we
+         * haven't parsed off the headers, there is no way they can
+         * work
+         */
+
+        cur = r->proto_output_filters;
+        while (cur && cur->frec->ftype < AP_FTYPE_CONNECTION) {
+            cur = cur->next;
+        }
+        r->output_filters = r->proto_output_filters = cur;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_pipe_create(tempsock, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        ap_pass_brigade(r->output_filters, bb);
+    }
+
+    return OK; /* NOT r->status, even if it has changed. */
 }

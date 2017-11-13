@@ -1,36 +1,51 @@
-void do_server_sender(int argc,char *argv[])
+static void send_directory(int f,struct file_list *flist,char *dir)
 {
-  int i;
-  struct file_list *flist;
-  char *dir = argv[0];
+	DIR *d;
+	struct dirent *di;
+	char fname[MAXPATHLEN];
+	int l;
+	char *p;
 
-  if (verbose > 2)
-    fprintf(FINFO,"server_sender starting pid=%d\n",(int)getpid());
-  
-  if (!relative_paths && chdir(dir) != 0) {
-	  fprintf(FERROR,"chdir %s: %s (3)\n",dir,strerror(errno));
-	  exit_cleanup(1);
-  }
-  argc--;
-  argv++;
-  
-  if (strcmp(dir,".")) {
-	  int l = strlen(dir);
-	  if (strcmp(dir,"/") == 0) 
-		  l = 0;
-	  for (i=0;i<argc;i++)
-		  argv[i] += l+1;
-  }
+	d = opendir(dir);
+	if (!d) {
+		io_error = 1;
+		fprintf(FERROR,"%s: %s\n",
+			dir,strerror(errno));
+		return;
+	}
 
-  if (argc == 0 && recurse) {
-	  argc=1;
-	  argv--;
-	  argv[0] = ".";
-  }
-    
+	strncpy(fname,dir,MAXPATHLEN-1);
+	fname[MAXPATHLEN-1]=0;
+	l = strlen(fname);
+	if (fname[l-1] != '/') {
+		if (l == MAXPATHLEN-1) {
+			io_error = 1;
+			fprintf(FERROR,"skipping long-named directory %s\n",fname);
+			closedir(d);
+			return;
+		}
+		strcat(fname,"/");
+		l++;
+	}
+	p = fname + strlen(fname);
 
-  flist = send_file_list(STDOUT_FILENO,argc,argv);
-  send_files(flist,STDOUT_FILENO,STDIN_FILENO);
-  report(STDOUT_FILENO);
-  exit_cleanup(0);
+	if (cvs_exclude) {
+		if (strlen(fname) + strlen(".cvsignore") <= MAXPATHLEN-1) {
+			strcpy(p,".cvsignore");
+			local_exclude_list = make_exclude_list(fname,NULL,0);
+		} else {
+			io_error = 1;
+			fprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);
+		}
+	}  
+	
+	for (di=readdir(d); di; di=readdir(d)) {
+		if (strcmp(di->d_name,".")==0 ||
+		    strcmp(di->d_name,"..")==0)
+			continue;
+		strncpy(p,di->d_name,MAXPATHLEN-(l+1));
+		send_file_name(f,flist,fname,recurse,FLAG_DELETE);
+	}
+
+	closedir(d);
 }

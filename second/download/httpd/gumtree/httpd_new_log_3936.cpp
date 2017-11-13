@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "Last-Modified set to %s", datestr);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, cmd->server, APLOGNO(01306)
+                         "LDAP: Could not open SSL client certificate "
+                         "file - %s",
+                         cert->path == NULL ? file : cert->path);

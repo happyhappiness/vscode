@@ -1,1 +1,1 @@
-printw ("%s%s", _(" sign as: "), SmimeDefaultKey ? SmimeDefaultKey : _("<default>"));
+state_attach_puts ( gpgme_strerror (err), s );

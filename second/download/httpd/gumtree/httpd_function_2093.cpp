@@ -1,128 +1,66 @@
-static void output_html_results(void)
+static void log_tracing_state(MODSSL_INFO_CB_ARG_TYPE ssl, conn_rec *c, 
+                              server_rec *s, int where, int rc)
 {
-    double timetaken = (double) (lasttime - start) / APR_USEC_PER_SEC;
-
-    printf("\n\n<table %s>\n", tablestring);
-    printf("<tr %s><th colspan=2 %s>Server Software:</th>"
-       "<td colspan=2 %s>%s</td></tr>\n",
-       trstring, tdstring, tdstring, servername);
-    printf("<tr %s><th colspan=2 %s>Server Hostname:</th>"
-       "<td colspan=2 %s>%s</td></tr>\n",
-       trstring, tdstring, tdstring, hostname);
-    printf("<tr %s><th colspan=2 %s>Server Port:</th>"
-       "<td colspan=2 %s>%hu</td></tr>\n",
-       trstring, tdstring, tdstring, port);
-    printf("<tr %s><th colspan=2 %s>Document Path:</th>"
-       "<td colspan=2 %s>%s</td></tr>\n",
-       trstring, tdstring, tdstring, path);
-    printf("<tr %s><th colspan=2 %s>Document Length:</th>"
-       "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
-       trstring, tdstring, tdstring, doclen);
-    printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
-       "<td colspan=2 %s>%d</td></tr>\n",
-       trstring, tdstring, tdstring, concurrency);
-    printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
-       "<td colspan=2 %s>%.3f seconds</td></tr>\n",
-       trstring, tdstring, tdstring, timetaken);
-    printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
-       "<td colspan=2 %s>%d</td></tr>\n",
-       trstring, tdstring, tdstring, done);
-    printf("<tr %s><th colspan=2 %s>Failed requests:</th>"
-       "<td colspan=2 %s>%d</td></tr>\n",
-       trstring, tdstring, tdstring, bad);
-    if (bad)
-        printf("<tr %s><td colspan=4 %s >   (Connect: %d, Length: %d, Exceptions: %d)</td></tr>\n",
-           trstring, tdstring, err_conn, err_length, err_except);
-    if (err_response)
-        printf("<tr %s><th colspan=2 %s>Non-2xx responses:</th>"
-           "<td colspan=2 %s>%d</td></tr>\n",
-           trstring, tdstring, tdstring, err_response);
-    if (keepalive)
-        printf("<tr %s><th colspan=2 %s>Keep-Alive requests:</th>"
-           "<td colspan=2 %s>%d</td></tr>\n",
-           trstring, tdstring, tdstring, doneka);
-    printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
-       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
-       trstring, tdstring, tdstring, totalread);
-    if (posting == 1)
-        printf("<tr %s><th colspan=2 %s>Total POSTed:</th>"
-           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
-           trstring, tdstring, tdstring, totalposted);
-    if (posting == 2)
-        printf("<tr %s><th colspan=2 %s>Total PUT:</th>"
-           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
-           trstring, tdstring, tdstring, totalposted);
-    printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
-       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
-       trstring, tdstring, tdstring, totalbread);
-
-    /* avoid divide by zero */
-    if (timetaken) {
-        printf("<tr %s><th colspan=2 %s>Requests per second:</th>"
-           "<td colspan=2 %s>%.2f</td></tr>\n",
-           trstring, tdstring, tdstring, (double) done * 1000 / timetaken);
-        printf("<tr %s><th colspan=2 %s>Transfer rate:</th>"
-           "<td colspan=2 %s>%.2f kb/s received</td></tr>\n",
-           trstring, tdstring, tdstring, (double) totalread / timetaken);
-        if (posting > 0) {
-            printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
-               "<td colspan=2 %s>%.2f kb/s sent</td></tr>\n",
-               trstring, tdstring, tdstring,
-               (double) totalposted / timetaken);
-            printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
-               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
-               trstring, tdstring, tdstring,
-               (double) (totalread + totalposted) / timetaken);
+    /*
+     * create the various trace messages
+     */
+    if (where & SSL_CB_HANDSHAKE_START) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Handshake: start", SSL_LIBRARY_NAME);
+    }
+    else if (where & SSL_CB_HANDSHAKE_DONE) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Handshake: done", SSL_LIBRARY_NAME);
+    }
+    else if (where & SSL_CB_LOOP) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Loop: %s",
+                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_READ) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Read: %s",
+                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_WRITE) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Write: %s",
+                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_ALERT) {
+        char *str = (where & SSL_CB_READ) ? "read" : "write";
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Alert: %s:%s:%s",
+                     SSL_LIBRARY_NAME, str,
+                     SSL_alert_type_string_long(rc),
+                     SSL_alert_desc_string_long(rc));
+    }
+    else if (where & SSL_CB_EXIT) {
+        if (rc == 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Exit: failed in %s",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+        }
+        else if (rc < 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Exit: error in %s",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
         }
     }
-    {
-        /* work out connection times */
-        int i;
-        apr_interval_time_t totalcon = 0, total = 0;
-        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX;
-        apr_interval_time_t maxcon = 0, maxtot = 0;
 
-        for (i = 0; i < done; i++) {
-            struct data *s = &stats[i];
-            mincon = ap_min(mincon, s->ctime);
-            mintot = ap_min(mintot, s->time);
-            maxcon = ap_max(maxcon, s->ctime);
-            maxtot = ap_max(maxtot, s->time);
-            totalcon += s->ctime;
-            total    += s->time;
-        }
-        /*
-         * Reduce stats from apr time to milliseconds
-         */
-        mincon   = ap_round_ms(mincon);
-        mintot   = ap_round_ms(mintot);
-        maxcon   = ap_round_ms(maxcon);
-        maxtot   = ap_round_ms(maxtot);
-        totalcon = ap_round_ms(totalcon);
-        total    = ap_round_ms(total);
-
-        if (done > 0) { /* avoid division by zero (if 0 done) */
-            printf("<tr %s><th %s colspan=4>Connnection Times (ms)</th></tr>\n",
-               trstring, tdstring);
-            printf("<tr %s><th %s>&nbsp;</th> <th %s>min</th>   <th %s>avg</th>   <th %s>max</th></tr>\n",
-               trstring, tdstring, tdstring, tdstring, tdstring);
-            printf("<tr %s><th %s>Connect:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mincon, tdstring, totalcon / done, tdstring, maxcon);
-            printf("<tr %s><th %s>Processing:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mintot - mincon, tdstring,
-               (total / done) - (totalcon / done), tdstring, maxtot - maxcon);
-            printf("<tr %s><th %s>Total:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mintot, tdstring, total / done, tdstring, maxtot);
-        }
-        printf("</table>\n");
+    /*
+     * Because SSL renegotations can happen at any time (not only after
+     * SSL_accept()), the best way to log the current connection details is
+     * right after a finished handshake.
+     */
+    if (where & SSL_CB_HANDSHAKE_DONE) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "Connection: Client IP: %s, Protocol: %s, "
+                     "Cipher: %s (%s/%s bits)",
+                     ssl_var_lookup(NULL, s, c, NULL, "REMOTE_ADDR"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_PROTOCOL"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
     }
 }

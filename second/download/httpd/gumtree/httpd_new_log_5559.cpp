@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                      "h2_task(%s): process_conn returned frozen task", 
-                      task->id);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02680)
+                          "ServerSupportFunction "
+                          "HSE_REQ_EXTENSION_TRIGGER "
+                          "is not supported: %s", r->filename);

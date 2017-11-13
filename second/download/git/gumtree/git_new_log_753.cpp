@@ -1,1 +1,2 @@
-die(_("unable to auto-detect email address (got '%s')"), email);
+warning("adding alternate object store: %s",
+					target.buf);

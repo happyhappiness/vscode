@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(03378)
-                "No SSL protocols available [hint: SSLProtocol]");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03386)
+                      "h2_conn_io(%ld): append_scratch(%ld)", 
+                      io->c->id, (long)io->slen);

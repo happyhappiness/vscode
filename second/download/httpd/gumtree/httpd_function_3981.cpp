@@ -1,35 +1,15 @@
-static int scgi_canon(request_rec *r, char *url)
+static void report_lua_error(lua_State *L, request_rec *r)
 {
-    char *host, sport[sizeof(":65535")];
-    const char *err, *path;
-    apr_port_t port = SCGI_DEFAULT_PORT;
+    const char *lua_response;
+    r->status = HTTP_INTERNAL_SERVER_ERROR;
+    r->content_type = "text/html";
 
-    if (strncasecmp(url, SCHEME "://", sizeof(SCHEME) + 2)) {
-        return DECLINED;
-    }
-    url += sizeof(SCHEME); /* Keep slashes */
+    ap_rputs("<b>Error!</b>\n", r);
+    ap_rputs("<p>", r);
+    lua_response = lua_tostring(L, -1);
+    ap_rputs(lua_response, r);
+    ap_rputs("</p>\n", r);
 
-    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "error parsing URL %s: %s", url, err);
-        return HTTP_BAD_REQUEST;
-    }
-        
-    apr_snprintf(sport, sizeof(sport), ":%u", port);
-        
-    if (ap_strchr(host, ':')) { /* if literal IPv6 address */
-        host = apr_pstrcat(r->pool, "[", host, "]", NULL);
-    }
-
-    path = ap_proxy_canonenc(r->pool, url, strlen(url), enc_path, 0,
-                             r->proxyreq);
-    if (!path) {
-        return HTTP_BAD_REQUEST;
-    }
-
-    r->filename = apr_pstrcat(r->pool, "proxy:" SCHEME "://", host, sport, "/",
-                              path, NULL);
-    r->path_info = apr_pstrcat(r->pool, "/", path, NULL);
-    return OK;
+    ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, r->pool, "Lua error: %s",
+                  lua_response);
 }

@@ -1,74 +1,100 @@
-static off_t write_reuse_object(struct sha1file *f, struct object_entry *entry,
-				unsigned long limit, int usable_delta)
+static void init_submodule(const char *path, const char *prefix, int quiet)
 {
-	struct packed_git *p = entry->in_pack;
-	struct pack_window *w_curs = NULL;
-	struct revindex_entry *revidx;
-	off_t offset;
-	enum object_type type = entry->type;
-	off_t datalen;
-	unsigned char header[MAX_PACK_OBJECT_HEADER],
-		      dheader[MAX_PACK_OBJECT_HEADER];
-	unsigned hdrlen;
+	const struct submodule *sub;
+	struct strbuf sb = STRBUF_INIT;
+	char *upd = NULL, *url = NULL, *displaypath;
 
-	if (entry->delta)
-		type = (allow_ofs_delta && entry->delta->idx.offset) ?
-			OBJ_OFS_DELTA : OBJ_REF_DELTA;
-	hdrlen = encode_in_pack_object_header(header, sizeof(header),
-					      type, entry->size);
+	/* Only loads from .gitmodules, no overlay with .git/config */
+	gitmodules_config();
 
-	offset = entry->in_pack_offset;
-	revidx = find_pack_revindex(p, offset);
-	datalen = revidx[1].offset - offset;
-	if (!pack_to_stdout && p->index_version > 1 &&
-	    check_pack_crc(p, &w_curs, offset, datalen, revidx->nr)) {
-		error("bad packed object CRC for %s", sha1_to_hex(entry->idx.sha1));
-		unuse_pack(&w_curs);
-		return write_no_reuse_object(f, entry, limit, usable_delta);
+	if (prefix && get_super_prefix())
+		die("BUG: cannot have prefix and superprefix");
+	else if (prefix)
+		displaypath = xstrdup(relative_path(path, prefix, &sb));
+	else if (get_super_prefix()) {
+		strbuf_addf(&sb, "%s%s", get_super_prefix(), path);
+		displaypath = strbuf_detach(&sb, NULL);
+	} else
+		displaypath = xstrdup(path);
+
+	sub = submodule_from_path(null_sha1, path);
+
+	if (!sub)
+		die(_("No url found for submodule path '%s' in .gitmodules"),
+			displaypath);
+
+	/*
+	 * NEEDSWORK: In a multi-working-tree world, this needs to be
+	 * set in the per-worktree config.
+	 *
+	 * Set active flag for the submodule being initialized
+	 */
+	if (!is_submodule_initialized(path)) {
+		strbuf_reset(&sb);
+		strbuf_addf(&sb, "submodule.%s.active", sub->name);
+		git_config_set_gently(sb.buf, "true");
 	}
 
-	offset += entry->in_pack_header_size;
-	datalen -= entry->in_pack_header_size;
+	/*
+	 * Copy url setting when it is not set yet.
+	 * To look up the url in .git/config, we must not fall back to
+	 * .gitmodules, so look it up directly.
+	 */
+	strbuf_reset(&sb);
+	strbuf_addf(&sb, "submodule.%s.url", sub->name);
+	if (git_config_get_string(sb.buf, &url)) {
+		if (!sub->url)
+			die(_("No url found for submodule path '%s' in .gitmodules"),
+				displaypath);
 
-	if (!pack_to_stdout && p->index_version == 1 &&
-	    check_pack_inflate(p, &w_curs, offset, datalen, entry->size)) {
-		error("corrupt packed object for %s", sha1_to_hex(entry->idx.sha1));
-		unuse_pack(&w_curs);
-		return write_no_reuse_object(f, entry, limit, usable_delta);
+		url = xstrdup(sub->url);
+
+		/* Possibly a url relative to parent */
+		if (starts_with_dot_dot_slash(url) ||
+		    starts_with_dot_slash(url)) {
+			char *remoteurl, *relurl;
+			char *remote = get_default_remote();
+			struct strbuf remotesb = STRBUF_INIT;
+			strbuf_addf(&remotesb, "remote.%s.url", remote);
+			free(remote);
+
+			if (git_config_get_string(remotesb.buf, &remoteurl)) {
+				warning(_("could not lookup configuration '%s'. Assuming this repository is its own authoritative upstream."), remotesb.buf);
+				remoteurl = xgetcwd();
+			}
+			relurl = relative_url(remoteurl, url, NULL);
+			strbuf_release(&remotesb);
+			free(remoteurl);
+			free(url);
+			url = relurl;
+		}
+
+		if (git_config_set_gently(sb.buf, url))
+			die(_("Failed to register url for submodule path '%s'"),
+			    displaypath);
+		if (!quiet)
+			fprintf(stderr,
+				_("Submodule '%s' (%s) registered for path '%s'\n"),
+				sub->name, url, displaypath);
 	}
 
-	if (type == OBJ_OFS_DELTA) {
-		off_t ofs = entry->idx.offset - entry->delta->idx.offset;
-		unsigned pos = sizeof(dheader) - 1;
-		dheader[pos] = ofs & 127;
-		while (ofs >>= 7)
-			dheader[--pos] = 128 | (--ofs & 127);
-		if (limit && hdrlen + sizeof(dheader) - pos + datalen + 20 >= limit) {
-			unuse_pack(&w_curs);
-			return 0;
-		}
-		sha1write(f, header, hdrlen);
-		sha1write(f, dheader + pos, sizeof(dheader) - pos);
-		hdrlen += sizeof(dheader) - pos;
-		reused_delta++;
-	} else if (type == OBJ_REF_DELTA) {
-		if (limit && hdrlen + 20 + datalen + 20 >= limit) {
-			unuse_pack(&w_curs);
-			return 0;
-		}
-		sha1write(f, header, hdrlen);
-		sha1write(f, entry->delta->idx.sha1, 20);
-		hdrlen += 20;
-		reused_delta++;
-	} else {
-		if (limit && hdrlen + datalen + 20 >= limit) {
-			unuse_pack(&w_curs);
-			return 0;
-		}
-		sha1write(f, header, hdrlen);
+	/* Copy "update" setting when it is not set yet */
+	strbuf_reset(&sb);
+	strbuf_addf(&sb, "submodule.%s.update", sub->name);
+	if (git_config_get_string(sb.buf, &upd) &&
+	    sub->update_strategy.type != SM_UPDATE_UNSPECIFIED) {
+		if (sub->update_strategy.type == SM_UPDATE_COMMAND) {
+			fprintf(stderr, _("warning: command update mode suggested for submodule '%s'\n"),
+				sub->name);
+			upd = xstrdup("none");
+		} else
+			upd = xstrdup(submodule_strategy_to_string(&sub->update_strategy));
+
+		if (git_config_set_gently(sb.buf, upd))
+			die(_("Failed to register update mode for submodule path '%s'"), displaypath);
 	}
-	copy_pack_data(f, p, &w_curs, offset, datalen);
-	unuse_pack(&w_curs);
-	reused++;
-	return hdrlen + datalen;
+	strbuf_release(&sb);
+	free(displaypath);
+	free(url);
+	free(upd);
 }

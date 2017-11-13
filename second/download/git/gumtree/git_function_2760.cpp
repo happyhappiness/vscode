@@ -1,38 +1,42 @@
-void process_trailers(const char *file, int in_place, int trim_empty, struct string_list *trailers)
+static void insert_packed_refs(const char *packed_refs, struct ref **list)
 {
-	struct trailer_item *in_tok_first = NULL;
-	struct trailer_item *in_tok_last = NULL;
-	struct trailer_item *arg_tok_first;
-	struct strbuf **lines;
-	int trailer_end;
-	FILE *outfile = stdout;
+	FILE *f = fopen(packed_refs, "r");
+	static char buffer[PATH_MAX];
 
-	/* Default config must be setup first */
-	git_config(git_trailer_default_config, NULL);
-	git_config(git_trailer_config, NULL);
+	if (!f)
+		return;
 
-	lines = read_input_file(file);
+	for (;;) {
+		int cmp = 0; /* assigned before used */
+		int len;
 
-	if (in_place)
-		outfile = create_in_place_tempfile(file);
+		if (!fgets(buffer, sizeof(buffer), f)) {
+			fclose(f);
+			return;
+		}
 
-	/* Print the lines before the trailers */
-	trailer_end = process_input_file(outfile, lines, &in_tok_first, &in_tok_last);
-
-	arg_tok_first = process_command_line_args(trailers);
-
-	process_trailers_lists(&in_tok_first, &in_tok_last, &arg_tok_first);
-
-	print_all(outfile, in_tok_first, trim_empty);
-
-	free_all(&in_tok_first);
-
-	/* Print the lines after the trailers as is */
-	print_lines(outfile, lines, trailer_end, INT_MAX);
-
-	if (in_place)
-		if (rename_tempfile(&trailers_tempfile, file))
-			die_errno(_("could not rename temporary file to %s"), file);
-
-	strbuf_list_free(lines);
+		if (!isxdigit(buffer[0]))
+			continue;
+		len = strlen(buffer);
+		if (len && buffer[len - 1] == '\n')
+			buffer[--len] = '\0';
+		if (len < 41)
+			continue;
+		while ((*list)->next &&
+				(cmp = strcmp(buffer + 41,
+				      (*list)->next->name)) > 0)
+			list = &(*list)->next;
+		if (!(*list)->next || cmp < 0) {
+			struct ref *next = alloc_ref(buffer + 41);
+			buffer[40] = '\0';
+			if (get_oid_hex(buffer, &next->old_oid)) {
+				warning ("invalid SHA-1: %s", buffer);
+				free(next);
+				continue;
+			}
+			next->next = (*list)->next;
+			(*list)->next = next;
+			list = &(*list)->next;
+		}
+	}
 }

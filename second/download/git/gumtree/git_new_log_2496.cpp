@@ -1,2 +1,2 @@
-printf("dangling %s %s\n", typename(obj->type),
-			       describe_object(obj));
+die("Duplicate entry when writing index: %s",
+			    oid_to_hex(&object->oid));

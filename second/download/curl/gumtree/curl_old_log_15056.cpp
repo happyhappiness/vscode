@@ -1,10 +1,8 @@
 fputs(
-"                     This will  make  curl  load  data  from  the  given  file\n"
-"                     (including  any  newlines), URL-encode that data and pass\n"
-"                     it on in the POST. The  name  part  gets  an  equal  sign\n"
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
-"                     that the name is expected to be URL-encoded already.\n"
-"       See also -d, --data and --data-raw. Added in 7.18.0.\n"
-"\n"
-"       -d, --data <data>\n"
+"              transfers may occur.  If you use the NAME1=VALUE1; format, or in\n"
+"              a file use the Set-Cookie format and  don't  specify  a  domain,\n"
+"              then the cookie is sent for any domain (even after redirects are\n"
+"              followed) and cannot be modified by a server-set cookie. If  the\n"
+"              cookie  engine is enabled and a server sets a cookie of the same\n"
+"              name then both will be sent on a future transfer to that server,\n"
 , stdout);

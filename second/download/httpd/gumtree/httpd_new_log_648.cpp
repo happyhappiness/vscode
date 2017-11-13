@@ -1,4 +1,2 @@
-ap_rputs(DOCTYPE_XHTML_1_0T
-             "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
-             "<head>\n"
-             "  <title>Server Information</title>\n" "</head>\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
+                          "\"%s\" to tag config in %s", tag, r->filename);

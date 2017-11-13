@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
-                          APLOGNO(03488) "rl: disabling: rate-limit = %s (too high?)", rl);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(03356)
+                          "No sockaddr info for \"%s\"", w);

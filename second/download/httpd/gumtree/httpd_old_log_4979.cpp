@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, main_s,
-                                 "Failed to resolve server name "
-                                 "for %s (check DNS) -- or specify an explicit "
-                                 "ServerName",
-                                 ipaddr_str);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, status, process->pool,
+                      "alloc_listener: failed to set up sockaddr for %s",
+                      addr);

@@ -1,166 +1,121 @@
-static void show_compile_settings(void)
+static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    printf("Server version: %s\n", ap_get_server_version());
-    printf("Server built:   %s\n", ap_get_server_built());
-    printf("Server's Module Magic Number: %u:%u\n",
-           MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
-    printf("Server loaded:  APR %s, APR-Util %s\n",
-           apr_version_string(), apu_version_string());
-    printf("Compiled using: APR %s, APR-Util %s\n",
-           APR_VERSION_STRING, APU_VERSION_STRING);
-    /* sizeof(foo) is long on some platforms so we might as well
-     * make it long everywhere to keep the printf format
-     * consistent
+    int startup = 0;
+
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->module_loads == 1) {
+        startup = 1;
+    }
+
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
+        }
+        server_limit = MAX_SERVER_LIMIT;
+    }
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
+        }
+        server_limit = 1;
+    }
+
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
      */
-    printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
+    }
 
-    show_mpm_settings();
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d exceeds ServerLimit "
+                         "value of", ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing MaxClients to %d.",
+                         server_limit, server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d exceeds ServerLimit value "
+                         "of %d, decreasing to match",
+                         ap_daemons_limit, server_limit);
+        }
+        ap_daemons_limit = server_limit;
+    }
+    else if (ap_daemons_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d not allowed, "
+                         "increasing to 1.", ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d not allowed, increasing to 1",
+                         ap_daemons_limit);
+        }
+        ap_daemons_limit = 1;
+    }
 
-    printf("Server compiled with....\n");
-#ifdef BIG_SECURITY_HOLE
-    printf(" -D BIG_SECURITY_HOLE\n");
-#endif
+    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
 
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-#endif
+    if (ap_daemons_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareServers of %d not allowed, "
+                         "increasing to 1", ap_daemons_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareServers of %d not allowed, increasing to 1",
+                         ap_daemons_min_free);
+        }
+        ap_daemons_min_free = 1;
+    }
 
-#ifdef OS
-    printf(" -D OS=\"" OS "\"\n");
-#endif
+    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
 
-#ifdef APACHE_MPM_DIR
-    printf(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n");
-#endif
-
-#ifdef HAVE_SHMGET
-    printf(" -D HAVE_SHMGET\n");
-#endif
-
-#if APR_FILE_BASED_SHM
-    printf(" -D APR_FILE_BASED_SHM\n");
-#endif
-
-#if APR_HAS_SENDFILE
-    printf(" -D APR_HAS_SENDFILE\n");
-#endif
-
-#if APR_HAS_MMAP
-    printf(" -D APR_HAS_MMAP\n");
-#endif
-
-#ifdef NO_WRITEV
-    printf(" -D NO_WRITEV\n");
-#endif
-
-#ifdef NO_LINGCLOSE
-    printf(" -D NO_LINGCLOSE\n");
-#endif
-
-#if APR_HAVE_IPV6
-    printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");
-#ifdef AP_ENABLE_V4_MAPPED
-    printf("enabled)\n");
-#else
-    printf("disabled)\n");
-#endif
-#endif
-
-#if APR_USE_FLOCK_SERIALIZE
-    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
-#endif
-
-#if APR_USE_SYSVSEM_SERIALIZE
-    printf(" -D APR_USE_SYSVSEM_SERIALIZE\n");
-#endif
-
-#if APR_USE_POSIXSEM_SERIALIZE
-    printf(" -D APR_USE_POSIXSEM_SERIALIZE\n");
-#endif
-
-#if APR_USE_FCNTL_SERIALIZE
-    printf(" -D APR_USE_FCNTL_SERIALIZE\n");
-#endif
-
-#if APR_USE_PROC_PTHREAD_SERIALIZE
-    printf(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n");
-#endif
-
-#if APR_USE_PTHREAD_SERIALIZE
-    printf(" -D APR_USE_PTHREAD_SERIALIZE\n");
-#endif
-
-#if APR_PROCESS_LOCK_IS_GLOBAL
-    printf(" -D APR_PROCESS_LOCK_IS_GLOBAL\n");
-#endif
-
-#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
-    printf(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n");
-#endif
-
-#if APR_HAS_OTHER_CHILD
-    printf(" -D APR_HAS_OTHER_CHILD\n");
-#endif
-
-#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
-    printf(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n");
-#endif
-
-#ifdef BUFFERED_LOGS
-    printf(" -D BUFFERED_LOGS\n");
-#ifdef PIPE_BUF
-    printf(" -D PIPE_BUF=%ld\n",(long)PIPE_BUF);
-#endif
-#endif
-
-    printf(" -D DYNAMIC_MODULE_LIMIT=%ld\n",(long)DYNAMIC_MODULE_LIMIT);
-
-#if APR_CHARSET_EBCDIC
-    printf(" -D APR_CHARSET_EBCDIC\n");
-#endif
-
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
-
-/* This list displays the compiled in default paths: */
-#ifdef HTTPD_ROOT
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-#endif
-
-#ifdef SUEXEC_BIN
-    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
-#endif
-
-#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
-    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
-#endif
-
-#ifdef DEFAULT_PIDLOG
-    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
-#endif
-
-#ifdef DEFAULT_SCOREBOARD
-    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
-#endif
-
-#ifdef DEFAULT_LOCKFILE
-    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
-#endif
-
-#ifdef DEFAULT_ERRORLOG
-    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
-#endif
-
-#ifdef AP_TYPES_CONFIG_FILE
-    printf(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n");
-#endif
-
-#ifdef SERVER_CONFIG_FILE
-    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
-#endif
+    return OK;
 }

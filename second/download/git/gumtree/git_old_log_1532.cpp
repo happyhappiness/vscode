@@ -1,2 +1,1 @@
-die("git show-ref: bad ref %s (%s)", refname,
-		    sha1_to_hex(sha1));
+rp_error("failed to lock %s", name);

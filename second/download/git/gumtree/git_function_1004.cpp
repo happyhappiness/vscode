@@ -1,30 +1,17 @@
-static void write_commented_object(int fd, const unsigned char *object)
+static struct commit *is_old_style_invocation(int argc, const char **argv,
+					      const unsigned char *head)
 {
-	const char *show_args[5] =
-		{"show", "--stat", "--no-notes", sha1_to_hex(object), NULL};
-	struct child_process show = CHILD_PROCESS_INIT;
-	struct strbuf buf = STRBUF_INIT;
-	struct strbuf cbuf = STRBUF_INIT;
+	struct commit *second_token = NULL;
+	if (argc > 2) {
+		unsigned char second_sha1[20];
 
-	/* Invoke "git show --stat --no-notes $object" */
-	show.argv = show_args;
-	show.no_stdin = 1;
-	show.out = -1;
-	show.err = 0;
-	show.git_cmd = 1;
-	if (start_command(&show))
-		die(_("unable to start 'show' for object '%s'"),
-		    sha1_to_hex(object));
-
-	if (strbuf_read(&buf, show.out, 0) < 0)
-		die_errno(_("could not read 'show' output"));
-	strbuf_add_commented_lines(&cbuf, buf.buf, buf.len);
-	write_or_die(fd, cbuf.buf, cbuf.len);
-
-	strbuf_release(&cbuf);
-	strbuf_release(&buf);
-
-	if (finish_command(&show))
-		die(_("failed to finish 'show' for object '%s'"),
-		    sha1_to_hex(object));
+		if (get_sha1(argv[1], second_sha1))
+			return NULL;
+		second_token = lookup_commit_reference_gently(second_sha1, 0);
+		if (!second_token)
+			die(_("'%s' is not a commit"), argv[1]);
+		if (hashcmp(second_token->object.oid.hash, head))
+			return NULL;
+	}
+	return second_token;
 }

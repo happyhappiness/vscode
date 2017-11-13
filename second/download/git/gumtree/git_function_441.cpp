@@ -1,48 +1,53 @@
-static int do_recursive_merge(struct commit *base, struct commit *next,
-			      const char *base_label, const char *next_label,
-			      unsigned char *head, struct strbuf *msgbuf,
-			      struct replay_opts *opts)
+static int merge_commit(struct notes_merge_options *o)
 {
-	struct merge_options o;
-	struct tree *result, *next_tree, *base_tree, *head_tree;
-	int clean;
-	const char **xopt;
-	static struct lock_file index_lock;
+	struct strbuf msg = STRBUF_INIT;
+	unsigned char sha1[20], parent_sha1[20];
+	struct notes_tree *t;
+	struct commit *partial;
+	struct pretty_print_context pretty_ctx;
+	void *local_ref_to_free;
+	int ret;
 
-	hold_locked_index(&index_lock, 1);
+	/*
+	 * Read partial merge result from .git/NOTES_MERGE_PARTIAL,
+	 * and target notes ref from .git/NOTES_MERGE_REF.
+	 */
 
-	read_cache();
+	if (get_sha1("NOTES_MERGE_PARTIAL", sha1))
+		die("Failed to read ref NOTES_MERGE_PARTIAL");
+	else if (!(partial = lookup_commit_reference(sha1)))
+		die("Could not find commit from NOTES_MERGE_PARTIAL.");
+	else if (parse_commit(partial))
+		die("Could not parse commit from NOTES_MERGE_PARTIAL.");
 
-	init_merge_options(&o);
-	o.ancestor = base ? base_label : "(empty tree)";
-	o.branch1 = "HEAD";
-	o.branch2 = next ? next_label : "(empty tree)";
+	if (partial->parents)
+		hashcpy(parent_sha1, partial->parents->item->object.oid.hash);
+	else
+		hashclr(parent_sha1);
 
-	head_tree = parse_tree_indirect(head);
-	next_tree = next ? next->tree : empty_tree();
-	base_tree = base ? base->tree : empty_tree();
+	t = xcalloc(1, sizeof(struct notes_tree));
+	init_notes(t, "NOTES_MERGE_PARTIAL", combine_notes_overwrite, 0);
 
-	for (xopt = opts->xopts; xopt != opts->xopts + opts->xopts_nr; xopt++)
-		parse_merge_opt(&o, *xopt);
+	o->local_ref = local_ref_to_free =
+		resolve_refdup("NOTES_MERGE_REF", 0, sha1, NULL);
+	if (!o->local_ref)
+		die("Failed to resolve NOTES_MERGE_REF");
 
-	clean = merge_trees(&o,
-			    head_tree,
-			    next_tree, base_tree, &result);
-	strbuf_release(&o.obuf);
-	if (clean < 0)
-		return clean;
+	if (notes_merge_commit(o, t, partial, sha1))
+		die("Failed to finalize notes merge");
 
-	if (active_cache_changed &&
-	    write_locked_index(&the_index, &index_lock, COMMIT_LOCK))
-		/* TRANSLATORS: %s will be "revert" or "cherry-pick" */
-		die(_("%s: Unable to write new index file"), action_name(opts));
-	rollback_lock_file(&index_lock);
+	/* Reuse existing commit message in reflog message */
+	memset(&pretty_ctx, 0, sizeof(pretty_ctx));
+	format_commit_message(partial, "%s", &msg, &pretty_ctx);
+	strbuf_trim(&msg);
+	strbuf_insert(&msg, 0, "notes: ", 7);
+	update_ref(msg.buf, o->local_ref, sha1,
+		   is_null_sha1(parent_sha1) ? NULL : parent_sha1,
+		   0, UPDATE_REFS_DIE_ON_ERR);
 
-	if (opts->signoff)
-		append_signoff(msgbuf, 0, 0);
-
-	if (!clean)
-		append_conflicts_hint(msgbuf);
-
-	return !clean;
+	free_notes(t);
+	strbuf_release(&msg);
+	ret = merge_abort(o);
+	free(local_ref_to_free);
+	return ret;
 }

@@ -1,1 +1,1 @@
-die("BUG: main_ref_store initialized twice");
+die(_("failed to resolve '%s' as a valid ref."), object_ref);

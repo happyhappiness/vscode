@@ -1,1 +1,0 @@
-io_printf(f_out, "%s%s\n", leader, challenge);

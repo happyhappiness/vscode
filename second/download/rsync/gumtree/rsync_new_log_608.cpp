@@ -1,1 +1,2 @@
-io_printf(fd,"@ERROR: chdir failed\n");
+rprintf(FERROR, "deflate on token returned %d (%d bytes left)\n",
+		    r, tx_strm.avail_in);

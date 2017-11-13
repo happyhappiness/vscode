@@ -1,1 +1,2 @@
-ap_rputs("<dl>\n<table>\n", r);
+log_scripterror(r, conf, HTTP_INTERNAL_SERVER_ERROR, errno,
+                                   APLOGNO(01255) "unable to create socket to cgi daemon");

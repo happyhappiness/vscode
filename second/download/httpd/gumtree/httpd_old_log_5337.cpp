@@ -1,1 +1,2 @@
-ap_add_output_filter("H1_TO_H2", env, NULL, c);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGXCPU)");

@@ -1,1 +1,1 @@
-die_errno(_("failed to delete file %s"), path);
+error("%s", err.buf);

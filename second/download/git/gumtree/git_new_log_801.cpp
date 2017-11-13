@@ -1,1 +1,0 @@
-opendir(git_path("objects/17"));

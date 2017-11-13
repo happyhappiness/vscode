@@ -1,1 +1,1 @@
-die(_("Error wrapping up %s."), filename);
+error("Failed to delete ref NOTES_MERGE_REF");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02564)
-                             "Failed to configure encrypted (?) private key %s,"
-                             " check %s", key_id, keyfile);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                          H2_STRM_MSG(stream, "process, added to q"));

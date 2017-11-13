@@ -1,85 +1,64 @@
-static int lua_request_rec_hook_harness(request_rec *r, const char *name, int apr_hook_when)
+static apr_status_t h2_session_read(h2_session *session, int block)
 {
-    int rc;
-    apr_pool_t *pool;
-    lua_State *L;
-    ap_lua_vm_spec *spec;
-    ap_lua_server_cfg *server_cfg = ap_get_module_config(r->server->module_config,
-                                                         &lua_module);
-    const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
-                                                     &lua_module);
-    const char *key = apr_psprintf(r->pool, "%s_%d", name, apr_hook_when);
-    apr_array_header_t *hook_specs = apr_hash_get(cfg->hooks, key,
-                                                  APR_HASH_KEY_STRING);
-    if (hook_specs) {
-        int i;
-        for (i = 0; i < hook_specs->nelts; i++) {
-            ap_lua_mapped_handler_spec *hook_spec =
-                ((ap_lua_mapped_handler_spec **) hook_specs->elts)[i];
+    apr_status_t status, rstatus = APR_EAGAIN;
+    conn_rec *c = session->c;
+    apr_off_t read_start = session->io.bytes_read;
+    
+    while (1) {
+        /* H2_IN filter handles all incoming data against the session.
+         * We just pull at the filter chain to make it happen */
+        status = ap_get_brigade(c->input_filters,
+                                session->bbtmp, AP_MODE_READBYTES,
+                                block? APR_BLOCK_READ : APR_NONBLOCK_READ,
+                                APR_BUCKET_BUFF_SIZE);
+        /* get rid of any possible data we do not expect to get */
+        apr_brigade_cleanup(session->bbtmp); 
 
-            if (hook_spec == NULL) {
-                continue;
-            }
-            spec = create_vm_spec(&pool, r, cfg, server_cfg,
-                                  hook_spec->file_name,
-                                  hook_spec->bytecode,
-                                  hook_spec->bytecode_len,
-                                  hook_spec->function_name,
-                                  "request hook");
-
-            L = ap_lua_get_lua_state(pool, spec, r);
-
-            if (!L) {
-                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01477)
-                              "lua: Failed to obtain lua interpreter for %s %s",
-                              hook_spec->function_name, hook_spec->file_name);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            if (hook_spec->function_name != NULL) {
-                lua_getglobal(L, hook_spec->function_name);
-                if (!lua_isfunction(L, -1)) {
-                    ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01478)
-                                  "lua: Unable to find function %s in %s",
-                                  hook_spec->function_name,
-                                  hook_spec->file_name);
-                    ap_lua_release_state(L, spec, r);
-                    return HTTP_INTERNAL_SERVER_ERROR;
+        switch (status) {
+            case APR_SUCCESS:
+                /* successful read, reset our idle timers */
+                rstatus = APR_SUCCESS;
+                if (block) {
+                    /* successful blocked read, try unblocked to
+                     * get more. */
+                    block = 0;
                 }
-
-                ap_lua_run_lua_request(L, r);
-            }
-            else {
-                int t;
-                ap_lua_run_lua_request(L, r);
-
-                t = lua_gettop(L);
-                lua_setglobal(L, "r");
-                lua_settop(L, t);
-            }
-
-            if (lua_pcall(L, 1, 1, 0)) {
-                report_lua_error(L, r);
-                ap_lua_release_state(L, spec, r);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-            rc = DECLINED;
-            if (lua_isnumber(L, -1)) {
-                rc = lua_tointeger(L, -1);
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "Lua hook %s:%s for phase %s returned %d", 
-                              hook_spec->file_name, hook_spec->function_name, name, rc);
-            }
-            else { 
-                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, "Lua hook %s:%s for phase %s did not return a numeric value", 
-                              hook_spec->file_name, hook_spec->function_name, name);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-            if (rc != DECLINED) {
-                ap_lua_release_state(L, spec, r);
-                return rc;
-            }
-            ap_lua_release_state(L, spec, r);
+                break;
+            case APR_EAGAIN:
+                return rstatus;
+            case APR_TIMEUP:
+                return status;
+            default:
+                if (session->io.bytes_read == read_start) {
+                    /* first attempt failed */
+                    if (APR_STATUS_IS_ETIMEDOUT(status)
+                        || APR_STATUS_IS_ECONNABORTED(status)
+                        || APR_STATUS_IS_ECONNRESET(status)
+                        || APR_STATUS_IS_EOF(status)
+                        || APR_STATUS_IS_EBADF(status)) {
+                        /* common status for a client that has left */
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE1, status, c,
+                                      "h2_session(%ld): input gone", session->id);
+                    }
+                    else {
+                        /* uncommon status, log on INFO so that we see this */
+                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
+                                      APLOGNO(02950) 
+                                      "h2_session(%ld): error reading, terminating",
+                                      session->id);
+                    }
+                    return status;
+                }
+                /* subsequent failure after success(es), return initial
+                 * status. */
+                return rstatus;
+        }
+        if ((session->io.bytes_read - read_start) > (64*1024)) {
+            /* read enough in one go, give write a chance */
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
+                          "h2_session(%ld): read 64k, returning", session->id);
+            break;
         }
     }
-    return DECLINED;
+    return rstatus;
 }

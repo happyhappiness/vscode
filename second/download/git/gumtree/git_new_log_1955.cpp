@@ -1,1 +1,2 @@
-die("Whoops! Cannot find object '%s'", oid_to_hex(&obj->oid));
+error_buf(err,
+						 _("cannot resolve 'simple' push to a single destination"));

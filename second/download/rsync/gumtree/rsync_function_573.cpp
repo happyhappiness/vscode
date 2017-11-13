@@ -1,111 +1,42 @@
-static int
-recv_deflated_token(int f, char **data)
+static void delete_files(struct file_list *flist)
 {
-    int n, r, flag;
-    static int init_done;
-    static int saved_flag;
+	struct file_list *local_file_list;
+	int i, j;
+	char *name;
 
-    for (;;) {
-	switch (recv_state) {
-	case r_init:
-	    if (!init_done) {
-		rx_strm.next_out = NULL;
-		rx_strm.zalloc = z_alloc;
-		rx_strm.zfree = z_free;
-		if (inflateInit2(&rx_strm, -15) != Z_OK) {
-		    fprintf(FERROR, "inflate init failed\n");
-		    exit_cleanup(1);
-		}
-		if ((cbuf = malloc(MAX_DATA_COUNT)) == NULL
-		    || (dbuf = malloc(CHUNK_SIZE)) == NULL)
-		    out_of_memory("recv_deflated_token");
-		init_done = 1;
-	    } else {
-		inflateReset(&rx_strm);
-	    }
-	    recv_state = r_idle;
-	    rx_token = 0;
-	    break;
-	    
-	case r_idle:
-	case r_inflated:
-	    if (saved_flag) {
-		flag = saved_flag & 0xff;
-		saved_flag = 0;
-	    } else
-		flag = read_byte(f);
-	    if ((flag & 0xC0) == DEFLATED_DATA) {
-		n = ((flag & 0x3f) << 8) + read_byte(f);
-		read_buf(f, cbuf, n);
-		rx_strm.next_in = (Bytef *)cbuf;
-		rx_strm.avail_in = n;
-		recv_state = r_inflating;
-		break;
-	    }
-	    if (recv_state == r_inflated) {
-		/* check previous inflated stuff ended correctly */
-		rx_strm.avail_in = 0;
-		rx_strm.next_out = (Bytef *)dbuf;
-		rx_strm.avail_out = CHUNK_SIZE;
-		r = inflate(&rx_strm, Z_PACKET_FLUSH);
-		n = CHUNK_SIZE - rx_strm.avail_out;
-		if (r != Z_OK) {
-		    fprintf(FERROR, "inflate flush returned %d (%d bytes)\n",
-			    r, n);
-		    exit_cleanup(1);
-		}
-		if (n != 0) {
-		    /* have to return some more data and
-		       save the flag for later. */
-		    saved_flag = flag + 0x10000;
-		    if (rx_strm.avail_out != 0)
-			recv_state = r_idle;
-		    *data = dbuf;
-		    return n;
-		}
-		recv_state = r_idle;
-	    }
-	    if (flag == END_FLAG) {
-		/* that's all folks */
-		recv_state = r_init;
-		return 0;
-	    }
+	if (cvs_exclude)
+		add_cvs_excludes();
 
-	    /* here we have a token of some kind */
-	    if (flag & TOKEN_REL) {
-		rx_token += flag & 0x3f;
-		flag >>= 6;
-	    } else
-		rx_token = read_int(f);
-	    if (flag & 1) {
-		rx_run = read_byte(f);
-		rx_run += read_byte(f) << 8;
-		recv_state = r_running;
-	    }
-	    return -1 - rx_token;
-
-	case r_inflating:
-	    rx_strm.next_out = (Bytef *)dbuf;
-	    rx_strm.avail_out = CHUNK_SIZE;
-	    r = inflate(&rx_strm, Z_NO_FLUSH);
-	    n = CHUNK_SIZE - rx_strm.avail_out;
-	    if (r != Z_OK) {
-		fprintf(FERROR, "inflate returned %d (%d bytes)\n", r, n);
-		exit_cleanup(1);
-	    }
-	    if (rx_strm.avail_in == 0)
-		recv_state = r_inflated;
-	    if (n != 0) {
-		*data = dbuf;
-		return n;
-	    }
-	    break;
-
-	case r_running:
-	    ++rx_token;
-	    if (--rx_run == 0)
-		recv_state = r_idle;
-	    return -1 - rx_token;
+	if (io_error) {
+		fprintf(FINFO,"IO error encountered - skipping file deletion\n");
+		return;
 	}
-    }
+
+	for (j=0;j<flist->count;j++) {
+		if (!S_ISDIR(flist->files[j]->mode) || 
+		    !(flist->files[j]->flags & FLAG_DELETE)) continue;
+
+		if (delete_already_done(flist, j)) continue;
+
+		name = strdup(f_name(flist->files[j]));
+
+		if (!(local_file_list = send_file_list(-1,1,&name))) {
+			free(name);
+			continue;
+		}
+
+		if (verbose > 1)
+			fprintf(FINFO,"deleting in %s\n", name);
+
+		for (i=local_file_list->count-1;i>=0;i--) {
+			if (!local_file_list->files[i]->basename) continue;
+			if (S_ISDIR(local_file_list->files[i]->mode))
+				add_delete_entry(local_file_list->files[i]);
+			if (-1 == flist_find(flist,local_file_list->files[i])) {
+				delete_one(local_file_list->files[i]);
+			}    
+		}
+		flist_free(local_file_list);
+		free(name);
+	}
 }

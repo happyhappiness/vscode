@@ -1,1 +1,1 @@
-die(_("the receiving end does not support push options"));
+insert_one_record(log, v, oneline.buf);

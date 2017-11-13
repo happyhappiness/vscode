@@ -1,47 +1,64 @@
-static void set_upstreams(struct transport *transport, struct ref *refs,
-	int pretend)
+const char *fmt_ident(const char *name, const char *email,
+		      const char *date_str, int flag)
 {
-	struct ref *ref;
-	for (ref = refs; ref; ref = ref->next) {
-		const char *localname;
-		const char *tmp;
-		const char *remotename;
-		unsigned char sha[20];
-		int flag = 0;
-		/*
-		 * Check suitability for tracking. Must be successful /
-		 * already up-to-date ref create/modify (not delete).
-		 */
-		if (ref->status != REF_STATUS_OK &&
-			ref->status != REF_STATUS_UPTODATE)
-			continue;
-		if (!ref->peer_ref)
-			continue;
-		if (is_null_oid(&ref->new_oid))
-			continue;
+	static struct strbuf ident = STRBUF_INIT;
+	int strict = (flag & IDENT_STRICT);
+	int want_date = !(flag & IDENT_NO_DATE);
+	int want_name = !(flag & IDENT_NO_NAME);
 
-		/* Follow symbolic refs (mainly for HEAD). */
-		localname = ref->peer_ref->name;
-		remotename = ref->name;
-		tmp = resolve_ref_unsafe(localname, RESOLVE_REF_READING,
-					 sha, &flag);
-		if (tmp && flag & REF_ISSYMREF &&
-			starts_with(tmp, "refs/heads/"))
-			localname = tmp;
-
-		/* Both source and destination must be local branches. */
-		if (!localname || !starts_with(localname, "refs/heads/"))
-			continue;
-		if (!remotename || !starts_with(remotename, "refs/heads/"))
-			continue;
-
-		if (!pretend)
-			install_branch_config(BRANCH_CONFIG_VERBOSE,
-				localname + 11, transport->remote->name,
-				remotename);
-		else
-			printf("Would set upstream of '%s' to '%s' of '%s'\n",
-				localname + 11, remotename + 11,
-				transport->remote->name);
+	if (want_name) {
+		int using_default = 0;
+		if (!name) {
+			name = ident_default_name();
+			using_default = 1;
+			if (strict && default_name_is_bogus) {
+				fputs(env_hint, stderr);
+				die("unable to auto-detect name (got '%s')", name);
+			}
+			if (strict && ident_use_config_only
+			    && !(ident_config_given & IDENT_NAME_GIVEN))
+				die("user.useConfigOnly set but no name given");
+		}
+		if (!*name) {
+			struct passwd *pw;
+			if (strict) {
+				if (using_default)
+					fputs(env_hint, stderr);
+				die("empty ident name (for <%s>) not allowed", email);
+			}
+			pw = xgetpwuid_self(NULL);
+			name = pw->pw_name;
+		}
 	}
+
+	if (!email) {
+		email = ident_default_email();
+		if (strict && default_email_is_bogus) {
+			fputs(env_hint, stderr);
+			die("unable to auto-detect email address (got '%s')", email);
+		}
+		if (strict && ident_use_config_only
+		    && !(ident_config_given & IDENT_MAIL_GIVEN))
+			die("user.useConfigOnly set but no mail given");
+	}
+
+	strbuf_reset(&ident);
+	if (want_name) {
+		strbuf_addstr_without_crud(&ident, name);
+		strbuf_addstr(&ident, " <");
+	}
+	strbuf_addstr_without_crud(&ident, email);
+	if (want_name)
+			strbuf_addch(&ident, '>');
+	if (want_date) {
+		strbuf_addch(&ident, ' ');
+		if (date_str && date_str[0]) {
+			if (parse_date(date_str, &ident) < 0)
+				die("invalid date format: %s", date_str);
+		}
+		else
+			strbuf_addstr(&ident, ident_default_date());
+	}
+
+	return ident.buf;
 }

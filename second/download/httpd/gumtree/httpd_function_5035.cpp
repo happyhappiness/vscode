@@ -1,54 +1,40 @@
-static const char *check_macro_arguments(apr_pool_t * pool,
-                                         const ap_macro_t * macro)
+static apr_status_t push2worker(const apr_pollfd_t * pfd,
+                                apr_pollset_t * pollset)
 {
-    char **tab = (char **) macro->arguments->elts;
-    int nelts = macro->arguments->nelts;
-    int i;
+    listener_poll_type *pt = (listener_poll_type *) pfd->client_data;
+    conn_state_t *cs = (conn_state_t *) pt->baton;
+    apr_status_t rc;
 
-    for (i = 0; i < nelts; i++) {
-        size_t ltabi = strlen(tab[i]);
-        int j;
-
-        if (ltabi == 0) {
-            return apr_psprintf(pool,
-                                "macro '%s' (%s): empty argument #%d name",
-                                macro->name, macro->location, i + 1);
-        }
-        else if (!looks_like_an_argument(tab[i])) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
-                         "macro '%s' (%s) "
-                         "argument name '%s' (#%d) without expected prefix, "
-                         "better prefix argument names with one of '%s'.",
-                         macro->name, macro->location,
-                         tab[i], i + 1, ARG_PREFIX);
-        }
-
-        for (j = i + 1; j < nelts; j++) {
-            size_t ltabj = strlen(tab[j]);
-
-            /* must not use the same argument name twice */
-            if (!strcmp(tab[i], tab[j])) {
-                return apr_psprintf(pool,
-                                   "argument name conflict in macro '%s' (%s): "
-                                    "argument '%s': #%d and #%d, "
-                                    "change argument names!",
-                                    macro->name, macro->location,
-                                    tab[i], i + 1, j + 1);
-            }
-
-            /* warn about common prefix, but only if non empty names */
-            if (ltabi && ltabj &&
-                !strncmp(tab[i], tab[j], ltabi < ltabj ? ltabi : ltabj)) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING,
-                             0, NULL,
-                             "macro '%s' (%s): "
-                            "argument name prefix conflict (%s #%d and %s #%d),"
-                             " be careful about your macro definition!",
-                             macro->name, macro->location,
-                             tab[i], i + 1, tab[j], j + 1);
-            }
-        }
+    if (pt->bypass_push) {
+        return APR_SUCCESS;
     }
 
-    return NULL;
+    pt->bypass_push = 1;
+
+    rc = apr_pollset_remove(pollset, pfd);
+
+    /*
+     * Some of the pollset backends, like KQueue or Epoll
+     * automagically remove the FD if the socket is closed,
+     * therefore, we can accept _SUCCESS or _NOTFOUND,
+     * and we still want to keep going
+     */
+    if (rc != APR_SUCCESS && !APR_STATUS_IS_NOTFOUND(rc)) {
+        cs->state = CONN_STATE_LINGER;
+    }
+
+    rc = ap_queue_push(worker_queue, cs->pfd.desc.s, cs, cs->p);
+    if (rc != APR_SUCCESS) {
+        /* trash the connection; we couldn't queue the connected
+         * socket to a worker
+         */
+        apr_bucket_alloc_destroy(cs->bucket_alloc);
+        apr_socket_close(cs->pfd.desc.s);
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                     ap_server_conf, "push2worker: ap_queue_push failed");
+        apr_pool_clear(cs->p);
+        ap_push_pool(worker_queue_info, cs->p);
+    }
+
+    return rc;
 }

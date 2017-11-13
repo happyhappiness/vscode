@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02577)
-                         "Init: SSLPassPhraseDialog builtin is not "
-                         "supported on Win32 (key file "
-                         "%s)", ppcb_arg.pkey_file);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03519)
+                      "h2_proxy_session(%s): terminated, %d streams unfinished",
+                      session->id, (int)h2_proxy_ihash_count(session->streams));

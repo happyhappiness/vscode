@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_send_header: ajp_marshal_into_msgb failed");
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
+                         "ProtocolEcho: Failure writing to %s",
+                         c->remote_ip);

@@ -1,8 +1,11 @@
 fputs(
-"       --noproxy <no-proxy-list>\n"
-"              Comma-separated list of hosts which do not use a proxy,  if  one\n"
-"              is  specified.  The only wildcard is a single * character, which\n"
-"              matches all hosts, and effectively disables the proxy. Each name\n"
-"              in  this  list  is matched as either a domain which contains the\n"
-"              hostname, or the hostname itself. For example,  local.com  would\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
+"              uations,  curl  will  use a standard buffered output stream that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily  exactly  when  the data arrives.  Using this option\n"
+"              will disable that buffering.\n"
+"\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --buffer to enforce the buffering.\n"
+"\n"
 , stdout);

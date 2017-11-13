@@ -1,1 +1,1 @@
-die(_("Unknown archive format '%s'"), format);
+error("bogus commit object %s", oid_to_hex(&item->object.oid));

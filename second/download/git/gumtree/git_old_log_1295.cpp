@@ -1,1 +1,2 @@
-die("cannot start proxy %s", argv[0]);
+die("object %s cannot be read",
+			    sha1_to_hex(trg_entry->idx.sha1));

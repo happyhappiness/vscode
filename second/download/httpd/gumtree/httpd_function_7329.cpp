@@ -1,111 +1,91 @@
-int main(int argc, const char * const argv[])
+static void check_args(int argc, const char *const argv[],
+                       struct passwd_ctx *ctx, int *mask, char **user,
+                       char **pwfilename)
 {
-    apr_file_t *f;
+    const char *arg;
+    int args_left = 2;
+    int i, ret;
+    apr_getopt_t *state;
     apr_status_t rv;
-    char tn[] = "htdigest.tmp.XXXXXX";
-    char *dirname;
-    char user[MAX_STRING_LEN];
-    char realm[MAX_STRING_LEN];
-    char line[3 * MAX_STRING_LEN];
-    char l[3 * MAX_STRING_LEN];
-    char w[MAX_STRING_LEN];
-    char x[MAX_STRING_LEN];
-    int found;
+    char opt;
+    const char *opt_arg;
+    apr_pool_t *pool = ctx->pool;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate);
-    apr_pool_create(&cntxt, NULL);
-    apr_file_open_stderr(&errfile, cntxt);
+    rv = apr_getopt_init(&state, pool, argc, argv);
+    if (rv != APR_SUCCESS)
+        exit(ERR_SYNTAX);
 
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, cntxt);
-    if (rv) {
-        apr_file_printf(errfile, "apr_xlate_open(): %s (%d)\n",
-                apr_strerror(rv, line, sizeof(line)), rv);
-        exit(1);
-    }
-#endif
-
-    apr_signal(SIGINT, (void (*)(int)) interrupted);
-    if (argc == 5) {
-        if (strcmp(argv[1], "-c"))
-            usage();
-        rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE,
-                           APR_OS_DEFAULT, cntxt);
-        if (rv != APR_SUCCESS) {
-            char errmsg[120];
-
-            apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-                    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
-            exit(1);
+    while ((rv = apr_getopt(state, "cnmspdBbDiC:", &opt, &opt_arg)) == APR_SUCCESS) {
+        switch (opt) {
+        case 'c':
+            *mask |= APHTP_NEWFILE;
+            break;
+        case 'n':
+            args_left--;
+            *mask |= APHTP_NOFILE;
+            break;
+        case 'D':
+            *mask |= APHTP_DELUSER;
+            break;
+        default:
+            ret = parse_common_options(ctx, opt, opt_arg);
+            if (ret) {
+                apr_file_printf(errfile, "%s: %s" NL, argv[0], ctx->errstr);
+                exit(ret);
+            }
         }
-        apr_cpystrn(user, argv[4], sizeof(user));
-        apr_cpystrn(realm, argv[3], sizeof(realm));
-        apr_file_printf(errfile, "Adding password for %s in realm %s.\n",
-                    user, realm);
-        add_password(user, realm, f);
-        apr_file_close(f);
-        exit(0);
     }
-    else if (argc != 4)
+    if (ctx->passwd_src == PW_ARG)
+        args_left++;
+    if (rv != APR_EOF)
         usage();
 
-    if (apr_temp_dir_get((const char**)&dirname, cntxt) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
-        exit(1);
+    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
+        apr_file_printf(errfile, "%s: -c and -n options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
     }
-    dirname = apr_psprintf(cntxt, "%s/%s", dirname, tn);
-
-    if (apr_file_mktemp(&tfp, dirname, 0, cntxt) != APR_SUCCESS) {
-        apr_file_printf(errfile, "Could not open temp file %s.\n", dirname);
-        exit(1);
+    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "%s: -c and -D options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
     }
-
-    if (apr_file_open(&f, argv[1], APR_READ, APR_OS_DEFAULT, cntxt) != APR_SUCCESS) {
-        apr_file_printf(errfile,
-                "Could not open passwd file %s for reading.\n", argv[1]);
-        apr_file_printf(errfile, "Use -c option to create new one.\n");
-        cleanup_tempfile_and_exit(1);
+    if ((*mask & APHTP_NOFILE) && (*mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "%s: -n and -D options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
     }
-    apr_cpystrn(user, argv[3], sizeof(user));
-    apr_cpystrn(realm, argv[2], sizeof(realm));
-
-    found = 0;
-    while (!(get_line(line, sizeof(line), f))) {
-        if (found || (line[0] == '#') || (!line[0])) {
-            putline(tfp, line);
-            continue;
-        }
-        strcpy(l, line);
-        getword(w, l, ':');
-        getword(x, l, ':');
-        if (strcmp(user, w) || strcmp(realm, x)) {
-            putline(tfp, line);
-            continue;
-        }
-        else {
-            apr_file_printf(errfile, "Changing password for user %s in realm %s\n",
-                    user, realm);
-            add_password(user, realm, tfp);
-            found = 1;
-        }
-    }
-    if (!found) {
-        apr_file_printf(errfile, "Adding user %s in realm %s\n", user, realm);
-        add_password(user, realm, tfp);
-    }
-    apr_file_close(f);
-
-    /* The temporary file has all the data, just copy it to the new location.
+    /*
+     * Make sure we still have exactly the right number of arguments left
+     * (the filename, the username, and possibly the password if -b was
+     * specified).
      */
-    if (apr_file_copy(dirname, argv[1], APR_FILE_SOURCE_PERMS, cntxt) !=
-                APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n",
-                        argv[0], argv[1]);
+    i = state->ind;
+    if ((argc - i) != args_left) {
+        usage();
     }
-    apr_file_close(tfp);
 
-    return 0;
+    if (!(*mask & APHTP_NOFILE)) {
+        if (strlen(argv[i]) > (APR_PATH_MAX - 1)) {
+            apr_file_printf(errfile, "%s: filename too long" NL, argv[0]);
+            exit(ERR_OVERFLOW);
+        }
+        *pwfilename = apr_pstrdup(pool, argv[i++]);
+    }
+    if (strlen(argv[i]) > (MAX_STRING_LEN - 1)) {
+        apr_file_printf(errfile, "%s: username too long (> %d)" NL,
+                        argv[0], MAX_STRING_LEN - 1);
+        exit(ERR_OVERFLOW);
+    }
+    *user = apr_pstrdup(pool, argv[i++]);
+    if ((arg = strchr(*user, ':')) != NULL) {
+        apr_file_printf(errfile, "%s: username contains illegal "
+                        "character '%c'" NL, argv[0], *arg);
+        exit(ERR_BADUSER);
+    }
+    if (ctx->passwd_src == PW_ARG) {
+        if (strlen(argv[i]) > (MAX_STRING_LEN - 1)) {
+            apr_file_printf(errfile, "%s: password too long (> %d)" NL,
+                argv[0], MAX_STRING_LEN);
+            exit(ERR_OVERFLOW);
+        }
+        ctx->passwd = apr_pstrdup(pool, argv[i]);
+    }
 }

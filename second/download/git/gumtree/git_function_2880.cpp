@@ -1,83 +1,151 @@
-int cmd_receive_pack(int argc, const char **argv, const char *prefix)
+static int check_local_mod(unsigned char *head, int index_only)
 {
-	int advertise_refs = 0;
-	struct command *commands;
-	struct sha1_array shallow = SHA1_ARRAY_INIT;
-	struct sha1_array ref = SHA1_ARRAY_INIT;
-	struct shallow_info si;
+	/*
+	 * Items in list are already sorted in the cache order,
+	 * so we could do this a lot more efficiently by using
+	 * tree_desc based traversal if we wanted to, but I am
+	 * lazy, and who cares if removal of files is a tad
+	 * slower than the theoretical maximum speed?
+	 */
+	int i, no_head;
+	int errs = 0;
+	struct string_list files_staged = STRING_LIST_INIT_NODUP;
+	struct string_list files_cached = STRING_LIST_INIT_NODUP;
+	struct string_list files_submodule = STRING_LIST_INIT_NODUP;
+	struct string_list files_local = STRING_LIST_INIT_NODUP;
 
-	struct option options[] = {
-		OPT__QUIET(&quiet, N_("quiet")),
-		OPT_HIDDEN_BOOL(0, "stateless-rpc", &stateless_rpc, NULL),
-		OPT_HIDDEN_BOOL(0, "advertise-refs", &advertise_refs, NULL),
-		OPT_HIDDEN_BOOL(0, "reject-thin-pack-for-testing", &reject_thin, NULL),
-		OPT_END()
-	};
+	no_head = is_null_sha1(head);
+	for (i = 0; i < list.nr; i++) {
+		struct stat st;
+		int pos;
+		const struct cache_entry *ce;
+		const char *name = list.entry[i].name;
+		unsigned char sha1[20];
+		unsigned mode;
+		int local_changes = 0;
+		int staged_changes = 0;
 
-	packet_trace_identity("receive-pack");
+		pos = cache_name_pos(name, strlen(name));
+		if (pos < 0) {
+			/*
+			 * Skip unmerged entries except for populated submodules
+			 * that could lose history when removed.
+			 */
+			pos = get_ours_cache_pos(name, pos);
+			if (pos < 0)
+				continue;
 
-	argc = parse_options(argc, argv, prefix, options, receive_pack_usage, 0);
-
-	if (argc > 1)
-		usage_msg_opt(_("Too many arguments."), receive_pack_usage, options);
-	if (argc == 0)
-		usage_msg_opt(_("You must specify a directory."), receive_pack_usage, options);
-
-	service_dir = argv[0];
-
-	setup_path();
-
-	if (!enter_repo(service_dir, 0))
-		die("'%s' does not appear to be a git repository", service_dir);
-
-	git_config(receive_pack_config, NULL);
-	if (cert_nonce_seed)
-		push_cert_nonce = prepare_push_cert_nonce(service_dir, time(NULL));
-
-	if (0 <= transfer_unpack_limit)
-		unpack_limit = transfer_unpack_limit;
-	else if (0 <= receive_unpack_limit)
-		unpack_limit = receive_unpack_limit;
-
-	if (advertise_refs || !stateless_rpc) {
-		write_head_info();
-	}
-	if (advertise_refs)
-		return 0;
-
-	if ((commands = read_head_info(&shallow)) != NULL) {
-		const char *unpack_status = NULL;
-
-		prepare_shallow_info(&si, &shallow);
-		if (!si.nr_ours && !si.nr_theirs)
-			shallow_update = 0;
-		if (!delete_only(commands)) {
-			unpack_status = unpack_with_sideband(&si);
-			update_shallow_info(commands, &si, &ref);
+			if (!S_ISGITLINK(active_cache[pos]->ce_mode) ||
+			    is_empty_dir(name))
+				continue;
 		}
-		execute_commands(commands, unpack_status, &si);
-		if (pack_lockfile)
-			unlink_or_warn(pack_lockfile);
-		if (report_status)
-			report(commands, unpack_status);
-		run_receive_hook(commands, "post-receive", 1);
-		run_update_post_hook(commands);
-		if (auto_gc) {
-			const char *argv_gc_auto[] = {
-				"gc", "--auto", "--quiet", NULL,
-			};
-			int opt = RUN_GIT_CMD | RUN_COMMAND_STDOUT_TO_STDERR;
-			close_all_packs();
-			run_command_v_opt(argv_gc_auto, opt);
+		ce = active_cache[pos];
+
+		if (lstat(ce->name, &st) < 0) {
+			if (errno != ENOENT && errno != ENOTDIR)
+				warning("'%s': %s", ce->name, strerror(errno));
+			/* It already vanished from the working tree */
+			continue;
 		}
-		if (auto_update_server_info)
-			update_server_info(0);
-		clear_shallow_info(&si);
+		else if (S_ISDIR(st.st_mode)) {
+			/* if a file was removed and it is now a
+			 * directory, that is the same as ENOENT as
+			 * far as git is concerned; we do not track
+			 * directories unless they are submodules.
+			 */
+			if (!S_ISGITLINK(ce->ce_mode))
+				continue;
+		}
+
+		/*
+		 * "rm" of a path that has changes need to be treated
+		 * carefully not to allow losing local changes
+		 * accidentally.  A local change could be (1) file in
+		 * work tree is different since the index; and/or (2)
+		 * the user staged a content that is different from
+		 * the current commit in the index.
+		 *
+		 * In such a case, you would need to --force the
+		 * removal.  However, "rm --cached" (remove only from
+		 * the index) is safe if the index matches the file in
+		 * the work tree or the HEAD commit, as it means that
+		 * the content being removed is available elsewhere.
+		 */
+
+		/*
+		 * Is the index different from the file in the work tree?
+		 * If it's a submodule, is its work tree modified?
+		 */
+		if (ce_match_stat(ce, &st, 0) ||
+		    (S_ISGITLINK(ce->ce_mode) &&
+		     !ok_to_remove_submodule(ce->name)))
+			local_changes = 1;
+
+		/*
+		 * Is the index different from the HEAD commit?  By
+		 * definition, before the very initial commit,
+		 * anything staged in the index is treated by the same
+		 * way as changed from the HEAD.
+		 */
+		if (no_head
+		     || get_tree_entry(head, name, sha1, &mode)
+		     || ce->ce_mode != create_ce_mode(mode)
+		     || hashcmp(ce->sha1, sha1))
+			staged_changes = 1;
+
+		/*
+		 * If the index does not match the file in the work
+		 * tree and if it does not match the HEAD commit
+		 * either, (1) "git rm" without --cached definitely
+		 * will lose information; (2) "git rm --cached" will
+		 * lose information unless it is about removing an
+		 * "intent to add" entry.
+		 */
+		if (local_changes && staged_changes) {
+			if (!index_only || !ce_intent_to_add(ce))
+				string_list_append(&files_staged, name);
+		}
+		else if (!index_only) {
+			if (staged_changes)
+				string_list_append(&files_cached, name);
+			if (local_changes) {
+				if (S_ISGITLINK(ce->ce_mode) &&
+				    !submodule_uses_gitfile(name))
+					string_list_append(&files_submodule, name);
+				else
+					string_list_append(&files_local, name);
+			}
+		}
 	}
-	if (use_sideband)
-		packet_flush(1);
-	sha1_array_clear(&shallow);
-	sha1_array_clear(&ref);
-	free((void *)push_cert_nonce);
-	return 0;
+	print_error_files(&files_staged,
+			  Q_("the following file has staged content different "
+			     "from both the\nfile and the HEAD:",
+			     "the following files have staged content different"
+			     " from both the\nfile and the HEAD:",
+			     files_staged.nr),
+			  _("\n(use -f to force removal)"),
+			  &errs);
+	string_list_clear(&files_staged, 0);
+	print_error_files(&files_cached,
+			  Q_("the following file has changes "
+			     "staged in the index:",
+			     "the following files have changes "
+			     "staged in the index:", files_cached.nr),
+			  _("\n(use --cached to keep the file,"
+			    " or -f to force removal)"),
+			  &errs);
+	string_list_clear(&files_cached, 0);
+
+	error_removing_concrete_submodules(&files_submodule, &errs);
+
+	print_error_files(&files_local,
+			  Q_("the following file has local modifications:",
+			     "the following files have local modifications:",
+			     files_local.nr),
+			  _("\n(use --cached to keep the file,"
+			    " or -f to force removal)"),
+			  &errs);
+	string_list_clear(&files_local, 0);
+
+	return errs;
 }

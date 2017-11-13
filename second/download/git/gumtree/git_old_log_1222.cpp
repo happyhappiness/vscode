@@ -1,2 +1,1 @@
-error(_("The note contents has been left in %s"),
-				      path);
+die_errno("cannot readlink '%s'", read_from);

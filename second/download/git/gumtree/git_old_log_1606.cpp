@@ -1,1 +1,0 @@
-error("there are still refs under '%s'", orig_refname);

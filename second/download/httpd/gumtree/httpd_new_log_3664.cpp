@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(01031)
-                     "ajp_ilink_receive() received bad header");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01384)
+                          "Zlib: Compressed %ld to %ld : URL %s",
+                          ctx->stream.total_in, ctx->stream.total_out, r->uri);

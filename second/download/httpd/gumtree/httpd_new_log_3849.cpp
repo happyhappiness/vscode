@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01148)
-                     "Defined worker '%s' for balancer '%s'",
-                     worker->s->name, balancer->s->name);
+ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head>\n"
+                 "<title>Apache Status</title>\n"
+                 "</head><body>\n"
+                 "<h1>Apache Server Status for ", r);

@@ -1,1 +1,1 @@
-fprintf(FERROR,"fork: %s\n",strerror(errno));
+fprintf(FINFO,"%s is newer\n",fname);

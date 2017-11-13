@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c, APLOGNO(01991)
-                                  "SSL input filter read failed.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00877)
+                          "read zero bytes, expecting"
+                          " %" APR_OFF_T_FMT " bytes",
+                          content_length);

@@ -1,2 +1,1 @@
-fprintf(FERROR,"failed to set times on %s : %s\n",
-	      fname,strerror(errno));
+fprintf(f,"    --suffix SUFFIX      override backup suffix\n");

@@ -1,253 +1,126 @@
-static void print_key_info (gpgme_key_t key, FILE *fp)
+static int parse_setenv(BUFFER *tmp, BUFFER *s, unsigned long data, BUFFER *err)
 {
-  int idx;
-  const char *s = NULL, *s2 = NULL;
-  time_t tt = 0;
-  struct tm *tm;
-  char shortbuf[SHORT_STRING];
-  unsigned long aval = 0;
-  const char *delim;
-  int is_pgp = 0;
-  int i;
-  gpgme_user_id_t uid = NULL;
+  int query, unset, len;
+  char work[LONG_STRING];
+  char **save, **envp = envlist;
+  int count = 0;
 
-  is_pgp = key->protocol == GPGME_PROTOCOL_OpenPGP;
+  query = 0;
+  unset = data & MUTT_SET_UNSET;
 
-  for (idx = 0, uid = key->uids; uid; idx++, uid = uid->next)
+  if (!MoreArgs (s))
+  {
+    strfcpy (err->data, _("too few arguments"), err->dsize);
+    return -1;
+  }
+
+  if (*s->dptr == '?')
+  {
+    query = 1;
+    s->dptr++;
+  }
+
+  /* get variable name */
+  mutt_extract_token (tmp, s, MUTT_TOKEN_EQUAL);
+  len = strlen (tmp->data);
+
+  if (query)
+  {
+    int found = 0;
+    while (envp && *envp)
     {
-      if (uid->revoked)
-        continue;
-
-      s = uid->uid;
-      /* L10N:
-         Fill dots to make the DOTFILL entries the same length.
-         In English, msgid "Fingerprint: " is the longest entry for this menu.
-         Your language may vary. */
-      fputs (idx ? _(" aka ......: ") :_("Name ......: "), fp);
-      if (uid->invalid)
+      if (!mutt_strncmp (tmp->data, *envp, len))
+      {
+        if (!found)
         {
-          fputs (_("[Invalid]"), fp);
-          putc (' ', fp);
+          mutt_endwin (NULL);
+          found = 1;
         }
-      if (is_pgp)
-        print_utf8 (fp, s, strlen(s));
-      else
-        parse_and_print_user_id (fp, s);
-      putc ('\n', fp);
+        puts (*envp);
+      }
+      envp++;
     }
 
-  if (key->subkeys && (key->subkeys->timestamp > 0))
+    if (found)
     {
-      tt = key->subkeys->timestamp;
-
-      tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-      strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
-#else
-      strftime (shortbuf, sizeof shortbuf, "%c", tm);
-#endif
-      /* L10N: DOTFILL */
-      fprintf (fp, _("Valid From : %s\n"), shortbuf);
+      set_option (OPTFORCEREDRAWINDEX);
+      set_option (OPTFORCEREDRAWPAGER);
+      mutt_any_key_to_continue (NULL);
+      return 0;
     }
-  
-  if (key->subkeys && (key->subkeys->expires > 0))
+
+    snprintf (err->data, err->dsize, _("%s is unset"), tmp->data);
+    return -1;
+  }
+
+  if (unset)
+  {
+    count = 0;
+    while (envp && *envp)
     {
-      tt = key->subkeys->expires;
-      
-      tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-      strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
-#else
-      strftime (shortbuf, sizeof shortbuf, "%c", tm);
-#endif
-      /* L10N: DOTFILL */
-      fprintf (fp, _("Valid To ..: %s\n"), shortbuf);
+      if (!mutt_strncmp (tmp->data, *envp, len) && (*envp)[len] == '=')
+      {
+        /* shuffle down */
+        save = envp++;
+        while (*envp)
+        {
+          *save++ = *envp++;
+          count++;
+        }
+        *save = NULL;
+        safe_realloc (&envlist, sizeof(char *) * (count+1));
+        return 0;
+      }
+      envp++;
+      count++;
     }
+    return -1;
+  }
 
-  if (key->subkeys)
-    s = gpgme_pubkey_algo_name (key->subkeys->pubkey_algo);
+  if (*s->dptr == '=')
+  {
+    s->dptr++;
+    SKIPWS (s->dptr);
+  }
+
+  if (!MoreArgs (s))
+  {
+    strfcpy (err->data, _("too few arguments"), err->dsize);
+    return -1;
+  }
+
+  /* Look for current slot to overwrite */
+  count = 0;
+  while (envp && *envp)
+  {
+    if (!mutt_strncmp (tmp->data, *envp, len) && (*envp)[len] == '=')
+    {
+      FREE (envp);     /* __FREE_CHECKED__ */
+      break;
+    }
+    envp++;
+    count++;
+  }
+
+  /* Format var=value string */
+  strfcpy (work, tmp->data, sizeof(work));
+  len = strlen (work);
+  work[len++] = '=';
+  mutt_extract_token (tmp, s, 0);
+  strfcpy (&work[len], tmp->data, sizeof(work)-len);
+
+  /* If slot found, overwrite */
+  if (*envp)
+    *envp = safe_strdup (work);
+
+  /* If not found, add new slot */
   else
-    s = "?";
+  {
+    *envp = safe_strdup (work);
+    count++;
+    safe_realloc (&envlist, sizeof(char *) * (count + 1));
+    envlist[count] = NULL;
+  }
 
-  s2 = is_pgp ? "PGP" : "X.509";
-
-  if (key->subkeys)
-    aval = key->subkeys->length;
-
-  /* L10N: DOTFILL */
-  fprintf (fp, _("Key Type ..: %s, %lu bit %s\n"), s2, aval, s);
-
-  /* L10N: DOTFILL */
-  fprintf (fp, _("Key Usage .: "));
-  delim = "";
-
-  if (key_check_cap (key, KEY_CAP_CAN_ENCRYPT))
-    {
-      fprintf (fp, "%s%s", delim, _("encryption"));
-      delim = _(", ");
-    }
-  if (key_check_cap (key, KEY_CAP_CAN_SIGN))
-    {
-      fprintf (fp, "%s%s", delim, _("signing"));
-      delim = _(", ");
-    }
-  if (key_check_cap (key, KEY_CAP_CAN_CERTIFY))
-    {
-      fprintf (fp, "%s%s", delim, _("certification"));
-      delim = _(", ");
-    }
-  putc ('\n', fp);
-
-  if (key->subkeys)
-    {
-      s = key->subkeys->fpr;
-      /* L10N: DOTFILL */
-      fputs (_("Fingerprint: "), fp);
-      if (is_pgp && strlen (s) == 40)
-        {
-          for (i=0; *s && s[1] && s[2] && s[3] && s[4]; s += 4, i++)
-            {
-              putc (*s, fp);
-              putc (s[1], fp);
-              putc (s[2], fp);
-              putc (s[3], fp);
-              putc (is_pgp? ' ':':', fp);
-              if (is_pgp && i == 4)
-                putc (' ', fp);
-            }
-        }
-      else
-        {
-          for (i=0; *s && s[1] && s[2]; s += 2, i++)
-            {
-              putc (*s, fp);
-              putc (s[1], fp);
-              putc (is_pgp? ' ':':', fp);
-              if (is_pgp && i == 7)
-                putc (' ', fp);
-            }
-        }
-      fprintf (fp, "%s\n", s);
-    }
-
-  if (key->issuer_serial)
-    {
-      s = key->issuer_serial;
-      if (s)
-        /* L10N: DOTFILL */
-	fprintf (fp, _("Serial-No .: 0x%s\n"), s);
-    }
-
-  if (key->issuer_name)
-    {
-      s = key->issuer_name;
-      if (s)
-	{
-          /* L10N: DOTFILL */
-	  fprintf (fp, _("Issued By .: "));
-	  parse_and_print_user_id (fp, s);
-	  putc ('\n', fp);
-	}
-    }
-
-  /* For PGP we list all subkeys. */
-  if (is_pgp)
-    {
-      gpgme_subkey_t subkey = NULL;
-
-      for (idx = 1, subkey = key->subkeys; subkey;
-           idx++, subkey = subkey->next)
-        {
-	  s = subkey->keyid;
-	  
-          putc ('\n', fp);
-          if ( strlen (s) == 16)
-            s += 8; /* display only the short keyID */
-          /* L10N: DOTFILL */
-          fprintf (fp, _("Subkey ....: 0x%s"), s);
-	  if (subkey->revoked)
-            {
-              putc (' ', fp);
-              fputs (_("[Revoked]"), fp);
-            }
-	  if (subkey->invalid)
-            {
-              putc (' ', fp);
-              fputs (_("[Invalid]"), fp);
-            }
-	  if (subkey->expired)
-            {
-              putc (' ', fp);
-              fputs (_("[Expired]"), fp);
-            }
-	  if (subkey->disabled)
-            {
-              putc (' ', fp);
-              fputs (_("[Disabled]"), fp);
-            }
-          putc ('\n', fp);
-
-	  if (subkey->timestamp > 0)
-	    {
-	      tt = subkey->timestamp;
-
-              tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-              strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
-#else
-              strftime (shortbuf, sizeof shortbuf, "%c", tm);
-#endif
-              /* L10N: DOTFILL */
-              fprintf (fp, _("Valid From : %s\n"), shortbuf);
-            }
-
-	  if (subkey->expires > 0)
-	    {
-	      tt = subkey->expires;
-
-              tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-              strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
-#else
-              strftime (shortbuf, sizeof shortbuf, "%c", tm);
-#endif
-              /* L10N: DOTFILL */
-              fprintf (fp, _("Valid To ..: %s\n"), shortbuf);
-            }
-
-	  if (subkey)
-	    s = gpgme_pubkey_algo_name (subkey->pubkey_algo);
-	  else
-            s = "?";
-
-	  if (subkey)
-	    aval = subkey->length;
-	  else
-	    aval = 0;
-
-          /* L10N: DOTFILL */
-          fprintf (fp, _("Key Type ..: %s, %lu bit %s\n"), "PGP", aval, s);
-
-          /* L10N: DOTFILL */
-          fprintf (fp, _("Key Usage .: "));
-          delim = "";
-
-	  if (subkey->can_encrypt)
-            {
-              fprintf (fp, "%s%s", delim, _("encryption"));
-              delim = _(", ");
-            }
-          if (subkey->can_sign)
-            {
-              fprintf (fp, "%s%s", delim, _("signing"));
-              delim = _(", ");
-            }
-          if (subkey->can_certify)
-            {
-              fprintf (fp, "%s%s", delim, _("certification"));
-              delim = _(", ");
-            }
-          putc ('\n', fp);
-        }
-    }
+  return 0;
 }

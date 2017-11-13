@@ -1,1 +1,0 @@
-warning("loose object at %s could not be examined", path);

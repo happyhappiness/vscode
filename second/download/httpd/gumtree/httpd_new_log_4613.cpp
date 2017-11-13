@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00222)
-            "no listening sockets available, shutting down");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01847)
+                    "The crypto library '%s' could not be loaded",
+                    conf->library);

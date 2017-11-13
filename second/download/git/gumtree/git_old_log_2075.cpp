@@ -1,2 +1,2 @@
-packet_write(1, "unshallow %s",
-					sha1_to_hex(object->sha1));
+fprintf(stderr, _("Can not do reflog for '%s'\n"),
+					    opts->new_orphan_branch);

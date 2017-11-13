@@ -1,78 +1,98 @@
-static int send_handles_to_child(apr_pool_t *p,
-                                 HANDLE child_ready_event,
-                                 HANDLE child_exit_event,
-                                 apr_proc_mutex_t *child_start_mutex,
-                                 apr_shm_t *scoreboard_shm,
-                                 HANDLE hProcess,
-                                 apr_file_t *child_in)
+int ssl_io_buffer_fill(request_rec *r, apr_size_t maxlen)
 {
-    apr_status_t rv;
-    HANDLE hCurrentProcess = GetCurrentProcess();
-    HANDLE hDup;
-    HANDLE os_start;
-    HANDLE hScore;
-    apr_size_t BytesWritten;
+    conn_rec *c = r->connection;
+    struct modssl_buffer_ctx *ctx;
+    apr_bucket_brigade *tempb;
+    apr_off_t total = 0; /* total length buffered */
+    int eos = 0; /* non-zero once EOS is seen */
 
-    if (!DuplicateHandle(hCurrentProcess, child_ready_event, hProcess, &hDup,
-        EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the ready event handle for the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the exit event handle to the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, child_exit_event, hProcess, &hDup,
-                         EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the exit event handle for the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the exit event handle to the child");
-        return -1;
-    }
-    if ((rv = apr_os_proc_mutex_get(&os_start, child_start_mutex)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the start mutex for the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, os_start, hProcess, &hDup,
-                         SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the start mutex to the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the start mutex to the child");
-        return -1;
-    }
-    if ((rv = apr_os_shm_get(&hScore, scoreboard_shm)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the scoreboard handle for the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, hScore, hProcess, &hDup,
-                         FILE_MAP_READ | FILE_MAP_WRITE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the scoreboard handle to the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the scoreboard handle to the child");
-        return -1;
+    /* Create the context which will be passed to the input filter;
+     * containing a setaside pool and a brigade which constrain the
+     * lifetime of the buffered data. */
+    ctx = apr_palloc(r->pool, sizeof *ctx);
+    ctx->bb = apr_brigade_create(r->pool, c->bucket_alloc);
+
+    /* ... and a temporary brigade. */
+    tempb = apr_brigade_create(r->pool, c->bucket_alloc);
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c, "filling buffer, max size "
+                  "%" APR_SIZE_T_FMT " bytes", maxlen);
+
+    do {
+        apr_status_t rv;
+        apr_bucket *e, *next;
+
+        /* The request body is read from the protocol-level input
+         * filters; the buffering filter will reinject it from that
+         * level, allowing content/resource filters to run later, if
+         * necessary. */
+
+        rv = ap_get_brigade(r->proto_input_filters, tempb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, 8192);
+        if (rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "could not read request body for SSL buffer");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        /* Iterate through the returned brigade: setaside each bucket
+         * into the context's pool and move it into the brigade. */
+        for (e = APR_BRIGADE_FIRST(tempb);
+             e != APR_BRIGADE_SENTINEL(tempb) && !eos; e = next) {
+            const char *data;
+            apr_size_t len;
+
+            next = APR_BUCKET_NEXT(e);
+
+            if (APR_BUCKET_IS_EOS(e)) {
+                eos = 1;
+            } else if (!APR_BUCKET_IS_METADATA(e)) {
+                rv = apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+                if (rv != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "could not read bucket for SSL buffer");
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+                total += len;
+            }
+
+            rv = apr_bucket_setaside(e, r->pool);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "could not setaside bucket for SSL buffer");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+
+            APR_BUCKET_REMOVE(e);
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
+        }
+
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c,
+                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
+                      total, eos);
+
+        /* Fail if this exceeds the maximum buffer size. */
+        if (total > maxlen) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request body exceeds maximum size (%" APR_SIZE_T_FMT 
+                          ") for SSL buffer", maxlen);
+            return HTTP_REQUEST_ENTITY_TOO_LARGE;
+        }
+
+    } while (!eos);
+
+    apr_brigade_destroy(tempb);
+
+    /* After consuming all protocol-level input, remove all protocol-level
+     * filters.  It should strictly only be necessary to remove filters
+     * at exactly ftype == AP_FTYPE_PROTOCOL, since this filter will 
+     * precede all > AP_FTYPE_PROTOCOL anyway. */
+    while (r->proto_input_filters->frec->ftype < AP_FTYPE_CONNECTION) {
+        ap_remove_input_filter(r->proto_input_filters);
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Parent: Sent the scoreboard to the child");
+    /* Insert the filter which will supply the buffered content. */
+    ap_add_input_filter(ssl_io_buffer, ctx, r, c);
+
     return 0;
 }

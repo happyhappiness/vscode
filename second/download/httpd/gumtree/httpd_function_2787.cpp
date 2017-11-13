@@ -1,84 +1,83 @@
-static int authz_dbd_login(request_rec *r, authz_dbd_cfg *cfg,
-                           const char *action)
+int explode_static_lib(command_t *cmd_data, const char *lib)
 {
-    int rv;
-    const char *newuri = NULL;
-    int nrows;
-    const char *message;
-    ap_dbd_t *dbd = dbd_handle(r);
-    apr_dbd_prepared_t *query;
-    apr_dbd_results_t *res = NULL;
-    apr_dbd_row_t *row = NULL;
+    count_chars tmpdir_cc, libname_cc;
+    const char *tmpdir, *libname;
+    char savewd[PATH_MAX];
+    const char *name;
+    DIR *dir;
+    struct dirent *entry;
+    const char *lib_args[4];
 
-    if (cfg->query == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "No query configured for %s!", action);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    query = apr_hash_get(dbd->prepared, cfg->query, APR_HASH_KEY_STRING);
-    if (query == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error retrieving Query for %s!", action);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    /* Bah! */
+    if (cmd_data->options.dry_run) {
+        return 0;
     }
 
-    rv = apr_dbd_pvquery(dbd->driver, r->pool, dbd->handle, &nrows,
-                         query, r->user, NULL);
-    if (rv == 0) {
-        if (nrows != 1) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "authz_dbd: %s of user %s updated %d rows",
-                          action, r->user, nrows);
+    name = jlibtool_basename(lib);
+
+    init_count_chars(&tmpdir_cc);
+    push_count_chars(&tmpdir_cc, ".libs/");
+    push_count_chars(&tmpdir_cc, name);
+    push_count_chars(&tmpdir_cc, ".exploded/");
+    tmpdir = flatten_count_chars(&tmpdir_cc, 0);
+
+    if (!cmd_data->options.silent) {
+        printf("Making: %s\n", tmpdir);
+    }
+    safe_mkdir(tmpdir);
+
+    push_count_chars(cmd_data->tmp_dirs, tmpdir);
+
+    getcwd(savewd, sizeof(savewd));
+
+    if (chdir(tmpdir) != 0) {
+        if (!cmd_data->options.silent) {
+            printf("Warning: could not explode %s\n", lib);
         }
+        return 1;
+    }
+
+    if (lib[0] == '/') {
+        libname = lib;
     }
     else {
-        message = apr_dbd_error(dbd->driver, dbd->handle, rv);
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "authz_dbd: query for %s failed; user %s [%s]",
-                      action, r->user, message?message:noerror);
-        return HTTP_INTERNAL_SERVER_ERROR;
+        init_count_chars(&libname_cc);
+        push_count_chars(&libname_cc, "../../");
+        push_count_chars(&libname_cc, lib);
+        libname = flatten_count_chars(&libname_cc, 0);
     }
 
-    if (cfg->redirect == 1) {
-        newuri = apr_table_get(r->headers_in, "Referer");
-    }
+    lib_args[0] = LIBRARIAN;
+    lib_args[1] = "x";
+    lib_args[2] = libname;
+    lib_args[3] = NULL;
 
-    if (!newuri && cfg->redir_query) {
-        query = apr_hash_get(dbd->prepared, cfg->redir_query,
-                             APR_HASH_KEY_STRING);
-        if (query == NULL) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "authz_dbd: no redirect query!");
-            /* OK, this is non-critical; we can just not-redirect */
+    external_spawn(cmd_data, LIBRARIAN, lib_args);
+
+    chdir(savewd);
+    dir = opendir(tmpdir);
+
+    while ((entry = readdir(dir)) != NULL) {
+#if defined(__APPLE__) && defined(RANLIB)
+        /* Apple inserts __.SYMDEF which isn't needed.
+         * Leopard (10.5+) can also add '__.SYMDEF SORTED' which isn't
+         * much fun either.  Just skip them.
+         */
+        if (strstr(entry->d_name, "__.SYMDEF") != NULL) {
+            continue;
         }
-        else if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res,
-                                  query, 0, r->user, NULL) == 0) {
-            for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
-                 rv != -1;
-                 rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
-                if (rv != 0) {
-                    message = apr_dbd_error(dbd->driver, dbd->handle, rv);
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "authz_dbd in get_row; action=%s user=%s [%s]",
-                          action, r->user, message?message:noerror);
-                }
-                else if (newuri == NULL) {
-                    newuri = apr_dbd_get_entry(dbd->driver, row, 0);
-                }
-                /* we can't break out here or row won't get cleaned up */
+#endif
+        if (entry->d_name[0] != '.') {
+            push_count_chars(&tmpdir_cc, entry->d_name);
+            name = flatten_count_chars(&tmpdir_cc, 0);
+            if (!cmd_data->options.silent) {
+                printf("Adding: %s\n", name);
             }
-        }
-        else {
-            message = apr_dbd_error(dbd->driver, dbd->handle, rv);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "authz_dbd/redirect for %s of %s [%s]",
-                          action, r->user, message?message:noerror);
+            push_count_chars(cmd_data->obj_files, name);
+            pop_count_chars(&tmpdir_cc);
         }
     }
-    if (newuri != NULL) {
-        r->status = HTTP_MOVED_TEMPORARILY;
-        apr_table_set(r->err_headers_out, "Location", newuri);
-    }
-    authz_dbd_run_client_login(r, OK, action);
-    return OK;
+
+    closedir(dir);
+    return 0;
 }

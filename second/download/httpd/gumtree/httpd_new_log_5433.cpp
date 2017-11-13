@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03049)
-                                  "h2_from_h1(%d): trailers filter, saving trailers",
-                                  from_h1->stream_id);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00561)
+                              "Request header exceeds LimitRequestFieldSize: "
+                              "%.*s", field_name_len(field), field);

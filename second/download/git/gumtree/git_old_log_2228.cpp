@@ -1,1 +1,2 @@
-fprintf_ln(stderr, "    git pull <remote> <branch>");
+die_errno("failed to write to %s",
+				  temporary_shallow.buf);

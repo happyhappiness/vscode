@@ -1,1 +1,1 @@
-packet_write(1, "ACK %s\n", last_hex);
+die("git fetch_pack: expected ACK/NAK, got '%s'", line);

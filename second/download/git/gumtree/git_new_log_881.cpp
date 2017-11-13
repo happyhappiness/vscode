@@ -1,1 +1,0 @@
-opterror(opt, "is incompatible with --no-merged", 0);

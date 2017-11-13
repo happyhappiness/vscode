@@ -1,1 +1,2 @@
-fprintf(opt->file, "%s%s+++ b/%s%s\n", prefix, c_meta, pair->two->path, c_reset);
+die("unable to parse commit %s",
+			    oid_to_hex(&c->object.oid));

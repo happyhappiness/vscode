@@ -1,58 +1,97 @@
-int init_db(const char *template_dir, unsigned int flags)
+static int test_if_untracked_cache_is_supported(void)
 {
-	int reinit;
-	const char *git_dir = get_git_dir();
+	struct stat st;
+	struct stat_data base;
+	int fd, ret = 0;
 
-	if (git_link)
-		separate_git_dir(git_dir);
+	strbuf_addstr(&mtime_dir, "mtime-test-XXXXXX");
+	if (!mkdtemp(mtime_dir.buf))
+		die_errno("Could not make temporary directory");
 
-	safe_create_dir(git_dir, 0);
+	fprintf(stderr, _("Testing "));
+	atexit(remove_test_directory);
+	xstat_mtime_dir(&st);
+	fill_stat_data(&base, &st);
+	fputc('.', stderr);
 
-	init_is_bare_repository = is_bare_repository();
+	avoid_racy();
+	fd = create_file("newfile");
+	xstat_mtime_dir(&st);
+	if (!match_stat_data(&base, &st)) {
+		close(fd);
+		fputc('\n', stderr);
+		fprintf_ln(stderr,_("directory stat info does not "
+				    "change after adding a new file"));
+		goto done;
+	}
+	fill_stat_data(&base, &st);
+	fputc('.', stderr);
 
-	/* Check to see if the repository version is right.
-	 * Note that a newly created repository does not have
-	 * config file, so this will not fail.  What we are catching
-	 * is an attempt to reinitialize new repository with an old tool.
-	 */
-	check_repository_format();
+	avoid_racy();
+	xmkdir("new-dir");
+	xstat_mtime_dir(&st);
+	if (!match_stat_data(&base, &st)) {
+		close(fd);
+		fputc('\n', stderr);
+		fprintf_ln(stderr, _("directory stat info does not change "
+				     "after adding a new directory"));
+		goto done;
+	}
+	fill_stat_data(&base, &st);
+	fputc('.', stderr);
 
-	reinit = create_default_files(template_dir);
+	avoid_racy();
+	write_or_die(fd, "data", 4);
+	close(fd);
+	xstat_mtime_dir(&st);
+	if (match_stat_data(&base, &st)) {
+		fputc('\n', stderr);
+		fprintf_ln(stderr, _("directory stat info changes "
+				     "after updating a file"));
+		goto done;
+	}
+	fputc('.', stderr);
 
-	create_object_directory();
+	avoid_racy();
+	close(create_file("new-dir/new"));
+	xstat_mtime_dir(&st);
+	if (match_stat_data(&base, &st)) {
+		fputc('\n', stderr);
+		fprintf_ln(stderr, _("directory stat info changes after "
+				     "adding a file inside subdirectory"));
+		goto done;
+	}
+	fputc('.', stderr);
 
-	if (shared_repository) {
-		char buf[10];
-		/* We do not spell "group" and such, so that
-		 * the configuration can be read by older version
-		 * of git. Note, we use octal numbers for new share modes,
-		 * and compatibility values for PERM_GROUP and
-		 * PERM_EVERYBODY.
-		 */
-		if (shared_repository < 0)
-			/* force to the mode value */
-			sprintf(buf, "0%o", -shared_repository);
-		else if (shared_repository == PERM_GROUP)
-			sprintf(buf, "%d", OLD_PERM_GROUP);
-		else if (shared_repository == PERM_EVERYBODY)
-			sprintf(buf, "%d", OLD_PERM_EVERYBODY);
-		else
-			die("oops");
-		git_config_set("core.sharedrepository", buf);
-		git_config_set("receive.denyNonFastforwards", "true");
+	avoid_racy();
+	xunlink("newfile");
+	xstat_mtime_dir(&st);
+	if (!match_stat_data(&base, &st)) {
+		fputc('\n', stderr);
+		fprintf_ln(stderr, _("directory stat info does not "
+				     "change after deleting a file"));
+		goto done;
+	}
+	fill_stat_data(&base, &st);
+	fputc('.', stderr);
+
+	avoid_racy();
+	xunlink("new-dir/new");
+	xrmdir("new-dir");
+	xstat_mtime_dir(&st);
+	if (!match_stat_data(&base, &st)) {
+		fputc('\n', stderr);
+		fprintf_ln(stderr, _("directory stat info does not "
+				     "change after deleting a directory"));
+		goto done;
 	}
 
-	if (!(flags & INIT_DB_QUIET)) {
-		int len = strlen(git_dir);
+	if (rmdir(mtime_dir.buf))
+		die_errno(_("failed to delete directory %s"), mtime_dir.buf);
+	fprintf_ln(stderr, _(" OK"));
+	ret = 1;
 
-		/* TRANSLATORS: The first '%s' is either "Reinitialized
-		   existing" or "Initialized empty", the second " shared" or
-		   "", and the last '%s%s' is the verbatim directory name. */
-		printf(_("%s%s Git repository in %s%s\n"),
-		       reinit ? _("Reinitialized existing") : _("Initialized empty"),
-		       shared_repository ? _(" shared") : "",
-		       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
-	}
-
-	return 0;
+done:
+	strbuf_release(&mtime_dir);
+	return ret;
 }

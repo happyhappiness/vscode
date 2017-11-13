@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00459)
-                     "sigaction(SIGTERM)");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00913)
+                             "3)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(*ip));

@@ -1,1 +1,0 @@
-strbuf_addf(err, "unable to create directory for %s", ref_file);

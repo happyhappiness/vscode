@@ -1,1 +1,1 @@
-fprintf(f, "%d\n", pid);
+fprintf(FERROR,"fork: %s\n",strerror(errno));

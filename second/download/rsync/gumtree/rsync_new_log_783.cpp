@@ -1,1 +1,1 @@
-fprintf(fp,"  %-*s   ", (int)maxLeftCol+displaypad, left);
+out_of_memory("add_rule");

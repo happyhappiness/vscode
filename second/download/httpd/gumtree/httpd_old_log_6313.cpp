@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection, 
-                                  APLOGNO(03369)
-                                  "h2_proxy_session(%s): rescheduled request %s",
-                                  ctx->engine_id, task_id);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00316)
+                         "WARNING: MaxRequestWorkers of %d is not an integer "
+                         "multiple of", max_workers);

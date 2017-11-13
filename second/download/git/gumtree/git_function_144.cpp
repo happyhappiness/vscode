@@ -1,32 +1,33 @@
-static int get_trace_fd(const char *key, int *need_close)
+static void parse_argv(void)
 {
-	char *trace = getenv(key);
+	unsigned int i;
 
-	if (!trace || !strcmp(trace, "") ||
-	    !strcmp(trace, "0") || !strcasecmp(trace, "false"))
-		return 0;
-	if (!strcmp(trace, "1") || !strcasecmp(trace, "true"))
-		return STDERR_FILENO;
-	if (strlen(trace) == 1 && isdigit(*trace))
-		return atoi(trace);
-	if (is_absolute_path(trace)) {
-		int fd = open(trace, O_WRONLY | O_APPEND | O_CREAT, 0666);
-		if (fd == -1) {
-			fprintf(stderr,
-				"Could not open '%s' for tracing: %s\n"
-				"Defaulting to tracing on stderr...\n",
-				trace, strerror(errno));
-			return STDERR_FILENO;
+	for (i = 1; i < global_argc; i++) {
+		const char *a = global_argv[i];
+
+		if (*a != '-' || !strcmp(a, "--"))
+			break;
+
+		if (!skip_prefix(a, "--", &a))
+			die("unknown option %s", a);
+
+		if (parse_one_option(a))
+			continue;
+
+		if (parse_one_feature(a, 0))
+			continue;
+
+		if (skip_prefix(a, "cat-blob-fd=", &a)) {
+			option_cat_blob_fd(a);
+			continue;
 		}
-		*need_close = 1;
-		return fd;
+
+		die("unknown option --%s", a);
 	}
+	if (i != global_argc)
+		usage(fast_import_usage);
 
-	fprintf(stderr, "What does '%s' for %s mean?\n", trace, key);
-	fprintf(stderr, "If you want to trace into a file, "
-		"then please set %s to an absolute pathname "
-		"(starting with /).\n", key);
-	fprintf(stderr, "Defaulting to tracing on stderr...\n");
-
-	return STDERR_FILENO;
+	seen_data_command = 1;
+	if (import_marks_file)
+		read_marks();
 }

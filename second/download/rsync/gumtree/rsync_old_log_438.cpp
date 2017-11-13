@@ -1,1 +1,1 @@
-fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");
+fprintf(FINFO,"recv_file_list done\n");

@@ -1,1 +1,1 @@
-fprintf(stderr,"excluding file %s\n",fname);
+fprintf(stderr,"map_file failed : %s\n",strerror(errno));

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                    "*: rewrite of url due to UDS(%s): %s (%s)",
-                    sockpath, *url, r->filename);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, APLOGNO(00491) "caught SIGTERM, shutting down");

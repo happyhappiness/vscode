@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "disk_cache: Recalled headers for URL %s",  dobj->name);
+fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
+                argv[0], MAX_CONCURRENCY);

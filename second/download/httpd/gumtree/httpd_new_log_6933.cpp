@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      H2_STRM_MSG(stream, "found %d push candidates"),
-                      pushes->nelts);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_stream(%ld-%d): consumed %ld bytes, window now %d/%d",
+                          session->id, stream->id, (long)amount, 
+                          cur_size, stream->in_window_size);

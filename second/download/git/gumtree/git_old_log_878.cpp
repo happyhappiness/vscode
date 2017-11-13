@@ -1,2 +1,1 @@
-die(_("ref '%s' does not have %ld components to :strip"),
-			    refname, nr);
+die("Too large to be a .git file: '%s'", path);

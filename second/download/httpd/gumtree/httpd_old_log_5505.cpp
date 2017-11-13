@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): RST_STREAM, err=%d",
-                      session->id, stream->id, err);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "XML parser error (at end). status=%d", status);

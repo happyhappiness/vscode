@@ -1,9 +1,12 @@
 fputs(
-"              If a transient error is returned when curl tries  to  perform  a\n"
-"              transfer,  it  will retry this number of times before giving up.\n"
-"              Setting the number to 0 makes curl do no retries (which  is  the\n"
-"              default).  Transient  error  means either: a timeout, an FTP 4xx\n"
-"              response code or an HTTP 5xx response code.\n"
+"              (IMAP)  Specifies  a custom IMAP command to use instead of LIST.\n"
+"              (Added in 7.30.0)\n"
 "\n"
-"              When curl is about to retry a transfer, it will first  wait  one\n"
+"              (SMTP) Specifies a custom SMTP command to use instead of HELP or\n"
+"              VRFY. (Added in 7.34.0)\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --resolve <host:port:address>\n"
+"              Provide  a  custom  address  for  a specific host and port pair.\n"
 , stdout);

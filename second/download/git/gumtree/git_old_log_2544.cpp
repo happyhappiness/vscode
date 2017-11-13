@@ -1,1 +1,1 @@
-printf("%s (%d):\n", item->string, onelines->nr);
+error("unable to write current sha1 into %s: %s", newrefname, err.buf);

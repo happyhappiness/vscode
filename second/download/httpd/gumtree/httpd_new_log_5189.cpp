@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02963)
-                      "rewritemap: No db handle available! "
-                      "Check your database access");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing MaxRequestWorkers to %d.",
+                         server_limit, server_limit);

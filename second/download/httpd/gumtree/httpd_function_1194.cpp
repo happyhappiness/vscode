@@ -1,39 +1,33 @@
-void ssl_callback_Info(MODSSL_INFO_CB_ARG_TYPE ssl, int where, int rc)
+static void usage(void)
 {
-    conn_rec *c;
-    server_rec *s;
-    SSLConnRec *scr;
-
-    /* Retrieve the conn_rec and the associated SSLConnRec. */
-    if ((c = (conn_rec *)SSL_get_app_data((SSL *)ssl)) == NULL) {
-        return;
-    }
-
-    if ((scr = myConnConfig(c)) == NULL) {
-        return;
-    }
-
-    /* If the reneg state is to reject renegotiations, check the SSL
-     * state machine and move to ABORT if a Client Hello is being
-     * read. */
-    if ((where & SSL_CB_ACCEPT_LOOP) && scr->reneg_state == RENEG_REJECT) {
-        int state = SSL_get_state(ssl);
-        
-        if (state == SSL3_ST_SR_CLNT_HELLO_A 
-            || state == SSL23_ST_SR_CLNT_HELLO_A) {
-            scr->reneg_state = RENEG_ABORT;
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                          "rejecting client initiated renegotiation");
-        }
-    }
-    /* If the first handshake is complete, change state to reject any
-     * subsequent client-initated renegotiation. */
-    else if ((where & SSL_CB_HANDSHAKE_DONE) && scr->reneg_state == RENEG_INIT) {
-        scr->reneg_state = RENEG_REJECT;
-    }
-
-    s = mySrvFromConn(c);
-    if (s && s->loglevel >= APLOG_DEBUG) {
-        log_tracing_state(ssl, c, s, where, rc);
-    }
+    apr_file_printf(errfile, "Usage:\n");
+    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");
+    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
+                    "password\n\n");
+    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
+    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
+    apr_file_printf(errfile, " -c  Create a new file.\n");
+    apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout.\n");
+    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+#if defined(WIN32) || defined(TPF) || defined(NETWARE)
+        " (default)"
+#endif
+        ".\n");
+    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+            " (default)"
+#endif
+            ".\n");
+    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");
+    apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
+    apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it.\n");
+    apr_file_printf(errfile, " -D  Delete the specified user.\n");
+    apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by "
+            "default.\n");
+    apr_file_printf(errfile,
+            "On all other systems, the '-p' flag will probably not work.\n");
+    exit(ERR_SYNTAX);
 }

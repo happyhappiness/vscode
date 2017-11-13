@@ -1,1 +1,2 @@
-fprintf(fp, "--shallow %s\n", oid_to_hex(&graft->oid));
+error("Unable to commit marks file %s: %s",
+			export_marks_file, strerror(errno));

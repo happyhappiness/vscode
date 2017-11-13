@@ -1,1 +1,0 @@
-die("file %s has only %lu lines", path, lno);

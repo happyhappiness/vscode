@@ -1,2 +1,2 @@
-printf("                        %.2f kb/s sent\n",
-               (double) totalposted / timetaken / 1024);
+printf("                        %.2f kb/s total\n",
+               (double) (totalread + totalposted) / timetaken / 1024);

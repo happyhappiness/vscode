@@ -1,1 +1,1 @@
-error(_("Could not spawn pack-objects"));
+warning(_("no threads support, ignoring %s"), var);

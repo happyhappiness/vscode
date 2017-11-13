@@ -1,624 +1,907 @@
-int ssl_hook_Access(request_rec *r)
+pcre *
+pcre_compile(const char *pattern, int options, const char **errorptr,
+  int *erroroffset, const unsigned char *tables)
 {
-    SSLDirConfigRec *dc = myDirConfig(r);
-    SSLSrvConfigRec *sc = mySrvConfig(r->server);
-    SSLConnRec *sslconn = myConnConfig(r->connection);
-    SSL *ssl            = sslconn ? sslconn->ssl : NULL;
-    SSL_CTX *ctx = NULL;
-    apr_array_header_t *requires;
-    ssl_require_t *ssl_requires;
-    char *cp;
-    int ok, i;
-    BOOL renegotiate = FALSE, renegotiate_quick = FALSE;
-    X509 *cert;
-    X509 *peercert;
-    X509_STORE *cert_store = NULL;
-    X509_STORE_CTX cert_store_ctx;
-    STACK_OF(SSL_CIPHER) *cipher_list_old = NULL, *cipher_list = NULL;
-    SSL_CIPHER *cipher = NULL;
-    int depth, verify_old, verify, n;
+real_pcre *re;
+int length = 3;      /* For initial BRA plus length */
+int runlength;
+int c, reqchar, countlits;
+int bracount = 0;
+int top_backref = 0;
+int branch_extra = 0;
+int branch_newextra;
+unsigned int brastackptr = 0;
+size_t size;
+uschar *code;
+const uschar *ptr;
+compile_data compile_block;
+int brastack[BRASTACK_SIZE];
+uschar bralenstack[BRASTACK_SIZE];
 
-    if (ssl) {
-        ctx = SSL_get_SSL_CTX(ssl);
-    }
+#ifdef DEBUG
+uschar *code_base, *code_end;
+#endif
 
-    /*
-     * Support for SSLRequireSSL directive
-     */
-    if (dc->bSSLRequired && !ssl) {
-        if (sc->enabled == SSL_ENABLED_OPTIONAL) {
-            /* This vhost was configured for optional SSL, just tell the
-             * client that we need to upgrade.
-             */
-            apr_table_setn(r->err_headers_out, "Upgrade", "TLS/1.0, HTTP/1.1");
-            apr_table_setn(r->err_headers_out, "Connection", "Upgrade");
+/* Can't support UTF8 unless PCRE has been compiled to include the code. */
 
-            return HTTP_UPGRADE_REQUIRED;
-        }
+#ifndef SUPPORT_UTF8
+if ((options & PCRE_UTF8) != 0)
+  {
+  *errorptr = ERR32;
+  return NULL;
+  }
+#endif
 
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "access to %s failed, reason: %s",
-                      r->filename, "SSL connection required");
+/* We can't pass back an error message if errorptr is NULL; I guess the best we
+can do is just return NULL. */
 
-        /* remember forbidden access for strict require option */
-        apr_table_setn(r->notes, "ssl-access-forbidden", "1");
+if (errorptr == NULL) return NULL;
+*errorptr = NULL;
 
-        return HTTP_FORBIDDEN;
-    }
+/* However, we can give a message for this error */
 
-    /*
-     * Check to see whether SSL is in use; if it's not, then no
-     * further access control checks are relevant.  (the test for
-     * sc->enabled is probably strictly unnecessary)
-     */
-    if (sc->enabled == SSL_ENABLED_FALSE || !ssl) {
-        return DECLINED;
-    }
+if (erroroffset == NULL)
+  {
+  *errorptr = ERR16;
+  return NULL;
+  }
+*erroroffset = 0;
 
-    /*
-     * Support for per-directory reconfigured SSL connection parameters.
-     *
-     * This is implemented by forcing an SSL renegotiation with the
-     * reconfigured parameter suite. But Apache's internal API processing
-     * makes our life very hard here, because when internal sub-requests occur
-     * we nevertheless should avoid multiple unnecessary SSL handshakes (they
-     * require extra network I/O and especially time to perform).
-     *
-     * But the optimization for filtering out the unnecessary handshakes isn't
-     * obvious and trivial.  Especially because while Apache is in its
-     * sub-request processing the client could force additional handshakes,
-     * too. And these take place perhaps without our notice. So the only
-     * possibility is to explicitly _ask_ OpenSSL whether the renegotiation
-     * has to be performed or not. It has to performed when some parameters
-     * which were previously known (by us) are not those we've now
-     * reconfigured (as known by OpenSSL) or (in optimized way) at least when
-     * the reconfigured parameter suite is stronger (more restrictions) than
-     * the currently active one.
-     */
+if ((options & ~PUBLIC_OPTIONS) != 0)
+  {
+  *errorptr = ERR17;
+  return NULL;
+  }
 
-    /*
-     * Override of SSLCipherSuite
-     *
-     * We provide two options here:
-     *
-     * o The paranoid and default approach where we force a renegotiation when
-     *   the cipher suite changed in _any_ way (which is straight-forward but
-     *   often forces renegotiations too often and is perhaps not what the
-     *   user actually wanted).
-     *
-     * o The optimized and still secure way where we force a renegotiation
-     *   only if the currently active cipher is no longer contained in the
-     *   reconfigured/new cipher suite. Any other changes are not important
-     *   because it's the servers choice to select a cipher from the ones the
-     *   client supports. So as long as the current cipher is still in the new
-     *   cipher suite we're happy. Because we can assume we would have
-     *   selected it again even when other (better) ciphers exists now in the
-     *   new cipher suite. This approach is fine because the user explicitly
-     *   has to enable this via ``SSLOptions +OptRenegotiate''. So we do no
-     *   implicit optimizations.
-     */
-    if (dc->szCipherSuite) {
-        /* remember old state */
+/* Set up pointers to the individual character tables */
 
-        if (dc->nOptions & SSL_OPT_OPTRENEGOTIATE) {
-            cipher = SSL_get_current_cipher(ssl);
-        }
-        else {
-            cipher_list_old = (STACK_OF(SSL_CIPHER) *)SSL_get_ciphers(ssl);
+if (tables == NULL) tables = pcre_default_tables;
+compile_block.lcc = tables + lcc_offset;
+compile_block.fcc = tables + fcc_offset;
+compile_block.cbits = tables + cbits_offset;
+compile_block.ctypes = tables + ctypes_offset;
 
-            if (cipher_list_old) {
-                cipher_list_old = sk_SSL_CIPHER_dup(cipher_list_old);
-            }
-        }
+/* Reflect pattern for debugging output */
 
-        /* configure new state */
-        if (!modssl_set_cipher_list(ssl, dc->szCipherSuite)) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                         r->server,
-                         "Unable to reconfigure (per-directory) "
-                         "permitted SSL ciphers");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
+DPRINTF(("------------------------------------------------------------------\n"));
+DPRINTF(("%s\n", pattern));
 
-            if (cipher_list_old) {
-                sk_SSL_CIPHER_free(cipher_list_old);
-            }
+/* The first thing to do is to make a pass over the pattern to compute the
+amount of store required to hold the compiled code. This does not have to be
+perfect as long as errors are overestimates. At the same time we can detect any
+internal flag settings. Make an attempt to correct for any counted white space
+if an "extended" flag setting appears late in the pattern. We can't be so
+clever for #-comments. */
 
-            return HTTP_FORBIDDEN;
-        }
+ptr = (const uschar *)(pattern - 1);
+while ((c = *(++ptr)) != 0)
+  {
+  int min, max;
+  int class_charcount;
+  int bracket_length;
 
-        /* determine whether a renegotiation has to be forced */
-        cipher_list = (STACK_OF(SSL_CIPHER) *)SSL_get_ciphers(ssl);
-
-        if (dc->nOptions & SSL_OPT_OPTRENEGOTIATE) {
-            /* optimized way */
-            if ((!cipher && cipher_list) ||
-                (cipher && !cipher_list))
-            {
-                renegotiate = TRUE;
-            }
-            else if (cipher && cipher_list &&
-                     (sk_SSL_CIPHER_find(cipher_list, cipher) < 0))
-            {
-                renegotiate = TRUE;
-            }
-        }
-        else {
-            /* paranoid way */
-            if ((!cipher_list_old && cipher_list) ||
-                (cipher_list_old && !cipher_list))
-            {
-                renegotiate = TRUE;
-            }
-            else if (cipher_list_old && cipher_list) {
-                for (n = 0;
-                     !renegotiate && (n < sk_SSL_CIPHER_num(cipher_list));
-                     n++)
-                {
-                    SSL_CIPHER *value = sk_SSL_CIPHER_value(cipher_list, n);
-
-                    if (sk_SSL_CIPHER_find(cipher_list_old, value) < 0) {
-                        renegotiate = TRUE;
-                    }
-                }
-
-                for (n = 0;
-                     !renegotiate && (n < sk_SSL_CIPHER_num(cipher_list_old));
-                     n++)
-                {
-                    SSL_CIPHER *value = sk_SSL_CIPHER_value(cipher_list_old, n);
-
-                    if (sk_SSL_CIPHER_find(cipher_list, value) < 0) {
-                        renegotiate = TRUE;
-                    }
-                }
-            }
-        }
-
-        /* cleanup */
-        if (cipher_list_old) {
-            sk_SSL_CIPHER_free(cipher_list_old);
-        }
-
-        /* tracing */
-        if (renegotiate) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Reconfigured cipher suite will force renegotiation");
-        }
-    }
-
-    /*
-     * override of SSLVerifyDepth
-     *
-     * The depth checks are handled by us manually inside the verify callback
-     * function and not by OpenSSL internally (and our function is aware of
-     * both the per-server and per-directory contexts). So we cannot ask
-     * OpenSSL about the currently verify depth. Instead we remember it in our
-     * ap_ctx attached to the SSL* of OpenSSL.  We've to force the
-     * renegotiation if the reconfigured/new verify depth is less than the
-     * currently active/remembered verify depth (because this means more
-     * restriction on the certificate chain).
-     */
-    if (dc->nVerifyDepth != UNSET) {
-        /* XXX: doesnt look like sslconn->verify_depth is actually used */
-        if (!(n = sslconn->verify_depth)) {
-            sslconn->verify_depth = n = sc->server->auth.verify_depth;
-        }
-
-        /* determine whether a renegotiation has to be forced */
-        if (dc->nVerifyDepth < n) {
-            renegotiate = TRUE;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Reduced client verification depth will force "
-                         "renegotiation");
-        }
-    }
-
-    /*
-     * override of SSLVerifyClient
-     *
-     * We force a renegotiation if the reconfigured/new verify type is
-     * stronger than the currently active verify type.
-     *
-     * The order is: none << optional_no_ca << optional << require
-     *
-     * Additionally the following optimization is possible here: When the
-     * currently active verify type is "none" but a client certificate is
-     * already known/present, it's enough to manually force a client
-     * verification but at least skip the I/O-intensive renegotation
-     * handshake.
-     */
-    if (dc->nVerifyClient != SSL_CVERIFY_UNSET) {
-        /* remember old state */
-        verify_old = SSL_get_verify_mode(ssl);
-        /* configure new state */
-        verify = SSL_VERIFY_NONE;
-
-        if (dc->nVerifyClient == SSL_CVERIFY_REQUIRE) {
-            verify |= SSL_VERIFY_PEER_STRICT;
-        }
-
-        if ((dc->nVerifyClient == SSL_CVERIFY_OPTIONAL) ||
-            (dc->nVerifyClient == SSL_CVERIFY_OPTIONAL_NO_CA))
-        {
-            verify |= SSL_VERIFY_PEER;
-        }
-
-        modssl_set_verify(ssl, verify, ssl_callback_SSLVerify);
-        SSL_set_verify_result(ssl, X509_V_OK);
-
-        /* determine whether we've to force a renegotiation */
-        if (!renegotiate && verify != verify_old) {
-            if (((verify_old == SSL_VERIFY_NONE) &&
-                 (verify     != SSL_VERIFY_NONE)) ||
-
-                (!(verify_old & SSL_VERIFY_PEER) &&
-                  (verify     & SSL_VERIFY_PEER)) ||
-
-                (!(verify_old & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) &&
-                  (verify     & SSL_VERIFY_FAIL_IF_NO_PEER_CERT)))
-            {
-                renegotiate = TRUE;
-                /* optimization */
-
-                if ((dc->nOptions & SSL_OPT_OPTRENEGOTIATE) &&
-                    (verify_old == SSL_VERIFY_NONE) &&
-                    ((peercert = SSL_get_peer_certificate(ssl)) != NULL))
-                {
-                    renegotiate_quick = TRUE;
-                    X509_free(peercert);
-                }
-
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                             r->server,
-                             "Changed client verification type will force "
-                             "%srenegotiation",
-                             renegotiate_quick ? "quick " : "");
-             }
-        }
-    }
-
-    /*
-     * override SSLCACertificateFile & SSLCACertificatePath
-     * This is only enabled if the SSL_set_cert_store() function
-     * is available in the ssl library.  the 1.x based mod_ssl
-     * used SSL_CTX_set_cert_store which is not thread safe.
-     */
-
-#ifdef HAVE_SSL_SET_CERT_STORE
-    /*
-     * check if per-dir and per-server config field are not the same.
-     * if f is defined in per-dir and not defined in per-server
-     * or f is defined in both but not the equal ...
-     */
-#define MODSSL_CFG_NE(f) \
-     (dc->f && (!sc->f || (sc->f && strNE(dc->f, sc->f))))
-
-#define MODSSL_CFG_CA(f) \
-     (dc->f ? dc->f : sc->f)
-
-    if (MODSSL_CFG_NE(szCACertificateFile) ||
-        MODSSL_CFG_NE(szCACertificatePath))
+  if ((options & PCRE_EXTENDED) != 0)
     {
-        STACK_OF(X509_NAME) *ca_list;
-        const char *ca_file = MODSSL_CFG_CA(szCACertificateFile);
-        const char *ca_path = MODSSL_CFG_CA(szCACertificatePath);
+    if ((compile_block.ctypes[c] & ctype_space) != 0) continue;
+    if (c == '#')
+      {
+      /* The space before the ; is to avoid a warning on a silly compiler
+      on the Macintosh. */
+      while ((c = *(++ptr)) != 0 && c != NEWLINE) ;
+      continue;
+      }
+    }
 
-        cert_store = X509_STORE_new();
+  switch(c)
+    {
+    /* A backslashed item may be an escaped "normal" character or a
+    character type. For a "normal" character, put the pointers and
+    character back so that tests for whitespace etc. in the input
+    are done correctly. */
 
-        if (!X509_STORE_load_locations(cert_store, ca_file, ca_path)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "Unable to reconfigure verify locations "
-                         "for client authentication");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
-
-            X509_STORE_free(cert_store);
-
-            return HTTP_FORBIDDEN;
-        }
-
-        /* SSL_free will free cert_store */
-        SSL_set_cert_store(ssl, cert_store);
-
-        if (!(ca_list = ssl_init_FindCAList(r->server, r->pool,
-                                            ca_file, ca_path)))
+    case '\\':
+      {
+      const uschar *save_ptr = ptr;
+      c = check_escape(&ptr, errorptr, bracount, options, FALSE, &compile_block);
+      if (*errorptr != NULL) goto PCRE_ERROR_RETURN;
+      if (c >= 0)
         {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "Unable to determine list of available "
-                         "CA certificates for client authentication");
-
-            return HTTP_FORBIDDEN;
+        ptr = save_ptr;
+        c = '\\';
+        goto NORMAL_CHAR;
         }
+      }
+    length++;
 
-        SSL_set_client_CA_list(ssl, ca_list);
-        renegotiate = TRUE;
+    /* A back reference needs an additional 2 bytes, plus either one or 5
+    bytes for a repeat. We also need to keep the value of the highest
+    back reference. */
 
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Changed client verification locations will force "
-                     "renegotiation");
-    }
-#endif /* HAVE_SSL_SET_CERT_STORE */
-
-    /* If a renegotiation is now required for this location, and the
-     * request includes a message body (and the client has not
-     * requested a "100 Continue" response), then the client will be
-     * streaming the request body over the wire already.  In that
-     * case, it is not possible to stop and perform a new SSL
-     * handshake immediately; once the SSL library moves to the
-     * "accept" state, it will reject the SSL packets which the client
-     * is sending for the request body.
-     *
-     * To allow authentication to complete in this auth hook, the
-     * solution used here is to fill a (bounded) buffer with the
-     * request body, and then to reinject that request body later.
-     */
-    if (renegotiate && !renegotiate_quick
-        && (apr_table_get(r->headers_in, "transfer-encoding")
-            || (apr_table_get(r->headers_in, "content-length")
-                && strcmp(apr_table_get(r->headers_in, "content-length"), "0")))
-        && !r->expecting_100) {
-        int rv;
-
-        /* Fill the I/O buffer with the request body if possible. */
-        rv = ssl_io_buffer_fill(r);
-
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "could not buffer message body to allow "
-                          "SSL renegotiation to proceed");
-            return rv;
+    if (c <= -ESC_REF)
+      {
+      int refnum = -c - ESC_REF;
+      if (refnum > top_backref) top_backref = refnum;
+      length += 2;   /* For single back reference */
+      if (ptr[1] == '{' && is_counted_repeat(ptr+2, &compile_block))
+        {
+        ptr = read_repeat_counts(ptr+2, &min, &max, errorptr, &compile_block);
+        if (*errorptr != NULL) goto PCRE_ERROR_RETURN;
+        if ((min == 0 && (max == 1 || max == -1)) ||
+          (min == 1 && max == -1))
+            length++;
+        else length += 5;
+        if (ptr[1] == '?') ptr++;
         }
-    }
+      }
+    continue;
 
-    /*
-     * now do the renegotiation if anything was actually reconfigured
-     */
-    if (renegotiate) {
-        /*
-         * Now we force the SSL renegotation by sending the Hello Request
-         * message to the client. Here we have to do a workaround: Actually
-         * OpenSSL returns immediately after sending the Hello Request (the
-         * intent AFAIK is because the SSL/TLS protocol says it's not a must
-         * that the client replies to a Hello Request). But because we insist
-         * on a reply (anything else is an error for us) we have to go to the
-         * ACCEPT state manually. Using SSL_set_accept_state() doesn't work
-         * here because it resets too much of the connection.  So we set the
-         * state explicitly and continue the handshake manually.
-         */
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "Requesting connection re-negotiation");
+    case '^':
+    case '.':
+    case '$':
+    case '*':     /* These repeats won't be after brackets; */
+    case '+':     /* those are handled separately */
+    case '?':
+    length++;
+    continue;
 
-        if (renegotiate_quick) {
-            STACK_OF(X509) *cert_stack;
+    /* This covers the cases of repeats after a single char, metachar, class,
+    or back reference. */
 
-            /* perform just a manual re-verification of the peer */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Performing quick renegotiation: "
-                         "just re-verifying the peer");
+    case '{':
+    if (!is_counted_repeat(ptr+1, &compile_block)) goto NORMAL_CHAR;
+    ptr = read_repeat_counts(ptr+1, &min, &max, errorptr, &compile_block);
+    if (*errorptr != NULL) goto PCRE_ERROR_RETURN;
+    if ((min == 0 && (max == 1 || max == -1)) ||
+      (min == 1 && max == -1))
+        length++;
+    else
+      {
+      length--;   /* Uncount the original char or metachar */
+      if (min == 1) length++; else if (min > 0) length += 4;
+      if (max > 0) length += 4; else length += 2;
+      }
+    if (ptr[1] == '?') ptr++;
+    continue;
 
-            cert_stack = (STACK_OF(X509) *)SSL_get_peer_cert_chain(ssl);
+    /* An alternation contains an offset to the next branch or ket. If any ims
+    options changed in the previous branch(es), and/or if we are in a
+    lookbehind assertion, extra space will be needed at the start of the
+    branch. This is handled by branch_extra. */
 
-            cert = SSL_get_peer_certificate(ssl);
+    case '|':
+    length += 3 + branch_extra;
+    continue;
 
-            if (!cert_stack && cert) {
-                /* client cert is in the session cache, but there is
-                 * no chain, since ssl3_get_client_certificate()
-                 * sk_X509_shift-ed the peer cert out of the chain.
-                 * we put it back here for the purpose of quick_renegotiation.
-                 */
-                cert_stack = sk_new_null();
-                sk_X509_push(cert_stack, MODSSL_PCHAR_CAST cert);
-            }
+    /* A character class uses 33 characters. Don't worry about character types
+    that aren't allowed in classes - they'll get picked up during the compile.
+    A character class that contains only one character uses 2 or 3 bytes,
+    depending on whether it is negated or not. Notice this where we can. */
 
-            if (!cert_stack || (sk_X509_num(cert_stack) == 0)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Cannot find peer certificate chain");
+    case '[':
+    class_charcount = 0;
+    if (*(++ptr) == '^') ptr++;
+    do
+      {
+      if (*ptr == '\\')
+        {
+        int ch = check_escape(&ptr, errorptr, bracount, options, TRUE,
+          &compile_block);
+        if (*errorptr != NULL) goto PCRE_ERROR_RETURN;
+        if (-ch == ESC_b) class_charcount++; else class_charcount = 10;
+        }
+      else class_charcount++;
+      ptr++;
+      }
+    while (*ptr != 0 && *ptr != ']');
 
-                return HTTP_FORBIDDEN;
-            }
+    /* Repeats for negated single chars are handled by the general code */
 
-            if (!(cert_store ||
-                  (cert_store = SSL_CTX_get_cert_store(ctx))))
+    if (class_charcount == 1) length += 3; else
+      {
+      length += 33;
+
+      /* A repeat needs either 1 or 5 bytes. */
+
+      if (*ptr != 0 && ptr[1] == '{' && is_counted_repeat(ptr+2, &compile_block))
+        {
+        ptr = read_repeat_counts(ptr+2, &min, &max, errorptr, &compile_block);
+        if (*errorptr != NULL) goto PCRE_ERROR_RETURN;
+        if ((min == 0 && (max == 1 || max == -1)) ||
+          (min == 1 && max == -1))
+            length++;
+        else length += 5;
+        if (ptr[1] == '?') ptr++;
+        }
+      }
+    continue;
+
+    /* Brackets may be genuine groups or special things */
+
+    case '(':
+    branch_newextra = 0;
+    bracket_length = 3;
+
+    /* Handle special forms of bracket, which all start (? */
+
+    if (ptr[1] == '?')
+      {
+      int set, unset;
+      int *optset;
+
+      switch (c = ptr[2])
+        {
+        /* Skip over comments entirely */
+        case '#':
+        ptr += 3;
+        while (*ptr != 0 && *ptr != ')') ptr++;
+        if (*ptr == 0)
+          {
+          *errorptr = ERR18;
+          goto PCRE_ERROR_RETURN;
+          }
+        continue;
+
+        /* Non-referencing groups and lookaheads just move the pointer on, and
+        then behave like a non-special bracket, except that they don't increment
+        the count of extracting brackets. Ditto for the "once only" bracket,
+        which is in Perl from version 5.005. */
+
+        case ':':
+        case '=':
+        case '!':
+        case '>':
+        ptr += 2;
+        break;
+
+        /* A recursive call to the regex is an extension, to provide the
+        facility which can be obtained by $(?p{perl-code}) in Perl 5.6. */
+
+        case 'R':
+        if (ptr[3] != ')')
+          {
+          *errorptr = ERR29;
+          goto PCRE_ERROR_RETURN;
+          }
+        ptr += 3;
+        length += 1;
+        break;
+
+        /* Lookbehinds are in Perl from version 5.005 */
+
+        case '<':
+        if (ptr[3] == '=' || ptr[3] == '!')
+          {
+          ptr += 3;
+          branch_newextra = 3;
+          length += 3;         /* For the first branch */
+          break;
+          }
+        *errorptr = ERR24;
+        goto PCRE_ERROR_RETURN;
+
+        /* Conditionals are in Perl from version 5.005. The bracket must either
+        be followed by a number (for bracket reference) or by an assertion
+        group. */
+
+        case '(':
+        if ((compile_block.ctypes[ptr[3]] & ctype_digit) != 0)
+          {
+          ptr += 4;
+          length += 3;
+          while ((compile_block.ctypes[*ptr] & ctype_digit) != 0) ptr++;
+          if (*ptr != ')')
             {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Cannot find certificate storage");
-
-                return HTTP_FORBIDDEN;
+            *errorptr = ERR26;
+            goto PCRE_ERROR_RETURN;
             }
-
-            if (!cert) {
-                cert = sk_X509_value(cert_stack, 0);
+          }
+        else   /* An assertion must follow */
+          {
+          ptr++;   /* Can treat like ':' as far as spacing is concerned */
+          if (ptr[2] != '?' ||
+             (ptr[3] != '=' && ptr[3] != '!' && ptr[3] != '<') )
+            {
+            ptr += 2;    /* To get right offset in message */
+            *errorptr = ERR28;
+            goto PCRE_ERROR_RETURN;
             }
+          }
+        break;
 
-            X509_STORE_CTX_init(&cert_store_ctx, cert_store, cert, cert_stack);
-            depth = SSL_get_verify_depth(ssl);
+        /* Else loop checking valid options until ) is met. Anything else is an
+        error. If we are without any brackets, i.e. at top level, the settings
+        act as if specified in the options, so massage the options immediately.
+        This is for backward compatibility with Perl 5.004. */
 
-            if (depth >= 0) {
-                X509_STORE_CTX_set_depth(&cert_store_ctx, depth);
+        default:
+        set = unset = 0;
+        optset = &set;
+        ptr += 2;
+
+        for (;; ptr++)
+          {
+          c = *ptr;
+          switch (c)
+            {
+            case 'i':
+            *optset |= PCRE_CASELESS;
+            continue;
+
+            case 'm':
+            *optset |= PCRE_MULTILINE;
+            continue;
+
+            case 's':
+            *optset |= PCRE_DOTALL;
+            continue;
+
+            case 'x':
+            *optset |= PCRE_EXTENDED;
+            continue;
+
+            case 'X':
+            *optset |= PCRE_EXTRA;
+            continue;
+
+            case 'U':
+            *optset |= PCRE_UNGREEDY;
+            continue;
+
+            case '-':
+            optset = &unset;
+            continue;
+
+            /* A termination by ')' indicates an options-setting-only item;
+            this is global at top level; otherwise nothing is done here and
+            it is handled during the compiling process on a per-bracket-group
+            basis. */
+
+            case ')':
+            if (brastackptr == 0)
+              {
+              options = (options | set) & (~unset);
+              set = unset = 0;     /* To save length */
+              }
+            /* Fall through */
+
+            /* A termination by ':' indicates the start of a nested group with
+            the given options set. This is again handled at compile time, but
+            we must allow for compiled space if any of the ims options are
+            set. We also have to allow for resetting space at the end of
+            the group, which is why 4 is added to the length and not just 2.
+            If there are several changes of options within the same group, this
+            will lead to an over-estimate on the length, but this shouldn't
+            matter very much. We also have to allow for resetting options at
+            the start of any alternations, which we do by setting
+            branch_newextra to 2. Finally, we record whether the case-dependent
+            flag ever changes within the regex. This is used by the "required
+            character" code. */
+
+            case ':':
+            if (((set|unset) & PCRE_IMS) != 0)
+              {
+              length += 4;
+              branch_newextra = 2;
+              if (((set|unset) & PCRE_CASELESS) != 0) options |= PCRE_ICHANGED;
+              }
+            goto END_OPTIONS;
+
+            /* Unrecognized option character */
+
+            default:
+            *errorptr = ERR12;
+            goto PCRE_ERROR_RETURN;
             }
+          }
 
-            X509_STORE_CTX_set_ex_data(&cert_store_ctx,
-                                       SSL_get_ex_data_X509_STORE_CTX_idx(),
-                                       (char *)ssl);
+        /* If we hit a closing bracket, that's it - this is a freestanding
+        option-setting. We need to ensure that branch_extra is updated if
+        necessary. The only values branch_newextra can have here are 0 or 2.
+        If the value is 2, then branch_extra must either be 2 or 5, depending
+        on whether this is a lookbehind group or not. */
 
-            if (!modssl_X509_verify_cert(&cert_store_ctx)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation verification step failed");
-                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
-            }
+        END_OPTIONS:
+        if (c == ')')
+          {
+          if (branch_newextra == 2 && (branch_extra == 0 || branch_extra == 3))
+            branch_extra += branch_newextra;
+          continue;
+          }
 
-            SSL_set_verify_result(ssl, cert_store_ctx.error);
-            X509_STORE_CTX_cleanup(&cert_store_ctx);
-
-            if (cert_stack != SSL_get_peer_cert_chain(ssl)) {
-                /* we created this ourselves, so free it */
-                sk_X509_pop_free(cert_stack, X509_free);
-            }
+        /* If options were terminated by ':' control comes here. Fall through
+        to handle the group below. */
         }
-        else {
-            request_rec *id = r->main ? r->main : r;
+      }
 
-            /* do a full renegotiation */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Performing full renegotiation: "
-                         "complete handshake protocol");
+    /* Extracting brackets must be counted so we can process escapes in a
+    Perlish way. If the number exceeds EXTRACT_BASIC_MAX we are going to
+    need an additional 3 bytes of store per extracting bracket. */
 
-            SSL_set_session_id_context(ssl,
-                                       (unsigned char *)&id,
-                                       sizeof(id));
+    else
+      {
+      bracount++;
+      if (bracount > EXTRACT_BASIC_MAX) bracket_length += 3;
+      }
 
-            SSL_renegotiate(ssl);
-            SSL_do_handshake(ssl);
+    /* Save length for computing whole length at end if there's a repeat that
+    requires duplication of the group. Also save the current value of
+    branch_extra, and start the new group with the new value. If non-zero, this
+    will either be 2 for a (?imsx: group, or 3 for a lookbehind assertion. */
 
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation request failed");
+    if (brastackptr >= sizeof(brastack)/sizeof(int))
+      {
+      *errorptr = ERR19;
+      goto PCRE_ERROR_RETURN;
+      }
 
-                r->connection->aborted = 1;
-                return HTTP_FORBIDDEN;
-            }
+    bralenstack[brastackptr] = branch_extra;
+    branch_extra = branch_newextra;
 
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Awaiting re-negotiation handshake");
+    brastack[brastackptr++] = length;
+    length += bracket_length;
+    continue;
 
-            /* XXX: Should replace SSL_set_state with SSL_renegotiate(ssl);
-             * However, this causes failures in perl-framework currently,
-             * perhaps pre-test if we have already negotiated?
-             */
-            SSL_set_state(ssl, SSL_ST_ACCEPT);
-            SSL_do_handshake(ssl);
+    /* Handle ket. Look for subsequent max/min; for certain sets of values we
+    have to replicate this bracket up to that many times. If brastackptr is
+    0 this is an unmatched bracket which will generate an error, but take care
+    not to try to access brastack[-1] when computing the length and restoring
+    the branch_extra value. */
 
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation handshake failed: "
-                        "Not accepted by client!?");
+    case ')':
+    length += 3;
+      {
+      int minval = 1;
+      int maxval = 1;
+      int duplength;
 
-                r->connection->aborted = 1;
-                return HTTP_FORBIDDEN;
-            }
+      if (brastackptr > 0)
+        {
+        duplength = length - brastack[--brastackptr];
+        branch_extra = bralenstack[brastackptr];
+        }
+      else duplength = 0;
+
+      /* Leave ptr at the final char; for read_repeat_counts this happens
+      automatically; for the others we need an increment. */
+
+      if ((c = ptr[1]) == '{' && is_counted_repeat(ptr+2, &compile_block))
+        {
+        ptr = read_repeat_counts(ptr+2, &minval, &maxval, errorptr,
+          &compile_block);
+        if (*errorptr != NULL) goto PCRE_ERROR_RETURN;
+        }
+      else if (c == '*') { minval = 0; maxval = -1; ptr++; }
+      else if (c == '+') { maxval = -1; ptr++; }
+      else if (c == '?') { minval = 0; ptr++; }
+
+      /* If the minimum is zero, we have to allow for an OP_BRAZERO before the
+      group, and if the maximum is greater than zero, we have to replicate
+      maxval-1 times; each replication acquires an OP_BRAZERO plus a nesting
+      bracket set - hence the 7. */
+
+      if (minval == 0)
+        {
+        length++;
+        if (maxval > 0) length += (maxval - 1) * (duplength + 7);
         }
 
-        /*
-         * Remember the peer certificate's DN
-         */
-        if ((cert = SSL_get_peer_certificate(ssl))) {
-            if (sslconn->client_cert) {
-                X509_free(sslconn->client_cert);
-            }
-            sslconn->client_cert = cert;
-            sslconn->client_dn = NULL;
+      /* When the minimum is greater than zero, 1 we have to replicate up to
+      minval-1 times, with no additions required in the copies. Then, if
+      there is a limited maximum we have to replicate up to maxval-1 times
+      allowing for a BRAZERO item before each optional copy and nesting
+      brackets for all but one of the optional copies. */
+
+      else
+        {
+        length += (minval - 1) * duplength;
+        if (maxval > minval)   /* Need this test as maxval=-1 means no limit */
+          length += (maxval - minval) * (duplength + 7) - 6;
+        }
+      }
+    continue;
+
+    /* Non-special character. For a run of such characters the length required
+    is the number of characters + 2, except that the maximum run length is 255.
+    We won't get a skipped space or a non-data escape or the start of a #
+    comment as the first character, so the length can't be zero. */
+
+    NORMAL_CHAR:
+    default:
+    length += 2;
+    runlength = 0;
+    do
+      {
+      if ((options & PCRE_EXTENDED) != 0)
+        {
+        if ((compile_block.ctypes[c] & ctype_space) != 0) continue;
+        if (c == '#')
+          {
+          /* The space before the ; is to avoid a warning on a silly compiler
+          on the Macintosh. */
+          while ((c = *(++ptr)) != 0 && c != NEWLINE) ;
+          continue;
+          }
         }
 
-        /*
-         * Finally check for acceptable renegotiation results
-         */
-        if (dc->nVerifyClient != SSL_CVERIFY_NONE) {
-            BOOL do_verify = (dc->nVerifyClient == SSL_CVERIFY_REQUIRE);
+      /* Backslash may introduce a data char or a metacharacter; stop the
+      string before the latter. */
 
-            if (do_verify && (SSL_get_verify_result(ssl) != X509_V_OK)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation handshake failed: "
-                             "Client verification failed");
+      if (c == '\\')
+        {
+        const uschar *saveptr = ptr;
+        c = check_escape(&ptr, errorptr, bracount, options, FALSE,
+          &compile_block);
+        if (*errorptr != NULL) goto PCRE_ERROR_RETURN;
+        if (c < 0) { ptr = saveptr; break; }
 
-                return HTTP_FORBIDDEN;
-            }
-
-            if (do_verify) {
-                if ((peercert = SSL_get_peer_certificate(ssl)) == NULL) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                                 "Re-negotiation handshake failed: "
-                                 "Client certificate missing");
-
-                    return HTTP_FORBIDDEN;
-                }
-
-                X509_free(peercert);
-            }
+#ifdef SUPPORT_UTF8
+        if (c > 127 && (options & PCRE_UTF8) != 0)
+          {
+          int i;
+          for (i = 0; i < sizeof(utf8_table1)/sizeof(int); i++)
+            if (c <= utf8_table1[i]) break;
+          runlength += i;
+          }
+#endif
         }
 
-        /*
-         * Also check that SSLCipherSuite has been enforced as expected.
-         */
-        if (cipher_list) {
-            cipher = SSL_get_current_cipher(ssl);
-            if (sk_SSL_CIPHER_find(cipher_list, cipher) < 0) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                             "SSL cipher suite not renegotiated: "
-                             "access to %s denied using cipher %s",
-                              r->filename,
-                              SSL_CIPHER_get_name(cipher));
-                return HTTP_FORBIDDEN;
-            }
-        }
+      /* Ordinary character or single-char escape */
+
+      runlength++;
+      }
+
+    /* This "while" is the end of the "do" above. */
+
+    while (runlength < MAXLIT &&
+      (compile_block.ctypes[c = *(++ptr)] & ctype_meta) == 0);
+
+    ptr--;
+    length += runlength;
+    continue;
+    }
+  }
+
+length += 4;    /* For final KET and END */
+
+if (length > 65539)
+  {
+  *errorptr = ERR20;
+  return NULL;
+  }
+
+/* Compute the size of data block needed and get it, either from malloc or
+externally provided function. We specify "code[0]" in the offsetof() expression
+rather than just "code", because it has been reported that one broken compiler
+fails on "code" because it is also an independent variable. It should make no
+difference to the value of the offsetof(). */
+
+size = length + offsetof(real_pcre, code[0]);
+re = (real_pcre *)(pcre_malloc)(size);
+
+if (re == NULL)
+  {
+  *errorptr = ERR21;
+  return NULL;
+  }
+
+/* Put in the magic number, and save the size, options, and table pointer */
+
+re->magic_number = MAGIC_NUMBER;
+re->size = size;
+re->options = options;
+re->tables = tables;
+
+/* Set up a starting, non-extracting bracket, then compile the expression. On
+error, *errorptr will be set non-NULL, so we don't need to look at the result
+of the function here. */
+
+ptr = (const uschar *)pattern;
+code = re->code;
+*code = OP_BRA;
+bracount = 0;
+(void)compile_regex(options, -1, &bracount, &code, &ptr, errorptr, FALSE, 0,
+  &reqchar, &countlits, &compile_block);
+re->top_bracket = bracount;
+re->top_backref = top_backref;
+
+/* If not reached end of pattern on success, there's an excess bracket. */
+
+if (*errorptr == NULL && *ptr != 0) *errorptr = ERR22;
+
+/* Fill in the terminating state and check for disastrous overflow, but
+if debugging, leave the test till after things are printed out. */
+
+*code++ = OP_END;
+
+#ifndef DEBUG
+if (code - re->code > length) *errorptr = ERR23;
+#endif
+
+/* Give an error if there's back reference to a non-existent capturing
+subpattern. */
+
+if (top_backref > re->top_bracket) *errorptr = ERR15;
+
+/* Failed to compile */
+
+if (*errorptr != NULL)
+  {
+  (pcre_free)(re);
+  PCRE_ERROR_RETURN:
+  *erroroffset = ptr - (const uschar *)pattern;
+  return NULL;
+  }
+
+/* If the anchored option was not passed, set flag if we can determine that the
+pattern is anchored by virtue of ^ characters or \A or anything else (such as
+starting with .* when DOTALL is set).
+
+Otherwise, see if we can determine what the first character has to be, because
+that speeds up unanchored matches no end. If not, see if we can set the
+PCRE_STARTLINE flag. This is helpful for multiline matches when all branches
+start with ^. and also when all branches start with .* for non-DOTALL matches.
+*/
+
+if ((options & PCRE_ANCHORED) == 0)
+  {
+  int temp_options = options;
+  if (is_anchored(re->code, &temp_options))
+    re->options |= PCRE_ANCHORED;
+  else
+    {
+    int ch = find_firstchar(re->code, &temp_options);
+    if (ch >= 0)
+      {
+      re->first_char = ch;
+      re->options |= PCRE_FIRSTSET;
+      }
+    else if (is_startline(re->code))
+      re->options |= PCRE_STARTLINE;
+    }
+  }
+
+/* Save the last required character if there are at least two literal
+characters on all paths, or if there is no first character setting. */
+
+if (reqchar >= 0 && (countlits > 1 || (re->options & PCRE_FIRSTSET) == 0))
+  {
+  re->req_char = reqchar;
+  re->options |= PCRE_REQCHSET;
+  }
+
+/* Print out the compiled data for debugging */
+
+#ifdef DEBUG
+
+printf("Length = %d top_bracket = %d top_backref = %d\n",
+  length, re->top_bracket, re->top_backref);
+
+if (re->options != 0)
+  {
+  printf("%s%s%s%s%s%s%s%s%s\n",
+    ((re->options & PCRE_ANCHORED) != 0)? "anchored " : "",
+    ((re->options & PCRE_CASELESS) != 0)? "caseless " : "",
+    ((re->options & PCRE_ICHANGED) != 0)? "case state changed " : "",
+    ((re->options & PCRE_EXTENDED) != 0)? "extended " : "",
+    ((re->options & PCRE_MULTILINE) != 0)? "multiline " : "",
+    ((re->options & PCRE_DOTALL) != 0)? "dotall " : "",
+    ((re->options & PCRE_DOLLAR_ENDONLY) != 0)? "endonly " : "",
+    ((re->options & PCRE_EXTRA) != 0)? "extra " : "",
+    ((re->options & PCRE_UNGREEDY) != 0)? "ungreedy " : "");
+  }
+
+if ((re->options & PCRE_FIRSTSET) != 0)
+  {
+  if (isprint(re->first_char)) printf("First char = %c\n", re->first_char);
+    else printf("First char = \\x%02x\n", re->first_char);
+  }
+
+if ((re->options & PCRE_REQCHSET) != 0)
+  {
+  if (isprint(re->req_char)) printf("Req char = %c\n", re->req_char);
+    else printf("Req char = \\x%02x\n", re->req_char);
+  }
+
+code_end = code;
+code_base = code = re->code;
+
+while (code < code_end)
+  {
+  int charlength;
+
+  printf("%3d ", code - code_base);
+
+  if (*code >= OP_BRA)
+    {
+    if (*code - OP_BRA > EXTRACT_BASIC_MAX)
+      printf("%3d Bra extra", (code[1] << 8) + code[2]);
+    else
+      printf("%3d Bra %d", (code[1] << 8) + code[2], *code - OP_BRA);
+    code += 2;
     }
 
-    /* If we're trying to have the user name set from a client
-     * certificate then we need to set it here. This should be safe as
-     * the user name probably isn't important from an auth checking point
-     * of view as the certificate supplied acts in that capacity.
-     * However, if FakeAuth is being used then this isn't the case so
-     * we need to postpone setting the username until later.
-     */
-    if ((dc->nOptions & SSL_OPT_FAKEBASICAUTH) == 0 && dc->szUserName) {
-        char *val = ssl_var_lookup(r->pool, r->server, r->connection,
-                                   r, (char *)dc->szUserName);
-        if (val && val[0])
-            r->user = val;
+  else switch(*code)
+    {
+    case OP_OPT:
+    printf(" %.2x %s", code[1], OP_names[*code]);
+    code++;
+    break;
+
+    case OP_CHARS:
+    charlength = *(++code);
+    printf("%3d ", charlength);
+    while (charlength-- > 0)
+      if (isprint(c = *(++code))) printf("%c", c); else printf("\\x%02x", c);
+    break;
+
+    case OP_KETRMAX:
+    case OP_KETRMIN:
+    case OP_ALT:
+    case OP_KET:
+    case OP_ASSERT:
+    case OP_ASSERT_NOT:
+    case OP_ASSERTBACK:
+    case OP_ASSERTBACK_NOT:
+    case OP_ONCE:
+    case OP_REVERSE:
+    case OP_BRANUMBER:
+    case OP_COND:
+    case OP_CREF:
+    printf("%3d %s", (code[1] << 8) + code[2], OP_names[*code]);
+    code += 2;
+    break;
+
+    case OP_STAR:
+    case OP_MINSTAR:
+    case OP_PLUS:
+    case OP_MINPLUS:
+    case OP_QUERY:
+    case OP_MINQUERY:
+    case OP_TYPESTAR:
+    case OP_TYPEMINSTAR:
+    case OP_TYPEPLUS:
+    case OP_TYPEMINPLUS:
+    case OP_TYPEQUERY:
+    case OP_TYPEMINQUERY:
+    if (*code >= OP_TYPESTAR)
+      printf("    %s", OP_names[code[1]]);
+    else if (isprint(c = code[1])) printf("    %c", c);
+      else printf("    \\x%02x", c);
+    printf("%s", OP_names[*code++]);
+    break;
+
+    case OP_EXACT:
+    case OP_UPTO:
+    case OP_MINUPTO:
+    if (isprint(c = code[3])) printf("    %c{", c);
+      else printf("    \\x%02x{", c);
+    if (*code != OP_EXACT) printf("0,");
+    printf("%d}", (code[1] << 8) + code[2]);
+    if (*code == OP_MINUPTO) printf("?");
+    code += 3;
+    break;
+
+    case OP_TYPEEXACT:
+    case OP_TYPEUPTO:
+    case OP_TYPEMINUPTO:
+    printf("    %s{", OP_names[code[3]]);
+    if (*code != OP_TYPEEXACT) printf(",");
+    printf("%d}", (code[1] << 8) + code[2]);
+    if (*code == OP_TYPEMINUPTO) printf("?");
+    code += 3;
+    break;
+
+    case OP_NOT:
+    if (isprint(c = *(++code))) printf("    [^%c]", c);
+      else printf("    [^\\x%02x]", c);
+    break;
+
+    case OP_NOTSTAR:
+    case OP_NOTMINSTAR:
+    case OP_NOTPLUS:
+    case OP_NOTMINPLUS:
+    case OP_NOTQUERY:
+    case OP_NOTMINQUERY:
+    if (isprint(c = code[1])) printf("    [^%c]", c);
+      else printf("    [^\\x%02x]", c);
+    printf("%s", OP_names[*code++]);
+    break;
+
+    case OP_NOTEXACT:
+    case OP_NOTUPTO:
+    case OP_NOTMINUPTO:
+    if (isprint(c = code[3])) printf("    [^%c]{", c);
+      else printf("    [^\\x%02x]{", c);
+    if (*code != OP_NOTEXACT) printf(",");
+    printf("%d}", (code[1] << 8) + code[2]);
+    if (*code == OP_NOTMINUPTO) printf("?");
+    code += 3;
+    break;
+
+    case OP_REF:
+    printf("    \\%d", (code[1] << 8) | code[2]);
+    code += 3;
+    goto CLASS_REF_REPEAT;
+
+    case OP_CLASS:
+      {
+      int i, min, max;
+      code++;
+      printf("    [");
+
+      for (i = 0; i < 256; i++)
+        {
+        if ((code[i/8] & (1 << (i&7))) != 0)
+          {
+          int j;
+          for (j = i+1; j < 256; j++)
+            if ((code[j/8] & (1 << (j&7))) == 0) break;
+          if (i == '-' || i == ']') printf("\\");
+          if (isprint(i)) printf("%c", i); else printf("\\x%02x", i);
+          if (--j > i)
+            {
+            printf("-");
+            if (j == '-' || j == ']') printf("\\");
+            if (isprint(j)) printf("%c", j); else printf("\\x%02x", j);
+            }
+          i = j;
+          }
+        }
+      printf("]");
+      code += 32;
+
+      CLASS_REF_REPEAT:
+
+      switch(*code)
+        {
+        case OP_CRSTAR:
+        case OP_CRMINSTAR:
+        case OP_CRPLUS:
+        case OP_CRMINPLUS:
+        case OP_CRQUERY:
+        case OP_CRMINQUERY:
+        printf("%s", OP_names[*code]);
+        break;
+
+        case OP_CRRANGE:
+        case OP_CRMINRANGE:
+        min = (code[1] << 8) + code[2];
+        max = (code[3] << 8) + code[4];
+        if (max == 0) printf("{%d,}", min);
+        else printf("{%d,%d}", min, max);
+        if (*code == OP_CRMINRANGE) printf("?");
+        code += 4;
+        break;
+
+        default:
+        code--;
+        }
+      }
+    break;
+
+    /* Anything else is just a one-node item */
+
+    default:
+    printf("    %s", OP_names[*code]);
+    break;
     }
 
-    /*
-     * Check SSLRequire boolean expressions
-     */
-    requires = dc->aRequirement;
-    ssl_requires = (ssl_require_t *)requires->elts;
+  code++;
+  printf("\n");
+  }
+printf("------------------------------------------------------------------\n");
 
-    for (i = 0; i < requires->nelts; i++) {
-        ssl_require_t *req = &ssl_requires[i];
-        ok = ssl_expr_exec(r, req->mpExpr);
+/* This check is done here in the debugging case so that the code that
+was compiled can be seen. */
 
-        if (ok < 0) {
-            cp = apr_psprintf(r->pool,
-                              "Failed to execute "
-                              "SSL requirement expression: %s",
-                              ssl_expr_get_error());
+if (code - re->code > length)
+  {
+  *errorptr = ERR23;
+  (pcre_free)(re);
+  *erroroffset = ptr - (uschar *)pattern;
+  return NULL;
+  }
+#endif
 
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "access to %s failed, reason: %s",
-                          r->filename, cp);
-
-            /* remember forbidden access for strict require option */
-            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
-
-            return HTTP_FORBIDDEN;
-        }
-
-        if (ok != 1) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Access to %s denied for %s "
-                         "(requirement expression not fulfilled)",
-                         r->filename, r->connection->remote_ip);
-
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Failed expression: %s", req->cpExpr);
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "access to %s failed, reason: %s",
-                          r->filename,
-                          "SSL requirement expression not fulfilled "
-                          "(see SSL logfile for more details)");
-
-            /* remember forbidden access for strict require option */
-            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
-
-            return HTTP_FORBIDDEN;
-        }
-    }
-
-    /*
-     * Else access is granted from our point of view (except vendor
-     * handlers override). But we have to return DECLINED here instead
-     * of OK, because mod_auth and other modules still might want to
-     * deny access.
-     */
-
-    return DECLINED;
+return (pcre *)re;
 }

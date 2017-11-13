@@ -1,1 +1,1 @@
-fprintf(stderr,"mapped %s of size %d\n",fname,(int)st.st_size);
+fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);

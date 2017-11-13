@@ -1,70 +1,34 @@
-static authz_status lua_authz_check(request_rec *r, const char *require_line,
-                                    const void *parsed_require_line)
+static int on_header_cb(nghttp2_session *ngh2, const nghttp2_frame *frame,
+                        const uint8_t *name, size_t namelen,
+                        const uint8_t *value, size_t valuelen,
+                        uint8_t flags,
+                        void *userp)
 {
-    apr_pool_t *pool;
-    ap_lua_vm_spec *spec;
-    lua_State *L;
-    ap_lua_server_cfg *server_cfg = ap_get_module_config(r->server->module_config,
-                                                         &lua_module);
-    const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
-                                                     &lua_module);
-    const lua_authz_provider_spec *prov_spec = parsed_require_line;
-    int result;
-    int nargs = 0;
-
-    spec = create_vm_spec(&pool, r, cfg, server_cfg, prov_spec->file_name,
-                          NULL, 0, prov_spec->function_name, "authz provider");
-
-    L = ap_lua_get_lua_state(pool, spec);
-    if (L == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02314)
-                      "Unable to compile VM for authz provider %s", prov_spec->name);
-        return AUTHZ_GENERAL_ERROR;
+    h2_session *session = (h2_session *)userp;
+    h2_stream * stream;
+    apr_status_t status;
+    
+    (void)ngh2;
+    (void)flags;
+    if (!is_accepting_streams(session)) {
+        /* just ignore */
+        return 0;
     }
-    lua_getglobal(L, prov_spec->function_name);
-    if (!lua_isfunction(L, -1)) {
-        ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02319)
-                      "Unable to find function %s in %s",
-                      prov_spec->function_name, prov_spec->file_name);
-        return AUTHZ_GENERAL_ERROR;
+    
+    stream = h2_session_get_stream(session, frame->hd.stream_id);
+    if (!stream) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02920) 
+                      "h2_session:  stream(%ld-%d): on_header for unknown stream",
+                      session->id, (int)frame->hd.stream_id);
+        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
     }
-    ap_lua_run_lua_request(L, r);
-    if (prov_spec->args) {
-        int i;
-        if (!lua_checkstack(L, prov_spec->args->nelts)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02315)
-                          "Error: authz provider %s: too many arguments", prov_spec->name);
-            return AUTHZ_GENERAL_ERROR;
-        }
-        for (i = 0; i < prov_spec->args->nelts; i++) {
-            const char *arg = APR_ARRAY_IDX(prov_spec->args, i, const char *);
-            lua_pushstring(L, arg);
-        }
-        nargs = prov_spec->args->nelts;
+    
+    status = h2_stream_add_header(stream, (const char *)name, namelen,
+                                  (const char *)value, valuelen);
+                                    
+    if (status != APR_SUCCESS) {
+        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
     }
-    if (lua_pcall(L, 1 + nargs, 1, 0)) {
-        const char *err = lua_tostring(L, -1);
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02316)
-                      "Error executing authz provider %s: %s", prov_spec->name, err);
-        return AUTHZ_GENERAL_ERROR;
-    }
-    if (!lua_isnumber(L, -1)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02317)
-                      "Error: authz provider %s did not return integer", prov_spec->name);
-        return AUTHZ_GENERAL_ERROR;
-    }
-    result = lua_tointeger(L, -1);
-    switch (result) {
-        case AUTHZ_DENIED:
-        case AUTHZ_GRANTED:
-        case AUTHZ_NEUTRAL:
-        case AUTHZ_GENERAL_ERROR:
-        case AUTHZ_DENIED_NO_USER:
-            return result;
-        default:
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02318)
-                          "Error: authz provider %s: invalid return value %d",
-                          prov_spec->name, result);
-    }
-    return AUTHZ_GENERAL_ERROR;
+    return 0;
 }

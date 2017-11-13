@@ -1,2 +1,2 @@
-ap_rvputs(r, "      <httpd:stickysession>", balancer->s->sticky,
-                          "</httpd:stickysession>\n", NULL);
+ap_rvputs(r, "      <httpd:lbmethod>", balancer->lbmethod->name,
+                      "</httpd:lbmethod>\n", NULL);

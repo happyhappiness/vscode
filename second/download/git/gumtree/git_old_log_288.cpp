@@ -1,1 +1,1 @@
-error(_("Unknown subcommand: %s"), argv[0]);
+fprintf(stderr, "Applied patch to '%s' with conflicts.\n", patch->new_name);

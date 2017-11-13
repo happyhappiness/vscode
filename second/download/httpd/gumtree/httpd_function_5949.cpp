@@ -1,78 +1,113 @@
-apr_status_t h2_response_output_filter(ap_filter_t *f, apr_bucket_brigade *bb)
+static int wd_post_config_hook(apr_pool_t *pconf, apr_pool_t *plog,
+                               apr_pool_t *ptemp, server_rec *s)
 {
-    h2_task *task = f->ctx;
-    h2_from_h1 *from_h1 = task->output.from_h1;
-    request_rec *r = f->r;
-    apr_bucket *b;
-    ap_bucket_error *eb = NULL;
+    apr_status_t rv;
+    const char *pk = "watchdog_init_module_tag";
+    apr_pool_t *pproc = s->process->pool;
+    const apr_array_header_t *wl;
 
-    AP_DEBUG_ASSERT(from_h1 != NULL);
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_from_h1(%d): output_filter called", from_h1->stream_id);
-    
-    if (r->header_only && from_h1->response) {
-        /* throw away any data after we have compiled the response */
-        apr_brigade_cleanup(bb);
+    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG)
+        /* First time config phase -- skip. */
         return OK;
+
+    apr_pool_userdata_get((void *)&wd_server_conf, pk, pproc);
+    if (!wd_server_conf) {
+        if (!(wd_server_conf = apr_pcalloc(pproc, sizeof(wd_server_conf_t))))
+            return APR_ENOMEM;
+        apr_pool_create(&wd_server_conf->pool, pproc);
+        apr_pool_userdata_set(wd_server_conf, pk, apr_pool_cleanup_null, pproc);
     }
-    
-    for (b = APR_BRIGADE_FIRST(bb);
-         b != APR_BRIGADE_SENTINEL(bb);
-         b = APR_BUCKET_NEXT(b))
-    {
-        if (AP_BUCKET_IS_ERROR(b) && !eb) {
-            eb = b->data;
-            continue;
+    wd_server_conf->s = s;
+    if ((wl = ap_list_provider_names(pconf, AP_WATCHDOG_PGROUP,
+                                            AP_WATCHDOG_PVERSION))) {
+        const ap_list_provider_names_t *wn;
+        int i;
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02974)
+                "Watchdog: found parent providers.");
+
+        wn = (ap_list_provider_names_t *)wl->elts;
+        for (i = 0; i < wl->nelts; i++) {
+            ap_watchdog_t *w = ap_lookup_provider(AP_WATCHDOG_PGROUP,
+                                                  wn[i].provider_name,
+                                                  AP_WATCHDOG_PVERSION);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02975)
+                    "Watchdog: Looking for parent (%s).", wn[i].provider_name);
+            if (w) {
+                if (!w->active) {
+                    int status = ap_run_watchdog_need(s, w->name, 1,
+                                                      w->singleton);
+                    if (status == OK) {
+                        /* One of the modules returned OK to this watchog.
+                         * Mark it as active
+                         */
+                        w->active = 1;
+                    }
+                }
+                if (w->active) {
+                    /* We have active watchdog.
+                     * Create the watchdog thread
+                     */
+                    if ((rv = wd_startup(w, wd_server_conf->pool)) != APR_SUCCESS) {
+                        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01571)
+                                "Watchdog: Failed to create parent worker thread.");
+                        return rv;
+                    }
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(02976)
+                            "Watchdog: Created parent worker thread (%s).", w->name);
+                    wd_server_conf->parent_workers++;
+                }
+            }
         }
-        /*
-         * If we see an EOC bucket it is a signal that we should get out
-         * of the way doing nothing.
-         */
-        if (AP_BUCKET_IS_EOC(b)) {
-            ap_remove_output_filter(f);
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, f->c,
-                          "h2_from_h1(%d): eoc bucket passed", 
-                          from_h1->stream_id);
-            return ap_pass_brigade(f->next, bb);
+    }
+    if (wd_server_conf->parent_workers) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01572)
+                     "Spawned %d parent worker threads.",
+                     wd_server_conf->parent_workers);
+    }
+    if ((wl = ap_list_provider_names(pconf, AP_WATCHDOG_PGROUP,
+                                            AP_WATCHDOG_CVERSION))) {
+        const ap_list_provider_names_t *wn;
+        int i;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02977)
+                "Watchdog: found child providers.");
+
+        wn = (ap_list_provider_names_t *)wl->elts;
+        for (i = 0; i < wl->nelts; i++) {
+            ap_watchdog_t *w = ap_lookup_provider(AP_WATCHDOG_PGROUP,
+                                                  wn[i].provider_name,
+                                                  AP_WATCHDOG_CVERSION);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02978)
+                    "Watchdog: Looking for child (%s).", wn[i].provider_name);
+            if (w) {
+                if (!w->active) {
+                    int status = ap_run_watchdog_need(s, w->name, 0,
+                                                      w->singleton);
+                    if (status == OK) {
+                        /* One of the modules returned OK to this watchog.
+                         * Mark it as active
+                         */
+                        w->active = 1;
+                    }
+                }
+                if (w->active) {
+                    /* We have some callbacks registered.
+                     * Create mutexes for singleton watchdogs
+                     */
+                    if (w->singleton) {
+                        rv = ap_proc_mutex_create(&w->mutex, NULL, wd_proc_mutex_type,
+                                                  w->name, s,
+                                                  wd_server_conf->pool, 0);
+                        if (rv != APR_SUCCESS) {
+                            return rv;
+                        }
+                    }
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(02979)
+                            "Watchdog: Created child worker thread (%s).", w->name);
+                    wd_server_conf->child_workers++;
+                }
+            }
         }
     }
-    
-    if (eb) {
-        int st = eb->status;
-        apr_brigade_cleanup(bb);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03047)
-                      "h2_from_h1(%d): err bucket status=%d", 
-                      from_h1->stream_id, st);
-        ap_die(st, r);
-        return AP_FILTER_ERROR;
-    }
-    
-    from_h1->response = create_response(from_h1, r);
-    if (from_h1->response == NULL) {
-        ap_log_cerror(APLOG_MARK, APLOG_NOTICE, 0, f->c, APLOGNO(03048)
-                      "h2_from_h1(%d): unable to create response", 
-                      from_h1->stream_id);
-        return APR_ENOMEM;
-    }
-    
-    if (r->header_only) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_from_h1(%d): header_only, cleanup output brigade", 
-                      from_h1->stream_id);
-        apr_brigade_cleanup(bb);
-        return OK;
-    }
-    
-    r->sent_bodyct = 1;         /* Whatever follows is real body stuff... */
-    
-    ap_remove_output_filter(f);
-    if (APLOGctrace1(f->c)) {
-        apr_off_t len = 0;
-        apr_brigade_length(bb, 0, &len);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_from_h1(%d): removed header filter, passing brigade "
-                      "len=%ld", from_h1->stream_id, (long)len);
-    }
-    return ap_pass_brigade(f->next, bb);
+    return OK;
 }

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00390)
-                     "Child: Unable to reopen the scoreboard from the parent");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
+                      "coalesce: have %" APR_SIZE_T_FMT " bytes, "
+                      "adding %" APR_SIZE_T_FMT " more", ctx->bytes, bytes);

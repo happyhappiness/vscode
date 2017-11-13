@@ -1,1 +1,1 @@
-die("BUG: get_locked_file_path() called for malformed lock object");
+usage("git submodule--helper <command>");

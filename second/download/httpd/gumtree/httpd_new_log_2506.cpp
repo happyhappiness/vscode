@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: "
-                              "require user: authorization failed [%s][%s]",
-                              ldc->reason, ldap_err2string(result));
+apr_file_printf(errfile, "Could not remove directory %s: %s" APR_EOL_STR,
+                    dir, apr_strerror(rv, errmsg, sizeof errmsg));

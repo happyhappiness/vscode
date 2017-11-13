@@ -1,12 +1,9 @@
 fputs(
-"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
-"              the file from stdin.\n"
-"\n"
-"              Note that to be able to specify a URL in the  config  file,  you\n"
-"              need  to  specify  it  using the --url option, and not by simply\n"
-"              writing the URL on its own line. So, it could  look  similar  to\n"
-"              this:\n"
-"\n"
-"              url = \"http://curl.haxx.se/docs/\"\n"
+"              enclosed within quotes.  Within  double  quotes,  the  following\n"
+"              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
+"              backslash preceding any other letter is ignored.  If  the  first\n"
+"              column of a config line is a '#' character, the rest of the line\n"
+"              will be treated as a comment. Only write one option per physical\n"
+"              line in the config file.\n"
 "\n"
 , stdout);

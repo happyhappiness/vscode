@@ -1,10 +1,9 @@
 fputs(
-"              cial  interpretation of the @ character. See -d, --data.  (Added\n"
-"              in 7.43.0)\n"
+"              When  using  Kerberos  V5 with a Windows based server you should\n"
+"              include the Windows domain name in the user name, in  order  for\n"
+"              the  server  to  successfully  obtain  a Kerberos Ticket. If you\n"
+"              don't then the initial authentication handshake may fail.\n"
 "\n"
-"       --data-urlencode <data>\n"
-"              (HTTP) This posts data, similar to the other --data options with\n"
-"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
-"              To  be  CGI-compliant,  the <data> part should begin with a name\n"
-"              followed by a separator and a content specification. The  <data>\n"
+"              When using NTLM, the user name can be specified  simply  as  the\n"
+"              user  name,  without the domain, if there is a single domain and\n"
 , stdout);

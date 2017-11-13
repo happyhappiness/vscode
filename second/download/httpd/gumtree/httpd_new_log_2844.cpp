@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02131)
-                     "Unable to get upgradeable socket handle");
+fprintf(stderr, "only simple translation is supported (%d/%" APR_SIZE_T_FMT
+                            "/%" APR_SIZE_T_FMT ")\n", status, inbytes_left, outbytes_left);

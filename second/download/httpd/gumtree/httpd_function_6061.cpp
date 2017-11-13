@@ -1,19 +1,22 @@
-static int h2_task_pre_conn(conn_rec* c, void *arg)
+void h2_session_destroy(h2_session *session)
 {
-    h2_ctx *ctx;
+    AP_DEBUG_ASSERT(session);
+    h2_session_cleanup(session);
     
-    if (!c->master) {
-        return OK;
+    if (session->mplx) {
+        h2_mplx_release_and_join(session->mplx, session->iowait);
+        session->mplx = NULL;
     }
-    
-    ctx = h2_ctx_get(c, 0);
-    (void)arg;
-    if (h2_ctx_is_task(ctx)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
-                      "h2_h2, pre_connection, found stream task");
-        ap_add_input_filter("H2_SLAVE_IN", NULL, NULL, c);
-        ap_add_output_filter("H2_PARSE_H1", NULL, NULL, c);
-        ap_add_output_filter("H2_SLAVE_OUT", NULL, NULL, c);
+    if (session->streams) {
+        if (!h2_stream_set_is_empty(session->streams)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_session(%ld): destroy, %d streams open",
+                          session->id, (int)h2_stream_set_size(session->streams));
+        }
+        h2_stream_set_destroy(session->streams);
+        session->streams = NULL;
     }
-    return OK;
+    if (session->pool) {
+        apr_pool_destroy(session->pool);
+    }
 }

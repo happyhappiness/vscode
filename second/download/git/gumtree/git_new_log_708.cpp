@@ -1,1 +1,1 @@
-die(_("could not lookup name for submodule '%s'"), path);
+die("Invalid deepen-since: %s", line);

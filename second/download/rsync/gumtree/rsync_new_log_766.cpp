@@ -1,1 +1,1 @@
-(exchange_protocols(f_in, f_out, line, sizeof line, 0);
+out_of_memory("io_start_buffering_out");

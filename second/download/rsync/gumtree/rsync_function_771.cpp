@@ -1,75 +1,76 @@
-static void send_implied_dirs(int f, struct file_list *flist, char *fname,
-			      char *start, char *limit, int flags, char name_type)
+static int *open_socket_in(int type, int port, const char *bind_address,
+			   int af_hint)
 {
-	struct file_struct *file;
-	item_list *relname_list;
-	relnamecache **rnpp;
-	char *slash;
-	int len, need_new_dir;
-	struct filter_list_struct save_filter_list = filter_list;
+	int one = 1;
+	int s, *socks, maxs, i;
+	struct addrinfo hints, *all_ai, *resp;
+	char portbuf[10];
+	int error;
 
-	flags = (flags | FLAG_IMPLIED_DIR) & ~(FLAG_TOP_DIR | FLAG_CONTENT_DIR);
-	filter_list.head = filter_list.tail = NULL; /* Don't filter implied dirs. */
-
-	if (inc_recurse) {
-		if (lastpath_struct && F_PATHNAME(lastpath_struct) == pathname
-		 && lastpath_len == limit - fname
-		 && strncmp(lastpath, fname, lastpath_len) == 0)
-			need_new_dir = 0;
-		else
-			need_new_dir = 1;
-	} else
-		need_new_dir = 1;
-
-	if (need_new_dir) {
-		int save_copy_links = copy_links;
-		int save_xfer_dirs = xfer_dirs;
-
-		copy_links = xfer_dirs = 1;
-
-		*limit = '\0';
-
-		for (slash = start; (slash = strchr(slash+1, '/')) != NULL; ) {
-			*slash = '\0';
-			send_file_name(f, flist, fname, NULL, flags, ALL_FILTERS);
-			*slash = '/';
-		}
-
-		file = send_file_name(f, flist, fname, NULL, flags, ALL_FILTERS);
-		if (inc_recurse) {
-			if (file && !S_ISDIR(file->mode))
-				file = NULL;
-			lastpath_struct = file;
-		}
-
-		strlcpy(lastpath, fname, sizeof lastpath);
-		lastpath_len = limit - fname;
-
-		*limit = '/';
-
-		copy_links = save_copy_links;
-		xfer_dirs = save_xfer_dirs;
-
-		if (!inc_recurse)
-			goto done;
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = af_hint;
+	hints.ai_socktype = type;
+	hints.ai_flags = AI_PASSIVE;
+	snprintf(portbuf, sizeof portbuf, "%d", port);
+	error = getaddrinfo(bind_address, portbuf, &hints, &all_ai);
+	if (error) {
+		rprintf(FERROR, RSYNC_NAME ": getaddrinfo: bind address %s: %s\n",
+			bind_address, gai_strerror(error));
+		return NULL;
 	}
 
-	if (!lastpath_struct)
-		goto done; /* dir must have vanished */
+	/* Count max number of sockets we might open. */
+	for (maxs = 0, resp = all_ai; resp; resp = resp->ai_next, maxs++) {}
 
-	len = strlen(limit+1);
-	memcpy(&relname_list, F_DIR_RELNAMES_P(lastpath_struct), sizeof relname_list);
-	if (!relname_list) {
-		if (!(relname_list = new0(item_list)))
-			out_of_memory("send_implied_dirs");
-		memcpy(F_DIR_RELNAMES_P(lastpath_struct), &relname_list, sizeof relname_list);
+	if (!(socks = new_array(int, maxs + 1)))
+		out_of_memory("open_socket_in");
+
+	/* We may not be able to create the socket, if for example the
+	 * machine knows about IPv6 in the C library, but not in the
+	 * kernel. */
+	for (resp = all_ai, i = 0; resp; resp = resp->ai_next) {
+		s = socket(resp->ai_family, resp->ai_socktype,
+			   resp->ai_protocol);
+
+		if (s == -1) {
+			/* See if there's another address that will work... */
+			continue;
+		}
+
+		setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
+			   (char *)&one, sizeof one);
+
+#ifdef IPV6_V6ONLY
+		if (resp->ai_family == AF_INET6) {
+			if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
+				       (char *)&one, sizeof one) < 0
+			    && default_af_hint != AF_INET6) {
+				close(s);
+				continue;
+			}
+		}
+#endif
+
+		/* Now we've got a socket - we need to bind it. */
+		if (bind(s, resp->ai_addr, resp->ai_addrlen) < 0) {
+			/* Nope, try another */
+			close(s);
+			continue;
+		}
+
+		socks[i++] = s;
 	}
-	rnpp = EXPAND_ITEM_LIST(relname_list, relnamecache *, 32);
-	if (!(*rnpp = (relnamecache*)new_array(char, sizeof (relnamecache) + len)))
-		out_of_memory("send_implied_dirs");
-	(*rnpp)->name_type = name_type;
-	strlcpy((*rnpp)->fname, limit+1, len + 1);
+	socks[i] = -1;
 
-done:
-	filter_list = save_filter_list;
+	if (all_ai)
+		freeaddrinfo(all_ai);
+
+	if (!i) {
+		rprintf(FERROR,
+			"unable to bind any inbound sockets on port %d\n",
+			port);
+		free(socks);
+		return NULL;
+	}
+	return socks;
 }

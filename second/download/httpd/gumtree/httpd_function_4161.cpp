@@ -1,46 +1,84 @@
-static int ssl_server_import_cert(server_rec *s,
-                                  modssl_ctx_t *mctx,
-                                  const char *id,
-                                  int idx)
+apr_status_t ajp_handle_cping_cpong(apr_socket_t *sock,
+                                    request_rec *r,
+                                    apr_interval_time_t timeout)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    ssl_asn1_t *asn1;
-    MODSSL_D2I_X509_CONST unsigned char *ptr;
-    const char *type = ssl_asn1_keystr(idx);
-    X509 *cert;
+    ajp_msg_t *msg;
+    apr_status_t rc, rv;
+    apr_interval_time_t org;
+    apr_byte_t result;
 
-    if (!(asn1 = ssl_asn1_table_get(mc->tPublicCert, id))) {
-        return FALSE;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Into ajp_handle_cping_cpong");
+
+    rc = ajp_msg_create(r->pool, AJP_PING_PONG_SZ, &msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_msg_create failed");
+        return rc;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring %s server certificate", type);
-
-    ptr = asn1->cpData;
-    if (!(cert = d2i_X509(NULL, &ptr, asn1->nData))) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Unable to import %s server certificate", type);
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        ssl_die();
+    rc = ajp_msg_serialize_cping(msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_marshal_into_msgb failed");
+        return rc;
     }
 
-    if (SSL_CTX_use_certificate(mctx->ssl_ctx, cert) <= 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Unable to configure %s server certificate", type);
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        ssl_die();
+    rc = ajp_ilink_send(sock, msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_ilink_send failed");
+        return rc;
     }
-  
-#ifdef HAVE_OCSP_STAPLING
-    if ((mctx->pkp == FALSE) && (mctx->stapling_enabled == TRUE)) {
-        if (!ssl_stapling_init_cert(s, mctx, cert)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Unable to configure server certificate for stapling");
-        }
+
+    rc = apr_socket_timeout_get(sock, &org);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: apr_socket_timeout_get failed");
+        return rc;
     }
-#endif
 
-    mctx->pks->certs[idx] = cert;
+    /* Set CPING/CPONG response timeout */
+    rc = apr_socket_timeout_set(sock, timeout);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: apr_socket_timeout_set failed");
+        return rc;
+    }
+    ajp_msg_reuse(msg);
 
-    return TRUE;
+    /* Read CPONG reply */
+    rv = ajp_ilink_receive(sock, msg);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_ilink_receive failed");
+        goto cleanup;
+    }
+
+    rv = ajp_msg_get_uint8(msg, &result);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: invalid CPONG message");
+        goto cleanup;
+    }
+    if (result != CMD_AJP13_CPONG) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: awaited CPONG, received %d ",
+               result);
+        rv = APR_EGENERAL;
+        goto cleanup;
+    }
+
+cleanup:
+    /* Restore original socket timeout */
+    rc = apr_socket_timeout_set(sock, org);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: apr_socket_timeout_set failed");
+        return rc;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "ajp_handle_cping_cpong: Done");
+    return rv;
 }

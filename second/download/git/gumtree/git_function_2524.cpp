@@ -1,42 +1,28 @@
-static struct commit_list *collect_parents(struct commit *head_commit,
-					   int *head_subsumed,
-					   int argc, const char **argv,
-					   struct strbuf *merge_msg)
+static int commit_packed_refs(void)
 {
-	int i;
-	struct commit_list *remoteheads = NULL;
-	struct commit_list **remotes = &remoteheads;
-	struct strbuf merge_names = STRBUF_INIT, *autogen = NULL;
+	struct packed_ref_cache *packed_ref_cache =
+		get_packed_ref_cache(&ref_cache);
+	int error = 0;
+	int save_errno = 0;
+	FILE *out;
 
-	if (merge_msg && (!have_message || shortlog_len))
-		autogen = &merge_names;
+	if (!packed_ref_cache->lock)
+		die("internal error: packed-refs not locked");
 
-	if (head_commit)
-		remotes = &commit_list_insert(head_commit, remotes)->next;
+	out = fdopen_lock_file(packed_ref_cache->lock, "w");
+	if (!out)
+		die_errno("unable to fdopen packed-refs descriptor");
 
-	if (argc == 1 && !strcmp(argv[0], "FETCH_HEAD")) {
-		handle_fetch_head(remotes, autogen);
-		remoteheads = reduce_parents(head_commit, head_subsumed, remoteheads);
-	} else {
-		for (i = 0; i < argc; i++) {
-			struct commit *commit = get_merge_parent(argv[i]);
-			if (!commit)
-				help_unknown_ref(argv[i], "merge",
-						 "not something we can merge");
-			remotes = &commit_list_insert(commit, remotes)->next;
-		}
-		remoteheads = reduce_parents(head_commit, head_subsumed, remoteheads);
-		if (autogen) {
-			struct commit_list *p;
-			for (p = remoteheads; p; p = p->next)
-				merge_name(merge_remote_util(p->item)->name, autogen);
-		}
+	fprintf_or_die(out, "%s", PACKED_REFS_HEADER);
+	do_for_each_entry_in_dir(get_packed_ref_dir(packed_ref_cache),
+				 0, write_packed_entry_fn, out);
+
+	if (commit_lock_file(packed_ref_cache->lock)) {
+		save_errno = errno;
+		error = -1;
 	}
-
-	if (autogen) {
-		prepare_merge_message(autogen, merge_msg);
-		strbuf_release(autogen);
-	}
-
-	return remoteheads;
+	packed_ref_cache->lock = NULL;
+	release_packed_ref_cache(packed_ref_cache);
+	errno = save_errno;
+	return error;
 }

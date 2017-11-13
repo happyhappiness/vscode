@@ -1,1 +1,2 @@
-fprintf(stderr,"recv_files(%s)\n",fname);
+fprintf(stderr,"failed to set permissions on %s : %s\n",
+	      fname,strerror(errno));

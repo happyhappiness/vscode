@@ -1,10 +1,11 @@
 fputs(
-"              POST  requests  into GET requests when following a 303 redirect-\n"
-"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
-"              curl  does  the  conversion  by default to maintain consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
-"              a  redirection.  This  option  is meaningful only when using -L,\n"
-"              --location (Added in 7.26.0)\n"
+"              operation  won't  fail or even report an error clearly. Using -v\n"
+"              will get a warning displayed, but that is the only visible feed-\n"
+"              back you get about this possibly lethal situation.\n"
 "\n"
-"       --proto <protocols>\n"
+"              If  this  option  is used several times, the last specified file\n"
+"              name will be used.\n"
+"\n"
+"       -C, --continue-at <offset>\n"
+"              Continue/Resume a previous file transfer at  the  given  offset.\n"
 , stdout);

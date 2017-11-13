@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: bytraffic selected worker \"%s\" : busy %" APR_SIZE_T_FMT,
-                     mycandidate->name, mycandidate->s->busy);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Zlib: %d bytes of garbage at the end of "
+                                  "compressed stream.",
+                                  ctx->stream.avail_in - VALIDATION_SIZE);

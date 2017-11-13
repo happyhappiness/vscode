@@ -1,96 +1,57 @@
-void *util_ald_cache_insert(util_ald_cache_t *cache, void *payload)
+static apr_status_t socache_dbm_iterate(ap_socache_instance_t *ctx,
+                                        server_rec *s, void *userctx,
+                                        ap_socache_iterator_t *iterator,
+                                        apr_pool_t *pool)
 {
-    unsigned long hashval;
-    void *tmp_payload;
-    util_cache_node_t *node;
+    apr_dbm_t *dbm;
+    apr_datum_t dbmkey;
+    apr_datum_t dbmval;
+    apr_time_t expiry;
+    int expired;
+    apr_time_t now;
+    apr_status_t rv;
 
-    /* sanity check */
-    if (cache == NULL || payload == NULL) {
-        return NULL;
-    }
-
-    /* check if we are full - if so, try purge */
-    if (cache->numentries >= cache->maxentries) {
-        util_ald_cache_purge(cache);
-        if (cache->numentries >= cache->maxentries) {
-            /* if the purge was not effective, we leave now to avoid an overflow */
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "Purge of LDAP cache failed");
-            return NULL;
-        }
-    }
-
-    node = (util_cache_node_t *)util_ald_alloc(cache,
-                                               sizeof(util_cache_node_t));
-    if (node == NULL) {
-        /*
-         * XXX: The cache management should be rewritten to work
-         * properly when LDAPSharedCacheSize is too small.
-         */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                     "LDAPSharedCacheSize is too small. Increase it or "
-                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
-        if (cache->numentries < cache->fullmark) {
-            /*
-             * We have not even reached fullmark, trigger a complete purge.
-             * This is still better than not being able to add new entries
-             * at all.
-             */
-            cache->marktime = apr_time_now();
-        }
-        util_ald_cache_purge(cache);
-        node = (util_cache_node_t *)util_ald_alloc(cache,
-                                                   sizeof(util_cache_node_t));
-        if (node == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "Could not allocate memory for LDAP cache entry");
-            return NULL;
-        }
-    }
-
-    /* Take a copy of the payload before proceeeding. */
-    tmp_payload = (*cache->copy)(cache, payload);
-    if (tmp_payload == NULL) {
-        /*
-         * XXX: The cache management should be rewritten to work
-         * properly when LDAPSharedCacheSize is too small.
-         */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                     "LDAPSharedCacheSize is too small. Increase it or "
-                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
-        if (cache->numentries < cache->fullmark) {
-            /*
-             * We have not even reached fullmark, trigger a complete purge.
-             * This is still better than not being able to add new entries
-             * at all.
-             */
-            cache->marktime = apr_time_now();
-        }
-        util_ald_cache_purge(cache);
-        tmp_payload = (*cache->copy)(cache, payload);
-        if (tmp_payload == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "Could not allocate memory for LDAP cache value");
-            util_ald_free(cache, node);
-            return NULL;
-        }
-    }
-    payload = tmp_payload;
-
-    /* populate the entry */
-    cache->inserts++;
-    hashval = (*cache->hash)(payload) % cache->size;
-    node->add_time = apr_time_now();
-    node->payload = payload;
-    node->next = cache->nodes[hashval];
-    cache->nodes[hashval] = node;
-
-    /* if we reach the full mark, note the time we did so
-     * for the benefit of the purge function
+    /*
+     * make sure the expired records are omitted
      */
-    if (++cache->numentries == cache->fullmark) {
-        cache->marktime=apr_time_now();
+    now = apr_time_now();
+    if ((rv = apr_dbm_open(&dbm, ctx->data_file, APR_DBM_RWCREATE,
+                           DBM_FILE_MODE, ctx->pool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Cannot open socache DBM file `%s' for "
+                     "iterating", ctx->data_file);
+        return rv;
     }
+    rv = apr_dbm_firstkey(dbm, &dbmkey);
+    while (rv == APR_SUCCESS && dbmkey.dptr != NULL) {
+        expired = FALSE;
+        apr_dbm_fetch(dbm, dbmkey, &dbmval);
+        if (dbmval.dsize <= sizeof(apr_time_t) || dbmval.dptr == NULL)
+            expired = TRUE;
+        else {
+            memcpy(&expiry, dbmval.dptr, sizeof(apr_time_t));
+            if (expiry <= now)
+                expired = TRUE;
+        }
+        if (!expired) {
+            rv = iterator(ctx, s, userctx,
+                             (unsigned char *)dbmkey.dptr, dbmkey.dsize,
+                             (unsigned char *)dbmval.dptr + sizeof(apr_time_t),
+                             dbmval.dsize - sizeof(apr_time_t), pool);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s,
+                         "dbm `%s' entry iterated", ctx->data_file);
+            if (rv != APR_SUCCESS)
+                return rv;
+        }
+        rv = apr_dbm_nextkey(dbm, &dbmkey);
+    }
+    apr_dbm_close(dbm);
 
-    return node->payload;
+    if (rv != APR_SUCCESS && rv != APR_EOF) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Failure reading first/next socache DBM file `%s' record",
+                     ctx->data_file);
+        return rv;
+    }
+    return APR_SUCCESS;
 }

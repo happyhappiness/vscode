@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(01961)
-                      "SSL Proxy requested for %s but not enabled "
-                      "[Hint: SSLProxyEngine]", sc->vhost_id);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
+               "ajp_unmarshal_response: ap_set_content_type to '%s'", value);

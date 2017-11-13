@@ -1,1 +1,1 @@
-get_lock_file_path(lock->lk);
+rp_error("%s", err.buf);

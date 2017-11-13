@@ -1,2 +1,1 @@
-status_printf_ln(s, c,
-			"--------------------------------------------------");
+error("Could not write client identification");

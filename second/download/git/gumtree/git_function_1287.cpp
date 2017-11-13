@@ -1,49 +1,20 @@
-static void dump_marks(void)
+static void *get_delta(struct object_entry *entry)
 {
-	static struct lock_file mark_lock;
-	int mark_fd;
-	FILE *f;
+	unsigned long size, base_size, delta_size;
+	void *buf, *base_buf, *delta_buf;
+	enum object_type type;
 
-	if (!export_marks_file)
-		return;
-
-	mark_fd = hold_lock_file_for_update(&mark_lock, export_marks_file, 0);
-	if (mark_fd < 0) {
-		failure |= error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(errno));
-		return;
-	}
-
-	f = fdopen(mark_fd, "w");
-	if (!f) {
-		int saved_errno = errno;
-		rollback_lock_file(&mark_lock);
-		failure |= error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(saved_errno));
-		return;
-	}
-
-	/*
-	 * Since the lock file was fdopen()'ed, it should not be close()'ed.
-	 * Assign -1 to the lock file descriptor so that commit_lock_file()
-	 * won't try to close() it.
-	 */
-	mark_lock.fd = -1;
-
-	dump_marks_helper(f, 0, marks);
-	if (ferror(f) || fclose(f)) {
-		int saved_errno = errno;
-		rollback_lock_file(&mark_lock);
-		failure |= error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(saved_errno));
-		return;
-	}
-
-	if (commit_lock_file(&mark_lock)) {
-		int saved_errno = errno;
-		rollback_lock_file(&mark_lock);
-		failure |= error("Unable to commit marks file %s: %s",
-			export_marks_file, strerror(saved_errno));
-		return;
-	}
+	buf = read_sha1_file(entry->idx.sha1, &type, &size);
+	if (!buf)
+		die("unable to read %s", sha1_to_hex(entry->idx.sha1));
+	base_buf = read_sha1_file(entry->delta->idx.sha1, &type, &base_size);
+	if (!base_buf)
+		die("unable to read %s", sha1_to_hex(entry->delta->idx.sha1));
+	delta_buf = diff_delta(base_buf, base_size,
+			       buf, size, &delta_size, 0);
+	if (!delta_buf || delta_size != entry->delta_size)
+		die("delta size changed");
+	free(buf);
+	free(base_buf);
+	return delta_buf;
 }

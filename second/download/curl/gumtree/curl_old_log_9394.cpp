@@ -1,12 +1,8 @@
 fputs(
-"              chown user file\n"
-"                     The chown command sets the owner of the file named by the\n"
-"                     file operand to the user ID specified by the  user  oper-\n"
-"                     and. The user operand is a decimal integer user ID.\n"
-"\n"
-"              ln source_file target_file\n"
-"                     The ln and symlink commands create a symbolic link at the\n"
-"                     target_file location pointing to  the  source_file  loca-\n"
-"                     tion.\n"
-"\n"
+"              server. Quote commands are sent BEFORE the transfer takes  place\n"
+"              (just  after  the  initial PWD command in an FTP transfer, to be\n"
+"              exact). To make commands take place after a successful transfer,\n"
+"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
+"              curl has changed the working directory, just before the transfer\n"
+"              command(s),  prefix  the  command  with a '+' (this is only sup-\n"
 , stdout);

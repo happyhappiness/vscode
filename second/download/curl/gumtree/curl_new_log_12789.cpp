@@ -1,11 +1,9 @@
 fputs(
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
+"              forces  a  LIST command to be performed instead of RETR. This is\n"
+"              particularly useful if the user wants to see if a specific  mes-\n"
+"              sage id exists on the server and what size it is.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --local-port <num>[-num]\n"
-"              Set a preferred number or range of local port numbers to use for\n"
-"              the  connection(s).   Note  that  port  numbers  by nature are a\n"
-"              scarce resource that will be busy at times so setting this range\n"
+"              Note:  When  combined  with -X, --request <command>, this option\n"
+"              can be used to send an UIDL command instead, so the user may use\n"
+"              the  email's  unique  identifier  rather than it's message id to\n"
 , stdout);

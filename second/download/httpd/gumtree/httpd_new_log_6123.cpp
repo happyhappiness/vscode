@@ -1,1 +1,2 @@
-ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : " align=\"right\">", time_str, "  ", NULL);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03083)
+                      "protocol switch: current proto != http/1.1, declined");

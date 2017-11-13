@@ -1,47 +1,50 @@
-static int fcgi_do_request(apr_pool_t *p, request_rec *r,
-                           proxy_conn_rec *conn,
-                           conn_rec *origin,
-                           proxy_dir_conf *conf,
-                           apr_uri_t *uri,
-                           char *url, char *server_portstr)
+static int proxy_wstunnel_transfer(request_rec *r, conn_rec *c_i, conn_rec *c_o,
+                                     apr_bucket_brigade *bb, char *name)
 {
-    /* Request IDs are arbitrary numbers that we assign to a
-     * single request. This would allow multiplex/pipelinig of
-     * multiple requests to the same FastCGI connection, but
-     * we don't support that, and always use a value of '1' to
-     * keep things simple. */
-    apr_uint16_t request_id = 1;
-    apr_status_t rv;
-    apr_pool_t *temp_pool;
+    int rv;
+#ifdef DEBUGGING
+    apr_off_t len;
+#endif
 
-    /* Step 1: Send AP_FCGI_BEGIN_REQUEST */
-    rv = send_begin_request(conn, request_id);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01073)
-                      "Failed Writing Request to %s:", server_portstr);
-        conn->close = 1;
-        return HTTP_SERVICE_UNAVAILABLE;
+    do {
+        apr_brigade_cleanup(bb);
+        rv = ap_get_brigade(c_i->input_filters, bb, AP_MODE_READBYTES,
+                            APR_NONBLOCK_READ, AP_IOBUFSIZE);
+        if (rv == APR_SUCCESS) {
+            if (c_o->aborted) {
+                return APR_EPIPE;
+            }
+            if (APR_BRIGADE_EMPTY(bb)) {
+                break;
+            }
+#ifdef DEBUGGING
+            len = -1;
+            apr_brigade_length(bb, 0, &len);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02440)
+                          "read %" APR_OFF_T_FMT
+                          " bytes from %s", len, name);
+#endif
+            rv = ap_pass_brigade(c_o->output_filters, bb);
+            if (rv == APR_SUCCESS) {
+                ap_fflush(c_o->output_filters, bb);
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02441)
+                              "error on %s - ap_pass_brigade",
+                              name);
+            }
+        } else if (!APR_STATUS_IS_EAGAIN(rv) && !APR_STATUS_IS_EOF(rv)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02442)
+                          "error on %s - ap_get_brigade",
+                          name);
+        }
+    } while (rv == APR_SUCCESS);
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, rv, r, "wstunnel_transfer complete");
+
+    if (APR_STATUS_IS_EAGAIN(rv)) {
+        rv = APR_SUCCESS;
     }
-
-    apr_pool_create(&temp_pool, r->pool);
-
-    /* Step 2: Send Environment via FCGI_PARAMS */
-    rv = send_environment(conn, r, temp_pool, request_id);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01074)
-                      "Failed writing Environment to %s:", server_portstr);
-        conn->close = 1;
-        return HTTP_SERVICE_UNAVAILABLE;
-    }
-
-    /* Step 3: Read records from the back end server and handle them. */
-    rv = dispatch(conn, conf, r, temp_pool, request_id);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01075)
-                      "Error dispatching request to %s:", server_portstr);
-        conn->close = 1;
-        return HTTP_SERVICE_UNAVAILABLE;
-    }
-
-    return OK;
+   
+    return rv;
 }

@@ -1,10 +1,9 @@
 fputs(
-"              requests, each with their own  specific  options,  for  example,\n"
-"              such as different user names or custom requests for each.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              -:,  --next  will  reset  all local options and only global ones\n"
-"              will have their values survive over to the  operation  following\n"
-"              the  -:,  --next  instruction. Global options include -v, --ver-\n"
-"              bose, --trace, --trace-ascii and --fail-early.\n"
-"\n"
+"       -m, --max-time <time>\n"
+"              Maximum  time  in  seconds that you allow the whole operation to\n"
+"              take.  This is useful for preventing your batch jobs from  hang-\n"
+"              ing  for  hours due to slow networks or links going down.  Since\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
 , stdout);

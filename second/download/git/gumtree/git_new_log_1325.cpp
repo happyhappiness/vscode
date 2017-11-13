@@ -1,2 +1,2 @@
-die("unordered stage entries for '%s'",
-				ce->name);
+die("Timestamp+tz too large: %"PRItime" +%04d",
+			    time, tz);

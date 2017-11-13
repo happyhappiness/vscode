@@ -1,1 +1,3 @@
-fprintf(f, "%d\n", todo_list->total_nr);
+error("object directory %s does not exist; "
+		      "check .git/objects/info/alternates.",
+		      path->buf);

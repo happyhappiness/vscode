@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the HARD_THREAD_LIMIT"
-                         "define in");
+ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);

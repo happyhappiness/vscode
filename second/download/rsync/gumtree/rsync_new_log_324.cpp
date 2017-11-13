@@ -1,1 +1,2 @@
-fprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));
+fprintf(FERROR,"read timeout after %d second - exiting\n", 
+			(int)(t-last_io));

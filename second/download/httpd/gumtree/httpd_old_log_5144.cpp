@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01579)
-                          "Custom error page caused AP_FILTER_ERROR");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxThreads of %d not allowed, "
+                         "increasing to 1.", ap_threads_limit);

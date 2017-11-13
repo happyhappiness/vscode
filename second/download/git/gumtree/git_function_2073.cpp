@@ -1,88 +1,21 @@
-static void check_non_tip(void)
+static void batch_object_write(const char *obj_name, struct batch_options *opt,
+			       struct expand_data *data)
 {
-	static const char *argv[] = {
-		"rev-list", "--stdin", NULL,
-	};
-	static struct child_process cmd = CHILD_PROCESS_INIT;
-	struct object *o;
-	char namebuf[42]; /* ^ + SHA-1 + LF */
-	int i;
+	struct strbuf buf = STRBUF_INIT;
 
-	/*
-	 * In the normal in-process case without
-	 * uploadpack.allowReachableSHA1InWant,
-	 * non-tip requests can never happen.
-	 */
-	if (!stateless_rpc && !(allow_unadvertised_object_request & ALLOW_REACHABLE_SHA1))
-		goto error;
-
-	cmd.argv = argv;
-	cmd.git_cmd = 1;
-	cmd.no_stderr = 1;
-	cmd.in = -1;
-	cmd.out = -1;
-
-	if (start_command(&cmd))
-		goto error;
-
-	/*
-	 * If rev-list --stdin encounters an unknown commit, it
-	 * terminates, which will cause SIGPIPE in the write loop
-	 * below.
-	 */
-	sigchain_push(SIGPIPE, SIG_IGN);
-
-	namebuf[0] = '^';
-	namebuf[41] = '\n';
-	for (i = get_max_object_index(); 0 < i; ) {
-		o = get_indexed_object(--i);
-		if (!o)
-			continue;
-		if (!is_our_ref(o))
-			continue;
-		memcpy(namebuf + 1, sha1_to_hex(o->sha1), 40);
-		if (write_in_full(cmd.in, namebuf, 42) < 0)
-			goto error;
+	if (sha1_object_info_extended(data->sha1, &data->info, LOOKUP_REPLACE_OBJECT) < 0) {
+		printf("%s missing\n", obj_name ? obj_name : sha1_to_hex(data->sha1));
+		fflush(stdout);
+		return;
 	}
-	namebuf[40] = '\n';
-	for (i = 0; i < want_obj.nr; i++) {
-		o = want_obj.objects[i].item;
-		if (is_our_ref(o))
-			continue;
-		memcpy(namebuf, sha1_to_hex(o->sha1), 40);
-		if (write_in_full(cmd.in, namebuf, 41) < 0)
-			goto error;
-	}
-	close(cmd.in);
 
-	sigchain_pop(SIGPIPE);
+	strbuf_expand(&buf, opt->format, expand_format, data);
+	strbuf_addch(&buf, '\n');
+	batch_write(opt, buf.buf, buf.len);
+	strbuf_release(&buf);
 
-	/*
-	 * The commits out of the rev-list are not ancestors of
-	 * our ref.
-	 */
-	i = read_in_full(cmd.out, namebuf, 1);
-	if (i)
-		goto error;
-	close(cmd.out);
-
-	/*
-	 * rev-list may have died by encountering a bad commit
-	 * in the history, in which case we do want to bail out
-	 * even when it showed no commit.
-	 */
-	if (finish_command(&cmd))
-		goto error;
-
-	/* All the non-tip ones are ancestors of what we advertised */
-	return;
-
-error:
-	/* Pick one of them (we know there at least is one) */
-	for (i = 0; i < want_obj.nr; i++) {
-		o = want_obj.objects[i].item;
-		if (!is_our_ref(o))
-			die("git upload-pack: not our ref %s",
-			    sha1_to_hex(o->sha1));
+	if (opt->print_contents) {
+		print_object_or_die(opt, data);
+		batch_write(opt, "\n", 1);
 	}
 }

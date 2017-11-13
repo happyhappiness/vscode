@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(03490)
-                         "scoreboard is full, not at MaxRequestWorkers."
-                         "Increase ServerLimit.");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c,
+                  "h2_mplx(%ld-%d): can_beam_file denied on %s", 
+                  m->id, beam->id, beam->tag);

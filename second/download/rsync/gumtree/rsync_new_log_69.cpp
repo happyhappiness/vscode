@@ -1,1 +1,1 @@
-out_of_memory("read_write");
+fprintf(stderr,"fstat failed : %s\n",strerror(errno));

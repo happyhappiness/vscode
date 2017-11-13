@@ -1,1 +1,0 @@
-die(_("local object %s is corrupt"), sha1_to_hex(d->base.sha1));

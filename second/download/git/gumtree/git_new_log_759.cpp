@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+die(_("could not parse %s"), git_path_abort_safety_file());

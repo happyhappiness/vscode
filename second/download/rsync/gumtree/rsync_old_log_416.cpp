@@ -1,2 +1,1 @@
-fprintf(FERROR,"write_buf failed : %s\n",
-	    ret==-1?strerror(errno):"EOF");
+fprintf(FINFO,"add_exclude(%s)\n",pattern);

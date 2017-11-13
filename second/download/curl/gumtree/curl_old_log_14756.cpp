@@ -1,12 +1,12 @@
 fputs(
-"              Since 7.52.0, --preproxy can be used to specify a SOCKS proxy at\n"
-"              the same time -x, --proxy is used with an HTTP/HTTPS  proxy.  In\n"
-"              such a case curl first connects to the SOCKS proxy and then con-\n"
-"              nects (through SOCKS) to the HTTP or HTTPS proxy.\n"
+"              reached  the  limit, the request will be made and while perform-\n"
+"              ing, it may take longer than this given time period. To limit  a\n"
+"              single  request's  maximum  time,  use -m, --max-time.  Set this\n"
+"              option to zero to not timeout retries.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Added in 7.18.0.\n"
+"              Added in 7.12.3.\n"
 "\n"
-"       --socks5-gssapi-nec\n"
+"       --retry <num>\n"
 , stdout);

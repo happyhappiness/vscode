@@ -1,1 +1,1 @@
-die("--resolve-git-dir requires an argument");
+die("not a gitdir '%s'", argv[i]);

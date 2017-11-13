@@ -1,27 +1,56 @@
-void *expand_item_list(item_list *lp, size_t item_size,
-		       const char *desc, int incr)
+void glob_expand(char *s, char ***argv_ptr, int *argc_ptr, int *maxargs_ptr)
 {
-	/* First time through, 0 <= 0, so list is expanded. */
-	if (lp->malloced <= lp->count) {
-		void *new_ptr;
-		size_t new_size = lp->malloced;
-		if (incr < 0)
-			new_size += -incr; /* increase slowly */
-		else if (new_size < (size_t)incr)
-			new_size += incr;
-		else
-			new_size *= 2;
-		new_ptr = realloc_array(lp->items, char, new_size * item_size);
-		if (verbose >= 4) {
-			rprintf(FINFO, "[%s] expand %s to %.0f bytes, did%s move\n",
-				who_am_i(), desc, (double)new_size * item_size,
-				new_ptr == lp->items ? " not" : "");
-		}
-		if (!new_ptr)
-			out_of_memory("expand_item_list");
-
-		lp->items = new_ptr;
-		lp->malloced = new_size;
+	char **argv = *argv_ptr;
+	int argc = *argc_ptr;
+	int maxargs = *maxargs_ptr;
+#if !defined HAVE_GLOB || !defined HAVE_GLOB_H
+	if (argc == maxargs) {
+		maxargs += MAX_ARGS;
+		if (!(argv = realloc_array(argv, char *, maxargs)))
+			out_of_memory("glob_expand");
+		*argv_ptr = argv;
+		*maxargs_ptr = maxargs;
 	}
-	return (char*)lp->items + (lp->count++ * item_size);
+	if (!*s)
+		s = ".";
+	s = argv[argc++] = strdup(s);
+	filter_server_path(s);
+#else
+	glob_t globbuf;
+
+	if (maxargs <= argc)
+		return;
+	if (!*s)
+		s = ".";
+
+	if (sanitize_paths)
+		s = sanitize_path(NULL, s, "", 0);
+	else
+		s = strdup(s);
+	if (!s)
+		out_of_memory("glob_expand");
+
+	memset(&globbuf, 0, sizeof globbuf);
+	if (!filter_server_path(s))
+		glob(s, 0, NULL, &globbuf);
+	if (MAX((int)globbuf.gl_pathc, 1) > maxargs - argc) {
+		maxargs += globbuf.gl_pathc + MAX_ARGS;
+		if (!(argv = realloc_array(argv, char *, maxargs)))
+			out_of_memory("glob_expand");
+		*argv_ptr = argv;
+		*maxargs_ptr = maxargs;
+	}
+	if (globbuf.gl_pathc == 0)
+		argv[argc++] = s;
+	else {
+		int i;
+		free(s);
+		for (i = 0; i < (int)globbuf.gl_pathc; i++) {
+			if (!(argv[argc++] = strdup(globbuf.gl_pathv[i])))
+				out_of_memory("glob_expand");
+		}
+	}
+	globfree(&globbuf);
+#endif
+	*argc_ptr = argc;
 }

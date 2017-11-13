@@ -1,1 +1,1 @@
-fprintf(FINFO,"recv_files(%s)\n",fname);
+fprintf(FINFO,"built hash table\n");

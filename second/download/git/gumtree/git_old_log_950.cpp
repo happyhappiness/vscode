@@ -1,2 +1,1 @@
-die_errno("exec '%s': cd to '%s' failed", cmd->argv[0],
-			    cmd->dir);
+die("unable to auto-detect email address (got '%s')", email);

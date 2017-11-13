@@ -1,11 +1,10 @@
 fputs(
-"              Append this option to any ordinary curl command  line,  and  you\n"
-"              will  get a libcurl-using C source code written to the file that\n"
-"              does the equivalent of what your command-line operation does!\n"
+"              NLST; they do not include sub-directories and symbolic links.\n"
 "\n"
-"              If this option is used several times, the last given  file  name\n"
-"              will be used. (Added in 7.16.1)\n"
+"              (POP3)  When  retrieving a specific email from POP3, this switch\n"
+"              forces a LIST command to be performed instead of RETR.  This  is\n"
+"              particularly  useful if the user wants to see if a specific mes-\n"
+"              sage id exists on the server and what size it is.\n"
 "\n"
-"       --limit-rate <speed>\n"
-"              Specify  the  maximum  transfer  rate you want curl to use. This\n"
+"              Note: When combined with -X, --request  <command>,  this  option\n"
 , stdout);

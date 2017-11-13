@@ -1,10 +1,10 @@
 fputs(
-"              ally not required. Note that this public key extraction requires\n"
-"              libcurl  to  be linked against a copy of libssh2 1.2.8 or higher\n"
-"              that is itself linked against OpenSSL.)\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"       -Q, --quote\n"
-"              (FTP SFTP) Send an arbitrary command to the remote FTP  or  SFTP\n"
-"              server.  Quote commands are sent BEFORE the transfer takes place\n"
-"              (just after the initial PWD command in an FTP  transfer,  to  be\n"
+"              Headers  specified  with  this  option  will  not be included in\n"
+"              requests that curl knows will not be sent to a proxy.\n"
+"\n"
+"              Starting in 7.55.0, this option can take an argument  in  @file-\n"
 , stdout);

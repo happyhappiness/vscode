@@ -1,1 +1,1 @@
-die("BUG: ren1_src != ren2_src");
+die("data too large to fit into virtual memory space");

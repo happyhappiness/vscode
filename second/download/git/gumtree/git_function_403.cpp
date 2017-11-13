@@ -1,59 +1,80 @@
-static int run_builtin(struct cmd_struct *p, int argc, const char **argv)
+int init_db(const char *git_dir, const char *real_git_dir,
+	    const char *template_dir, unsigned int flags)
 {
-	int status, help;
-	struct stat st;
-	const char *prefix;
+	int reinit;
+	int exist_ok = flags & INIT_DB_EXIST_OK;
+	char *original_git_dir = xstrdup(real_path(git_dir));
 
-	prefix = NULL;
-	help = argc == 2 && !strcmp(argv[1], "-h");
-	if (!help) {
-		if (p->option & RUN_SETUP)
-			prefix = setup_git_directory();
-		else if (p->option & RUN_SETUP_GENTLY) {
-			int nongit_ok;
-			prefix = setup_git_directory_gently(&nongit_ok);
-		}
+	if (real_git_dir) {
+		struct stat st;
 
-		if (use_pager == -1 && p->option & (RUN_SETUP | RUN_SETUP_GENTLY))
-			use_pager = check_pager_config(p->cmd);
-		if (use_pager == -1 && p->option & USE_PAGER)
-			use_pager = 1;
+		if (!exist_ok && !stat(git_dir, &st))
+			die(_("%s already exists"), git_dir);
 
-		if ((p->option & (RUN_SETUP | RUN_SETUP_GENTLY)) &&
-		    startup_info->have_repository) /* get_git_dir() may set up repo, avoid that */
-			trace_repo_setup(prefix);
+		if (!exist_ok && !stat(real_git_dir, &st))
+			die(_("%s already exists"), real_git_dir);
+
+		set_git_dir(real_path(real_git_dir));
+		git_dir = get_git_dir();
+		separate_git_dir(git_dir, original_git_dir);
 	}
-	commit_pager_choice();
+	else {
+		set_git_dir(real_path(git_dir));
+		git_dir = get_git_dir();
+	}
+	startup_info->have_repository = 1;
 
-	if (!help && get_super_prefix()) {
-		if (!(p->option & SUPPORT_SUPER_PREFIX))
-			die("%s doesn't support --super-prefix", p->cmd);
-		if (prefix)
-			die("can't use --super-prefix from a subdirectory");
+	safe_create_dir(git_dir, 0);
+
+	init_is_bare_repository = is_bare_repository();
+
+	/* Check to see if the repository version is right.
+	 * Note that a newly created repository does not have
+	 * config file, so this will not fail.  What we are catching
+	 * is an attempt to reinitialize new repository with an old tool.
+	 */
+	check_repository_format();
+
+	reinit = create_default_files(template_dir, original_git_dir);
+
+	create_object_directory();
+
+	if (get_shared_repository()) {
+		char buf[10];
+		/* We do not spell "group" and such, so that
+		 * the configuration can be read by older version
+		 * of git. Note, we use octal numbers for new share modes,
+		 * and compatibility values for PERM_GROUP and
+		 * PERM_EVERYBODY.
+		 */
+		if (get_shared_repository() < 0)
+			/* force to the mode value */
+			xsnprintf(buf, sizeof(buf), "0%o", -get_shared_repository());
+		else if (get_shared_repository() == PERM_GROUP)
+			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_GROUP);
+		else if (get_shared_repository() == PERM_EVERYBODY)
+			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_EVERYBODY);
+		else
+			die("BUG: invalid value for shared_repository");
+		git_config_set("core.sharedrepository", buf);
+		git_config_set("receive.denyNonFastforwards", "true");
 	}
 
-	if (!help && p->option & NEED_WORK_TREE)
-		setup_work_tree();
+	if (!(flags & INIT_DB_QUIET)) {
+		int len = strlen(git_dir);
 
-	trace_argv_printf(argv, "trace: built-in: git");
+		if (reinit)
+			printf(get_shared_repository()
+			       ? _("Reinitialized existing shared Git repository in %s%s\n")
+			       : _("Reinitialized existing Git repository in %s%s\n"),
+			       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
+		else
+			printf(get_shared_repository()
+			       ? _("Initialized empty shared Git repository in %s%s\n")
+			       : _("Initialized empty Git repository in %s%s\n"),
+			       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
+	}
 
-	status = p->fn(argc, argv, prefix);
-	if (status)
-		return status;
-
-	/* Somebody closed stdout? */
-	if (fstat(fileno(stdout), &st))
-		return 0;
-	/* Ignore write errors for pipes and sockets.. */
-	if (S_ISFIFO(st.st_mode) || S_ISSOCK(st.st_mode))
-		return 0;
-
-	/* Check for ENOSPC and EIO errors.. */
-	if (fflush(stdout))
-		die_errno("write failure on standard output");
-	if (ferror(stdout))
-		die("unknown write failure on standard output");
-	if (fclose(stdout))
-		die_errno("close failed on standard output");
+	free(original_git_dir);
 	return 0;
 }

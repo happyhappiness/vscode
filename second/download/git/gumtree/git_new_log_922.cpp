@@ -1,1 +1,1 @@
-die(_("could not start ls-files in .."));
+error("key does not contain a section: %s", key);

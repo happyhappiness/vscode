@@ -1,67 +1,69 @@
-static void builtin_checkdiff(const char *name_a, const char *name_b,
-			      const char *attr_path,
-			      struct diff_filespec *one,
-			      struct diff_filespec *two,
-			      struct diff_options *o)
+int main(int argc, char **argv)
 {
-	mmfile_t mf1, mf2;
-	struct checkdiff_t data;
+	struct strbuf all_msgs = STRBUF_INIT;
+	int total;
+	int nongit_ok;
 
-	if (!two)
-		return;
+	git_extract_argv0_path(argv[0]);
 
-	memset(&data, 0, sizeof(data));
-	data.filename = name_b ? name_b : name_a;
-	data.lineno = 0;
-	data.o = o;
-	data.ws_rule = whitespace_rule(attr_path);
-	data.conflict_marker_size = ll_merge_marker_size(attr_path);
+	git_setup_gettext();
 
-	if (fill_mmfile(&mf1, one) < 0 || fill_mmfile(&mf2, two) < 0)
-		die("unable to read files to diff");
+	setup_git_directory_gently(&nongit_ok);
+	git_imap_config();
 
-	/*
-	 * All the other codepaths check both sides, but not checking
-	 * the "old" side here is deliberate.  We are checking the newly
-	 * introduced changes, and as long as the "new" side is text, we
-	 * can and should check what it introduces.
-	 */
-	if (diff_filespec_is_binary(two))
-		goto free_and_return;
-	else {
-		/* Crazy xdl interfaces.. */
-		xpparam_t xpp;
-		xdemitconf_t xecfg;
+	argc = parse_options(argc, (const char **)argv, "", imap_send_options, imap_send_usage, 0);
 
-		memset(&xpp, 0, sizeof(xpp));
-		memset(&xecfg, 0, sizeof(xecfg));
-		xecfg.ctxlen = 1; /* at least one context line */
-		xpp.flags = 0;
-		if (xdi_diff_outf(&mf1, &mf2, checkdiff_consume, &data,
-				  &xpp, &xecfg))
-			die("unable to generate checkdiff for %s", one->path);
+	if (argc)
+		usage_with_options(imap_send_usage, imap_send_options);
 
-		if (data.ws_rule & WS_BLANK_AT_EOF) {
-			struct emit_callback ecbdata;
-			int blank_at_eof;
-
-			ecbdata.ws_rule = data.ws_rule;
-			check_blank_at_eof(&mf1, &mf2, &ecbdata);
-			blank_at_eof = ecbdata.blank_at_eof_in_postimage;
-
-			if (blank_at_eof) {
-				static char *err;
-				if (!err)
-					err = whitespace_error_string(WS_BLANK_AT_EOF);
-				fprintf(o->file, "%s:%d: %s.\n",
-					data.filename, blank_at_eof, err);
-				data.status = 1; /* report errors */
-			}
-		}
+#ifndef USE_CURL_FOR_IMAP_SEND
+	if (use_curl) {
+		warning("--use-curl not supported in this build");
+		use_curl = 0;
 	}
- free_and_return:
-	diff_free_filespec_data(one);
-	diff_free_filespec_data(two);
-	if (data.status)
-		DIFF_OPT_SET(o, CHECK_FAILED);
+#endif
+
+	if (!server.port)
+		server.port = server.use_ssl ? 993 : 143;
+
+	if (!server.folder) {
+		fprintf(stderr, "no imap store specified\n");
+		return 1;
+	}
+	if (!server.host) {
+		if (!server.tunnel) {
+			fprintf(stderr, "no imap host specified\n");
+			return 1;
+		}
+		server.host = "tunnel";
+	}
+
+	/* read the messages */
+	if (read_message(stdin, &all_msgs)) {
+		fprintf(stderr, "error reading input\n");
+		return 1;
+	}
+
+	if (all_msgs.len == 0) {
+		fprintf(stderr, "nothing to send\n");
+		return 1;
+	}
+
+	total = count_messages(&all_msgs);
+	if (!total) {
+		fprintf(stderr, "no messages to send\n");
+		return 1;
+	}
+
+	/* write it to the imap server */
+
+	if (server.tunnel)
+		return append_msgs_to_imap(&server, &all_msgs, total);
+
+#ifdef USE_CURL_FOR_IMAP_SEND
+	if (use_curl)
+		return curl_append_msgs_to_imap(&server, &all_msgs, total);
+#endif
+
+	return append_msgs_to_imap(&server, &all_msgs, total);
 }

@@ -1,37 +1,18 @@
-static int show(int argc, const char **argv, const char *prefix)
+static void check_ref_valid(unsigned char object[20],
+			    unsigned char prev[20],
+			    char *ref,
+			    int ref_size,
+			    int force)
 {
-	const char *object_ref;
-	struct notes_tree *t;
-	unsigned char object[20];
-	const unsigned char *note;
-	int retval;
-	struct option options[] = {
-		OPT_END()
-	};
+	if (snprintf(ref, ref_size,
+		     "%s%s", git_replace_ref_base,
+		     sha1_to_hex(object)) > ref_size - 1)
+		die("replace ref name too long: %.*s...", 50, ref);
+	if (check_refname_format(ref, 0))
+		die("'%s' is not a valid ref name.", ref);
 
-	argc = parse_options(argc, argv, prefix, options, git_notes_show_usage,
-			     0);
-
-	if (1 < argc) {
-		error(_("too many parameters"));
-		usage_with_options(git_notes_show_usage, options);
-	}
-
-	object_ref = argc ? argv[0] : "HEAD";
-
-	if (get_sha1(object_ref, object))
-		die(_("failed to resolve '%s' as a valid ref."), object_ref);
-
-	t = init_notes_check("show", 0);
-	note = get_note(t, object);
-
-	if (!note)
-		retval = error(_("no note found for object %s."),
-			       sha1_to_hex(object));
-	else {
-		const char *show_args[3] = {"show", sha1_to_hex(note), NULL};
-		retval = execv_git_cmd(show_args);
-	}
-	free_notes(t);
-	return retval;
+	if (read_ref(ref, prev))
+		hashclr(prev);
+	else if (!force)
+		die("replace ref '%s' already exists", ref);
 }

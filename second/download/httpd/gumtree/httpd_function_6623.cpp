@@ -1,22 +1,53 @@
-static int proxy_http_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-        apr_pool_t *ptemp, server_rec *s)
+apr_status_t h2_request_add_header(h2_request *req, apr_pool_t *pool, 
+                                   const char *name, size_t nlen,
+                                   const char *value, size_t vlen)
 {
-
-    /* proxy_http_post_config() will be called twice during startup.  So, don't
-     * set up the static data the 1st time through. */
-    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG) {
-        return OK;
+    apr_status_t status = APR_SUCCESS;
+    
+    if (nlen <= 0) {
+        return status;
     }
-
-    if (!ap_proxy_clear_connection_fn) {
-        ap_proxy_clear_connection_fn =
-                APR_RETRIEVE_OPTIONAL_FN(ap_proxy_clear_connection);
-        if (!ap_proxy_clear_connection_fn) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02477)
-                         "mod_proxy must be loaded for mod_proxy_http");
-            return !OK;
+    
+    if (name[0] == ':') {
+        /* pseudo header, see ch. 8.1.2.3, always should come first */
+        if (!apr_is_empty_table(req->headers)) {
+            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                          APLOGNO(02917) 
+                          "h2_request(%d): pseudo header after request start",
+                          req->id);
+            return APR_EGENERAL;
+        }
+        
+        if (H2_HEADER_METHOD_LEN == nlen
+            && !strncmp(H2_HEADER_METHOD, name, nlen)) {
+            req->method = apr_pstrndup(pool, value, vlen);
+        }
+        else if (H2_HEADER_SCHEME_LEN == nlen
+                 && !strncmp(H2_HEADER_SCHEME, name, nlen)) {
+            req->scheme = apr_pstrndup(pool, value, vlen);
+        }
+        else if (H2_HEADER_PATH_LEN == nlen
+                 && !strncmp(H2_HEADER_PATH, name, nlen)) {
+            req->path = apr_pstrndup(pool, value, vlen);
+        }
+        else if (H2_HEADER_AUTH_LEN == nlen
+                 && !strncmp(H2_HEADER_AUTH, name, nlen)) {
+            req->authority = apr_pstrndup(pool, value, vlen);
+        }
+        else {
+            char buffer[32];
+            memset(buffer, 0, 32);
+            strncpy(buffer, name, (nlen > 31)? 31 : nlen);
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
+                          APLOGNO(02954) 
+                          "h2_request(%d): ignoring unknown pseudo header %s",
+                          req->id, buffer);
         }
     }
-
-    return OK;
+    else {
+        /* non-pseudo header, append to work bucket of stream */
+        status = h2_headers_add_h1(req->headers, pool, name, nlen, value, vlen);
+    }
+    
+    return status;
 }

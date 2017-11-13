@@ -1,86 +1,85 @@
-static struct cmd2process *start_multi_file_filter(struct hashmap *hashmap, const char *cmd)
+static int apply_patch(struct apply_state *state,
+		       int fd,
+		       const char *filename,
+		       int options)
 {
-	int err;
-	struct cmd2process *entry;
-	struct child_process *process;
-	const char *argv[] = { cmd, NULL };
-	struct string_list cap_list = STRING_LIST_INIT_NODUP;
-	char *cap_buf;
-	const char *cap_name;
+	size_t offset;
+	struct strbuf buf = STRBUF_INIT; /* owns the patch text */
+	struct patch *list = NULL, **listp = &list;
+	int skipped_patch = 0;
 
-	entry = xmalloc(sizeof(*entry));
-	entry->cmd = cmd;
-	entry->supported_capabilities = 0;
-	process = &entry->process;
+	state->patch_input_file = filename;
+	read_patch_file(&buf, fd);
+	offset = 0;
+	while (offset < buf.len) {
+		struct patch *patch;
+		int nr;
 
-	child_process_init(process);
-	process->argv = argv;
-	process->use_shell = 1;
-	process->in = -1;
-	process->out = -1;
-	process->clean_on_exit = 1;
-	process->clean_on_exit_handler = stop_multi_file_filter;
-
-	if (start_command(process)) {
-		error("cannot fork to run external filter '%s'", cmd);
-		return NULL;
-	}
-
-	hashmap_entry_init(entry, strhash(cmd));
-
-	sigchain_push(SIGPIPE, SIG_IGN);
-
-	err = packet_write_list(process->in, "git-filter-client", "version=2", NULL);
-	if (err)
-		goto done;
-
-	err = strcmp(packet_read_line(process->out, NULL), "git-filter-server");
-	if (err) {
-		error("external filter '%s' does not support filter protocol version 2", cmd);
-		goto done;
-	}
-	err = strcmp(packet_read_line(process->out, NULL), "version=2");
-	if (err)
-		goto done;
-	err = packet_read_line(process->out, NULL) != NULL;
-	if (err)
-		goto done;
-
-	err = packet_write_list(process->in, "capability=clean", "capability=smudge", NULL);
-
-	for (;;) {
-		cap_buf = packet_read_line(process->out, NULL);
-		if (!cap_buf)
+		patch = xcalloc(1, sizeof(*patch));
+		patch->inaccurate_eof = !!(options & INACCURATE_EOF);
+		patch->recount =  !!(options & RECOUNT);
+		nr = parse_chunk(state, buf.buf + offset, buf.len - offset, patch);
+		if (nr < 0) {
+			free_patch(patch);
 			break;
-		string_list_split_in_place(&cap_list, cap_buf, '=', 1);
-
-		if (cap_list.nr != 2 || strcmp(cap_list.items[0].string, "capability"))
-			continue;
-
-		cap_name = cap_list.items[1].string;
-		if (!strcmp(cap_name, "clean")) {
-			entry->supported_capabilities |= CAP_CLEAN;
-		} else if (!strcmp(cap_name, "smudge")) {
-			entry->supported_capabilities |= CAP_SMUDGE;
-		} else {
-			warning(
-				"external filter '%s' requested unsupported filter capability '%s'",
-				cmd, cap_name
-			);
 		}
-
-		string_list_clear(&cap_list, 0);
+		if (state->apply_in_reverse)
+			reverse_patches(patch);
+		if (use_patch(state, patch)) {
+			patch_stats(state, patch);
+			*listp = patch;
+			listp = &patch->next;
+		}
+		else {
+			if (state->apply_verbosely)
+				say_patch_name(stderr, _("Skipped patch '%s'."), patch);
+			free_patch(patch);
+			skipped_patch++;
+		}
+		offset += nr;
 	}
 
-done:
-	sigchain_pop(SIGPIPE);
+	if (!list && !skipped_patch)
+		die(_("unrecognized input"));
 
-	if (err || errno == EPIPE) {
-		error("initialization for external filter '%s' failed", cmd);
-		kill_multi_file_filter(hashmap, entry);
-		return NULL;
+	if (state->whitespace_error && (state->ws_error_action == die_on_ws_error))
+		state->apply = 0;
+
+	state->update_index = state->check_index && state->apply;
+	if (state->update_index && state->newfd < 0)
+		state->newfd = hold_locked_index(state->lock_file, 1);
+
+	if (state->check_index) {
+		if (read_cache() < 0)
+			die(_("unable to read index file"));
 	}
 
-	hashmap_add(hashmap, entry);
-	return entry;
+	if ((state->check || state->apply) &&
+	    check_patch_list(state, list) < 0 &&
+	    !state->apply_with_reject)
+		exit(1);
+
+	if (state->apply && write_out_results(state, list)) {
+		if (state->apply_with_reject)
+			exit(1);
+		/* with --3way, we still need to write the index out */
+		return 1;
+	}
+
+	if (state->fake_ancestor)
+		build_fake_ancestor(list, state->fake_ancestor);
+
+	if (state->diffstat)
+		stat_patch_list(state, list);
+
+	if (state->numstat)
+		numstat_patch_list(state, list);
+
+	if (state->summary)
+		summary_patch_list(list);
+
+	free_patch_list(list);
+	strbuf_release(&buf);
+	string_list_clear(&state->fn_table, 0);
+	return 0;
 }

@@ -1,1 +1,1 @@
-error(_("could not remove reference %s"), refname);
+die("could not read %s%s", prompt, err);

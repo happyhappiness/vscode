@@ -1,10 +1,8 @@
 fputs(
-"              ter is given in the range, the server's response will be unspec-\n"
-"              ified, depending on the server's configuration.\n"
-"\n"
-"              You should also be aware that many HTTP/1.1 servers do not  have\n"
-"              this  feature  enabled, so that when you attempt to get a range,\n"
-"              you'll instead get the whole document.\n"
-"\n"
-"              FTP and SFTP range downloads only  support  the  simple  'start-\n"
+"              server. Quote commands are sent BEFORE the transfer takes  place\n"
+"              (just  after  the  initial PWD command in an FTP transfer, to be\n"
+"              exact). To make commands take place after a successful transfer,\n"
+"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
+"              curl has changed the working directory, just before the transfer\n"
+"              command(s),  prefix  the  command  with a '+' (this is only sup-\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              there seem to be broken SSL implementations in the wild that may\n"
-"              require you to disable this in order for you to succeed.  (Added\n"
-"              in 7.16.0)\n"
+"              allow  curl to FTP to the machine host.domain.com with user name\n"
+"              'myself' and password 'secret' should look similar to:\n"
 "\n"
-"              Note  that  this  is the negated option name documented. You can\n"
-"              thus use --sessionid to enforce session-ID caching.\n"
+"              machine host.domain.com login myself password secret\n"
 "\n"
-"       --noproxy <no-proxy-list>\n"
-"              Comma-separated list of hosts which do not use a proxy,  if  one\n"
+"       -N, --no-buffer\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
+"              uations,  curl  will  use a standard buffered output stream that\n"
+"              will have the effect that it will output the data in chunks, not\n"
 , stdout);

@@ -1,10 +1,8 @@
 fputs(
-"              second  and  then for all forthcoming retries it will double the\n"
-"              waiting time until it reaches 10 minutes which then will be  the\n"
-"              delay  between  the rest of the retries.  By using --retry-delay\n"
-"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
-"              --retry-max-time to limit the total time allowed for retries.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
+"              Using this, you can make the curl requests(s)  use  a  specified\n"
+"              address  and  prevent the otherwise normally resolved address to\n"
+"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
+"              on  the  command line. The port number should be the number used\n"
+"              for the specific protocol the host will be used  for.  It  means\n"
+"              you  need several entries if you want to provide address for the\n"
 , stdout);

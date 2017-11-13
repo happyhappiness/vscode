@@ -1,1 +1,1 @@
-io_printf(f_out, "%s%s\n", leader, b64_challenge);
+out_of_memory("glob_expand");

@@ -1,1 +1,1 @@
-error_errno("cannot create thread");
+strbuf_write(&pp->buffered_output, stderr);

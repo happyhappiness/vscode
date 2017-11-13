@@ -1,10 +1,10 @@
 fputs(
-"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              take.   This is useful for preventing your batch jobs from hang-\n"
+"              ing for hours due to slow networks or links going  down.   Since\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
+"              out will decrease in accuracy as the specified timeout increases\n"
+"              in decimal precision.  See also the --connect-timeout option.\n"
 "\n"
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only  shows  the ASCII part of the dump. It makes smaller output\n"
-"              that might be easier to read for untrained humans.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
 , stdout);

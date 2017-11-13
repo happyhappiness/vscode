@@ -1,1 +1,4 @@
-ap_rputs("\"<b><code>I</code></b>\" Idle cleanup of worker, \n", r);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_CLOSE_CONNECTION "
+                          "is not supported: %s", r->filename);

@@ -1,34 +1,44 @@
-static apr_status_t gset_encode_next(gset_encoder *encoder, apr_uint64_t pval)
+char *ap_get_local_host(apr_pool_t *a)
 {
-    apr_uint64_t delta, flex_bits;
-    apr_status_t status = APR_SUCCESS;
-    int i;
-    
-    delta = pval - encoder->last;
-    encoder->last = pval;
-    flex_bits = (delta >> encoder->fixed_bits);
-    /* Intentional no APLOGNO */
-    ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, encoder->pool,
-                  "h2_push_diary_enc: val=%"APR_UINT64_T_HEX_FMT", delta=%"
-                  APR_UINT64_T_HEX_FMT" flex_bits=%"APR_UINT64_T_FMT", "
-                  ", fixed_bits=%d, fixed_val=%"APR_UINT64_T_HEX_FMT, 
-                  pval, delta, flex_bits, encoder->fixed_bits, delta&encoder->fixed_mask);
-    for (; flex_bits != 0; --flex_bits) {
-        status = gset_encode_bit(encoder, 1);
-        if (status != APR_SUCCESS) {
-            return status;
+#ifndef MAXHOSTNAMELEN
+#define MAXHOSTNAMELEN 256
+#endif
+    char str[MAXHOSTNAMELEN + 1];
+    char *server_hostname = NULL;
+    apr_sockaddr_t *sockaddr;
+    char *hostname;
+
+    if (apr_gethostname(str, sizeof(str) - 1, a) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
+                     "%s: apr_gethostname() failed to determine ServerName",
+                     ap_server_argv0);
+    } else {
+        str[sizeof(str) - 1] = '\0';
+        if (apr_sockaddr_info_get(&sockaddr, str, APR_UNSPEC, 0, 0, a) == APR_SUCCESS) {
+            if ( (apr_getnameinfo(&hostname, sockaddr, 0) == APR_SUCCESS) &&
+                (ap_strchr_c(hostname, '.')) ) {
+                server_hostname = apr_pstrdup(a, hostname);
+                return server_hostname;
+            } else if (ap_strchr_c(str, '.')) {
+                server_hostname = apr_pstrdup(a, str);
+            } else {
+                apr_sockaddr_ip_get(&hostname, sockaddr);
+                server_hostname = apr_pstrdup(a, hostname);
+            }
+        } else {
+            ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
+                         "%s: apr_sockaddr_info_get() failed for %s",
+                         ap_server_argv0, str);
         }
-    }
-    status = gset_encode_bit(encoder, 0);
-    if (status != APR_SUCCESS) {
-        return status;
     }
 
-    for (i = encoder->fixed_bits-1; i >= 0; --i) {
-        status = gset_encode_bit(encoder, (delta >> i) & 1);
-        if (status != APR_SUCCESS) {
-            return status;
-        }
-    }
-    return APR_SUCCESS;
+    if (!server_hostname)
+        server_hostname = apr_pstrdup(a, "127.0.0.1");
+
+    ap_log_perror(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0, a,
+                 "%s: Could not reliably determine the server's fully qualified "
+                 "domain name, using %s for ServerName",
+                 ap_server_argv0, server_hostname);
+
+    return server_hostname;
 }

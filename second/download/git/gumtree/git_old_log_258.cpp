@@ -1,2 +1,1 @@
-error(_("The note contents have been left in %s"),
-				d->edit_path);
+error(_("unable to open or read %s"), path);

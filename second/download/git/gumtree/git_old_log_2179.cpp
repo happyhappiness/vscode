@@ -1,1 +1,1 @@
-printf("%s%s\n", tok, val);
+error("unable to create directory for %s", logfile);

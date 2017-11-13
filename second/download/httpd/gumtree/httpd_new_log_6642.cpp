@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00565)
-                              "request failed: client's request-line exceeds LimitRequestLine (longer than %d)",
-                              r->server->limit_req_line);
+ap_log_cerror(APLOG_MARK, loglvl, 0, session->c, APLOGNO(03078)
+                      "h2_session(%ld): transit [%s] -- %s --> [%s]", session->id,
+                      state_name(session->state), action, state_name(nstate));

@@ -1,1 +1,4 @@
-fprintf(stderr, "Unable to fetch %s, will not be able to update server info refs\n", sha1_to_hex(request->obj->sha1));
+error(remote_branch
+			      ? _("Error deleting remote branch '%s'")
+			      : _("Error deleting branch '%s'"),
+			      bname.buf);

@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
-                  "handing out temporary 256 bit ECC key");
+ap_rvputs(r, "<td", (d->style_sheet != NULL) ? " class=\"indexcolname\">" : ">", "<a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2), "</a>", NULL);

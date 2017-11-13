@@ -1,11 +1,11 @@
 puts(
-"  The progress meter exists to show a user that something actually is\n"
-"  happening. The different fields in the output have the following meaning:\n"
+"  For example, the field name 'coolfiles' is used to send three  files, with\n"
+"  different content types using the following syntax:\n"
 "\n"
-"  % Total    % Received % Xferd  Average Speed          Time             Curr.\n"
-"                                 Dload  Upload Total    Current  Left    Speed\n"
-"  0  151M    0 38608    0     0   9406      0  4:41:43  0:00:04  4:41:39  9287\n"
+"        curl -F \"coolfiles=@fil1.gif;type=image/gif,fil2.txt,fil3.html\" \\\n"
+"        http://www.post.com/postit.cgi\n"
 "\n"
-"  From left-to-right:\n"
-"   %             - percentage completed of the whole transfer\n"
+"  If the content-type is not specified, curl will try to guess from the file\n"
+"  extension  (it only knows a few), or use the previously specified type\n"
+"  (from an earlier file if several files are specified in a list) or else it\n"
 );

@@ -1,20 +1,28 @@
-static void *get_delta(struct object_entry *entry)
+static int edit_and_replace(const char *object_ref, int force, int raw)
 {
-	unsigned long size, base_size, delta_size;
-	void *buf, *base_buf, *delta_buf;
+	char *tmpfile = git_pathdup("REPLACE_EDITOBJ");
 	enum object_type type;
+	unsigned char old[20], new[20], prev[20];
+	char ref[PATH_MAX];
 
-	buf = read_sha1_file(entry->idx.sha1, &type, &size);
-	if (!buf)
-		die("unable to read %s", sha1_to_hex(entry->idx.sha1));
-	base_buf = read_sha1_file(entry->delta->idx.sha1, &type, &base_size);
-	if (!base_buf)
-		die("unable to read %s", sha1_to_hex(entry->delta->idx.sha1));
-	delta_buf = diff_delta(base_buf, base_size,
-			       buf, size, &delta_size, 0);
-	if (!delta_buf || delta_size != entry->delta_size)
-		die("delta size changed");
-	free(buf);
-	free(base_buf);
-	return delta_buf;
+	if (get_sha1(object_ref, old) < 0)
+		die("Not a valid object name: '%s'", object_ref);
+
+	type = sha1_object_info(old, NULL);
+	if (type < 0)
+		die("unable to get object type for %s", sha1_to_hex(old));
+
+	check_ref_valid(old, prev, ref, sizeof(ref), force);
+
+	export_object(old, type, raw, tmpfile);
+	if (launch_editor(tmpfile, NULL, NULL) < 0)
+		die("editing object file failed");
+	import_object(new, type, raw, tmpfile);
+
+	free(tmpfile);
+
+	if (!hashcmp(old, new))
+		return error("new object is the same as the old one: '%s'", sha1_to_hex(old));
+
+	return replace_object_sha1(object_ref, old, "replacement", new, force);
 }

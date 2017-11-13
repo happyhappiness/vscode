@@ -1,79 +1,69 @@
-void bitmap_writer_build(struct packing_data *to_pack)
+static void combine_diff(const unsigned char *parent, unsigned int mode,
+			 mmfile_t *result_file,
+			 struct sline *sline, unsigned int cnt, int n,
+			 int num_parent, int result_deleted,
+			 struct userdiff_driver *textconv,
+			 const char *path, long flags)
 {
-	static const double REUSE_BITMAP_THRESHOLD = 0.2;
+	unsigned int p_lno, lno;
+	unsigned long nmask = (1UL << n);
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	mmfile_t parent_file;
+	struct combine_diff_state state;
+	unsigned long sz;
 
-	int i, reuse_after, need_reset;
-	struct bitmap *base = bitmap_new();
-	struct rev_info revs;
+	if (result_deleted)
+		return; /* result deleted */
 
-	writer.bitmaps = kh_init_sha1();
-	writer.to_pack = to_pack;
+	parent_file.ptr = grab_blob(parent, mode, &sz, textconv, path);
+	parent_file.size = sz;
+	memset(&xpp, 0, sizeof(xpp));
+	xpp.flags = flags;
+	memset(&xecfg, 0, sizeof(xecfg));
+	memset(&state, 0, sizeof(state));
+	state.nmask = nmask;
+	state.sline = sline;
+	state.lno = 1;
+	state.num_parent = num_parent;
+	state.n = n;
 
-	if (writer.show_progress)
-		writer.progress = start_progress("Building bitmaps", writer.selected_nr);
+	if (xdi_diff_outf(&parent_file, result_file, consume_line, &state,
+			  &xpp, &xecfg))
+		die("unable to generate combined diff for %s",
+		    sha1_to_hex(parent));
+	free(parent_file.ptr);
 
-	init_revisions(&revs, NULL);
-	revs.tag_objects = 1;
-	revs.tree_objects = 1;
-	revs.blob_objects = 1;
-	revs.no_walk = 0;
+	/* Assign line numbers for this parent.
+	 *
+	 * sline[lno].p_lno[n] records the first line number
+	 * (counting from 1) for parent N if the final hunk display
+	 * started by showing sline[lno] (possibly showing the lost
+	 * lines attached to it first).
+	 */
+	for (lno = 0,  p_lno = 1; lno <= cnt; lno++) {
+		struct lline *ll;
+		sline[lno].p_lno[n] = p_lno;
 
-	revs.include_check = should_include;
-	reset_revision_walk();
+		/* Coalesce new lines */
+		if (sline[lno].plost.lost_head) {
+			struct sline *sl = &sline[lno];
+			sl->lost = coalesce_lines(sl->lost, &sl->lenlost,
+						  sl->plost.lost_head,
+						  sl->plost.len, n, flags);
+			sl->plost.lost_head = sl->plost.lost_tail = NULL;
+			sl->plost.len = 0;
+		}
 
-	reuse_after = writer.selected_nr * REUSE_BITMAP_THRESHOLD;
-	need_reset = 0;
-
-	for (i = writer.selected_nr - 1; i >= 0; --i) {
-		struct bitmapped_commit *stored;
-		struct object *object;
-
-		khiter_t hash_pos;
-		int hash_ret;
-
-		stored = &writer.selected[i];
-		object = (struct object *)stored->commit;
-
-		if (stored->bitmap == NULL) {
-			if (i < writer.selected_nr - 1 &&
-			    (need_reset ||
-			     !in_merge_bases(writer.selected[i + 1].commit,
-					     stored->commit))) {
-			    bitmap_reset(base);
-			    reset_all_seen();
-			}
-
-			add_pending_object(&revs, object, "");
-			revs.include_check_data = base;
-
-			if (prepare_revision_walk(&revs))
-				die("revision walk setup failed");
-
-			traverse_commit_list(&revs, show_commit, show_object, base);
-
-			revs.pending.nr = 0;
-			revs.pending.alloc = 0;
-			revs.pending.objects = NULL;
-
-			stored->bitmap = bitmap_to_ewah(base);
-			need_reset = 0;
-		} else
-			need_reset = 1;
-
-		if (i >= reuse_after)
-			stored->flags |= BITMAP_FLAG_REUSE;
-
-		hash_pos = kh_put_sha1(writer.bitmaps, object->sha1, &hash_ret);
-		if (hash_ret == 0)
-			die("Duplicate entry when writing index: %s",
-			    sha1_to_hex(object->sha1));
-
-		kh_value(writer.bitmaps, hash_pos) = stored;
-		display_progress(writer.progress, writer.selected_nr - i);
+		/* How many lines would this sline advance the p_lno? */
+		ll = sline[lno].lost;
+		while (ll) {
+			if (ll->parent_map & nmask)
+				p_lno++; /* '-' means parent had it */
+			ll = ll->next;
+		}
+		if (lno < cnt && !(sline[lno].flag & nmask))
+			p_lno++; /* no '+' means parent had it */
 	}
-
-	bitmap_free(base);
-	stop_progress(&writer.progress);
-
-	compute_xor_offsets();
+	sline[lno].p_lno[n] = p_lno; /* trailer */
 }

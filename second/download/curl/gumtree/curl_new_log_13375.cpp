@@ -1,11 +1,11 @@
 fputs(
-"              its response to curl's PASV command when curl connects the  data\n"
-"              connection.  Instead  curl  will  re-use  the same IP address it\n"
-"              already uses for the control connection. (Added in 7.14.2)\n"
+"              and password has been provided, this data is sent off using  the\n"
+"              ACCT command. (Added in 7.13.0)\n"
 "\n"
-"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
-"              of PASV.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --ftp-pret\n"
-"              (FTP)  Tell  curl to send a PRET command before PASV (and EPSV).\n"
+"       --ftp-alternative-to-user <command>\n"
+"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
+"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
+"              Transport  server  over  FTPS  using a client certificate, using\n"
 , stdout);

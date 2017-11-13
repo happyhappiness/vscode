@@ -1,1 +1,2 @@
-error_errno("Could not close %s", filename);
+die("unknown repository extension: %s",
+			    unknown_extensions.items[0].string);

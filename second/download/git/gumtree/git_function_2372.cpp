@@ -1,114 +1,106 @@
-int start_async(struct async *async)
+int cmd_ls_remote(int argc, const char **argv, const char *prefix)
 {
-	int need_in, need_out;
-	int fdin[2], fdout[2];
-	int proc_in, proc_out;
+	int i;
+	const char *dest = NULL;
+	unsigned flags = 0;
+	int get_url = 0;
+	int quiet = 0;
+	int status = 0;
+	const char *uploadpack = NULL;
+	const char **pattern = NULL;
 
-	need_in = async->in < 0;
-	if (need_in) {
-		if (pipe(fdin) < 0) {
-			if (async->out > 0)
-				close(async->out);
-			return error("cannot create pipe: %s", strerror(errno));
+	struct remote *remote;
+	struct transport *transport;
+	const struct ref *ref;
+
+	if (argc == 2 && !strcmp("-h", argv[1]))
+		usage(ls_remote_usage);
+
+	for (i = 1; i < argc; i++) {
+		const char *arg = argv[i];
+
+		if (*arg == '-') {
+			if (starts_with(arg, "--upload-pack=")) {
+				uploadpack = arg + 14;
+				continue;
+			}
+			if (starts_with(arg, "--exec=")) {
+				uploadpack = arg + 7;
+				continue;
+			}
+			if (!strcmp("--tags", arg) || !strcmp("-t", arg)) {
+				flags |= REF_TAGS;
+				continue;
+			}
+			if (!strcmp("--heads", arg) || !strcmp("-h", arg)) {
+				flags |= REF_HEADS;
+				continue;
+			}
+			if (!strcmp("--refs", arg)) {
+				flags |= REF_NORMAL;
+				continue;
+			}
+			if (!strcmp("--quiet", arg) || !strcmp("-q", arg)) {
+				quiet = 1;
+				continue;
+			}
+			if (!strcmp("--get-url", arg)) {
+				get_url = 1;
+				continue;
+			}
+			if (!strcmp("--exit-code", arg)) {
+				/* return this code if no refs are reported */
+				status = 2;
+				continue;
+			}
+			usage(ls_remote_usage);
 		}
-		async->in = fdin[1];
+		dest = arg;
+		i++;
+		break;
 	}
 
-	need_out = async->out < 0;
-	if (need_out) {
-		if (pipe(fdout) < 0) {
-			if (need_in)
-				close_pair(fdin);
-			else if (async->in)
-				close(async->in);
-			return error("cannot create pipe: %s", strerror(errno));
-		}
-		async->out = fdout[0];
-	}
-
-	if (need_in)
-		proc_in = fdin[0];
-	else if (async->in)
-		proc_in = async->in;
-	else
-		proc_in = -1;
-
-	if (need_out)
-		proc_out = fdout[1];
-	else if (async->out)
-		proc_out = async->out;
-	else
-		proc_out = -1;
-
-#ifdef NO_PTHREADS
-	/* Flush stdio before fork() to avoid cloning buffers */
-	fflush(NULL);
-
-	async->pid = fork();
-	if (async->pid < 0) {
-		error("fork (async) failed: %s", strerror(errno));
-		goto error;
-	}
-	if (!async->pid) {
-		if (need_in)
-			close(fdin[1]);
-		if (need_out)
-			close(fdout[0]);
-		git_atexit_clear();
-		process_is_async = 1;
-		exit(!!async->proc(proc_in, proc_out, async->data));
-	}
-
-	mark_child_for_cleanup(async->pid);
-
-	if (need_in)
-		close(fdin[0]);
-	else if (async->in)
-		close(async->in);
-
-	if (need_out)
-		close(fdout[1]);
-	else if (async->out)
-		close(async->out);
-#else
-	if (!main_thread_set) {
-		/*
-		 * We assume that the first time that start_async is called
-		 * it is from the main thread.
-		 */
-		main_thread_set = 1;
-		main_thread = pthread_self();
-		pthread_key_create(&async_key, NULL);
-		pthread_key_create(&async_die_counter, NULL);
-		set_die_routine(die_async);
-		set_die_is_recursing_routine(async_die_is_recursing);
-	}
-
-	if (proc_in >= 0)
-		set_cloexec(proc_in);
-	if (proc_out >= 0)
-		set_cloexec(proc_out);
-	async->proc_in = proc_in;
-	async->proc_out = proc_out;
-	{
-		int err = pthread_create(&async->tid, NULL, run_thread, async);
-		if (err) {
-			error("cannot create thread: %s", strerror(err));
-			goto error;
+	if (argv[i]) {
+		int j;
+		pattern = xcalloc(argc - i + 1, sizeof(const char *));
+		for (j = i; j < argc; j++) {
+			int len = strlen(argv[j]);
+			char *p = xmalloc(len + 3);
+			sprintf(p, "*/%s", argv[j]);
+			pattern[j - i] = p;
 		}
 	}
-#endif
-	return 0;
+	remote = remote_get(dest);
+	if (!remote) {
+		if (dest)
+			die("bad repository '%s'", dest);
+		die("No remote configured to list refs from.");
+	}
+	if (!remote->url_nr)
+		die("remote %s has no configured URL", dest);
 
-error:
-	if (need_in)
-		close_pair(fdin);
-	else if (async->in)
-		close(async->in);
+	if (get_url) {
+		printf("%s\n", *remote->url);
+		return 0;
+	}
 
-	if (need_out)
-		close_pair(fdout);
-	else if (async->out)
-		close(async->out);
-	return -1;
+	transport = transport_get(remote, NULL);
+	if (uploadpack != NULL)
+		transport_set_option(transport, TRANS_OPT_UPLOADPACK, uploadpack);
+
+	ref = transport_get_remote_refs(transport);
+	if (transport_disconnect(transport))
+		return 1;
+
+	if (!dest && !quiet)
+		fprintf(stderr, "From %s\n", *remote->url);
+	for ( ; ref; ref = ref->next) {
+		if (!check_ref_type(ref, flags))
+			continue;
+		if (!tail_match(pattern, ref->name))
+			continue;
+		printf("%s	%s\n", sha1_to_hex(ref->old_sha1), ref->name);
+		status = 0; /* we found something */
+	}
+	return status;
 }

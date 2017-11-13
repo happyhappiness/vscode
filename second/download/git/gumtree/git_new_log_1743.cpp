@@ -1,2 +1,1 @@
-strbuf_addf(err, "There are still logs under "
-					    "'%s'", logfile->buf);
+die(_("--author '%s' is not 'Name <email>' and matches no existing author"), name);

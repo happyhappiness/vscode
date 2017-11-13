@@ -1,10 +1,10 @@
 fputs(
-"              num_connects   Number of new connects made in the recent  trans-\n"
-"                             fer. (Added in 7.12.3)\n"
+"       -w, --write-out <format>\n"
+"              Make curl display information on stdout after a completed trans-\n"
+"              fer. The format is a string that may contain  plain  text  mixed\n"
+"              with  any  number of variables. The format can be specified as a\n"
+"              literal \"string\", or you can have curl read the  format  from  a\n"
+"              file  with  \"@filename\" and to tell curl to read the format from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"              num_redirects  Number  of  redirects  that  were followed in the\n"
-"                             request. (Added in 7.12.3)\n"
-"\n"
-"              redirect_url   When an HTTP request was made without -L to  fol-\n"
-"                             low redirects, this variable will show the actual\n"
 , stdout);

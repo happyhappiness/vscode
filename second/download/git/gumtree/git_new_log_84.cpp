@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die("badly quoted argument: %s", orig);

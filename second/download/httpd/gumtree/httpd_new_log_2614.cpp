@@ -1,1 +1,1 @@
-decl_die(access_status, "check access", r);
+ap_rputs("</td></tr>\n", r);

@@ -1,4 +1,7 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "Authorization of user %s to access %s failed, reason: "
-                    "user is not part of the 'require'ed group(s).",
-                    r->user, r->uri);
+fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\n",
+                tmstring,
+                sttime,
+                stats[i].ctime,
+                diff,
+                stats[i].time,
+                stats[i].waittime);

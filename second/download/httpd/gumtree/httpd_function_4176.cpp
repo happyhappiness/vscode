@@ -1,54 +1,83 @@
-static void ssl_init_ticket_key(server_rec *s,
-                                apr_pool_t *p,
-                                apr_pool_t *ptemp,
-                                modssl_ctx_t *mctx)
+static proxy_worker *find_best_hb(proxy_balancer *balancer,
+                                  request_rec *r)
 {
     apr_status_t rv;
-    apr_file_t *fp;
-    apr_size_t len;
-    char buf[TLSEXT_TICKET_KEY_LEN];
-    char *path;
-    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
+    int i;
+    apr_uint32_t openslots = 0;
+    proxy_worker **worker;
+    hb_server_t *server;
+    apr_array_header_t *up_servers;
+    proxy_worker *mycandidate = NULL;
+    apr_pool_t *tpool;
+    apr_hash_t *servers;
 
-    if (!ticket_key->file_path) {
-        return;
+    lb_hb_ctx_t *ctx = 
+        ap_get_module_config(r->server->module_config,
+                             &lbmethod_heartbeat_module);
+
+    apr_pool_create(&tpool, r->pool);
+
+    servers = apr_hash_make(tpool);
+
+    rv = read_heartbeats(ctx->path, servers, tpool);
+
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "lb_heartbeat: Unable to read heartbeats at '%s'",
+                      ctx->path);
+        apr_pool_destroy(tpool);
+        return NULL;
     }
 
-    path = ap_server_root_relative(p, ticket_key->file_path);
+    up_servers = apr_array_make(tpool, apr_hash_count(servers), sizeof(hb_server_t *));
 
-    rv = apr_file_open(&fp, path, APR_READ|APR_BINARY,
-                       APR_OS_DEFAULT, ptemp);
+    for (i = 0; i < balancer->workers->nelts; i++) {
+        worker = &APR_ARRAY_IDX(balancer->workers, i, proxy_worker *);
+        server = apr_hash_get(servers, (*worker)->hostname, APR_HASH_KEY_STRING);
 
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02286)
-                     "Failed to open ticket key file %s: (%d) %pm",
-                     path, rv, &rv);
-        ssl_die();
+        if (!server) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                      "lb_heartbeat: No server for worker %s", (*worker)->name);
+            continue;
+        }
+
+        if (!PROXY_WORKER_IS_USABLE(*worker)) {
+            ap_proxy_retry_worker("BALANCER", *worker, r->server);
+        }
+
+        if (PROXY_WORKER_IS_USABLE(*worker)) {
+            server->worker = *worker;
+            if (server->seen < LBM_HEARTBEAT_MAX_LASTSEEN) {
+                openslots += server->ready;
+                APR_ARRAY_PUSH(up_servers, hb_server_t *) = server;
+            }
+        }
     }
 
-    rv = apr_file_read_full(fp, &buf[0], TLSEXT_TICKET_KEY_LEN, &len);
+    if (openslots > 0) {
+        apr_uint32_t c = 0;
+        apr_uint32_t pick = 0;
 
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02287)
-                     "Failed to read %d bytes from %s: (%d) %pm",
-                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);
-        ssl_die();
+        rv = random_pick(&pick, 0, openslots);
+
+        if (rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "lb_heartbeat: failed picking a random number. how random.");
+            apr_pool_destroy(tpool);
+            return NULL;
+        }
+
+        for (i = 0; i < up_servers->nelts; i++) {
+            server = APR_ARRAY_IDX(up_servers, i, hb_server_t *);
+            if (pick >= c && pick <= c + server->ready) {
+                mycandidate = server->worker;
+            }
+
+            c += server->ready;
+        }
     }
 
-    memcpy(ticket_key->key_name, buf, 16);
-    memcpy(ticket_key->hmac_secret, buf + 16, 16);
-    memcpy(ticket_key->aes_key, buf + 32, 16);
+    apr_pool_destroy(tpool);
 
-    if (!SSL_CTX_set_tlsext_ticket_key_cb(mctx->ssl_ctx,
-                                          ssl_callback_SessionTicket)) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01913)
-                     "Unable to initialize TLS session ticket key callback "
-                     "(incompatible OpenSSL version?)");
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-        ssl_die();
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02288)
-                 "TLS session ticket key for %s successfully loaded from %s",
-                 (mySrvConfig(s))->vhost_id, path);
+    return mycandidate;
 }

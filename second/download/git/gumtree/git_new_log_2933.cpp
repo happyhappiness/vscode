@@ -1,2 +1,1 @@
-error_errno("unable to create symlink %s",
-						   path);
+error_errno("unable to create file %s", path);

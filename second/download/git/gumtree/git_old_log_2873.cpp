@@ -1,1 +1,1 @@
-error("Could not write to %s", filename);
+error("Could not close %s", filename);

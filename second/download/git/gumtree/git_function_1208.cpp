@@ -1,39 +1,11 @@
-static int gc_config(const char *var, const char *value, void *cb)
+static int blame_chunk_cb(long start_a, long count_a,
+			  long start_b, long count_b, void *data)
 {
-	if (!strcmp(var, "gc.packrefs")) {
-		if (value && !strcmp(value, "notbare"))
-			pack_refs = -1;
-		else
-			pack_refs = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp(var, "gc.aggressivewindow")) {
-		aggressive_window = git_config_int(var, value);
-		return 0;
-	}
-	if (!strcmp(var, "gc.aggressivedepth")) {
-		aggressive_depth = git_config_int(var, value);
-		return 0;
-	}
-	if (!strcmp(var, "gc.auto")) {
-		gc_auto_threshold = git_config_int(var, value);
-		return 0;
-	}
-	if (!strcmp(var, "gc.autopacklimit")) {
-		gc_auto_pack_limit = git_config_int(var, value);
-		return 0;
-	}
-	if (!strcmp(var, "gc.autodetach")) {
-		detach_auto = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp(var, "gc.pruneexpire")) {
-		if (value && strcmp(value, "now")) {
-			unsigned long now = approxidate("now");
-			if (approxidate(value) >= now)
-				return error(_("Invalid %s: '%s'"), var, value);
-		}
-		return git_config_string(&prune_expire, var, value);
-	}
-	return git_default_config(var, value, cb);
+	struct blame_chunk_cb_data *d = data;
+	if (start_a - start_b != d->offset)
+		die("internal error in blame::blame_chunk_cb");
+	blame_chunk(&d->dstq, &d->srcq, start_b, start_a - start_b,
+		    start_b + count_b, d->parent);
+	d->offset = start_a + count_a - (start_b + count_b);
+	return 0;
 }

@@ -1,11 +1,11 @@
 fputs(
-"              Sets  a  range of environment variables, using the names the -w,\n"
-"              --write-out option supports, to allow easier extraction of  use-\n"
-"              ful information after having run curl.\n"
+"              requires  that  the  underlying  libcurl was built to support c-\n"
+"              ares. Added in 7.33.0.\n"
 "\n"
-"              --environment  requires that the underlying libcurl was built to\n"
-"              support RISC OS.\n"
+"       --dns-ipv4-addr <address>\n"
+"              (DNS) Tell curl to bind to <ip-address>  when  making  IPv4  DNS\n"
+"              requests,  so that the DNS requests originate from this address.\n"
+"              The argument should be a single IPv4 address.\n"
 "\n"
-"       --expect100-timeout <seconds>\n"
-"              (HTTP) Maximum time in seconds that you allow curl to wait for a\n"
+"              See also --dns-interface  and  --dns-ipv6-addr.  --dns-ipv4-addr\n"
 , stdout);

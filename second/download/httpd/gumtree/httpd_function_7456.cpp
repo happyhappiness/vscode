@@ -1,24 +1,39 @@
-static int stream_reqbody_chunked(apr_pool_t *p,
-                                           request_rec *r,
-                                           proxy_conn_rec *p_conn,
-                                           conn_rec *origin,
-                                           apr_bucket_brigade *header_brigade,
-                                           apr_bucket_brigade *input_brigade)
+static int stream_reqbody_cl(apr_pool_t *p,
+                                      request_rec *r,
+                                      proxy_conn_rec *p_conn,
+                                      conn_rec *origin,
+                                      apr_bucket_brigade *header_brigade,
+                                      apr_bucket_brigade *input_brigade,
+                                      char *old_cl_val)
 {
-    int seen_eos = 0, rv = OK;
-    apr_size_t hdr_len;
-    apr_off_t bytes;
-    apr_status_t status;
+    int seen_eos = 0, rv = 0;
+    apr_status_t status = APR_SUCCESS;
     apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
     apr_bucket_brigade *bb;
     apr_bucket *e;
+    apr_off_t cl_val = 0;
+    apr_off_t bytes;
+    apr_off_t bytes_streamed = 0;
 
-    add_te_chunked(p, bucket_alloc, header_brigade);
+    if (old_cl_val) {
+        char *endstr;
+
+        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
+        status = apr_strtoff(&cl_val, old_cl_val, &endstr, 10);
+
+        if (status || *endstr || endstr == old_cl_val || cl_val < 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01085)
+                          "could not parse request Content-Length (%s)",
+                          old_cl_val);
+            return HTTP_BAD_REQUEST;
+        }
+    }
     terminate_headers(bucket_alloc, header_brigade);
 
     while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
     {
-        char chunk_hdr[20];  /* must be here due to transient bucket. */
+        apr_brigade_length(input_brigade, 1, &bytes);
+        bytes_streamed += bytes;
 
         /* If this brigade contains EOS, either stop or remove it. */
         if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
@@ -27,24 +42,29 @@ static int stream_reqbody_chunked(apr_pool_t *p,
             /* We can't pass this EOS to the output_filters. */
             e = APR_BRIGADE_LAST(input_brigade);
             apr_bucket_delete(e);
+
+            if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
+                e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(input_brigade, e);
+            }
         }
 
-        apr_brigade_length(input_brigade, 1, &bytes);
-
-        hdr_len = apr_snprintf(chunk_hdr, sizeof(chunk_hdr),
-                               "%" APR_UINT64_T_HEX_FMT CRLF,
-                               (apr_uint64_t)bytes);
-
-        ap_xlate_proto_to_ascii(chunk_hdr, hdr_len);
-        e = apr_bucket_transient_create(chunk_hdr, hdr_len,
-                                        bucket_alloc);
-        APR_BRIGADE_INSERT_HEAD(input_brigade, e);
-
-        /*
-         * Append the end-of-chunk CRLF
+        /* C-L < bytes streamed?!?
+         * We will error out after the body is completely
+         * consumed, but we can't stream more bytes at the
+         * back end since they would in part be interpreted
+         * as another request!  If nothing is sent, then
+         * just send nothing.
+         *
+         * Prevents HTTP Response Splitting.
          */
-        e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(input_brigade, e);
+        if (bytes_streamed > cl_val) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01086)
+                          "read more bytes of request body than expected "
+                          "(got %" APR_OFF_T_FMT ", expected %" APR_OFF_T_FMT ")",
+                          bytes_streamed, cl_val);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
 
         if (header_brigade) {
             /* we never sent the header brigade, so go ahead and
@@ -72,10 +92,10 @@ static int stream_reqbody_chunked(apr_pool_t *p,
             bb = input_brigade;
         }
 
-        /* The request is flushed below this loop with chunk EOS header */
-        rv = ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, 0);
+        /* Once we hit EOS, we are ready to flush. */
+        rv = ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, seen_eos);
         if (rv != OK) {
-            return rv;
+            return rv ;
         }
 
         if (seen_eos) {
@@ -88,7 +108,7 @@ static int stream_reqbody_chunked(apr_pool_t *p,
 
         if (status != APR_SUCCESS) {
             conn_rec *c = r->connection;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02608)
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02609)
                           "read request body failed to %pI (%s)"
                           " from %s (%s)", p_conn->addr,
                           p_conn->hostname ? p_conn->hostname: "",
@@ -97,34 +117,20 @@ static int stream_reqbody_chunked(apr_pool_t *p,
         }
     }
 
+    if (bytes_streamed != cl_val) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01087)
+                      "client %s given Content-Length did not match"
+                      " number of body bytes read", r->connection->client_ip);
+        return HTTP_BAD_REQUEST;
+    }
+
     if (header_brigade) {
-        /* we never sent the header brigade because there was no request body;
-         * send it now
+        /* we never sent the header brigade since there was no request
+         * body; send it now with the flush flag
          */
         bb = header_brigade;
-    }
-    else {
-        if (!APR_BRIGADE_EMPTY(input_brigade)) {
-            /* input brigade still has an EOS which we can't pass to the output_filters. */
-            e = APR_BRIGADE_LAST(input_brigade);
-            AP_DEBUG_ASSERT(APR_BUCKET_IS_EOS(e));
-            apr_bucket_delete(e);
-        }
-        bb = input_brigade;
+        return(ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1));
     }
 
-    e = apr_bucket_immortal_create(ASCII_ZERO ASCII_CRLF
-                                   /* <trailers> */
-                                   ASCII_CRLF,
-                                   5, bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(bb, e);
-
-    if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
-        e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, e);
-    }
-
-    /* Now we have headers-only, or the chunk EOS mark; flush it */
-    rv = ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1);
-    return rv;
+    return OK;
 }

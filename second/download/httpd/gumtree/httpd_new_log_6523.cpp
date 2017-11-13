@@ -1,1 +1,2 @@
-fprintf(stderr, "    -c concurrency  Number of multiple requests to make at a time\n");
+ap_log_error(APLOG_MARK, APLOG_ERR, err, s, APLOGNO()
+                             "Failed to free auth_digest client allocation");

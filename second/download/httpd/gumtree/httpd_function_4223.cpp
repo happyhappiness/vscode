@@ -1,46 +1,65 @@
-static apr_status_t upgrade_connection(request_rec *r)
+static proxy_worker *find_best_worker(proxy_balancer *balancer,
+                                      request_rec *r)
 {
-    struct conn_rec *conn = r->connection;
-    apr_bucket_brigade *bb;
-    SSLConnRec *sslconn;
+    proxy_worker *candidate = NULL;
     apr_status_t rv;
-    SSL *ssl;
 
-    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                  "upgrading connection to TLS");
-
-    bb = apr_brigade_create(r->pool, conn->bucket_alloc);
-
-    rv = ap_fputstrs(conn->output_filters, bb, SWITCH_STATUS_LINE, CRLF,
-                     UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
-    if (rv == APR_SUCCESS) {
-        APR_BRIGADE_INSERT_TAIL(bb,
-                                apr_bucket_flush_create(conn->bucket_alloc));
-        rv = ap_pass_brigade(conn->output_filters, bb);
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+        "proxy: BALANCER: (%s). Lock failed for find_best_worker()", balancer->name);
+        return NULL;
     }
 
-    if (rv) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "failed to send 101 interim response for connection "
-                      "upgrade");
-        return rv;
+    candidate = (*balancer->lbmethod->finder)(balancer, r);
+
+    if (candidate)
+        candidate->s->elected++;
+
+/*
+        PROXY_THREAD_UNLOCK(balancer);
+        return NULL;
+*/
+
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+        "proxy: BALANCER: (%s). Unlock failed for find_best_worker()", balancer->name);
     }
 
-    ssl_init_ssl_connection(conn, r);
-    
-    sslconn = myConnConfig(conn);
-    ssl = sslconn->ssl;
-    
-    /* Perform initial SSL handshake. */
-    SSL_set_accept_state(ssl);
-    SSL_do_handshake(ssl);
-
-    if (SSL_get_state(ssl) != SSL_ST_OK) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "TLS upgrade handshake failed: not accepted by client!?");
-        
-        return APR_ECONNABORTED;
+    if (candidate == NULL) {
+        /* All the workers are in error state or disabled.
+         * If the balancer has a timeout sleep for a while
+         * and try again to find the worker. The chances are
+         * that some other thread will release a connection.
+         * By default the timeout is not set, and the server
+         * returns SERVER_BUSY.
+         */
+#if APR_HAS_THREADS
+        if (balancer->timeout) {
+            /* XXX: This can perhaps be build using some
+             * smarter mechanism, like tread_cond.
+             * But since the statuses can came from
+             * different childs, use the provided algo.
+             */
+            apr_interval_time_t timeout = balancer->timeout;
+            apr_interval_time_t step, tval = 0;
+            /* Set the timeout to 0 so that we don't
+             * end in infinite loop
+             */
+            balancer->timeout = 0;
+            step = timeout / 100;
+            while (tval < timeout) {
+                apr_sleep(step);
+                /* Try again */
+                if ((candidate = find_best_worker(balancer, r)))
+                    break;
+                tval += step;
+            }
+            /* restore the timeout */
+            balancer->timeout = timeout;
+        }
+#endif
     }
 
-    return APR_SUCCESS;
+    return candidate;
+
 }

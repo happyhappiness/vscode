@@ -1,122 +1,115 @@
-static int do_write_index(struct index_state *istate, struct tempfile *tempfile,
-			  int strip_extensions)
+static void break_delta_chains(struct object_entry *entry)
 {
-	int newfd = tempfile->fd;
-	git_SHA_CTX c;
-	struct cache_header hdr;
-	int i, err, removed, extended, hdr_version;
-	struct cache_entry **cache = istate->cache;
-	int entries = istate->cache_nr;
-	struct stat st;
-	struct strbuf previous_name_buf = STRBUF_INIT, *previous_name;
+	/*
+	 * The actual depth of each object we will write is stored as an int,
+	 * as it cannot exceed our int "depth" limit. But before we break
+	 * changes based no that limit, we may potentially go as deep as the
+	 * number of objects, which is elsewhere bounded to a uint32_t.
+	 */
+	uint32_t total_depth;
+	struct object_entry *cur, *next;
 
-	for (i = removed = extended = 0; i < entries; i++) {
-		if (cache[i]->ce_flags & CE_REMOVE)
-			removed++;
+	for (cur = entry, total_depth = 0;
+	     cur;
+	     cur = cur->delta, total_depth++) {
+		if (cur->dfs_state == DFS_DONE) {
+			/*
+			 * We've already seen this object and know it isn't
+			 * part of a cycle. We do need to append its depth
+			 * to our count.
+			 */
+			total_depth += cur->depth;
+			break;
+		}
 
-		/* reduce extended entries if possible */
-		cache[i]->ce_flags &= ~CE_EXTENDED;
-		if (cache[i]->ce_flags & CE_EXTENDED_FLAGS) {
-			extended++;
-			cache[i]->ce_flags |= CE_EXTENDED;
+		/*
+		 * We break cycles before looping, so an ACTIVE state (or any
+		 * other cruft which made its way into the state variable)
+		 * is a bug.
+		 */
+		if (cur->dfs_state != DFS_NONE)
+			die("BUG: confusing delta dfs state in first pass: %d",
+			    cur->dfs_state);
+
+		/*
+		 * Now we know this is the first time we've seen the object. If
+		 * it's not a delta, we're done traversing, but we'll mark it
+		 * done to save time on future traversals.
+		 */
+		if (!cur->delta) {
+			cur->dfs_state = DFS_DONE;
+			break;
+		}
+
+		/*
+		 * Mark ourselves as active and see if the next step causes
+		 * us to cycle to another active object. It's important to do
+		 * this _before_ we loop, because it impacts where we make the
+		 * cut, and thus how our total_depth counter works.
+		 * E.g., We may see a partial loop like:
+		 *
+		 *   A -> B -> C -> D -> B
+		 *
+		 * Cutting B->C breaks the cycle. But now the depth of A is
+		 * only 1, and our total_depth counter is at 3. The size of the
+		 * error is always one less than the size of the cycle we
+		 * broke. Commits C and D were "lost" from A's chain.
+		 *
+		 * If we instead cut D->B, then the depth of A is correct at 3.
+		 * We keep all commits in the chain that we examined.
+		 */
+		cur->dfs_state = DFS_ACTIVE;
+		if (cur->delta->dfs_state == DFS_ACTIVE) {
+			drop_reused_delta(cur);
+			cur->dfs_state = DFS_DONE;
+			break;
 		}
 	}
 
-	if (!istate->version) {
-		istate->version = get_index_format_default();
-		if (getenv("GIT_TEST_SPLIT_INDEX"))
-			init_split_index(istate);
+	/*
+	 * And now that we've gone all the way to the bottom of the chain, we
+	 * need to clear the active flags and set the depth fields as
+	 * appropriate. Unlike the loop above, which can quit when it drops a
+	 * delta, we need to keep going to look for more depth cuts. So we need
+	 * an extra "next" pointer to keep going after we reset cur->delta.
+	 */
+	for (cur = entry; cur; cur = next) {
+		next = cur->delta;
+
+		/*
+		 * We should have a chain of zero or more ACTIVE states down to
+		 * a final DONE. We can quit after the DONE, because either it
+		 * has no bases, or we've already handled them in a previous
+		 * call.
+		 */
+		if (cur->dfs_state == DFS_DONE)
+			break;
+		else if (cur->dfs_state != DFS_ACTIVE)
+			die("BUG: confusing delta dfs state in second pass: %d",
+			    cur->dfs_state);
+
+		/*
+		 * If the total_depth is more than depth, then we need to snip
+		 * the chain into two or more smaller chains that don't exceed
+		 * the maximum depth. Most of the resulting chains will contain
+		 * (depth + 1) entries (i.e., depth deltas plus one base), and
+		 * the last chain (i.e., the one containing entry) will contain
+		 * whatever entries are left over, namely
+		 * (total_depth % (depth + 1)) of them.
+		 *
+		 * Since we are iterating towards decreasing depth, we need to
+		 * decrement total_depth as we go, and we need to write to the
+		 * entry what its final depth will be after all of the
+		 * snipping. Since we're snipping into chains of length (depth
+		 * + 1) entries, the final depth of an entry will be its
+		 * original depth modulo (depth + 1). Any time we encounter an
+		 * entry whose final depth is supposed to be zero, we snip it
+		 * from its delta base, thereby making it so.
+		 */
+		cur->depth = (total_depth--) % (depth + 1);
+		if (!cur->depth)
+			drop_reused_delta(cur);
+
+		cur->dfs_state = DFS_DONE;
 	}
-
-	/* demote version 3 to version 2 when the latter suffices */
-	if (istate->version == 3 || istate->version == 2)
-		istate->version = extended ? 3 : 2;
-
-	hdr_version = istate->version;
-
-	hdr.hdr_signature = htonl(CACHE_SIGNATURE);
-	hdr.hdr_version = htonl(hdr_version);
-	hdr.hdr_entries = htonl(entries - removed);
-
-	git_SHA1_Init(&c);
-	if (ce_write(&c, newfd, &hdr, sizeof(hdr)) < 0)
-		return -1;
-
-	previous_name = (hdr_version == 4) ? &previous_name_buf : NULL;
-	for (i = 0; i < entries; i++) {
-		struct cache_entry *ce = cache[i];
-		if (ce->ce_flags & CE_REMOVE)
-			continue;
-		if (!ce_uptodate(ce) && is_racy_timestamp(istate, ce))
-			ce_smudge_racily_clean_entry(ce);
-		if (is_null_oid(&ce->oid)) {
-			static const char msg[] = "cache entry has null sha1: %s";
-			static int allow = -1;
-
-			if (allow < 0)
-				allow = git_env_bool("GIT_ALLOW_NULL_SHA1", 0);
-			if (allow)
-				warning(msg, ce->name);
-			else
-				return error(msg, ce->name);
-		}
-		if (ce_write_entry(&c, newfd, ce, previous_name) < 0)
-			return -1;
-	}
-	strbuf_release(&previous_name_buf);
-
-	/* Write extension data here */
-	if (!strip_extensions && istate->split_index) {
-		struct strbuf sb = STRBUF_INIT;
-
-		err = write_link_extension(&sb, istate) < 0 ||
-			write_index_ext_header(&c, newfd, CACHE_EXT_LINK,
-					       sb.len) < 0 ||
-			ce_write(&c, newfd, sb.buf, sb.len) < 0;
-		strbuf_release(&sb);
-		if (err)
-			return -1;
-	}
-	if (!strip_extensions && istate->cache_tree) {
-		struct strbuf sb = STRBUF_INIT;
-
-		cache_tree_write(&sb, istate->cache_tree);
-		err = write_index_ext_header(&c, newfd, CACHE_EXT_TREE, sb.len) < 0
-			|| ce_write(&c, newfd, sb.buf, sb.len) < 0;
-		strbuf_release(&sb);
-		if (err)
-			return -1;
-	}
-	if (!strip_extensions && istate->resolve_undo) {
-		struct strbuf sb = STRBUF_INIT;
-
-		resolve_undo_write(&sb, istate->resolve_undo);
-		err = write_index_ext_header(&c, newfd, CACHE_EXT_RESOLVE_UNDO,
-					     sb.len) < 0
-			|| ce_write(&c, newfd, sb.buf, sb.len) < 0;
-		strbuf_release(&sb);
-		if (err)
-			return -1;
-	}
-	if (!strip_extensions && istate->untracked) {
-		struct strbuf sb = STRBUF_INIT;
-
-		write_untracked_extension(&sb, istate->untracked);
-		err = write_index_ext_header(&c, newfd, CACHE_EXT_UNTRACKED,
-					     sb.len) < 0 ||
-			ce_write(&c, newfd, sb.buf, sb.len) < 0;
-		strbuf_release(&sb);
-		if (err)
-			return -1;
-	}
-
-	if (ce_flush(&c, newfd, istate->sha1))
-		return -1;
-	if (close_tempfile(tempfile))
-		return error(_("could not close '%s'"), tempfile->filename.buf);
-	if (stat(tempfile->filename.buf, &st))
-		return -1;
-	istate->timestamp.sec = (unsigned int)st.st_mtime;
-	istate->timestamp.nsec = ST_MTIME_NSEC(st);
-	return 0;
 }

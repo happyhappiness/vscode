@@ -1,80 +1,137 @@
-static void cache_the_file(cmd_parms *cmd, const char *filename, int mmap)
+static authz_status ldapuser_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    a_server_config *sconf;
-    a_file *new_file;
-    a_file tmp;
-    apr_file_t *fd = NULL;
-    apr_status_t rc;
-    const char *fspec;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    fspec = ap_server_root_relative(cmd->pool, filename);
-    if (!fspec) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
-                     "mod_file_cache: invalid file path "
-                     "%s, skipping", filename);
-        return;
-    }
-    if ((rc = apr_stat(&tmp.finfo, fspec, APR_FINFO_MIN,
-                                 cmd->temp_pool)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
-            "mod_file_cache: unable to stat(%s), skipping", fspec);
-        return;
-    }
-    if (tmp.finfo.filetype != APR_REG) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-            "mod_file_cache: %s isn't a regular file, skipping", fspec);
-        return;
-    }
-    if (tmp.finfo.size > AP_MAX_SENDFILE) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-            "mod_file_cache: %s is too large to cache, skipping", fspec);
-        return;
+    util_ldap_connection_t *ldc = NULL;
+
+    const char *t;
+    char *w;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
     }
 
-    rc = apr_file_open(&fd, fspec, APR_READ | APR_BINARY | APR_XTHREAD,
-                       APR_OS_DEFAULT, cmd->pool);
-    if (rc != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
-                     "mod_file_cache: unable to open(%s, O_RDONLY), skipping", fspec);
-        return;
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_COMPARE);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
     }
-    apr_file_inherit_set(fd);
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
+        return AUTHZ_DENIED;
+    }
 
-    /* WooHoo, we have a file to put in the cache */
-    new_file = apr_pcalloc(cmd->pool, sizeof(a_file));
-    new_file->finfo = tmp.finfo;
+    /*
+     * If we have been authenticated by some other module than mod_authnz_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
 
-#if APR_HAS_MMAP
-    if (mmap) {
-        /* MMAPFile directive. MMAP'ing the file
-         * XXX: APR_HAS_LARGE_FILES issue; need to reject this request if
-         * size is greater than MAX(apr_size_t) (perhaps greater than 1M?).
-         */
-        if ((rc = apr_mmap_create(&new_file->mm, fd, 0,
-                                  (apr_size_t)new_file->finfo.size,
-                                  APR_MMAP_READ, cmd->pool)) != APR_SUCCESS) {
-            apr_file_close(fd);
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
-                         "mod_file_cache: unable to mmap %s, skipping", filename);
-            return;
+    /* Check that we have a userid to start with */
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
+    }
+
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
+
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
         }
-        apr_file_close(fd);
-        new_file->is_mmapped = TRUE;
+
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+
     }
-#endif
-#if APR_HAS_SENDFILE
-    if (!mmap) {
-        /* CacheFile directive. Caching the file handle */
-        new_file->is_mmapped = FALSE;
-        new_file->file = fd;
+
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                      "require user: user's DN has not been defined; failing authorization",
+                      getpid());
+        return AUTHZ_DENIED;
     }
-#endif
 
-    new_file->filename = fspec;
-    apr_rfc822_date(new_file->mtimestr, new_file->finfo.mtime);
-    apr_snprintf(new_file->sizestr, sizeof new_file->sizestr, "%" APR_OFF_T_FMT, new_file->finfo.size);
+    /*
+     * First do a whole-line compare, in case it's something like
+     *   require user Babs Jensen
+     */
+    result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, require_args);
+    switch(result) {
+        case LDAP_COMPARE_TRUE: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                          "require user: authorization successful", getpid());
+            set_request_vars(r, LDAP_AUTHZ);
+            return AUTHZ_GRANTED;
+        }
+        default: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: require user: "
+                          "authorization failed [%s][%s]", getpid(),
+                          ldc->reason, ldap_err2string(result));
+        }
+    }
 
-    sconf = ap_get_module_config(cmd->server->module_config, &file_cache_module);
-    apr_hash_set(sconf->fileht, new_file->filename, strlen(new_file->filename), new_file);
+    /*
+     * Now break apart the line and compare each word on it
+     */
+    t = require_args;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+        result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, w);
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require user: authorization successful", getpid());
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
+            }
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require user: authorization failed [%s][%s]",
+                              getpid(), ldc->reason, ldap_err2string(result));
+            }
+        }
+    }
 
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize user: authorization denied for user %s to %s",
+                  getpid(), r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

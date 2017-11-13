@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00564)
-                                  "Request header field is missing ':' "
-                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
-                                  last_field);
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, cmd->server, APLOGNO(02172)
+                     "%s: getrlimit failed", cmd->cmd->name);

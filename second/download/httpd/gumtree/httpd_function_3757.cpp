@@ -1,157 +1,217 @@
-static int balancer_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                         apr_pool_t *ptemp, server_rec *s)
+static apr_size_t find_argument(include_ctx_t *ctx, const char *data,
+                                apr_size_t len, char ***store,
+                                apr_size_t **store_len)
 {
-    apr_status_t rv;
-    void *sconf = s->module_config;
-    proxy_server_conf *conf;
-    ap_slotmem_instance_t *new = NULL;
-    apr_time_t tstamp;
+    struct ssi_internal_ctx *intern = ctx->intern;
+    const char *p = data;
+    const char *ep = data + len;
 
-    /* balancer_post_config() will be called twice during startup.  So, don't
-     * set up the static data the 1st time through. */
-    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG) {
-        return OK;
-    }
+    switch (intern->state) {
+    case PARSE_ARG:
+        /*
+         * create argument structure and append it to the current list
+         */
+        intern->current_arg = apr_palloc(ctx->dpool,
+                                         sizeof(*intern->current_arg));
+        intern->current_arg->next = NULL;
 
-    if (!ap_proxy_retry_worker_fn) {
-        ap_proxy_retry_worker_fn =
-                APR_RETRIEVE_OPTIONAL_FN(ap_proxy_retry_worker);
-        if (!ap_proxy_retry_worker_fn) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02230)
-                         "mod_proxy must be loaded for mod_proxy_balancer");
-            return !OK;
+        ++(ctx->argc);
+        if (!intern->argv) {
+            intern->argv = intern->current_arg;
         }
-    }
+        else {
+            arg_item_t *newarg = intern->argv;
 
-    /*
-     * Get slotmem setups
-     */
-    storage = ap_lookup_provider(AP_SLOTMEM_PROVIDER_GROUP, "shm",
-                                 AP_SLOTMEM_PROVIDER_VERSION);
-    if (!storage) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01177)
-                     "Failed to lookup provider 'shm' for '%s': is "
-                     "mod_slotmem_shm loaded??",
-                     AP_SLOTMEM_PROVIDER_GROUP);
-        return !OK;
-    }
-
-    tstamp = apr_time_now();
-    /*
-     * Go thru each Vhost and create the shared mem slotmem for
-     * each balancer's workers
-     */
-    while (s) {
-        int i,j;
-        proxy_balancer *balancer;
-        sconf = s->module_config;
-        conf = (proxy_server_conf *)ap_get_module_config(sconf, &proxy_module);
-
-        if (conf->bslot) {
-            /* Shared memory already created for this proxy_server_conf.
-             */
-            s = s->next;
-            continue;
+            while (newarg->next) {
+                newarg = newarg->next;
+            }
+            newarg->next = intern->current_arg;
         }
 
-        if (conf->balancers->nelts) {
-            conf->max_balancers = conf->balancers->nelts + conf->bgrowth;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01178) "Doing balancers create: %d, %d (%d)",
-                         (int)ALIGNED_PROXY_BALANCER_SHARED_SIZE,
-                         (int)conf->balancers->nelts, conf->max_balancers);
+        /* check whether it's a valid one. If it begins with a quote, we
+         * can safely assume, someone forgot the name of the argument
+         */
+        switch (*p) {
+        case '"': case '\'': case '`':
+            *store = NULL;
 
-            rv = storage->create(&new, conf->id,
-                                 ALIGNED_PROXY_BALANCER_SHARED_SIZE,
-                                 conf->max_balancers, AP_SLOTMEM_TYPE_PREGRAB, pconf);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01179) "balancer slotmem_create failed");
-                return !OK;
-            }
-            conf->bslot = new;
+            intern->state = PARSE_ARG_VAL;
+            intern->quote = *p++;
+            intern->current_arg->name = NULL;
+            intern->current_arg->name_len = 0;
+            intern->error = 1;
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, intern->r, "missing "
+                          "argument name for value to tag %s in %s",
+                          apr_pstrmemdup(intern->r->pool, intern->directive,
+                                         intern->directive_len),
+                                         intern->r->filename);
+
+            return (p - data);
+
+        default:
+            intern->state = PARSE_ARG_NAME;
         }
-        conf->storage = storage;
+        /* continue immediately with next state */
 
-        /* Initialize shared scoreboard data */
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++, balancer++) {
-            proxy_worker **workers;
-            proxy_worker *worker;
-            proxy_balancer_shared *bshm;
-            unsigned int index;
+    case PARSE_ARG_NAME:
+        while (p < ep && !apr_isspace(*p) && *p != '=') {
+            ++p;
+        }
 
-            balancer->max_workers = balancer->workers->nelts + balancer->growth;
+        if (p < ep) {
+            intern->state = PARSE_ARG_POSTNAME;
+            *store = &intern->current_arg->name;
+            *store_len = &intern->current_arg->name_len;
+            return (p - data);
+        }
+        break;
 
-            /* Create global mutex */
-            rv = ap_global_mutex_create(&(balancer->gmutex), NULL, balancer_mutex_type,
-                                        balancer->s->sname, s, pconf, 0);
-            if (rv != APR_SUCCESS || !balancer->gmutex) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01180)
-                             "mutex creation of %s : %s failed", balancer_mutex_type,
-                             balancer->s->sname);
-                return HTTP_INTERNAL_SERVER_ERROR;
+    case PARSE_ARG_POSTNAME:
+        intern->current_arg->name = apr_pstrmemdup(ctx->dpool,
+                                                 intern->current_arg->name,
+                                                 intern->current_arg->name_len);
+        if (!intern->current_arg->name_len) {
+            intern->error = 1;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, intern->r, "missing "
+                          "argument name for value to tag %s in %s",
+                          apr_pstrmemdup(intern->r->pool, intern->directive,
+                                         intern->directive_len),
+                                         intern->r->filename);
+        }
+        else {
+            char *sp = intern->current_arg->name;
+
+            /* normalize the name */
+            while (*sp) {
+                *sp = apr_tolower(*sp);
+                ++sp;
+            }
+        }
+
+        intern->state = PARSE_ARG_EQ;
+        /* continue with next state immediately */
+
+    case PARSE_ARG_EQ:
+        *store = NULL;
+
+        while (p < ep && apr_isspace(*p)) {
+            ++p;
+        }
+
+        if (p < ep) {
+            if (*p == '=') {
+                intern->state = PARSE_ARG_PREVAL;
+                ++p;
+            }
+            else { /* no value */
+                intern->current_arg->value = NULL;
+                intern->state = PARSE_PRE_ARG;
             }
 
-            apr_pool_cleanup_register(pconf, (void *)s, lock_remove,
-                                      apr_pool_cleanup_null);
+            return (p - data);
+        }
+        break;
 
-            /* setup shm for balancers */
-            if ((rv = storage->grab(conf->bslot, &index)) != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01181) "balancer slotmem_grab failed");
-                return !OK;
+    case PARSE_ARG_PREVAL:
+        *store = NULL;
 
+        while (p < ep && apr_isspace(*p)) {
+            ++p;
+        }
+
+        /* buffer doesn't consist of whitespaces only */
+        if (p < ep) {
+            intern->state = PARSE_ARG_VAL;
+            switch (*p) {
+            case '"': case '\'': case '`':
+                intern->quote = *p++;
+                break;
+            default:
+                intern->quote = '\0';
+                break;
             }
-            if ((rv = storage->dptr(conf->bslot, index, (void *)&bshm)) != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01182) "balancer slotmem_dptr failed");
-                return !OK;
-            }
-            if ((rv = ap_proxy_share_balancer(balancer, bshm, index)) != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01183) "Cannot share balancer");
-                return !OK;
-            }
 
-            /* create slotmem slots for workers */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01184) "Doing workers create: %s (%s), %d, %d",
-                         balancer->s->name, balancer->s->sname,
-                         (int)ALIGNED_PROXY_WORKER_SHARED_SIZE,
-                         (int)balancer->max_workers);
+            return (p - data);
+        }
+        break;
 
-            rv = storage->create(&new, balancer->s->sname,
-                                 ALIGNED_PROXY_WORKER_SHARED_SIZE,
-                                 balancer->max_workers, AP_SLOTMEM_TYPE_PREGRAB, pconf);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01185) "worker slotmem_create failed");
-                return !OK;
-            }
-            balancer->wslot = new;
-            balancer->storage = storage;
+    case PARSE_ARG_VAL_ESC:
+        if (*p == intern->quote) {
+            ++p;
+        }
+        intern->state = PARSE_ARG_VAL;
+        /* continue with next state immediately */
 
-            /* sync all timestamps */
-            balancer->wupdated = balancer->s->wupdated = tstamp;
-
-            /* now go thru each worker */
-            workers = (proxy_worker **)balancer->workers->elts;
-            for (j = 0; j < balancer->workers->nelts; j++, workers++) {
-                proxy_worker_shared *shm;
-
-                worker = *workers;
-                if ((rv = storage->grab(balancer->wslot, &index)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01186) "worker slotmem_grab failed");
-                    return !OK;
-
+    case PARSE_ARG_VAL:
+        for (; p < ep; ++p) {
+            if (intern->quote && *p == '\\') {
+                ++p;
+                if (p == ep) {
+                    intern->state = PARSE_ARG_VAL_ESC;
+                    break;
                 }
-                if ((rv = storage->dptr(balancer->wslot, index, (void *)&shm)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01187) "worker slotmem_dptr failed");
-                    return !OK;
+
+                if (*p != intern->quote) {
+                    --p;
                 }
-                if ((rv = ap_proxy_share_worker(worker, shm, index)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01188) "Cannot share worker");
-                    return !OK;
-                }
-                worker->s->updated = tstamp;
+            }
+            else if (intern->quote && *p == intern->quote) {
+                ++p;
+                *store = &intern->current_arg->value;
+                *store_len = &intern->current_arg->value_len;
+                intern->state = PARSE_ARG_POSTVAL;
+                break;
+            }
+            else if (!intern->quote && apr_isspace(*p)) {
+                ++p;
+                *store = &intern->current_arg->value;
+                *store_len = &intern->current_arg->value_len;
+                intern->state = PARSE_ARG_POSTVAL;
+                break;
             }
         }
-        s = s->next;
+
+        return (p - data);
+
+    case PARSE_ARG_POSTVAL:
+        /*
+         * The value is still the raw input string. Finally clean it up.
+         */
+        --(intern->current_arg->value_len);
+
+        /* strip quote escaping \ from the string */
+        if (intern->quote) {
+            apr_size_t shift = 0;
+            char *sp;
+
+            sp = intern->current_arg->value;
+            ep = intern->current_arg->value + intern->current_arg->value_len;
+            while (sp < ep && *sp != '\\') {
+                ++sp;
+            }
+            for (; sp < ep; ++sp) {
+                if (*sp == '\\' && sp[1] == intern->quote) {
+                    ++sp;
+                    ++shift;
+                }
+                if (shift) {
+                    *(sp-shift) = *sp;
+                }
+            }
+
+            intern->current_arg->value_len -= shift;
+        }
+
+        intern->current_arg->value[intern->current_arg->value_len] = '\0';
+        intern->state = PARSE_PRE_ARG;
+
+        return 0;
+
+    default:
+        /* get a rid of a gcc warning about unhandled enumerations */
+        break;
     }
 
-    return OK;
+    return len; /* partial match of something */
 }

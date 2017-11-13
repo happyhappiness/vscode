@@ -1,1 +1,2 @@
-printf("Diag: path=%s\n", path ? path : "NULL");
+die_errno("Could not switch to '%s'",
+						  sb.buf);

@@ -1,11 +1,11 @@
 fputs(
-"              file name refer to -J, --remote-header-name which can be used in\n"
-"              addition to this option. If the server chooses a file  name  and\n"
-"              that name already exists it will not be overwritten.\n"
+"              ple and implemented in curl based on their efforts. This kind of\n"
+"              behavior  should  not be endorsed, you should encourage everyone\n"
+"              who uses NTLM to switch to a public and  documented  authentica-\n"
+"              tion method instead, such as Digest.\n"
 "\n"
-"              There is no URL decoding done on the file name. If it has %20 or\n"
-"              other URL encoded parts of the name, they will end up  as-is  as\n"
-"              file name.\n"
+"              If  you  want to enable NTLM for your proxy authentication, then\n"
+"              use --proxy-ntlm.\n"
 "\n"
-"              You  may use this option as many times as the number of URLs you\n"
+"              This option requires a library built with SSL support.  Use  -V,\n"
 , stdout);

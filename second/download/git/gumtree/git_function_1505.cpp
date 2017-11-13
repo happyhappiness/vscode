@@ -1,63 +1,28 @@
-static int batch_one_object(const char *obj_name, struct batch_options *opt,
-			    struct expand_data *data)
+static void show_ref(struct refinfo *info, const char *format, int quote_style)
 {
-	struct strbuf buf = STRBUF_INIT;
-	struct object_context ctx;
-	int flags = opt->follow_symlinks ? GET_SHA1_FOLLOW_SYMLINKS : 0;
-	enum follow_symlinks_result result;
+	const char *cp, *sp, *ep;
 
-	if (!obj_name)
-	   return 1;
+	for (cp = format; *cp && (sp = find_next(cp)); cp = ep + 1) {
+		struct atom_value *atomv;
 
-	result = get_sha1_with_context(obj_name, flags, data->sha1, &ctx);
-	if (result != FOUND) {
-		switch (result) {
-		case MISSING_OBJECT:
-			printf("%s missing\n", obj_name);
-			break;
-		case DANGLING_SYMLINK:
-			printf("dangling %"PRIuMAX"\n%s\n",
-			       (uintmax_t)strlen(obj_name), obj_name);
-			break;
-		case SYMLINK_LOOP:
-			printf("loop %"PRIuMAX"\n%s\n",
-			       (uintmax_t)strlen(obj_name), obj_name);
-			break;
-		case NOT_DIR:
-			printf("notdir %"PRIuMAX"\n%s\n",
-			       (uintmax_t)strlen(obj_name), obj_name);
-			break;
-		default:
-			die("BUG: unknown get_sha1_with_context result %d\n",
-			       result);
-			break;
-		}
-		fflush(stdout);
-		return 0;
+		ep = strchr(sp, ')');
+		if (cp < sp)
+			emit(cp, sp);
+		get_value(info, parse_atom(sp + 2, ep), &atomv);
+		print_value(atomv, quote_style);
 	}
-
-	if (ctx.mode == 0) {
-		printf("symlink %"PRIuMAX"\n%s\n",
-		       (uintmax_t)ctx.symlink_path.len,
-		       ctx.symlink_path.buf);
-		fflush(stdout);
-		return 0;
+	if (*cp) {
+		sp = cp + strlen(cp);
+		emit(cp, sp);
 	}
+	if (need_color_reset_at_eol) {
+		struct atom_value resetv;
+		char color[COLOR_MAXLEN] = "";
 
-	if (sha1_object_info_extended(data->sha1, &data->info, LOOKUP_REPLACE_OBJECT) < 0) {
-		printf("%s missing\n", obj_name);
-		fflush(stdout);
-		return 0;
+		if (color_parse("reset", color) < 0)
+			die("BUG: couldn't parse 'reset' as a color");
+		resetv.s = color;
+		print_value(&resetv, quote_style);
 	}
-
-	strbuf_expand(&buf, opt->format, expand_format, data);
-	strbuf_addch(&buf, '\n');
-	write_or_die(1, buf.buf, buf.len);
-	strbuf_release(&buf);
-
-	if (opt->print_contents) {
-		print_object_or_die(1, data);
-		write_or_die(1, "\n", 1);
-	}
-	return 0;
+	putchar('\n');
 }

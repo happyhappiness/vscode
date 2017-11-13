@@ -1,2 +1,1 @@
-die ("Could not find author in commit %s",
-		     oid_to_hex(&commit->object.oid));
+git_config_date_string("gc.pruneworktreesexpire", &prune_worktrees_expire);

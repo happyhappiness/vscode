@@ -1,25 +1,22 @@
-static void print_ref_status(char flag, const char *summary, struct ref *to, struct ref *from, const char *msg, int porcelain)
+static void check_safe_crlf(const char *path, enum crlf_action crlf_action,
+			    struct text_stat *old_stats, struct text_stat *new_stats,
+			    enum safe_crlf checksafe)
 {
-	if (porcelain) {
-		if (from)
-			fprintf(stdout, "%c\t%s:%s\t", flag, from->name, to->name);
-		else
-			fprintf(stdout, "%c\t:%s\t", flag, to->name);
-		if (msg)
-			fprintf(stdout, "%s (%s)\n", summary, msg);
-		else
-			fprintf(stdout, "%s\n", summary);
-	} else {
-		fprintf(stderr, " %c %-*s ", flag, TRANSPORT_SUMMARY_WIDTH, summary);
-		if (from)
-			fprintf(stderr, "%s -> %s", prettify_refname(from->name), prettify_refname(to->name));
-		else
-			fputs(prettify_refname(to->name), stderr);
-		if (msg) {
-			fputs(" (", stderr);
-			fputs(msg, stderr);
-			fputc(')', stderr);
-		}
-		fputc('\n', stderr);
+	if (old_stats->crlf && !new_stats->crlf ) {
+		/*
+		 * CRLFs would not be restored by checkout
+		 */
+		if (checksafe == SAFE_CRLF_WARN)
+			warning("CRLF will be replaced by LF in %s.\nThe file will have its original line endings in your working directory.", path);
+		else /* i.e. SAFE_CRLF_FAIL */
+			die("CRLF would be replaced by LF in %s.", path);
+	} else if (old_stats->lonelf && !new_stats->lonelf ) {
+		/*
+		 * CRLFs would be added by checkout
+		 */
+		if (checksafe == SAFE_CRLF_WARN)
+			warning("LF will be replaced by CRLF in %s.\nThe file will have its original line endings in your working directory.", path);
+		else /* i.e. SAFE_CRLF_FAIL */
+			die("LF would be replaced by CRLF in %s", path);
 	}
 }

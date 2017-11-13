@@ -1,29 +1,40 @@
-int expand_ref(const char *str, int len, unsigned char *sha1, char **ref)
+static void relocate_single_git_dir_into_superproject(const char *prefix,
+						      const char *path)
 {
-	const char **p, *r;
-	int refs_found = 0;
+	char *old_git_dir = NULL, *real_old_git_dir = NULL, *real_new_git_dir = NULL;
+	const char *new_git_dir;
+	const struct submodule *sub;
 
-	*ref = NULL;
-	for (p = ref_rev_parse_rules; *p; p++) {
-		char fullref[PATH_MAX];
-		unsigned char sha1_from_ref[20];
-		unsigned char *this_result;
-		int flag;
+	if (submodule_uses_worktrees(path))
+		die(_("relocate_gitdir for submodule '%s' with "
+		      "more than one worktree not supported"), path);
 
-		this_result = refs_found ? sha1_from_ref : sha1;
-		mksnpath(fullref, sizeof(fullref), *p, len, str);
-		r = resolve_ref_unsafe(fullref, RESOLVE_REF_READING,
-				       this_result, &flag);
-		if (r) {
-			if (!refs_found++)
-				*ref = xstrdup(r);
-			if (!warn_ambiguous_refs)
-				break;
-		} else if ((flag & REF_ISSYMREF) && strcmp(fullref, "HEAD")) {
-			warning("ignoring dangling symref %s.", fullref);
-		} else if ((flag & REF_ISBROKEN) && strchr(fullref, '/')) {
-			warning("ignoring broken ref %s.", fullref);
-		}
-	}
-	return refs_found;
+	old_git_dir = xstrfmt("%s/.git", path);
+	if (read_gitfile(old_git_dir))
+		/* If it is an actual gitfile, it doesn't need migration. */
+		return;
+
+	real_old_git_dir = real_pathdup(old_git_dir);
+
+	sub = submodule_from_path(null_sha1, path);
+	if (!sub)
+		die(_("could not lookup name for submodule '%s'"), path);
+
+	new_git_dir = git_path("modules/%s", sub->name);
+	if (safe_create_leading_directories_const(new_git_dir) < 0)
+		die(_("could not create directory '%s'"), new_git_dir);
+	real_new_git_dir = real_pathdup(new_git_dir);
+
+	if (!prefix)
+		prefix = get_super_prefix();
+
+	fprintf(stderr, _("Migrating git directory of '%s%s' from\n'%s' to\n'%s'\n"),
+		prefix ? prefix : "", path,
+		real_old_git_dir, real_new_git_dir);
+
+	relocate_gitdir(path, real_old_git_dir, real_new_git_dir);
+
+	free(old_git_dir);
+	free(real_old_git_dir);
+	free(real_new_git_dir);
 }

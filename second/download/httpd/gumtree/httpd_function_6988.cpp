@@ -1,216 +1,201 @@
-apr_status_t ssl_init_Module(apr_pool_t *p, apr_pool_t *plog,
-                             apr_pool_t *ptemp,
-                             server_rec *base_server)
+static apr_status_t ssl_init_ctx_protocol(server_rec *s,
+                                          apr_pool_t *p,
+                                          apr_pool_t *ptemp,
+                                          modssl_ctx_t *mctx)
 {
-    SSLModConfigRec *mc = myModConfig(base_server);
-    SSLSrvConfigRec *sc;
-    server_rec *s;
-    apr_status_t rv;
-    apr_array_header_t *pphrases;
-
-    if (SSLeay() < MODSSL_LIBRARY_VERSION) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01882)
-                     "Init: this version of mod_ssl was compiled against "
-                     "a newer library (%s, version currently loaded is %s)"
-                     " - may result in undefined or erroneous behavior",
-                     MODSSL_LIBRARY_TEXT, SSLeay_version(SSLEAY_VERSION));
-    }
-
-    /* We initialize mc->pid per-process in the child init,
-     * but it should be initialized for startup before we
-     * call ssl_rand_seed() below.
-     */
-    mc->pid = getpid();
-
-    /*
-     * Let us cleanup on restarts and exits
-     */
-    apr_pool_cleanup_register(p, base_server,
-                              ssl_init_ModuleKill,
-                              apr_pool_cleanup_null);
-
-    /*
-     * Any init round fixes the global config
-     */
-    ssl_config_global_create(base_server); /* just to avoid problems */
-    ssl_config_global_fix(mc);
-
-    /*
-     *  try to fix the configuration and open the dedicated SSL
-     *  logfile as early as possible
-     */
-    for (s = base_server; s; s = s->next) {
-        sc = mySrvConfig(s);
-
-        if (sc->server) {
-            sc->server->sc = sc;
-        }
-
-        if (sc->proxy) {
-            sc->proxy->sc = sc;
-        }
-
-        /*
-         * Create the server host:port string because we need it a lot
-         */
-        sc->vhost_id = ssl_util_vhostid(p, s);
-        sc->vhost_id_len = strlen(sc->vhost_id);
-
-        /* Default to enabled if SSLEngine is not set explicitly, and
-         * the protocol is https. */
-        if (ap_get_server_protocol(s) 
-            && strcmp("https", ap_get_server_protocol(s)) == 0
-            && sc->enabled == SSL_ENABLED_UNSET) {
-            sc->enabled = SSL_ENABLED_TRUE;
-        }
-
-        /* Fix up stuff that may not have been set.  If sc->enabled is
-         * UNSET, then SSL is disabled on this vhost.  */
-        if (sc->enabled == SSL_ENABLED_UNSET) {
-            sc->enabled = SSL_ENABLED_FALSE;
-        }
-        if (sc->proxy_enabled == UNSET) {
-            sc->proxy_enabled = FALSE;
-        }
-
-        if (sc->session_cache_timeout == UNSET) {
-            sc->session_cache_timeout = SSL_SESSION_CACHE_TIMEOUT;
-        }
-
-        if (sc->server && sc->server->pphrase_dialog_type == SSL_PPTYPE_UNSET) {
-            sc->server->pphrase_dialog_type = SSL_PPTYPE_BUILTIN;
-        }
-
-#ifdef HAVE_FIPS
-        if (sc->fips == UNSET) {
-            sc->fips = FALSE;
-        }
-#endif
-    }
-
-#if APR_HAS_THREADS
-    ssl_util_thread_setup(p);
+    SSL_CTX *ctx = NULL;
+    MODSSL_SSL_METHOD_CONST SSL_METHOD *method = NULL;
+    char *cp;
+    int protocol = mctx->protocol;
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+    int prot;
 #endif
 
     /*
-     * SSL external crypto device ("engine") support
+     *  Create the new per-server SSL context
      */
-#if defined(HAVE_OPENSSL_ENGINE_H) && defined(HAVE_ENGINE_INIT)
-    if ((rv = ssl_init_Engine(base_server, p)) != APR_SUCCESS) {
-        return rv;
+    if (protocol == SSL_PROTOCOL_NONE) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02231)
+                "No SSL protocols available [hint: SSLProtocol]");
+        return ssl_die(s);
+    }
+
+    cp = apr_pstrcat(p,
+#ifndef OPENSSL_NO_SSL3
+                     (protocol & SSL_PROTOCOL_SSLV3 ? "SSLv3, " : ""),
+#endif
+                     (protocol & SSL_PROTOCOL_TLSV1 ? "TLSv1, " : ""),
+#ifdef HAVE_TLSV1_X
+                     (protocol & SSL_PROTOCOL_TLSV1_1 ? "TLSv1.1, " : ""),
+                     (protocol & SSL_PROTOCOL_TLSV1_2 ? "TLSv1.2, " : ""),
+#endif
+                     NULL);
+    cp[strlen(cp)-2] = NUL;
+
+    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                 "Creating new SSL context (protocols: %s)", cp);
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#ifndef OPENSSL_NO_SSL3
+    if (protocol == SSL_PROTOCOL_SSLV3) {
+        method = mctx->pkp ?
+            SSLv3_client_method() : /* proxy */
+            SSLv3_server_method();  /* server */
+    }
+    else
+#endif
+    if (protocol == SSL_PROTOCOL_TLSV1) {
+        method = mctx->pkp ?
+            TLSv1_client_method() : /* proxy */
+            TLSv1_server_method();  /* server */
+    }
+#ifdef HAVE_TLSV1_X
+    else if (protocol == SSL_PROTOCOL_TLSV1_1) {
+        method = mctx->pkp ?
+            TLSv1_1_client_method() : /* proxy */
+            TLSv1_1_server_method();  /* server */
+    }
+    else if (protocol == SSL_PROTOCOL_TLSV1_2) {
+        method = mctx->pkp ?
+            TLSv1_2_client_method() : /* proxy */
+            TLSv1_2_server_method();  /* server */
+    }
+#endif
+    else { /* For multiple protocols, we need a flexible method */
+        method = mctx->pkp ?
+            SSLv23_client_method() : /* proxy */
+            SSLv23_server_method();  /* server */
+    }
+#else
+    method = mctx->pkp ?
+        TLS_client_method() : /* proxy */
+        TLS_server_method();  /* server */
+#endif
+    ctx = SSL_CTX_new(method);
+
+    mctx->ssl_ctx = ctx;
+
+    SSL_CTX_set_options(ctx, SSL_OP_ALL);
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    /* always disable SSLv2, as per RFC 6176 */
+    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
+
+#ifndef OPENSSL_NO_SSL3
+    if (!(protocol & SSL_PROTOCOL_SSLV3)) {
+        SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv3);
     }
 #endif
 
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01883)
-                 "Init: Initialized %s library", MODSSL_LIBRARY_NAME);
-
-    /*
-     * Seed the Pseudo Random Number Generator (PRNG)
-     * only need ptemp here; nothing inside allocated from the pool
-     * needs to live once we return from ssl_rand_seed().
-     */
-    ssl_rand_seed(base_server, ptemp, SSL_RSCTX_STARTUP, "Init: ");
-
-#ifdef HAVE_FIPS
-    if(sc->fips) {
-        if (!FIPS_mode()) {
-            if (FIPS_mode_set(1)) {
-                ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01884)
-                             "Operating in SSL FIPS mode");
-            }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01885) "FIPS mode failed");
-                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-                return ssl_die(s);
-            }
-        }
+    if (!(protocol & SSL_PROTOCOL_TLSV1)) {
+        SSL_CTX_set_options(ctx, SSL_OP_NO_TLSv1);
     }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01886)
-                     "SSL FIPS mode disabled");
+
+#ifdef HAVE_TLSV1_X
+    if (!(protocol & SSL_PROTOCOL_TLSV1_1)) {
+        SSL_CTX_set_options(ctx, SSL_OP_NO_TLSv1_1);
+    }
+
+    if (!(protocol & SSL_PROTOCOL_TLSV1_2)) {
+        SSL_CTX_set_options(ctx, SSL_OP_NO_TLSv1_2);
     }
 #endif
 
-    /*
-     * initialize the mutex handling
-     */
-    if (!ssl_mutex_init(base_server, p)) {
-        return HTTP_INTERNAL_SERVER_ERROR;
+#else /* #if OPENSSL_VERSION_NUMBER < 0x10100000L */
+    /* We first determine the maximum protocol version we should provide */
+    if (protocol & SSL_PROTOCOL_TLSV1_2) {
+        prot = TLS1_2_VERSION;
+    } else if (protocol & SSL_PROTOCOL_TLSV1_1) {
+        prot = TLS1_1_VERSION;
+    } else if (protocol & SSL_PROTOCOL_TLSV1) {
+        prot = TLS1_VERSION;
+#ifndef OPENSSL_NO_SSL3
+    } else if (protocol & SSL_PROTOCOL_SSLV3) {
+        prot = SSL3_VERSION;
+#endif
+    } else {
+        SSL_CTX_free(ctx);
+        mctx->ssl_ctx = NULL;
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(03378)
+                "No SSL protocols available [hint: SSLProtocol]");
+        return ssl_die(s);
     }
-#ifdef HAVE_OCSP_STAPLING
-    ssl_stapling_certinfo_hash_init(p);
+    SSL_CTX_set_max_proto_version(ctx, prot);
+
+    /* Next we scan for the minimal protocol version we should provide,
+     * but we do not allow holes between max and min */
+    if (prot == TLS1_2_VERSION && protocol & SSL_PROTOCOL_TLSV1_1) {
+        prot = TLS1_1_VERSION;
+    }
+    if (prot == TLS1_1_VERSION && protocol & SSL_PROTOCOL_TLSV1) {
+        prot = TLS1_VERSION;
+    }
+#ifndef OPENSSL_NO_SSL3
+    if (prot == TLS1_VERSION && protocol & SSL_PROTOCOL_SSLV3) {
+        prot = SSL3_VERSION;
+    }
+#endif
+    SSL_CTX_set_min_proto_version(ctx, prot);
+#endif /* if OPENSSL_VERSION_NUMBER < 0x10100000L */
+
+#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
+    if (sc->cipher_server_pref == TRUE) {
+        SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
+    }
 #endif
 
+
+#ifndef OPENSSL_NO_COMP
+    if (sc->compression != TRUE) {
+#ifdef SSL_OP_NO_COMPRESSION
+        /* OpenSSL >= 1.0 only */
+        SSL_CTX_set_options(ctx, SSL_OP_NO_COMPRESSION);
+#else
+        sk_SSL_COMP_zero(SSL_COMP_get_compression_methods());
+#endif
+    }
+#endif
+
+#ifdef SSL_OP_NO_TICKET
     /*
-     * initialize session caching
+     * Configure using RFC 5077 TLS session tickets
+     * for session resumption.
      */
-    if ((rv = ssl_scache_init(base_server, p)) != APR_SUCCESS) {
-        return rv;
+    if (sc->session_tickets == FALSE) {
+        SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
     }
+#endif
 
-    pphrases = apr_array_make(ptemp, 2, sizeof(char *));
-
-    /*
-     *  initialize servers
-     */
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, base_server, APLOGNO(01887)
-                 "Init: Initializing (virtual) servers for SSL");
-
-    for (s = base_server; s; s = s->next) {
-        sc = mySrvConfig(s);
-        /*
-         * Either now skip this server when SSL is disabled for
-         * it or give out some information about what we're
-         * configuring.
-         */
-
-        /*
-         * Read the server certificate and key
-         */
-        if ((rv = ssl_init_ConfigureServer(s, p, ptemp, sc, pphrases))
-            != APR_SUCCESS) {
-            return rv;
-        }
+#ifdef SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION
+    if (sc->insecure_reneg == TRUE) {
+        SSL_CTX_set_options(ctx, SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION);
     }
+#endif
 
-    if (pphrases->nelts > 0) {
-        memset(pphrases->elts, 0, pphrases->elt_size * pphrases->nelts);
-        pphrases->nelts = 0;
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02560)
-                     "Init: Wiped out the queried pass phrases from memory");
-    }
+    SSL_CTX_set_app_data(ctx, s);
 
     /*
-     * Configuration consistency checks
+     * Configure additional context ingredients
      */
-    if ((rv = ssl_init_CheckServers(base_server, ptemp)) != APR_SUCCESS) {
-        return rv;
-    }
+    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
+#ifdef HAVE_ECC
+    SSL_CTX_set_options(ctx, SSL_OP_SINGLE_ECDH_USE);
+#endif
 
-    for (s = base_server; s; s = s->next) {
-        sc = mySrvConfig(s);
-
-        if (sc->enabled == SSL_ENABLED_TRUE || sc->enabled == SSL_ENABLED_OPTIONAL) {
-            if ((rv = ssl_run_init_server(s, p, 0, sc->server->ssl_ctx)) != APR_SUCCESS) {
-                return rv;
-            }
-        }
-        else if (sc->proxy_enabled == SSL_ENABLED_TRUE) {
-            if ((rv = ssl_run_init_server(s, p, 1, sc->proxy->ssl_ctx)) != APR_SUCCESS) {
-                return rv;
-            }
-        }
-    }
-
+#ifdef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION
     /*
-     *  Announce mod_ssl and SSL library in HTTP Server field
-     *  as ``mod_ssl/X.X.X OpenSSL/X.X.X''
+     * Disallow a session from being resumed during a renegotiation,
+     * so that an acceptable cipher suite can be negotiated.
      */
-    ssl_add_version_components(p, base_server);
+    SSL_CTX_set_options(ctx, SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
+#endif
 
-    modssl_init_app_data2_idx(); /* for modssl_get_app_data2() at request time */
+#ifdef SSL_MODE_RELEASE_BUFFERS
+    /* If httpd is configured to reduce mem usage, ask openssl to do so, too */
+    if (ap_max_mem_free != APR_ALLOCATOR_MAX_FREE_UNLIMITED)
+        SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
+#endif
 
-    init_dh_params();
-
-    return OK;
+    return APR_SUCCESS;
 }

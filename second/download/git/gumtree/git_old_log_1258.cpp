@@ -1,1 +1,1 @@
-die("Failed to expand user dir in: '%s'", value);
+die(_("invalid blob object %s"), sha1_to_hex(sha1));

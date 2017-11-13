@@ -1,1 +1,1 @@
-printf("-- \n%s", signature);
+die("Reference has invalid format: '%s'", refname);

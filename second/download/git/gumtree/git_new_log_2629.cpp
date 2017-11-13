@@ -1,1 +1,2 @@
-maybe_flush_or_die(opt->diffopt.file, "stdout");
+die("ref '%s' does not have %ld components to :strip",
+			    refname, nr);

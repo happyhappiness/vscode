@@ -1,43 +1,27 @@
-static int merge_one_change(struct notes_merge_options *o,
-			    struct notes_merge_pair *p, struct notes_tree *t)
+static int parse_reuse_arg(const struct option *opt, const char *arg, int unset)
 {
-	/*
-	 * Return 0 if change is successfully resolved (stored in notes_tree).
-	 * Return 1 is change results in a conflict (NOT stored in notes_tree,
-	 * but instead written to NOTES_MERGE_WORKTREE with conflict markers).
-	 */
-	switch (o->strategy) {
-	case NOTES_MERGE_RESOLVE_MANUAL:
-		return merge_one_change_manual(o, p, t);
-	case NOTES_MERGE_RESOLVE_OURS:
-		if (o->verbosity >= 2)
-			printf("Using local notes for %s\n",
-						sha1_to_hex(p->obj));
-		/* nothing to do */
-		return 0;
-	case NOTES_MERGE_RESOLVE_THEIRS:
-		if (o->verbosity >= 2)
-			printf("Using remote notes for %s\n",
-						sha1_to_hex(p->obj));
-		if (add_note(t, p->obj, p->remote, combine_notes_overwrite))
-			die("BUG: combine_notes_overwrite failed");
-		return 0;
-	case NOTES_MERGE_RESOLVE_UNION:
-		if (o->verbosity >= 2)
-			printf("Concatenating local and remote notes for %s\n",
-							sha1_to_hex(p->obj));
-		if (add_note(t, p->obj, p->remote, combine_notes_concatenate))
-			die("failed to concatenate notes "
-			    "(combine_notes_concatenate)");
-		return 0;
-	case NOTES_MERGE_RESOLVE_CAT_SORT_UNIQ:
-		if (o->verbosity >= 2)
-			printf("Concatenating unique lines in local and remote "
-				"notes for %s\n", sha1_to_hex(p->obj));
-		if (add_note(t, p->obj, p->remote, combine_notes_cat_sort_uniq))
-			die("failed to concatenate notes "
-			    "(combine_notes_cat_sort_uniq)");
-		return 0;
+	struct note_data *d = opt->value;
+	char *buf;
+	unsigned char object[20];
+	enum object_type type;
+	unsigned long len;
+
+	if (d->buf.len)
+		strbuf_addch(&d->buf, '\n');
+
+	if (get_sha1(arg, object))
+		die(_("Failed to resolve '%s' as a valid ref."), arg);
+	if (!(buf = read_sha1_file(object, &type, &len))) {
+		free(buf);
+		die(_("Failed to read object '%s'."), arg);
 	}
-	die("Unknown strategy (%i).", o->strategy);
+	if (type != OBJ_BLOB) {
+		free(buf);
+		die(_("Cannot read note data from non-blob object '%s'."), arg);
+	}
+	strbuf_add(&d->buf, buf, len);
+	free(buf);
+
+	d->given = 1;
+	return 0;
 }

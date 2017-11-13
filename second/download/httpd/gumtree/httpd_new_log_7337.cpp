@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "Password for user %s correct." NL, user);
+fprintf(stderr, "Cannot use -n with %% in filename\n");

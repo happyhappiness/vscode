@@ -1,12 +1,12 @@
-puts(
-"          If  this option is used twice, the second one will dis�\n"
-"          able append mode again.\n"
+fputs(
+"              the particular resource or directory you wanted to  reach.  Most\n"
+"              often  you  tried to change to a directory that doesn't exist on\n"
+"              the server.\n"
 "\n"
-"     -A/--user-agent <agent string>\n"
-"          (HTTP) Specify the User-Agent string  to  send  to  the\n"
-"          HTTP  server.  Some badly done CGIs fail if its not set\n"
-"          to \"Mozilla/4.0\".  To encode blanks in the string, sur�\n"
-"          round  the  string  with  single quote marks.  This can\n"
-"          also be set with the -H/--header flag of course.\n"
+"       10     FTP accept failed. While waiting for the server to connect  back\n"
+"              when  an active FTP session is used, an error code was sent over\n"
+"              the control connection or similar.\n"
 "\n"
-);
+"       11     FTP weird PASS reply. Curl couldn't parse the reply sent to  the\n"
+"              PASS request.\n"
+, stdout);

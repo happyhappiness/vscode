@@ -1,1 +1,1 @@
-die("unable to generate word diff");
+printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");

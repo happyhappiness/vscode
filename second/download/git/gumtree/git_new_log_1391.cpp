@@ -1,2 +1,2 @@
-error(_("The note contents have been left in %s"),
-				d->edit_path);
+die(_("missing object %s for %s"),
+		    oid_to_hex(tagged), ref->refname);

@@ -1,1 +1,2 @@
-rprintf(FERROR,"nothing to do\n");
+rprintf(FERROR,"chdir %s : %s\n",
+					dbuf,strerror(errno));

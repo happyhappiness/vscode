@@ -1,4 +1,5 @@
-ap_rputs("<a href=\"?config\">Configuration Files</a>, "
-                     "<a href=\"?server\">Server Settings</a>, "
-                     "<a href=\"?list\">Module List</a>,  "
-                     "<a href=\"?hooks\">Active Hooks</a>", r);
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "missing argument for fsize element in %s",
+                      r->filename);

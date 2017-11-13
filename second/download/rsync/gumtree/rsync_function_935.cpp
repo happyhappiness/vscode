@@ -1,7 +1,11 @@
-static inline void string_set(char **s, const char *v)
+static void copy_section(local_vars *psectionDest, local_vars *psectionSource)
 {
-	if (!v)
-		*s = NULL;
-	else if (!(*s = strdup(v)))
-		out_of_memory("string_set");
+	int count = LOCAL_STRING_COUNT();
+	char **strings = (char**)psectionDest;
+
+	memcpy(psectionDest, psectionSource, sizeof psectionDest[0]);
+	while (count--) {
+		if (strings[count] && !(strings[count] = strdup(strings[count])))
+			out_of_memory("copy_section");
+	}
 }

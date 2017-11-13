@@ -1,145 +1,129 @@
-int mutt_print_attachment (FILE *fp, BODY *a)
+int mutt_signed_handler (BODY *a, STATE *s)
 {
-  char newfile[_POSIX_PATH_MAX] = "";
-  char type[STRING];
-  pid_t thepid;
-  FILE *ifp, *fpout;
-  short unlink_newfile = 0;
+  char tempfile[_POSIX_PATH_MAX];
+  char *protocol;
+  int protocol_major = TYPEOTHER;
+  char *protocol_minor = NULL;
   
-  snprintf (type, sizeof (type), "%s/%s", TYPE (a), a->subtype);
+  BODY *b = a;
+  BODY **signatures = NULL;
+  int sigcnt = 0;
+  int i;
+  short goodsig = 1;
+  int rc = 0;
 
-  if (rfc1524_mailcap_lookup (a, type, NULL, M_PRINT)) 
+  if (!WithCrypto)
+    return -1;
+
+  protocol = mutt_get_parameter ("protocol", a->parameter);
+  a = a->parts;
+
+  /* extract the protocol information */
+  
+  if (protocol)
   {
-    char command[_POSIX_PATH_MAX+STRING];
-    rfc1524_entry *entry;
-    int piped = FALSE;
+    char major[STRING];
+    char *t;
 
-    dprint (2, (debugfile, "Using mailcap...\n"));
+    if ((protocol_minor = strchr (protocol, '/'))) protocol_minor++;
     
-    entry = rfc1524_new_entry ();
-    rfc1524_mailcap_lookup (a, type, entry, M_PRINT);
-    if (rfc1524_expand_filename (entry->nametemplate, a->filename,
-						  newfile, sizeof (newfile)))
-    {
-      if (!fp)
-      {
-	if (safe_symlink(a->filename, newfile) == -1)
-	{
-	  if (mutt_yesorno (_("Can't match nametemplate, continue?"), M_YES) != M_YES)
-	  {
-	    rfc1524_free_entry (&entry);
-	    return 0;
-	  }
-	  strfcpy (newfile, a->filename, sizeof (newfile));
-	}
-	else
-	  unlink_newfile = 1;
-      }
-    }
-
-    /* in recv mode, save file to newfile first */
-    if (fp)
-      mutt_save_attachment (fp, a, newfile, 0, NULL);
-
-    strfcpy (command, entry->printcommand, sizeof (command));
-    piped = rfc1524_expand_command (a, newfile, type, command, sizeof (command));
-
-    mutt_endwin (NULL);
-
-    /* interactive program */
-    if (piped)
-    {
-      if ((ifp = fopen (newfile, "r")) == NULL)
-      {
-	mutt_perror ("fopen");
-	rfc1524_free_entry (&entry);
-	return (0);
-      }
-
-      if ((thepid = mutt_create_filter (command, &fpout, NULL, NULL)) < 0)
-      {
-	mutt_perror _("Can't create filter");
-	rfc1524_free_entry (&entry);
-	safe_fclose (&ifp);
-	return 0;
-      }
-      mutt_copy_stream (ifp, fpout);
-      safe_fclose (&fpout);
-      safe_fclose (&ifp);
-      if (mutt_wait_filter (thepid) || option (OPTWAITKEY))
-	mutt_any_key_to_continue (NULL);
-    }
-    else
-    {
-      if (mutt_system (command) || option (OPTWAITKEY))
-	mutt_any_key_to_continue (NULL);
-    }
-
-    if (fp)
-      mutt_unlink (newfile);
-    else if (unlink_newfile)
-      unlink(newfile);
-
-    rfc1524_free_entry (&entry);
-    return (1);
+    strfcpy (major, protocol, sizeof(major));
+    if((t = strchr(major, '/')))
+      *t = '\0';
+    
+    protocol_major = mutt_check_mime_type (major);
   }
 
-  if (!ascii_strcasecmp ("text/plain", type) ||
-      !ascii_strcasecmp ("application/postscript", type))
+  /* consistency check */
+
+  if (!(a && a->next && a->next->type == protocol_major && 
+      !mutt_strcasecmp (a->next->subtype, protocol_minor)))
   {
-    return (mutt_pipe_attachment (fp, a, NONULL(PrintCmd), NULL));
+    state_attach_puts (_("[-- Error: "
+                         "Inconsistent multipart/signed structure! --]\n\n"),
+                       s);
+    return mutt_body_handler (a, s);
   }
-  else if (mutt_can_decode (a))
-  {
-    /* decode and print */
 
-    int rc = 0;
-    
-    ifp = NULL;
-    fpout = NULL;
-    
-    mutt_mktemp (newfile, sizeof (newfile));
-    if (mutt_decode_save_attachment (fp, a, newfile, M_PRINTING, 0) == 0)
-    {
-      
-      dprint (2, (debugfile, "successfully decoded %s type attachment to %s\n",
-		  type, newfile));
-      
-      if ((ifp = fopen (newfile, "r")) == NULL)
-      {
-	mutt_perror ("fopen");
-	goto bail0;
-      }
-
-      dprint (2, (debugfile, "successfully opened %s read-only\n", newfile));
-      
-      mutt_endwin (NULL);
-      if ((thepid = mutt_create_filter (NONULL(PrintCmd), &fpout, NULL, NULL)) < 0)
-      {
-	mutt_perror _("Can't create filter");
-	goto bail0;
-      }
-
-      dprint (2, (debugfile, "Filter created.\n"));
-      
-      mutt_copy_stream (ifp, fpout);
-
-      safe_fclose (&fpout);
-      safe_fclose (&ifp);
-
-      if (mutt_wait_filter (thepid) != 0 || option (OPTWAITKEY))
-	mutt_any_key_to_continue (NULL);
-      rc = 1;
-    }
-  bail0:
-    safe_fclose (&ifp);
-    safe_fclose (&fpout);
-    mutt_unlink (newfile);
-    return rc;
-  }
+  
+  if ((WithCrypto & APPLICATION_PGP)
+      && protocol_major == TYPEAPPLICATION
+      && !ascii_strcasecmp (protocol_minor, "pgp-signature"))
+    ;
+  else if ((WithCrypto & APPLICATION_SMIME)
+           && protocol_major == TYPEAPPLICATION
+	   && !(ascii_strcasecmp (protocol_minor, "x-pkcs7-signature")
+	       && ascii_strcasecmp (protocol_minor, "pkcs7-signature")))
+    ;
+  else if (protocol_major == TYPEMULTIPART
+	   && !ascii_strcasecmp (protocol_minor, "mixed"))
+    ;
   else
   {
-    mutt_error _("I don't know how to print that!");
-    return 0;
+    state_printf (s, _("[-- Error: "
+                       "Unknown multipart/signed protocol %s! --]\n\n"),
+                  protocol);
+    return mutt_body_handler (a, s);
   }
+  
+  if (s->flags & M_DISPLAY)
+  {
+    
+    crypt_fetch_signatures (&signatures, a->next, &sigcnt);
+    
+    if (sigcnt)
+    {
+      mutt_mktemp (tempfile, sizeof (tempfile));
+      if (crypt_write_signed (a, s, tempfile) == 0)
+      {
+	for (i = 0; i < sigcnt; i++)
+	{
+	  if ((WithCrypto & APPLICATION_PGP)
+              && signatures[i]->type == TYPEAPPLICATION 
+	      && !ascii_strcasecmp (signatures[i]->subtype, "pgp-signature"))
+	  {
+	    if (crypt_pgp_verify_one (signatures[i], s, tempfile) != 0)
+	      goodsig = 0;
+	    
+	    continue;
+	  }
+
+	  if ((WithCrypto & APPLICATION_SMIME)
+              && signatures[i]->type == TYPEAPPLICATION 
+	      && (!ascii_strcasecmp(signatures[i]->subtype, "x-pkcs7-signature")
+		  || !ascii_strcasecmp(signatures[i]->subtype, "pkcs7-signature")))
+	  {
+	    if (crypt_smime_verify_one (signatures[i], s, tempfile) != 0)
+	      goodsig = 0;
+	    
+	    continue;
+	  }
+
+	  state_printf (s, _("[-- Warning: "
+                             "We can't verify %s/%s signatures. --]\n\n"),
+			  TYPE(signatures[i]), signatures[i]->subtype);
+	}
+      }
+      
+      mutt_unlink (tempfile);
+
+      b->goodsig = goodsig;
+      b->badsig  = !goodsig;
+      
+      /* Now display the signed body */
+      state_attach_puts (_("[-- The following data is signed --]\n\n"), s);
+
+
+      FREE (&signatures);
+    }
+    else
+      state_attach_puts (_("[-- Warning: Can't find any signatures. --]\n\n"), s);
+  }
+  
+  rc = mutt_body_handler (a, s);
+  
+  if (s->flags & M_DISPLAY && sigcnt)
+    state_attach_puts (_("\n[-- End of signed data --]\n"), s);
+  
+  return rc;
 }

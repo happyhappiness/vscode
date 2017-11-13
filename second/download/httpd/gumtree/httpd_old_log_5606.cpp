@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "%d:  %s", i, lua_toboolean(L,
-                                                          i) ? "true" :
-                              "false");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                                      "*: rewrite of url due to UDS(%s): %s (%s)",
+                                      sockpath, *url, r->filename);

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01527)
-                    MODNAME ": broken symlink (%s)", fn);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server, APLOGNO(00632)
+                     "failed to prepare SQL statements: %s",
+                     (errmsg ? errmsg : "[???]"));

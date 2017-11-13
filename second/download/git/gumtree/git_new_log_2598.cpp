@@ -1,2 +1,2 @@
-die("BUG: curl_easy_getinfo for HTTP code failed: %s",
-				curl_easy_strerror(c));
+error(_("Commit %s does not have parent %d"),
+				oid_to_hex(&commit->object.oid), opts->mainline);

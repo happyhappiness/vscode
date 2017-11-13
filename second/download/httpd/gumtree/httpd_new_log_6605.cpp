@@ -1,2 +1,3 @@
-ap_log_rerror(
-                        APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02482) "Encountered extra data after compressed data");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, origin, APLOGNO(03357)
+                      "pass output failed to %pI (%s)",
+                      p_conn->addr, p_conn->hostname);

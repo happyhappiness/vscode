@@ -1,16 +1,19 @@
-static void enable_listensocks(int process_slot)
+static apr_status_t on_stream_resume(void *ctx, int stream_id)
 {
-    int i;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00457)
-                 "Accepting new connections again: "
-                 "%u active conns, %u idle workers",
-                 apr_atomic_read32(&connection_count),
-                 ap_queue_info_get_idlers(worker_queue_info));
-    for (i = 0; i < num_listensocks; i++)
-        apr_pollset_add(event_pollset, &listener_pollfd[i]);
-    /*
-     * XXX: This is not yet optimal. If many workers suddenly become available,
-     * XXX: the parent may kill some processes off too soon.
-     */
-    ap_scoreboard_image->parent[process_slot].not_accepting = 0;
+    h2_session *session = ctx;
+    h2_stream *stream = get_stream(session, stream_id);
+    apr_status_t status = APR_SUCCESS;
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_resume", session->id, stream_id);
+    if (stream) {
+        int rv = nghttp2_session_resume_data(session->ngh2, stream_id);
+        session->have_written = 1;
+        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
+                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
+                      APLOGNO(02936) 
+                      "h2_stream(%ld-%d): resuming %s",
+                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
+    }
+    return status;
 }

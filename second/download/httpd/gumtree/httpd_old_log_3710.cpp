@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                                     "proxy: APR_BUCKET_IS_EOS");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c,
+                              "filter_init for %s failed", p->frec->name);

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01863)
-                      "prepared statement could not be found for "
-                      "SessionDBDdeletelabel with the label '%s'",
-                      conf->deletelabel);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+           "ajp_unmarshal_response: Number of headers is = %d",
+           num_headers);

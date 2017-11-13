@@ -1,1 +1,2 @@
-die("helper %s does not support --signed", name);
+error("unable to commit reflog '%s' (%s)",
+					log_file, strerror(errno));

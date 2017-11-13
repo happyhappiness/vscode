@@ -1,3 +1,3 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A \"label-name\" or \"href\" element does not contain "
-                      "any content.");
+                          "Digest: user %s: password mismatch: %s", r->user,
+                          r->uri);

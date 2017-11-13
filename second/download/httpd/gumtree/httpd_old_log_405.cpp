@@ -1,4 +1,2 @@
-ap_register_output_filter("CACHE_CONDITIONAL", 
-                                  cache_conditional_filter, 
-                                  NULL,
-                                  AP_FTYPE_CONTENT_SET);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Cached body for URL %s",  dobj->name);

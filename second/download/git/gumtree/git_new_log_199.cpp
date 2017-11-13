@@ -1,1 +1,1 @@
-packet_write_fmt(fd[1], "argument %s\n", argv[i]);
+fprintf(stderr, "cannot chmod '%s'", ce->name);

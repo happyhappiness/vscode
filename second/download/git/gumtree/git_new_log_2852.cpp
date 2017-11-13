@@ -1,1 +1,1 @@
-warning(_("failed to exec '%s'"), cmd);
+die(_("Unknown commit %s"), base_commit);

@@ -1,11 +1,10 @@
 fputs(
-"              and  password has been provided, this data is sent off using the\n"
-"              ACCT command. (Added in 7.13.0)\n"
+"              port  (on  iOS  7.0  or  later, or OS X 10.9 or later) backends.\n"
+"              (Added in 7.42.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --ftp-alternative-to-user <command>\n"
-"              (FTP) If authenticating with the USER and PASS  commands  fails,\n"
-"              send  this  command.   When  connecting  to  Tumbleweed's Secure\n"
-"              Transport server over FTPS using  a  client  certificate,  using\n"
+"       -f, --fail\n"
+"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
+"              is  mostly done to better enable scripts etc to better deal with\n"
+"              failed attempts. In normal cases when an HTTP  server  fails  to\n"
+"              deliver  a  document,  it  returns  an  HTML document stating so\n"
 , stdout);

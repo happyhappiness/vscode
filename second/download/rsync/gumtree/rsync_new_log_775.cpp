@@ -1,1 +1,1 @@
-out_of_memory("delete-delay");
+out_of_memory("glob_expand_one");

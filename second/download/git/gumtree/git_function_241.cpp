@@ -1,80 +1,88 @@
-int init_db(const char *git_dir, const char *real_git_dir,
-	    const char *template_dir, unsigned int flags)
+static int find_header(struct apply_state *state,
+		       const char *line,
+		       unsigned long size,
+		       int *hdrsize,
+		       struct patch *patch)
 {
-	int reinit;
-	int exist_ok = flags & INIT_DB_EXIST_OK;
-	char *original_git_dir = xstrdup(real_path(git_dir));
+	unsigned long offset, len;
 
-	if (real_git_dir) {
-		struct stat st;
+	patch->is_toplevel_relative = 0;
+	patch->is_rename = patch->is_copy = 0;
+	patch->is_new = patch->is_delete = -1;
+	patch->old_mode = patch->new_mode = 0;
+	patch->old_name = patch->new_name = NULL;
+	for (offset = 0; size > 0; offset += len, size -= len, line += len, state->linenr++) {
+		unsigned long nextlen;
 
-		if (!exist_ok && !stat(git_dir, &st))
-			die(_("%s already exists"), git_dir);
+		len = linelen(line, size);
+		if (!len)
+			break;
 
-		if (!exist_ok && !stat(real_git_dir, &st))
-			die(_("%s already exists"), real_git_dir);
+		/* Testing this early allows us to take a few shortcuts.. */
+		if (len < 6)
+			continue;
 
-		set_git_dir(real_path(real_git_dir));
-		git_dir = get_git_dir();
-		separate_git_dir(git_dir, original_git_dir);
-	}
-	else {
-		set_git_dir(real_path(git_dir));
-		git_dir = get_git_dir();
-	}
-	startup_info->have_repository = 1;
-
-	safe_create_dir(git_dir, 0);
-
-	init_is_bare_repository = is_bare_repository();
-
-	/* Check to see if the repository version is right.
-	 * Note that a newly created repository does not have
-	 * config file, so this will not fail.  What we are catching
-	 * is an attempt to reinitialize new repository with an old tool.
-	 */
-	check_repository_format();
-
-	reinit = create_default_files(template_dir, original_git_dir);
-
-	create_object_directory();
-
-	if (get_shared_repository()) {
-		char buf[10];
-		/* We do not spell "group" and such, so that
-		 * the configuration can be read by older version
-		 * of git. Note, we use octal numbers for new share modes,
-		 * and compatibility values for PERM_GROUP and
-		 * PERM_EVERYBODY.
+		/*
+		 * Make sure we don't find any unconnected patch fragments.
+		 * That's a sign that we didn't find a header, and that a
+		 * patch has become corrupted/broken up.
 		 */
-		if (get_shared_repository() < 0)
-			/* force to the mode value */
-			xsnprintf(buf, sizeof(buf), "0%o", -get_shared_repository());
-		else if (get_shared_repository() == PERM_GROUP)
-			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_GROUP);
-		else if (get_shared_repository() == PERM_EVERYBODY)
-			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_EVERYBODY);
-		else
-			die("BUG: invalid value for shared_repository");
-		git_config_set("core.sharedrepository", buf);
-		git_config_set("receive.denyNonFastforwards", "true");
+		if (!memcmp("@@ -", line, 4)) {
+			struct fragment dummy;
+			if (parse_fragment_header(line, len, &dummy) < 0)
+				continue;
+			die(_("patch fragment without header at line %d: %.*s"),
+			    state->linenr, (int)len-1, line);
+		}
+
+		if (size < len + 6)
+			break;
+
+		/*
+		 * Git patch? It might not have a real patch, just a rename
+		 * or mode change, so we handle that specially
+		 */
+		if (!memcmp("diff --git ", line, 11)) {
+			int git_hdr_len = parse_git_header(state, line, len, size, patch);
+			if (git_hdr_len <= len)
+				continue;
+			if (!patch->old_name && !patch->new_name) {
+				if (!patch->def_name)
+					die(Q_("git diff header lacks filename information when removing "
+					       "%d leading pathname component (line %d)",
+					       "git diff header lacks filename information when removing "
+					       "%d leading pathname components (line %d)",
+					       state->p_value),
+					    state->p_value, state->linenr);
+				patch->old_name = xstrdup(patch->def_name);
+				patch->new_name = xstrdup(patch->def_name);
+			}
+			if (!patch->is_delete && !patch->new_name)
+				die("git diff header lacks filename information "
+				    "(line %d)", state->linenr);
+			patch->is_toplevel_relative = 1;
+			*hdrsize = git_hdr_len;
+			return offset;
+		}
+
+		/* --- followed by +++ ? */
+		if (memcmp("--- ", line,  4) || memcmp("+++ ", line + len, 4))
+			continue;
+
+		/*
+		 * We only accept unified patches, so we want it to
+		 * at least have "@@ -a,b +c,d @@\n", which is 14 chars
+		 * minimum ("@@ -0,0 +1 @@\n" is the shortest).
+		 */
+		nextlen = linelen(line + len, size - len);
+		if (size < nextlen + 14 || memcmp("@@ -", line + len + nextlen, 4))
+			continue;
+
+		/* Ok, we'll consider it a patch */
+		parse_traditional_patch(state, line, line+len, patch);
+		*hdrsize = len + nextlen;
+		state->linenr += 2;
+		return offset;
 	}
-
-	if (!(flags & INIT_DB_QUIET)) {
-		int len = strlen(git_dir);
-
-		if (reinit)
-			printf(get_shared_repository()
-			       ? _("Reinitialized existing shared Git repository in %s%s\n")
-			       : _("Reinitialized existing Git repository in %s%s\n"),
-			       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
-		else
-			printf(get_shared_repository()
-			       ? _("Initialized empty shared Git repository in %s%s\n")
-			       : _("Initialized empty Git repository in %s%s\n"),
-			       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
-	}
-
-	free(original_git_dir);
-	return 0;
+	return -1;
 }

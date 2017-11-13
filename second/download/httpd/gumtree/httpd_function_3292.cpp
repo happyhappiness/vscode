@@ -1,102 +1,57 @@
-static apr_status_t keep_body_filter(ap_filter_t *f, apr_bucket_brigade *b,
-                                     ap_input_mode_t mode,
-                                     apr_read_type_e block,
-                                     apr_off_t readbytes)
+static authz_status ip_check_authorization(request_rec *r, const char *require_line)
 {
-    apr_bucket *e;
-    keep_body_ctx_t *ctx = f->ctx;
-    apr_status_t rv;
-    apr_bucket *bucket;
-    apr_off_t len = 0;
+    const char *t, *w;
 
+    /* The 'ip' provider will allow the configuration to specify a list of
+        ip addresses to check rather than a single address.  This is different
+        from the previous host based syntax. */
+    t = require_line;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+        char *where = apr_pstrdup(r->pool, w);
+        char *s;
+        char msgbuf[120];
+        apr_ipsubnet_t *ip;
+        apr_status_t rv;
+        int got_ip = 0;
 
-    if (!ctx) {
-        const char *lenp;
-        char *endstr = NULL;
-        request_dir_conf *dconf = ap_get_module_config(f->r->per_dir_config,
-                                                       &request_module);
-
-        /* must we step out of the way? */
-        if (!dconf->keep_body || f->r->kept_body) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, b, mode, block, readbytes);
-        }
-
-        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
-
-        /* fail fast if the content length exceeds keep body */
-        lenp = apr_table_get(f->r->headers_in, "Content-Length");
-        if (lenp) {
-
-            /* Protects against over/underflow, non-digit chars in the
-             * string (excluding leading space) (the endstr checks)
-             * and a negative number. */
-            if (apr_strtoff(&ctx->remaining, lenp, &endstr, 10)
-                || endstr == lenp || *endstr || ctx->remaining < 0) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                              "Invalid Content-Length");
-
-                ap_remove_input_filter(f);
-                return bail_out_on_error(b, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
+        if ((s = ap_strchr(where, '/'))) {
+            *s++ = '\0';
+            rv = apr_ipsubnet_create(&ip, where, s, r->pool);
+            if(APR_STATUS_IS_EINVAL(rv)) {
+                /* looked nothing like an IP address */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "an ip address 'require' list appears to be invalid ");
             }
-
-            /* If we have a limit in effect and we know the C-L ahead of
-             * time, stop it here if it is invalid.
-             */
-            if (dconf->keep_body < ctx->remaining) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                          "Requested content-length of %" APR_OFF_T_FMT
-                          " is larger than the configured limit"
-                          " of %" APR_OFF_T_FMT, ctx->remaining, dconf->keep_body);
-                ap_remove_input_filter(f);
-                return bail_out_on_error(b, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
+            else if (rv != APR_SUCCESS) {
+                apr_strerror(rv, msgbuf, sizeof msgbuf);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "an ip address 'require' list appears to be invalid; %s ",
+                              msgbuf);
             }
-
+            else
+                got_ip = 1;
+        }
+        else if (!APR_STATUS_IS_EINVAL(rv = apr_ipsubnet_create(&ip, where,
+                                                                NULL, r->pool))) {
+            if (rv != APR_SUCCESS) {
+                apr_strerror(rv, msgbuf, sizeof msgbuf);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "an ip address 'require' list appears to be invalid; %s ",
+                              msgbuf);
+            }
+            else 
+                got_ip = 1;
         }
 
-        f->r->kept_body = apr_brigade_create(f->r->pool, f->r->connection->bucket_alloc);
-        ctx->remaining = dconf->keep_body;
-
-    }
-
-    /* get the brigade from upstream, and read it in to get its length */
-    rv = ap_get_brigade(f->next, b, mode, block, readbytes);
-    if (rv == APR_SUCCESS) {
-        rv = apr_brigade_length(b, 1, &len);
-    }
-
-    /* does the length take us over the limit? */
-    if (APR_SUCCESS == rv && len > ctx->remaining) {
-        if (f->r->kept_body) {
-            apr_brigade_cleanup(f->r->kept_body);
-            f->r->kept_body = NULL;
+        if (got_ip && apr_ipsubnet_test(ip, r->connection->remote_addr)) {
+            return AUTHZ_GRANTED;
         }
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                      "Requested content-length of %" APR_OFF_T_FMT
-                      " is larger than the configured limit"
-                      " of %" APR_OFF_T_FMT, len, ctx->keep_body);
-        return bail_out_on_error(b, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
-    }
-    ctx->remaining -= len;
-
-    /* pass any errors downstream */
-    if (rv != APR_SUCCESS) {
-        if (f->r->kept_body) {
-            apr_brigade_cleanup(f->r->kept_body);
-            f->r->kept_body = NULL;
-        }
-        return rv;
     }
 
-    /* all is well, set aside the buckets */
-    for (bucket = APR_BRIGADE_FIRST(b);
-         bucket != APR_BRIGADE_SENTINEL(b);
-         bucket = APR_BUCKET_NEXT(bucket))
-    {
-        apr_bucket_copy(bucket, &e);
-        APR_BRIGADE_INSERT_TAIL(f->r->kept_body, e);
-    }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "access to %s failed, reason: ip address list does not meet "
+                  "'require'ments for user '%s' to be allowed access",
+                  r->uri, r->user);
 
-    return APR_SUCCESS;
+    return AUTHZ_DENIED;
 }

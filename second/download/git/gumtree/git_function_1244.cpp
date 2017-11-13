@@ -1,30 +1,69 @@
-static const char *parse_cmd_create(struct ref_transaction *transaction,
-				    struct strbuf *input, const char *next)
+static void check_unreachable_object(struct object *obj)
 {
-	struct strbuf err = STRBUF_INIT;
-	char *refname;
-	unsigned char new_sha1[20];
+	/*
+	 * Missing unreachable object? Ignore it. It's not like
+	 * we miss it (since it can't be reached), nor do we want
+	 * to complain about it being unreachable (since it does
+	 * not exist).
+	 */
+	if (!(obj->flags & HAS_OBJ))
+		return;
 
-	refname = parse_refname(input, &next);
-	if (!refname)
-		die("create: missing <ref>");
+	/*
+	 * Unreachable object that exists? Show it if asked to,
+	 * since this is something that is prunable.
+	 */
+	if (show_unreachable) {
+		printf("unreachable %s %s\n", printable_type(obj),
+			describe_object(obj));
+		return;
+	}
 
-	if (parse_next_sha1(input, &next, new_sha1, "create", refname, 0))
-		die("create %s: missing <newvalue>", refname);
+	/*
+	 * "!used" means that nothing at all points to it, including
+	 * other unreachable objects. In other words, it's the "tip"
+	 * of some set of unreachable objects, usually a commit that
+	 * got dropped.
+	 *
+	 * Such starting points are more interesting than some random
+	 * set of unreachable objects, so we show them even if the user
+	 * hasn't asked for _all_ unreachable objects. If you have
+	 * deleted a branch by mistake, this is a prime candidate to
+	 * start looking at, for example.
+	 */
+	if (!obj->used) {
+		if (show_dangling)
+			printf("dangling %s %s\n", printable_type(obj),
+			       describe_object(obj));
+		if (write_lost_and_found) {
+			char *filename = git_pathdup("lost-found/%s/%s",
+				obj->type == OBJ_COMMIT ? "commit" : "other",
+				describe_object(obj));
+			FILE *f;
 
-	if (is_null_sha1(new_sha1))
-		die("create %s: zero <newvalue>", refname);
+			if (safe_create_leading_directories_const(filename)) {
+				error("Could not create lost-found");
+				free(filename);
+				return;
+			}
+			if (!(f = fopen(filename, "w")))
+				die_errno("Could not open '%s'", filename);
+			if (obj->type == OBJ_BLOB) {
+				if (stream_blob_to_fd(fileno(f), &obj->oid, NULL, 1))
+					die_errno("Could not write '%s'", filename);
+			} else
+				fprintf(f, "%s\n", describe_object(obj));
+			if (fclose(f))
+				die_errno("Could not finish '%s'",
+					  filename);
+			free(filename);
+		}
+		return;
+	}
 
-	if (*next != line_termination)
-		die("create %s: extra input: %s", refname, next);
-
-	if (ref_transaction_create(transaction, refname, new_sha1,
-				   update_flags, msg, &err))
-		die("%s", err.buf);
-
-	update_flags = 0;
-	free(refname);
-	strbuf_release(&err);
-
-	return next;
+	/*
+	 * Otherwise? It's there, it's unreachable, and some other unreachable
+	 * object points to it. Ignore it - it's not interesting, and we showed
+	 * all the interesting cases above.
+	 */
 }

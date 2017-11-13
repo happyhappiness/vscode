@@ -1,9 +1,8 @@
 fputs(
-"              The given speed is measured in bytes/second, unless a suffix  is\n"
-"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
-"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
-"\n"
-"              The  given  rate  is the average speed counted during the entire\n"
-"              transfer. It means that curl might use higher transfer speeds in\n"
+"              request on the new place. If used together with -i, --include or\n"
+"              -I, --head, headers from all requested pages will be shown. When\n"
+"              authentication is used, curl only sends its credentials  to  the\n"
+"              initial  host.  If a redirect takes curl to a different host, it\n"
+"              won't be able to intercept the user+password. See  also  --loca-\n"
+"              tion-trusted  on how to change this. You can limit the amount of\n"
 , stdout);

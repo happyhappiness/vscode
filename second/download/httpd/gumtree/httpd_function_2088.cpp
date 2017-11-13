@@ -1,83 +1,66 @@
-static int fix_hostname(request_rec *r, const char *host_header,
-                        unsigned http_conformance)
+static void log_tracing_state(MODSSL_INFO_CB_ARG_TYPE ssl, conn_rec *c, 
+                              server_rec *s, int where, int rc)
 {
-    const char *src;
-    char *host, *scope_id;
-    apr_port_t port;
-    apr_status_t rv;
-    const char *c;
-    int is_v6literal = 0;
-    int strict = (http_conformance != AP_HTTP_CONFORMANCE_UNSAFE);
-
-    src = host_header ? host_header : r->hostname;
-
-    /* According to RFC 2616, Host header field CAN be blank */
-    if (!*src) {
-        return is_v6literal;
-    }
-
-    /* apr_parse_addr_port will interpret a bare integer as a port
-     * which is incorrect in this context.  So treat it separately.
+    /*
+     * create the various trace messages
      */
-    for (c = src; apr_isdigit(*c); ++c);
-    if (!*c) {
-        /* pure integer */
-        if (strict) {
-            /* RFC 3986 7.4 */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                         "[strict] purely numeric host names not allowed: %s",
-                         src);
-            goto bad_nolog;
+    if (where & SSL_CB_HANDSHAKE_START) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Handshake: start", SSL_LIBRARY_NAME);
+    }
+    else if (where & SSL_CB_HANDSHAKE_DONE) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Handshake: done", SSL_LIBRARY_NAME);
+    }
+    else if (where & SSL_CB_LOOP) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Loop: %s",
+                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_READ) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Read: %s",
+                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_WRITE) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Write: %s",
+                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_ALERT) {
+        char *str = (where & SSL_CB_READ) ? "read" : "write";
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Alert: %s:%s:%s",
+                     SSL_LIBRARY_NAME, str,
+                     SSL_alert_type_string_long(rc),
+                     SSL_alert_desc_string_long(rc));
+    }
+    else if (where & SSL_CB_EXIT) {
+        if (rc == 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Exit: failed in %s",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
         }
-        r->hostname = src;
-        return is_v6literal;
-    }
-
-    if (host_header) {
-        rv = apr_parse_addr_port(&host, &scope_id, &port, src, r->pool);
-        if (rv != APR_SUCCESS || scope_id)
-            goto bad;
-        if (port) {
-            /* Don't throw the Host: header's port number away:
-               save it in parsed_uri -- ap_get_server_port() needs it! */
-            /* @@@ XXX there should be a better way to pass the port.
-             *         Like r->hostname, there should be a r->portno
-             */
-            r->parsed_uri.port = port;
-            r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
+        else if (rc < 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Exit: error in %s",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
         }
-        if (host_header[0] == '[')
-            is_v6literal = 1;
-    }
-    else {
-        /*
-         * Already parsed, surrounding [ ] (if IPv6 literal) and :port have
-         * already been removed.
-         */
-        host = apr_pstrdup(r->pool, r->hostname);
-        if (ap_strchr(host, ':') != NULL)
-            is_v6literal = 1;
     }
 
-    if (is_v6literal) {
-        rv = fix_hostname_v6_literal(r, host);
+    /*
+     * Because SSL renegotations can happen at any time (not only after
+     * SSL_accept()), the best way to log the current connection details is
+     * right after a finished handshake.
+     */
+    if (where & SSL_CB_HANDSHAKE_DONE) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "Connection: Client IP: %s, Protocol: %s, "
+                     "Cipher: %s (%s/%s bits)",
+                     ssl_var_lookup(NULL, s, c, NULL, "REMOTE_ADDR"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_PROTOCOL"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
     }
-    else {
-        rv = fix_hostname_non_v6(r, host);
-        if (strict && rv == APR_SUCCESS)
-            rv = strict_hostname_check(r, host);
-    }
-    if (rv != APR_SUCCESS)
-        goto bad;
-
-    r->hostname = host;
-    return is_v6literal;
-
-bad:
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "Client sent malformed Host header: %s",
-                  src);
-bad_nolog:
-    r->status = HTTP_BAD_REQUEST;
-    return is_v6literal;
 }

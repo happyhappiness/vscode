@@ -1,60 +1,30 @@
-static int git_trailer_config(const char *conf_key, const char *value, void *cb)
+static void init_curl_proxy_auth(CURL *result)
 {
-	const char *trailer_item, *variable_name;
-	struct trailer_item *item;
-	struct conf_info *conf;
-	char *name = NULL;
-	enum trailer_info_type type;
-	int i;
-
-	if (!skip_prefix(conf_key, "trailer.", &trailer_item))
-		return 0;
-
-	variable_name = strrchr(trailer_item, '.');
-	if (!variable_name)
-		return 0;
-
-	variable_name++;
-	for (i = 0; i < ARRAY_SIZE(trailer_config_items); i++) {
-		if (strcmp(trailer_config_items[i].name, variable_name))
-			continue;
-		name = xstrndup(trailer_item,  variable_name - trailer_item - 1);
-		type = trailer_config_items[i].type;
-		break;
+	if (proxy_auth.username) {
+		if (!proxy_auth.password)
+			credential_fill(&proxy_auth);
+		set_proxyauth_name_password(result);
 	}
 
-	if (!name)
-		return 0;
+	var_override(&http_proxy_authmethod, getenv("GIT_HTTP_PROXY_AUTHMETHOD"));
 
-	item = get_conf_item(name);
-	conf = &item->conf;
-	free(name);
-
-	switch (type) {
-	case TRAILER_KEY:
-		if (conf->key)
-			warning(_("more than one %s"), conf_key);
-		conf->key = xstrdup(value);
-		break;
-	case TRAILER_COMMAND:
-		if (conf->command)
-			warning(_("more than one %s"), conf_key);
-		conf->command = xstrdup(value);
-		break;
-	case TRAILER_WHERE:
-		if (set_where(conf, value))
-			warning(_("unknown value '%s' for key '%s'"), value, conf_key);
-		break;
-	case TRAILER_IF_EXISTS:
-		if (set_if_exists(conf, value))
-			warning(_("unknown value '%s' for key '%s'"), value, conf_key);
-		break;
-	case TRAILER_IF_MISSING:
-		if (set_if_missing(conf, value))
-			warning(_("unknown value '%s' for key '%s'"), value, conf_key);
-		break;
-	default:
-		die("internal bug in trailer.c");
+#if LIBCURL_VERSION_NUM >= 0x070a07 /* CURLOPT_PROXYAUTH and CURLAUTH_ANY */
+	if (http_proxy_authmethod) {
+		int i;
+		for (i = 0; i < ARRAY_SIZE(proxy_authmethods); i++) {
+			if (!strcmp(http_proxy_authmethod, proxy_authmethods[i].name)) {
+				curl_easy_setopt(result, CURLOPT_PROXYAUTH,
+						proxy_authmethods[i].curlauth_param);
+				break;
+			}
+		}
+		if (i == ARRAY_SIZE(proxy_authmethods)) {
+			warning("unsupported proxy authentication method %s: using anyauth",
+					http_proxy_authmethod);
+			curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+		}
 	}
-	return 0;
+	else
+		curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+#endif
 }

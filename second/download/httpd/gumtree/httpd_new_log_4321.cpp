@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02214)
-                     "No certificates in %s", pkcs7);
+ap_rvputs(r, "value='", bsel->s->name + sizeof(BALANCER_PREFIX) - 1,
+                      "'>\n", NULL);

@@ -1,1 +1,1 @@
-die("%s", err.buf);
+error(_("Could not parse object '%s'."), oid_to_hex(remote));

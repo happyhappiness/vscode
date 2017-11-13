@@ -1,1 +1,1 @@
-out_of_memory("glob_expand");
+rprintf(FERROR, "compression init failed\n");

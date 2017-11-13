@@ -1,50 +1,16 @@
-static int lua_websocket_ping(lua_State *L) 
+static void copyright(void)
 {
-    apr_socket_t *sock;
-    apr_size_t plen;
-    char prelude[2];
-    apr_status_t rv;
-    request_rec *r = ap_lua_check_request_rec(L, 1);
-    sock = ap_get_conn_socket(r->connection);
-    
-    /* Send a header that says: PING. */
-    prelude[0] = 0x89; /* ping  opcode */
-    prelude[1] = 0;
-    plen = 2;
-    apr_socket_send(sock, prelude, &plen);
-    
-    
-    /* Get opcode and FIN bit from pong */
-    plen = 2;
-    rv = apr_socket_recv(sock, prelude, &plen);
-    if (rv == APR_SUCCESS) {
-        unsigned char opcode = prelude[0];
-        unsigned char len = prelude[1];
-        unsigned char mask = len >> 7;
-        if (mask) len -= 128;
-        plen = len;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Got PONG opcode: %x", opcode);
-        if (opcode == 0x8A) {
-            lua_pushboolean(L, 1);
-        }
-        else {
-            lua_pushboolean(L, 0);
-        }
-        if (plen > 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                        "Websocket: Reading %lu bytes of PONG", plen);
-            return 1;
-        }
-        if (mask) {
-            plen = 2;
-            apr_socket_recv(sock, prelude, &plen);
-            plen = 2;
-            apr_socket_recv(sock, prelude, &plen);
-        }
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1748469 $>");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
+        printf("\n");
     }
     else {
-        lua_pushboolean(L, 0);
+        printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1748469 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
+        printf("</p>\n<p>\n");
     }
-    return 1;
 }

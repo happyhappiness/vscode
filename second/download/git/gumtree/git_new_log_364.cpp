@@ -1,1 +1,3 @@
-die(_("git fetch-pack: expected ACK/NAK, got '%s'"), line);
+die(_("cannot read blob %s for path %s"),
+			    oid_to_hex(&o->blob_oid),
+			    path);

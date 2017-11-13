@@ -1,19 +1,39 @@
-static void menu_directive(request_rec *r, char *menu, char *href, char *text)
+apr_status_t h2_stream_write_data(h2_stream *stream,
+                                  const char *data, size_t len, int eos)
 {
-    if (!strcasecmp(href, "error") || !strcasecmp(href, "nocontent")) {
-        return;                 /* don't print such lines, as this isn't
-                                   really an href */
+    apr_status_t status = APR_SUCCESS;
+    
+    AP_DEBUG_ASSERT(stream);
+    if (input_closed(stream) || !stream->request->eoh) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d", 
+                      stream->session->id, stream->id, input_closed(stream),
+                      stream->request->eoh);
+        return APR_EINVAL;
     }
-    if (!strcasecmp(menu, "formatted")) {
-        ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
-               "</a></pre>\n", NULL);
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                  "h2_stream(%ld-%d): add %ld input bytes", 
+                  stream->session->id, stream->id, (long)len);
+
+    if (!stream->request->chunked) {
+        stream->input_remaining -= len;
+        if (stream->input_remaining < 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c,
+                          APLOGNO(02961) 
+                          "h2_stream(%ld-%d): got %ld more content bytes than announced "
+                          "in content-length header: %ld", 
+                          stream->session->id, stream->id,
+                          (long)stream->request->content_length, 
+                          -(long)stream->input_remaining);
+            h2_stream_rst(stream, H2_ERR_PROTOCOL_ERROR);
+            return APR_ECONNABORTED;
+        }
     }
-    else if (!strcasecmp(menu, "semiformatted")) {
-        ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
-               "</a></pre>\n", NULL);
+    
+    status = h2_mplx_in_write(stream->session->mplx, stream->id, data, len, eos);
+    if (eos) {
+        close_input(stream);
     }
-    else if (!strcasecmp(menu, "unformatted")) {
-        ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);
-    }
-    return;
+    return status;
 }

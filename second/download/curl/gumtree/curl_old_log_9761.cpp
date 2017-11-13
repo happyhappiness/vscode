@@ -1,8 +1,11 @@
 fputs(
-"              using the  Content-Type  multipart/form-data  according  to  RFC\n"
-"              2388.  This  enables uploading of binary files etc. To force the\n"
-"              'content' part to be a file, prefix the  file  name  with  an  @\n"
-"              sign.  To just get the content part from a file, prefix the file\n"
-"              name with the symbol <. The difference between @ and <  is  then\n"
-"              that  @  makes a file get attached in the post as a file upload,\n"
+"              If this option is set, the default capath value will be ignored,\n"
+"              and if it is used several times, the last one will be used.\n"
+"\n"
+"       --pinnedpubkey <pinned public key>\n"
+"              (SSL)  Tells curl to use the specified public key file to verify\n"
+"              the peer. The file must contain a single public key in DER  for-\n"
+"              mat.\n"
+"\n"
+"              When  negotiating  a  TLS  or SSL connection, the server sends a\n"
 , stdout);

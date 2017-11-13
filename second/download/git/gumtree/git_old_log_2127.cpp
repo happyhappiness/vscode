@@ -1,2 +1,2 @@
-die(_("bad numeric config value '%s' for '%s' in %s: %s"),
-		    value, name, cf->name, reason);
+error("chmod on %s failed: %s",
+				lock->filename.buf, strerror(errno));

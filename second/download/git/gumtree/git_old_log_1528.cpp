@@ -1,1 +1,1 @@
-printf("%s -> %s\n", refname, sha1_to_hex(sha1));
+fprintf(stderr, "bad sha1 file: %s/%s\n", path->buf, de->d_name);

@@ -1,46 +1,21 @@
-h2_task_input *h2_task_input_create(h2_task_env *env, apr_pool_t *pool, 
-                                    apr_bucket_alloc_t *bucket_alloc)
+static void create_listener_thread(thread_starter *ts)
 {
-    h2_task_input *input = apr_pcalloc(pool, sizeof(h2_task_input));
-    if (input) {
-        input->env = env;
-        input->bb = NULL;
-        
-        if (env->serialize_headers) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, &env->c,
-                          "h2_task_input(%s): serialize request %s %s", 
-                          env->id, env->method, env->path);
-            input->bb = apr_brigade_create(pool, bucket_alloc);
-            apr_brigade_printf(input->bb, NULL, NULL, "%s %s HTTP/1.1\r\n", 
-                               env->method, env->path);
-            apr_table_do(ser_header, input, env->headers, NULL);
-            apr_brigade_puts(input->bb, NULL, NULL, "\r\n");
-            if (input->env->input_eos) {
-                APR_BRIGADE_INSERT_TAIL(input->bb, apr_bucket_eos_create(bucket_alloc));
-            }
-        }
-        else if (!input->env->input_eos) {
-            input->bb = apr_brigade_create(pool, bucket_alloc);
-        }
-        else {
-            /* We do not serialize and have eos already, no need to
-             * create a bucket brigade. */
-        }
-        
-        if (APLOGcdebug(&env->c)) {
-            char buffer[1024];
-            apr_size_t len = sizeof(buffer)-1;
-            if (input->bb) {
-                apr_brigade_flatten(input->bb, buffer, &len);
-            }
-            else {
-                len = 0;
-            }
-            buffer[len] = 0;
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, &env->c,
-                          "h2_task_input(%s): request is: %s", 
-                          env->id, buffer);
-        }
+    int my_child_num = ts->child_num_arg;
+    apr_threadattr_t *thread_attr = ts->threadattr;
+    proc_info *my_info;
+    apr_status_t rv;
+
+    my_info = (proc_info *)malloc(sizeof(proc_info));
+    my_info->pid = my_child_num;
+    my_info->tid = -1; /* listener thread doesn't have a thread slot */
+    my_info->sd = 0;
+    rv = apr_thread_create(&ts->listener, thread_attr, listener_thread,
+                           my_info, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "apr_thread_create: unable to create listener thread");
+        /* let the parent decide how bad this really is */
+        clean_child_exit(APEXIT_CHILDSICK);
     }
-    return input;
+    apr_os_thread_get(&listener_os_thread, ts->listener);
 }

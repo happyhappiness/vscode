@@ -1,104 +1,67 @@
-int reflog_expire(const char *refname, const unsigned char *sha1,
-		 unsigned int flags,
-		 reflog_expiry_prepare_fn prepare_fn,
-		 reflog_expiry_should_prune_fn should_prune_fn,
-		 reflog_expiry_cleanup_fn cleanup_fn,
-		 void *policy_cb_data)
+static void builtin_checkdiff(const char *name_a, const char *name_b,
+			      const char *attr_path,
+			      struct diff_filespec *one,
+			      struct diff_filespec *two,
+			      struct diff_options *o)
 {
-	static struct lock_file reflog_lock;
-	struct expire_reflog_cb cb;
-	struct ref_lock *lock;
-	char *log_file;
-	int status = 0;
-	int type;
-	struct strbuf err = STRBUF_INIT;
+	mmfile_t mf1, mf2;
+	struct checkdiff_t data;
 
-	memset(&cb, 0, sizeof(cb));
-	cb.flags = flags;
-	cb.policy_cb = policy_cb_data;
-	cb.should_prune_fn = should_prune_fn;
+	if (!two)
+		return;
+
+	memset(&data, 0, sizeof(data));
+	data.filename = name_b ? name_b : name_a;
+	data.lineno = 0;
+	data.o = o;
+	data.ws_rule = whitespace_rule(attr_path);
+	data.conflict_marker_size = ll_merge_marker_size(attr_path);
+
+	if (fill_mmfile(&mf1, one) < 0 || fill_mmfile(&mf2, two) < 0)
+		die("unable to read files to diff");
 
 	/*
-	 * The reflog file is locked by holding the lock on the
-	 * reference itself, plus we might need to update the
-	 * reference if --updateref was specified:
+	 * All the other codepaths check both sides, but not checking
+	 * the "old" side here is deliberate.  We are checking the newly
+	 * introduced changes, and as long as the "new" side is text, we
+	 * can and should check what it introduces.
 	 */
-	lock = lock_ref_sha1_basic(refname, sha1, NULL, NULL, 0, &type, &err);
-	if (!lock) {
-		error("cannot lock ref '%s': %s", refname, err.buf);
-		strbuf_release(&err);
-		return -1;
-	}
-	if (!reflog_exists(refname)) {
-		unlock_ref(lock);
-		return 0;
-	}
+	if (diff_filespec_is_binary(two))
+		goto free_and_return;
+	else {
+		/* Crazy xdl interfaces.. */
+		xpparam_t xpp;
+		xdemitconf_t xecfg;
 
-	log_file = git_pathdup("logs/%s", refname);
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * Even though holding $GIT_DIR/logs/$reflog.lock has
-		 * no locking implications, we use the lock_file
-		 * machinery here anyway because it does a lot of the
-		 * work we need, including cleaning up if the program
-		 * exits unexpectedly.
-		 */
-		if (hold_lock_file_for_update(&reflog_lock, log_file, 0) < 0) {
-			struct strbuf err = STRBUF_INIT;
-			unable_to_lock_message(log_file, errno, &err);
-			error("%s", err.buf);
-			strbuf_release(&err);
-			goto failure;
-		}
-		cb.newlog = fdopen_lock_file(&reflog_lock, "w");
-		if (!cb.newlog) {
-			error("cannot fdopen %s (%s)",
-			      get_lock_file_path(&reflog_lock), strerror(errno));
-			goto failure;
-		}
-	}
+		memset(&xpp, 0, sizeof(xpp));
+		memset(&xecfg, 0, sizeof(xecfg));
+		xecfg.ctxlen = 1; /* at least one context line */
+		xpp.flags = 0;
+		if (xdi_diff_outf(&mf1, &mf2, checkdiff_consume, &data,
+				  &xpp, &xecfg))
+			die("unable to generate checkdiff for %s", one->path);
 
-	(*prepare_fn)(refname, sha1, cb.policy_cb);
-	for_each_reflog_ent(refname, expire_reflog_ent, &cb);
-	(*cleanup_fn)(cb.policy_cb);
+		if (data.ws_rule & WS_BLANK_AT_EOF) {
+			struct emit_callback ecbdata;
+			int blank_at_eof;
 
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * It doesn't make sense to adjust a reference pointed
-		 * to by a symbolic ref based on expiring entries in
-		 * the symbolic reference's reflog. Nor can we update
-		 * a reference if there are no remaining reflog
-		 * entries.
-		 */
-		int update = (flags & EXPIRE_REFLOGS_UPDATE_REF) &&
-			!(type & REF_ISSYMREF) &&
-			!is_null_sha1(cb.last_kept_sha1);
+			ecbdata.ws_rule = data.ws_rule;
+			check_blank_at_eof(&mf1, &mf2, &ecbdata);
+			blank_at_eof = ecbdata.blank_at_eof_in_postimage;
 
-		if (close_lock_file(&reflog_lock)) {
-			status |= error("couldn't write %s: %s", log_file,
-					strerror(errno));
-		} else if (update &&
-			   (write_in_full(get_lock_file_fd(lock->lk),
-				sha1_to_hex(cb.last_kept_sha1), 40) != 40 ||
-			    write_str_in_full(get_lock_file_fd(lock->lk), "\n") != 1 ||
-			    close_ref(lock) < 0)) {
-			status |= error("couldn't write %s",
-					get_lock_file_path(lock->lk));
-			rollback_lock_file(&reflog_lock);
-		} else if (commit_lock_file(&reflog_lock)) {
-			status |= error("unable to commit reflog '%s' (%s)",
-					log_file, strerror(errno));
-		} else if (update && commit_ref(lock)) {
-			status |= error("couldn't set %s", lock->ref_name);
+			if (blank_at_eof) {
+				static char *err;
+				if (!err)
+					err = whitespace_error_string(WS_BLANK_AT_EOF);
+				fprintf(o->file, "%s:%d: %s.\n",
+					data.filename, blank_at_eof, err);
+				data.status = 1; /* report errors */
+			}
 		}
 	}
-	free(log_file);
-	unlock_ref(lock);
-	return status;
-
- failure:
-	rollback_lock_file(&reflog_lock);
-	free(log_file);
-	unlock_ref(lock);
-	return -1;
+ free_and_return:
+	diff_free_filespec_data(one);
+	diff_free_filespec_data(two);
+	if (data.status)
+		DIFF_OPT_SET(o, CHECK_FAILED);
 }

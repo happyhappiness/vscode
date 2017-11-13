@@ -1,1 +1,1 @@
-die_errno("unable to read alternates file");
+printf("would prune %s", message);

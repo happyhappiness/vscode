@@ -1,12 +1,9 @@
 fputs(
-"              Tells curl to limit what protocols it may use in  the  transfer.\n"
-"              Protocols  are evaluated left to right, are comma separated, and\n"
-"              are each a protocol name or\n"
+"              Use the specified proxy before connecting to the ordinary proxy.\n"
+"              Hence pre proxy. A pre proxy must be a SOCKS speaking proxy.\n"
 "\n"
-"              +  Permit this protocol in addition to protocols already permit-\n"
-"                 ted (this is the default if no modifier is used).\n"
-"\n"
-"              -  Deny  this  protocol,  removing it from the list of protocols\n"
-"                 already permitted.\n"
-"\n"
+"              The pre proxy string should be specified with a protocol:// pre-\n"
+"              fix to  specify  alternative  proxy  protocols.  Use  socks4://,\n"
+"              socks4a://,  socks5://  or  socks5h://  to  request the specific\n"
+"              SOCKS version to be used. No protocol specified will  make  curl\n"
 , stdout);

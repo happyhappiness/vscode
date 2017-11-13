@@ -1,181 +1,109 @@
-static apr_ssize_t send_response_header(isapi_cid *cid,
-                                        const char *stat,
-                                        const char *head,
-                                        apr_size_t statlen,
-                                        apr_size_t headlen)
+static BOOL shmcb_init_memory(
+    server_rec *s, void *shm_mem,
+    unsigned int shm_mem_size)
 {
-    int head_present = 1;
-    int termarg;
-    int res;
-    int old_status;
-    const char *termch;
-    apr_size_t ate = 0;
+    SHMCBHeader *header;
+    SHMCBQueue queue;
+    SHMCBCache cache;
+    unsigned int temp, loop, granularity;
 
-    if (!head || headlen == 0 || !*head) {
-        head = stat;
-        stat = NULL;
-        headlen = statlen;
-        statlen = 0;
-        head_present = 0; /* Don't eat the header */
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "entered shmcb_init_memory()");
 
-    if (!stat || statlen == 0 || !*stat) {
-        if (head && headlen && *head && ((stat = memchr(head, '\r', headlen))
-                                      || (stat = memchr(head, '\n', headlen))
-                                      || (stat = memchr(head, '\0', headlen))
-                                      || (stat = head + headlen))) {
-            statlen = stat - head;
-            if (memchr(head, ':', statlen)) {
-                stat = "Status: 200 OK";
-                statlen = strlen(stat);
-            }
-            else {
-                const char *flip = head;
-                head = stat;
-                stat = flip;
-                headlen -= statlen;
-                ate += statlen;
-                if (*head == '\r' && headlen)
-                    ++head, --headlen, ++ate;
-                if (*head == '\n' && headlen)
-                    ++head, --headlen, ++ate;
-            }
-        }
+    /* Calculate some sizes... */
+    temp = sizeof(SHMCBHeader);
+
+    /* If the segment is ridiculously too small, bail out */
+    if (shm_mem_size < (2*temp)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "shared memory segment too small");
+        return FALSE;
     }
 
-    if (stat && (statlen > 0) && *stat) {
-        char *newstat;
-        if (!apr_isdigit(*stat)) {
-            const char *stattok = stat;
-            int toklen = statlen;
-            while (toklen && *stattok && !apr_isspace(*stattok)) {
-                ++stattok; --toklen;
-            }
-            while (toklen && apr_isspace(*stattok)) {
-                ++stattok; --toklen;
-            }
-            /* Now decide if we follow the xxx message
-             * or the http/x.x xxx message format
-             */
-            if (toklen && apr_isdigit(*stattok)) {
-                statlen = toklen;
-                stat = stattok;
-            }
-        }
-        newstat = apr_palloc(cid->r->pool, statlen + 9);
-        strcpy(newstat, "Status: ");
-        apr_cpystrn(newstat + 8, stat, statlen + 1);
-        stat = newstat;
-        statlen += 8;
+    /* Make temp the amount of memory without the header */
+    temp = shm_mem_size - temp;
+
+    /* Work on the basis that you need 10 bytes index for each session
+     * (approx 150 bytes), which is to divide temp by 160 - and then
+     * make sure we err on having too index space to burn even when
+     * the cache is full, which is a lot less stupid than having
+     * having not enough index space to utilise the whole cache!. */
+    temp /= 120;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "for %u bytes, recommending %u indexes",
+                 shm_mem_size, temp);
+
+    /* We should divide these indexes evenly amongst the queues. Try
+     * to get it so that there are roughly half the number of divisions
+     * as there are indexes in each division. */
+    granularity = 256;
+    while ((temp / granularity) < (2 * granularity))
+        granularity /= 2;
+
+    /* So we have 'granularity' divisions, set 'temp' equal to the
+     * number of indexes in each division. */
+    temp /= granularity;
+
+    /* Too small? Bail ... */
+    if (temp < 5) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "shared memory segment too small");
+        return FALSE;
     }
 
-    if (!head || headlen == 0 || !*head) {
-        head = "\r\n";
-        headlen = 2;
-    }
-    else
-    {
-        if (head[headlen - 1] && head[headlen]) {
-            /* Whoops... not NULL terminated */
-            head = apr_pstrndup(cid->r->pool, head, headlen);
-        }
+    /* OK, we're sorted - from here on in, the return should be TRUE */
+    header = (SHMCBHeader *)shm_mem;
+    header->division_mask = (unsigned char)(granularity - 1);
+    header->division_offset = sizeof(SHMCBHeader);
+    header->index_num = temp;
+    header->index_offset = (2 * sizeof(unsigned int));
+    header->index_size = sizeof(SHMCBIndex);
+    header->queue_size = header->index_offset +
+                         (header->index_num * header->index_size);
+
+    /* Now calculate the space for each division */
+    temp = shm_mem_size - header->division_offset;
+    header->division_size = temp / granularity;
+
+    /* Calculate the space left in each division for the cache */
+    temp -= header->queue_size;
+    header->cache_data_offset = (2 * sizeof(unsigned int));
+    header->cache_data_size = header->division_size -
+                              header->queue_size - header->cache_data_offset;
+
+    /* Output trace info */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "shmcb_init_memory choices follow");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "division_mask = 0x%02X", header->division_mask);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "division_offset = %u", header->division_offset);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "division_size = %u", header->division_size);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "queue_size = %u", header->queue_size);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "index_num = %u", header->index_num);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "index_offset = %u", header->index_offset);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "index_size = %u", header->index_size);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "cache_data_offset = %u", header->cache_data_offset);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "cache_data_size = %u", header->cache_data_size);
+
+    /* The header is done, make the caches empty */
+    for (loop = 0; loop < granularity; loop++) {
+        if (!shmcb_get_division(header, &queue, &cache, loop))
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "shmcb_init_memory, " "internal error");
+        shmcb_set_safe_uint(cache.first_pos, 0);
+        shmcb_set_safe_uint(cache.pos_count, 0);
+        shmcb_set_safe_uint(queue.first_pos, 0);
+        shmcb_set_safe_uint(queue.pos_count, 0);
     }
 
-    /* Seems IIS does not enforce the requirement for \r\n termination
-     * on HSE_REQ_SEND_RESPONSE_HEADER, but we won't panic...
-     * ap_scan_script_header_err_strs handles this aspect for us.
-     *
-     * Parse them out, or die trying
-     */
-    old_status = cid->r->status;
-
-    if (stat) {
-        res = ap_scan_script_header_err_strs(cid->r, NULL, &termch, &termarg,
-                stat, head, NULL);
-    }
-    else {
-        res = ap_scan_script_header_err_strs(cid->r, NULL, &termch, &termarg,
-                head, NULL);
-    }
-
-    /* Set our status. */
-    if (res) {
-        /* This is an immediate error result from the parser
-         */
-        cid->r->status = res;
-        cid->r->status_line = ap_get_status_line(cid->r->status);
-        cid->ecb->dwHttpStatusCode = cid->r->status;
-    }
-    else if (cid->r->status) {
-        /* We have a status in r->status, so let's just use it.
-         * This is likely to be the Status: parsed above, and
-         * may also be a delayed error result from the parser.
-         * If it was filled in, status_line should also have
-         * been filled in.
-         */
-        cid->ecb->dwHttpStatusCode = cid->r->status;
-    }
-    else if (cid->ecb->dwHttpStatusCode
-              && cid->ecb->dwHttpStatusCode != HTTP_OK) {
-        /* Now we fall back on dwHttpStatusCode if it appears
-         * ap_scan_script_header fell back on the default code.
-         * Any other results set dwHttpStatusCode to the decoded
-         * status value.
-         */
-        cid->r->status = cid->ecb->dwHttpStatusCode;
-        cid->r->status_line = ap_get_status_line(cid->r->status);
-    }
-    else if (old_status) {
-        /* Well... either there is no dwHttpStatusCode or it's HTTP_OK.
-         * In any case, we don't have a good status to return yet...
-         * Perhaps the one we came in with will be better. Let's use it,
-         * if we were given one (note this is a pendantic case, it would
-         * normally be covered above unless the scan script code unset
-         * the r->status). Should there be a check here as to whether
-         * we are setting a valid response code?
-         */
-        cid->r->status = old_status;
-        cid->r->status_line = ap_get_status_line(cid->r->status);
-        cid->ecb->dwHttpStatusCode = cid->r->status;
-    }
-    else {
-        /* None of dwHttpStatusCode, the parser's r->status nor the 
-         * old value of r->status were helpful, and nothing was decoded
-         * from Status: string passed to us.  Let's just say HTTP_OK 
-         * and get the data out, this was the isapi dev's oversight.
-         */
-        cid->r->status = HTTP_OK;
-        cid->r->status_line = ap_get_status_line(cid->r->status);
-        cid->ecb->dwHttpStatusCode = cid->r->status;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, cid->r,
-                "ISAPI: Could not determine HTTP response code; using %d",
-                cid->r->status);
-    }
-
-    if (cid->r->status == HTTP_INTERNAL_SERVER_ERROR) {
-        return -1;
-    }
-
-    /* If only Status was passed, we consumed nothing
-     */
-    if (!head_present)
-        return 0;
-
-    cid->headers_set = 1;
-
-    /* If all went well, tell the caller we consumed the headers complete
-     */
-    if (!termch)
-        return(ate + headlen);
-
-    /* Any data left must be sent directly by the caller, all we
-     * give back is the size of the headers we consumed (which only
-     * happens if the parser got to the head arg, which varies based
-     * on whether we passed stat+head to scan, or only head.
-     */
-    if (termch && (termarg == (stat ? 1 : 0))
-               && head_present && head + headlen > termch) {
-        return ate + termch - head;
-    }
-    return ate;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving shmcb_init_memory()");
+    return TRUE;
 }

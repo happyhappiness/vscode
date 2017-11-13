@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %lu: Child process is exiting", my_pid);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "can't initialise output filter %s: %s",
+                          f->frec->name,
+                          (ctx->dc->onfail == 1) ? "removing" : "aborting");

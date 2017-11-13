@@ -1,4 +1,7 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, workers->s,
-                     "h2_workers: freed %d tx handles, %d/%d left", 
-                     (int)count, (int)workers->spare_tx_handles,
-                     (int)workers->max_tx_handles);
+ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
+                 "mod_http2 (v%s, feats=%s%s%s, nghttp2 %s), initializing...",
+                 MOD_HTTP2_VERSION, 
+                 myfeats.change_prio? "CHPRIO"  : "", 
+                 myfeats.sha256?      "+SHA256" : "",
+                 myfeats.inv_headers? "+INVHD"  : "",
+                 ngh2?                ngh2->version_str : "unknown");

@@ -1,82 +1,74 @@
-static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static apr_status_t dbd_save(request_rec * r, const char *key, const char *val, apr_int64_t expiry)
 {
-    static int restart_num = 0;
-    int startup = 0;
 
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
+    apr_status_t rv;
+    ap_dbd_t *dbd = NULL;
+    apr_dbd_prepared_t *statement;
+    int rows = 0;
+
+    session_dbd_dir_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                      &session_dbd_module);
+
+    if (conf->updatelabel == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                      "no SessionDBDupdatelabel has been specified");
+        return APR_EGENERAL;
     }
 
-    if (ap_threads_limit > HARD_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxThreads of %d exceeds compile-time "
-                         "limit of", ap_threads_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the HARD_THREAD_LIMIT"
-                         "define in");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxThreads of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         ap_threads_limit, HARD_THREAD_LIMIT);
-        }
-        ap_threads_limit = HARD_THREAD_LIMIT;
+    rv = dbd_init(r, conf->updatelabel, &dbd, &statement);
+    if (rv) {
+        return rv;
     }
-    else if (ap_threads_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxThreads of %d not allowed, increasing to 1",
-                         ap_threads_limit);
-        }
-        ap_threads_limit = 1;
+    rv = apr_dbd_pvbquery(dbd->driver, r->pool, dbd->handle, &rows, statement,
+                          val, &expiry, key, NULL);
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                      "query execution error updating session '%s' "
+                      "using database query '%s': %s", key, conf->updatelabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+        return APR_EGENERAL;
     }
 
-    /* ap_threads_to_start > ap_threads_limit effectively checked in
-     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
+    /*
+     * if some rows were updated it means a session existed and was updated,
+     * so we are done.
      */
-    if (ap_threads_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartThreads of %d not allowed, increasing to 1",
-                         ap_threads_to_start);
-        }
-        ap_threads_to_start = 1;
+    if (rows != 0) {
+        return APR_SUCCESS;
     }
 
-    if (ap_threads_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_threads_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_threads_min_free);
-        }
-        ap_threads_min_free = 1;
+    if (conf->insertlabel == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                      "no SessionDBDinsertlabel has been specified");
+        return APR_EGENERAL;
     }
 
-    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
+    rv = dbd_init(r, conf->insertlabel, &dbd, &statement);
+    if (rv) {
+        return rv;
+    }
+    rv = apr_dbd_pvbquery(dbd->driver, r->pool, dbd->handle, &rows, statement,
+                          val, &expiry, key, NULL);
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, LOG_PREFIX
+                      "query execution error inserting session '%s' "
+                      "in database with '%s': %s", key, conf->insertlabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+        return APR_EGENERAL;
+    }
 
-    return OK;
+    /*
+     * if some rows were inserted it means a session was inserted, so we are
+     * done.
+     */
+    if (rows != 0) {
+        return APR_SUCCESS;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                  "the session insert query did not cause any rows to be added "
+                  "to the database for session '%s', session not inserted", key);
+
+    return APR_EGENERAL;
+
 }

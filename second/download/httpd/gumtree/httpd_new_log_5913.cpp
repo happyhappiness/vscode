@@ -1,1 +1,1 @@
-apr_file_printf(out, "(%u)", line_number);
+cleanup_zombies(workers, 0);

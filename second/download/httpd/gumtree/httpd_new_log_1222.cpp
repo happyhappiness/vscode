@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %*s [-k install|config|uninstall] [-n service_name]",
-                 pad_len, " ");
+apr_file_printf(errfile, "%s: unable to read file %s" NL,
+                            argv[0], pwfilename);

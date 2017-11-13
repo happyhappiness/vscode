@@ -1,1 +1,2 @@
-die(_("could not set '%s' to '%s'"), key, value);
+error(_("cannot open %s: %s"), git_path_head_file(),
+						strerror(errno));

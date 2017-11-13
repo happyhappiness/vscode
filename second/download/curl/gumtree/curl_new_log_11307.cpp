@@ -1,10 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              speed_download The average download speed that curl measured for\n"
+"                             the complete download. Bytes per second.\n"
 "\n"
-"       -x, --proxy <[protocol://][user:password@]proxyhost[:port]>\n"
-"              Use the specified proxy.\n"
+"              speed_upload   The average upload speed that curl  measured  for\n"
+"                             the complete upload. Bytes per second.\n"
 "\n"
-"              The  proxy  string can be specified with a protocol:// prefix to\n"
-"              specify alternative proxy protocols. Use socks4://,  socks4a://,\n"
-"              socks5:// or socks5h:// to request the specific SOCKS version to\n"
+"              ssl_verify_result\n"
+"                             The  result of the SSL peer certificate verifica-\n"
+"                             tion that was requested. 0 means the verification\n"
 , stdout);

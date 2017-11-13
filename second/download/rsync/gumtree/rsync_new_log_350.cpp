@@ -1,1 +1,2 @@
-fprintf(FINFO,"redoing %s(%d)\n",fname,i);
+fprintf(FINFO, "false_alarms=%d tag_hits=%d matches=%d\n",
+			false_alarms, tag_hits, matches);

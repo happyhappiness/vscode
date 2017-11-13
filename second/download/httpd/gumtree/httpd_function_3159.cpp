@@ -1,61 +1,93 @@
-static void dumpit(ap_filter_t *f, apr_bucket *b, dumpio_conf_t *ptr)
+static authn_status authn_dbd_password(request_rec *r, const char *user,
+                                       const char *password)
 {
-    conn_rec *c = f->c;
+    apr_status_t rv;
+    const char *dbd_password = NULL;
+    apr_dbd_prepared_t *statement;
+    apr_dbd_results_t *res = NULL;
+    apr_dbd_row_t *row = NULL;
 
-    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, c->base_server,
-        "mod_dumpio:  %s (%s-%s): %" APR_SIZE_T_FMT " bytes",
-                f->frec->name,
-                (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
-                b->type->name,
-                b->length) ;
-
-    if (!(APR_BUCKET_IS_METADATA(b)))
-    {
-#if APR_CHARSET_EBCDIC
-        char xlatebuf[dumpio_MAX_STRING_LEN + 1];
-#endif
-        const char *buf;
-        apr_size_t nbytes;
-        apr_size_t logbytes;
-        apr_status_t rv = apr_bucket_read(b, &buf, &nbytes, APR_BLOCK_READ);
-
-        if (rv == APR_SUCCESS)
-        {
-            while (nbytes)
-            {
-                logbytes = nbytes;
-                if (logbytes > dumpio_MAX_STRING_LEN)
-                    logbytes = dumpio_MAX_STRING_LEN;
-                nbytes -= logbytes;
-
-#if APR_CHARSET_EBCDIC
-                memcpy(xlatebuf, buf, logbytes);
-                ap_xlate_proto_from_ascii(xlatebuf, logbytes);
-                xlatebuf[logbytes] = '\0';
-                ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, c->base_server,
-                             "mod_dumpio:  %s (%s-%s): %s", f->frec->name,
-                             (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
-                             b->type->name, xlatebuf);
-#else
-                /* XXX: Seriously flawed; we do not pay attention to embedded
-                 * \0's in the request body, these should be escaped; however,
-                 * the logging function already performs a significant amount
-                 * of escaping, and so any escaping would be double-escaped.
-                 * The coding solution is to throw away the current logic
-                 * within ap_log_error, and introduce new vformatter %-escapes
-                 * for escaping text, and for binary text (fixed len strings).
-                 */
-                ap_log_error(APLOG_MARK | APLOG_NOERRNO, APLOG_TRACE7, 0, c->base_server,
-                             "mod_dumpio:  %s (%s-%s): %.*s", f->frec->name,
-                             (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
-                             b->type->name, (int)logbytes, buf);
-#endif
-            }
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_TRACE7, rv, c->base_server,
-                         "mod_dumpio:  %s (%s-%s): %s", f->frec->name,
-                         (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
-                         b->type->name, "error reading data");
-        }
+    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                &authn_dbd_module);
+    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
+    if (dbd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Failed to acquire database connection to look up "
+                      "user '%s'", user);
+        return AUTH_GENERAL_ERROR;
     }
+
+    if (conf->user == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "No AuthDBDUserPWQuery has been specified");
+        return AUTH_GENERAL_ERROR;
+    }
+
+    statement = apr_hash_get(dbd->prepared, conf->user, APR_HASH_KEY_STRING);
+    if (statement == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "A prepared statement could not be found for "
+                      "AuthDBDUserPWQuery with the key '%s'", conf->user);
+        return AUTH_GENERAL_ERROR;
+    }
+    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
+                              0, user, NULL) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Query execution error looking up '%s' "
+                      "in database", user);
+        return AUTH_GENERAL_ERROR;
+    }
+    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+         rv != -1;
+         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+        if (rv != 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error retrieving results while looking up '%s' "
+                          "in database", user);
+            return AUTH_GENERAL_ERROR;
+        }
+        if (dbd_password == NULL) {
+#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
+            /* add the rest of the columns to the environment */
+            int i = 1;
+            const char *name;
+            for (name = apr_dbd_get_name(dbd->driver, res, i);
+                 name != NULL;
+                 name = apr_dbd_get_name(dbd->driver, res, i)) {
+
+                char *str = apr_pstrcat(r->pool, AUTHN_PREFIX,
+                                        name,
+                                        NULL);
+                int j = sizeof(AUTHN_PREFIX)-1; /* string length of "AUTHENTICATE_", excluding the trailing NIL */
+                while (str[j]) {
+                    if (!apr_isalnum(str[j])) {
+                        str[j] = '_';
+                    }
+                    else {
+                        str[j] = apr_toupper(str[j]);
+                    }
+                    j++;
+                }
+                apr_table_set(r->subprocess_env, str,
+                              apr_dbd_get_entry(dbd->driver, row, i));
+                i++;
+            }
+#endif
+            dbd_password = apr_dbd_get_entry(dbd->driver, row, 0);
+        }
+        /* we can't break out here or row won't get cleaned up */
+    }
+
+    if (!dbd_password) {
+        return AUTH_USER_NOT_FOUND;
+    }
+    AUTHN_CACHE_STORE(r, user, NULL, dbd_password);
+
+    rv = apr_password_validate(password, dbd_password);
+
+    if (rv != APR_SUCCESS) {
+        return AUTH_DENIED;
+    }
+
+    return AUTH_GRANTED;
 }

@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02666)
-                  "Websocket: Upgrade from HTTP to Websocket failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00484)
+                                 "server reached MaxRequestWorkers setting, "
+                                 "consider raising the MaxRequestWorkers "
+                                 "setting");

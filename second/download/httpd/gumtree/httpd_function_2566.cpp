@@ -1,92 +1,149 @@
-static int uldap_connection_open(request_rec *r,
-                                 util_ldap_connection_t *ldc)
+static authn_status authn_ldap_check_password(request_rec *r, const char *user,
+                                              const char *password)
 {
-    int rc = 0;
     int failures = 0;
-    int new_connection = 0;
-    util_ldap_state_t *st;
+    const char **vals = NULL;
+    char filtbuf[FILTER_LENGTH];
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    /* sanity check for NULL */
-    if (!ldc) {
-        return -1;
+    util_ldap_connection_t *ldc = NULL;
+    int result = 0;
+    int remote_user_attribute_set = 0;
+    const char *dn = NULL;
+
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)apr_pcalloc(r->pool, sizeof(authn_ldap_request_t));
+    ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+
+/*
+    if (!sec->enabled) {
+        return AUTH_USER_NOT_FOUND;
     }
+*/
 
-    /* If the connection is already bound, return
-    */
-    if (ldc->bound)
-    {
-        ldc->reason = "LDAP: connection open successful (already bound)";
-        return LDAP_SUCCESS;
-    }
-
-    /* create the ldap session handle
-    */
-    if (NULL == ldc->ldap)
-    {
-       new_connection = 1;
-       rc = uldap_connection_init( r, ldc );
-       if (LDAP_SUCCESS != rc)
-       {
-           return rc;
-       }
-    }
-
-
-    st = (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
-                                                   &ldap_module);
-
-    /* loop trying to bind up to 10 times if LDAP_SERVER_DOWN error is
-     * returned. If LDAP_TIMEOUT is returned on the first try, maybe the
-     * connection was idle for a long time and has been dropped by a firewall.
-     * In this case close the connection immediately and try again.
-     *
-     * On Success or any other error, break out of the loop.
-     *
-     * NOTE: Looping is probably not a great idea. If the server isn't
-     * responding the chances it will respond after a few tries are poor.
-     * However, the original code looped and it only happens on
-     * the error condition.
+    /*
+     * Basic sanity checks before any LDAP operations even happen.
      */
-    for (failures=0; failures<10; failures++)
-    {
-        rc = uldap_simple_bind(ldc, (char *)ldc->binddn, (char *)ldc->bindpw,
-                               st->opTimeout);
-        if ((AP_LDAP_IS_SERVER_DOWN(rc) && failures == 5) ||
-            (rc == LDAP_TIMEOUT && failures == 0))
-        {
-            if (rc == LDAP_TIMEOUT && !new_connection) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "ldap_simple_bind() timed out on reused "
-                              "connection, dropped by firewall?");
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "attempt to re-init the connection");
-            uldap_connection_unbind( ldc );
-            rc = uldap_connection_init( r, ldc );
-            if (LDAP_SUCCESS != rc)
-            {
-                break;
-            }
-        }
-        else if (!AP_LDAP_IS_SERVER_DOWN(rc)) {
-            break;
-        }
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                      "ldap_simple_bind() failed with server down "
-                      "(try %d)", failures + 1);
+    if (!sec->have_ldap_url) {
+        return AUTH_GENERAL_ERROR;
     }
 
-    /* free the handle if there was an error
-    */
-    if (LDAP_SUCCESS != rc)
-    {
-        uldap_connection_unbind(ldc);
-        ldc->reason = "LDAP: ldap_simple_bind() failed";
+start_over:
+
+    /* There is a good AuthLDAPURL, right? */
+    if (sec->host) {
+        ldc = util_ldap_connection_find(r, sec->host, sec->port,
+                                       sec->binddn, sec->bindpw, sec->deref,
+                                       sec->secure);
     }
     else {
-        ldc->bound = 1;
-        ldc->reason = "LDAP: connection open successful";
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no sec->host - weird...?", getpid());
+        return AUTH_GENERAL_ERROR;
     }
 
-    return(rc);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: using URL %s", getpid(), sec->url);
+
+    /* Get the password that the client sent */
+    if (password == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no password specified", getpid());
+        util_ldap_connection_close(ldc);
+        return AUTH_GENERAL_ERROR;
+    }
+
+    if (user == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no user specified", getpid());
+        util_ldap_connection_close(ldc);
+        return AUTH_GENERAL_ERROR;
+    }
+
+    /* build the username filter */
+    authn_ldap_build_filter(filtbuf, r, user, NULL, sec);
+
+    /* do the user search */
+    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
+                                         sec->attributes, filtbuf, password, &dn, &vals);
+    util_ldap_connection_close(ldc);
+
+    /* sanity check - if server is down, retry it up to 5 times */
+    if (result == LDAP_SERVER_DOWN) {
+        if (failures++ <= 5) {
+            goto start_over;
+        }
+    }
+
+    /* handle bind failure */
+    if (result != LDAP_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
+                      "user %s authentication failed; URI %s [%s][%s]",
+                      getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
+
+        return (LDAP_NO_SUCH_OBJECT == result) ? AUTH_USER_NOT_FOUND
+#ifdef LDAP_SECURITY_ERROR
+                 : (LDAP_SECURITY_ERROR(result)) ? AUTH_DENIED
+#else
+				 : (LDAP_INAPPROPRIATE_AUTH == result) ? AUTH_DENIED
+				 : (LDAP_INVALID_CREDENTIALS == result) ? AUTH_DENIED
+#ifdef LDAP_INSUFFICIENT_ACCESS
+                 : (LDAP_INSUFFICIENT_ACCESS == result) ? AUTH_DENIED
+#endif
+#ifdef LDAP_INSUFFICIENT_RIGHTS
+				 : (LDAP_INSUFFICIENT_RIGHTS == result) ? AUTH_DENIED
+#endif
+#endif
+                 : AUTH_GENERAL_ERROR;
+    }
+
+    /* mark the user and DN */
+    req->dn = apr_pstrdup(r->pool, dn);
+    req->user = apr_pstrdup(r->pool, user);
+    if (sec->user_is_dn) {
+        r->user = req->dn;
+    }
+
+    /* add environment variables */
+    if (sec->attributes && vals) {
+        apr_table_t *e = r->subprocess_env;
+        int i = 0;
+        while (sec->attributes[i]) {
+            char *str = apr_pstrcat(r->pool, "AUTHENTICATE_", sec->attributes[i], NULL);
+            int j = 13;
+            while (str[j]) {
+                if (str[j] >= 'a' && str[j] <= 'z') {
+                    str[j] = str[j] - ('a' - 'A');
+                }
+                j++;
+            }
+            apr_table_setn(e, str, vals[i]);
+
+            /* handle remote_user_attribute, if set */
+            if (sec->remote_user_attribute && 
+                !strcmp(sec->remote_user_attribute, sec->attributes[i])) {
+                r->user = (char *)apr_pstrdup(r->pool, vals[i]);
+                remote_user_attribute_set = 1;
+            }
+            i++;
+        }
+    }
+
+    /* sanity check */
+    if (sec->remote_user_attribute && !remote_user_attribute_set) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
+                  "REMOTE_USER was to be set with attribute '%s', "
+                  "but this attribute was not requested for in the "
+                  "LDAP query for the user. REMOTE_USER will fall "
+                  "back to username or DN as appropriate.", getpid(),
+                  sec->remote_user_attribute);
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: accepting %s", getpid(), user);
+
+    return AUTH_GRANTED;
 }

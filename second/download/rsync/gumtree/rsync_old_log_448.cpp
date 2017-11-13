@@ -1,1 +1,1 @@
-fprintf(f,"-g, --group              preserve group\n");
+fprintf(FERROR,"select error: %s\n", strerror(errno));

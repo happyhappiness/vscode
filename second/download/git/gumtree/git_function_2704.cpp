@@ -1,21 +1,17 @@
-static const char *wt_status_unmerged_status_string(int stagemask)
+static void contents_atom_parser(struct used_atom *atom, const char *arg)
 {
-	switch (stagemask) {
-	case 1:
-		return _("both deleted:");
-	case 2:
-		return _("added by us:");
-	case 3:
-		return _("deleted by them:");
-	case 4:
-		return _("added by them:");
-	case 5:
-		return _("deleted by us:");
-	case 6:
-		return _("both added:");
-	case 7:
-		return _("both modified:");
-	default:
-		die(_("bug: unhandled unmerged status %x"), stagemask);
-	}
+	if (!arg)
+		atom->u.contents.option = C_BARE;
+	else if (!strcmp(arg, "body"))
+		atom->u.contents.option = C_BODY;
+	else if (!strcmp(arg, "signature"))
+		atom->u.contents.option = C_SIG;
+	else if (!strcmp(arg, "subject"))
+		atom->u.contents.option = C_SUB;
+	else if (skip_prefix(arg, "lines=", &arg)) {
+		atom->u.contents.option = C_LINES;
+		if (strtoul_ui(arg, 10, &atom->u.contents.nlines))
+			die(_("positive value expected contents:lines=%s"), arg);
+	} else
+		die(_("unrecognized %%(contents) argument: %s"), arg);
 }

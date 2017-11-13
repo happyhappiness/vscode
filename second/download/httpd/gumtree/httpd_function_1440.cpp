@@ -1,227 +1,350 @@
-request_rec *ap_read_request(conn_rec *conn)
+void child_main(apr_pool_t *pconf)
 {
-    request_rec *r;
-    apr_pool_t *p;
-    const char *expect;
-    int access_status;
-    apr_bucket_brigade *tmp_bb;
-    apr_socket_t *csd;
-    apr_interval_time_t cur_timeout;
+    apr_status_t status;
+    apr_hash_t *ht;
+    ap_listen_rec *lr;
+    HANDLE child_events[2];
+    HANDLE *child_handles;
+    int listener_started = 0;
+    int threads_created = 0;
+    int watch_thread;
+    int time_remains;
+    int cld;
+    int tid;
+    int rv;
+    int i;
 
-    apr_pool_create(&p, conn->pool);
-    apr_pool_tag(p, "request");
-    r = apr_pcalloc(p, sizeof(request_rec));
-    r->pool            = p;
-    r->connection      = conn;
-    r->server          = conn->base_server;
+    apr_pool_create(&pchild, pconf);
+    apr_pool_tag(pchild, "pchild");
 
-    r->user            = NULL;
-    r->ap_auth_type    = NULL;
+    ap_run_child_init(pchild, ap_server_conf);
+    ht = apr_hash_make(pchild);
 
-    r->allowed_methods = ap_make_method_list(p, 2);
+    /* Initialize the child_events */
+    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!max_requests_per_child_event) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Failed to create a max_requests event.", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    child_events[0] = exit_event;
+    child_events[1] = max_requests_per_child_event;
 
-    r->headers_in      = apr_table_make(r->pool, 25);
-    r->trailers_in     = apr_table_make(r->pool, 5);
-    r->subprocess_env  = apr_table_make(r->pool, 25);
-    r->headers_out     = apr_table_make(r->pool, 12);
-    r->err_headers_out = apr_table_make(r->pool, 5);
-    r->trailers_out    = apr_table_make(r->pool, 5);
-    r->notes           = apr_table_make(r->pool, 5);
+    allowed_globals.jobsemaphore = CreateSemaphore(NULL, 0, 1000000, NULL);
+    apr_thread_mutex_create(&allowed_globals.jobmutex,
+                            APR_THREAD_MUTEX_DEFAULT, pchild);
 
-    r->request_config  = ap_create_request_config(r->pool);
-    /* Must be set before we run create request hook */
-
-    r->proto_output_filters = conn->output_filters;
-    r->output_filters  = r->proto_output_filters;
-    r->proto_input_filters = conn->input_filters;
-    r->input_filters   = r->proto_input_filters;
-    ap_run_create_request(r);
-    r->per_dir_config  = r->server->lookup_defaults;
-
-    r->sent_bodyct     = 0;                      /* bytect isn't for body */
-
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
-
-    r->status          = HTTP_OK;  /* Until further notice */
-    r->the_request     = NULL;
-
-    /* Begin by presuming any module can make its own path_info assumptions,
-     * until some module interjects and changes the value.
+    /*
+     * Wait until we have permission to start accepting connections.
+     * start_mutex is used to ensure that only one child ever
+     * goes into the listen/accept loop at once.
      */
-    r->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
+    status = apr_proc_mutex_lock(start_mutex);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK,APLOG_ERR, status, ap_server_conf,
+                     "Child %d: Failed to acquire the start_mutex. Process will exit.", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Acquired the start mutex.", my_pid);
 
-    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-
-    /* Get the request... */
-    if (!read_request_line(r, tmp_bb)) {
-        switch (r->status) {
-        case HTTP_REQUEST_URI_TOO_LARGE:
-        case HTTP_BAD_REQUEST:
-        case HTTP_VERSION_NOT_SUPPORTED:
-        case HTTP_NOT_IMPLEMENTED:
-            if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "request failed: client's request-line exceeds LimitRequestLine (longer than %d)",
-                              r->server->limit_req_line);
-            }
-            else if (r->method == NULL) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "request failed: malformed request line");
-            }
-            access_status = r->status;
-            r->status = HTTP_OK;
-            ap_die(access_status, r);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            r = NULL;
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        case HTTP_REQUEST_TIME_OUT:
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            if (!r->connection->keepalives)
-                ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        default:
-            apr_brigade_destroy(tmp_bb);
-            r = NULL;
-            return r;
+    /*
+     * Create the worker thread dispatch IOCompletionPort
+     * on Windows NT/2000
+     */
+    if (use_acceptex) {
+        /* Create the worker thread dispatch IOCP */
+        ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
+                                                    NULL,
+                                                    0,
+                                                    0); /* CONCURRENT ACTIVE THREADS */
+        apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
+        qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+        if (!qwait_event) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "Child %d: Failed to create a qwait event.", my_pid);
+            exit(APEXIT_CHILDINIT);
         }
-    }
-
-    /* We may have been in keep_alive_timeout mode, so toggle back
-     * to the normal timeout mode as we fetch the header lines,
-     * as necessary.
-     */
-    csd = ap_get_module_config(conn->conn_config, &core_module);
-    apr_socket_timeout_get(csd, &cur_timeout);
-    if (cur_timeout != conn->base_server->timeout) {
-        apr_socket_timeout_set(csd, conn->base_server->timeout);
-        cur_timeout = conn->base_server->timeout;
-    }
-
-    if (!r->assbackwards) {
-        const char *tenc;
-
-        ap_get_mime_headers_core(r, tmp_bb);
-        if (r->status != HTTP_OK) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
-
-        tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
-        if (tenc) {
-            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
-             * Section 3.3.3.3: "If a Transfer-Encoding header field is
-             * present in a request and the chunked transfer coding is not
-             * the final encoding ...; the server MUST respond with the 400
-             * (Bad Request) status code and then close the connection".
-             */
-            if (!(strcasecmp(tenc, "chunked") == 0 /* fast path */
-                    || ap_find_last_token(r->pool, tenc, "chunked"))) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "client sent unknown Transfer-Encoding "
-                              "(%s): %s", tenc, r->uri);
-                r->status = HTTP_BAD_REQUEST;
-                conn->keepalive = AP_CONN_CLOSE;
-                ap_send_error_response(r, 0);
-                ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-                ap_run_log_transaction(r);
-                apr_brigade_destroy(tmp_bb);
-                return r;
-            }
-
-            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
-             * Section 3.3.3.3: "If a message is received with both a
-             * Transfer-Encoding and a Content-Length header field, the
-             * Transfer-Encoding overrides the Content-Length. ... A sender
-             * MUST remove the received Content-Length field".
-             */
-            apr_table_unset(r->headers_in, "Content-Length");
-        }
-    }
-
-    apr_brigade_destroy(tmp_bb);
-
-    /* update what we think the virtual host is based on the headers we've
-     * now read. may update status.
-     */
-    ap_update_vhost_from_headers(r);
-    access_status = r->status;
-
-    /* Toggle to the Host:-based vhost's timeout mode to fetch the
-     * request body and send the response body, if needed.
-     */
-    if (cur_timeout != r->server->timeout) {
-        apr_socket_timeout_set(csd, r->server->timeout);
-        cur_timeout = r->server->timeout;
-    }
-
-    /* we may have switched to another server */
-    r->per_dir_config = r->server->lookup_defaults;
-
-    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
-        || ((r->proto_num == HTTP_VERSION(1, 1))
-            && !apr_table_get(r->headers_in, "Host"))) {
-        /*
-         * Client sent us an HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-         * a Host: header, and the server MUST respond with 400 if it doesn't.
-         */
-        access_status = HTTP_BAD_REQUEST;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "client sent HTTP/1.1 request without hostname "
-                      "(see RFC2616 section 14.23): %s", r->uri);
     }
 
     /*
-     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
-     * called by ap_die and by ap_send_error_response works correctly on
-     * status codes that do not cause the connection to be dropped and
-     * in situations where the connection should be kept alive.
+     * Create the pool of worker threads
      */
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Starting %d worker threads.", my_pid, ap_threads_per_child);
+    child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child * sizeof(HANDLE));
+    apr_thread_mutex_create(&child_lock, APR_THREAD_MUTEX_DEFAULT, pchild);
 
-    ap_add_input_filter_handle(ap_http_input_filter_handle,
-                               NULL, r, r->connection);
-
-    if (access_status != HTTP_OK
-        || (access_status = ap_run_post_read_request(r))) {
-        ap_die(access_status, r);
-        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-        ap_run_log_transaction(r);
-        return NULL;
+    while (1) {
+        for (i = 0; i < ap_threads_per_child; i++) {
+            int *score_idx;
+            int status = ap_scoreboard_image->servers[0][i].status;
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
+            }
+            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
+            child_handles[i] = (HANDLE) _beginthreadex(NULL, (unsigned)ap_thread_stacksize,
+                                                       worker_main, (void *) i, 0, &tid);
+            if (child_handles[i] == 0) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
+                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.",
+                             my_pid, threads_created, ap_threads_per_child);
+                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
+                goto shutdown;
+            }
+            threads_created++;
+            /* Save the score board index in ht keyed to the thread handle. We need this
+             * when cleaning up threads down below...
+             */
+            apr_thread_mutex_lock(child_lock);
+            score_idx = apr_pcalloc(pchild, sizeof(int));
+            *score_idx = i;
+            apr_hash_set(ht, &child_handles[i], sizeof(HANDLE), score_idx);
+            apr_thread_mutex_unlock(child_lock);
+        }
+        /* Start the listener only when workers are available */
+        if (!listener_started && threads_created) {
+            create_listener_thread();
+            listener_started = 1;
+            winnt_mpm_state = AP_MPMQ_RUNNING;
+        }
+        if (threads_created == ap_threads_per_child) {
+            break;
+        }
+        /* Check to see if the child has been told to exit */
+        if (WaitForSingleObject(exit_event, 0) != WAIT_TIMEOUT) {
+            break;
+        }
+        /* wait for previous generation to clean up an entry in the scoreboard */
+        apr_sleep(1 * APR_USEC_PER_SEC);
     }
 
-    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
-        && (expect[0] != '\0')) {
-        /*
-         * The Expect header field was added to HTTP/1.1 after RFC 2068
-         * as a means to signal when a 100 response is desired and,
-         * unfortunately, to signal a poor man's mandatory extension that
-         * the server must understand or return 417 Expectation Failed.
-         */
-        if (strcasecmp(expect, "100-continue") == 0) {
-            r->expecting_100 = 1;
+    /* Wait for one of three events:
+     * exit_event:
+     *    The exit_event is signaled by the parent process to notify
+     *    the child that it is time to exit.
+     *
+     * max_requests_per_child_event:
+     *    This event is signaled by the worker threads to indicate that
+     *    the process has handled MaxRequestsPerChild connections.
+     *
+     * TIMEOUT:
+     *    To do periodic maintenance on the server (check for thread exits,
+     *    number of completion contexts, etc.)
+     *
+     * XXX: thread exits *aren't* being checked.
+     *
+     * XXX: other_child - we need the process handles to the other children
+     *      in order to map them to apr_proc_other_child_read (which is not
+     *      named well, it's more like a_p_o_c_died.)
+     *
+     * XXX: however - if we get a_p_o_c handle inheritance working, and
+     *      the parent process creates other children and passes the pipes
+     *      to our worker processes, then we have no business doing such
+     *      things in the child_main loop, but should happen in master_main.
+     */
+    while (1) {
+#if !APR_HAS_OTHER_CHILD
+        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, INFINITE);
+        cld = rv - WAIT_OBJECT_0;
+#else
+        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, 1000);
+        cld = rv - WAIT_OBJECT_0;
+        if (rv == WAIT_TIMEOUT) {
+            apr_proc_other_child_refresh_all(APR_OC_REASON_RUNNING);
+        }
+        else
+#endif
+            if (rv == WAIT_FAILED) {
+            /* Something serious is wrong */
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "Child %d: WAIT_FAILED -- shutting down server", my_pid);
+            break;
+        }
+        else if (cld == 0) {
+            /* Exit event was signaled */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %d: Exit event signaled. Child process is ending.", my_pid);
+            break;
         }
         else {
-            r->status = HTTP_EXPECTATION_FAILED;
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "client sent an unrecognized expectation value of "
-                          "Expect: %s", expect);
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            return r;
+            /* MaxRequestsPerChild event set by the worker threads.
+             * Signal the parent to restart
+             */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %d: Process exiting because it reached "
+                         "MaxRequestsPerChild. Signaling the parent to "
+                         "restart a new child process.", my_pid);
+            ap_signal_parent(SIGNAL_PARENT_RESTART);
+            break;
         }
     }
 
-    return r;
+    /*
+     * Time to shutdown the child process
+     */
+
+ shutdown:
+
+    winnt_mpm_state = AP_MPMQ_STOPPING;
+    /* Setting is_graceful will cause threads handling keep-alive connections
+     * to close the connection after handling the current request.
+     */
+    is_graceful = 1;
+
+    /* Close the listening sockets. Note, we must close the listeners
+     * before closing any accept sockets pending in AcceptEx to prevent
+     * memory leaks in the kernel.
+     */
+    for (lr = ap_listeners; lr ; lr = lr->next) {
+        apr_socket_close(lr->sd);
+    }
+
+    /* Shutdown listener threads and pending AcceptEx socksts
+     * but allow the worker threads to continue consuming from
+     * the queue of accepted connections.
+     */
+    shutdown_in_progress = 1;
+
+    Sleep(1000);
+
+    /* Tell the worker threads to exit */
+    workers_may_exit = 1;
+
+    /* Release the start_mutex to let the new process (in the restart
+     * scenario) a chance to begin accepting and servicing requests
+     */
+    rv = apr_proc_mutex_unlock(start_mutex);
+    if (rv == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, rv, ap_server_conf,
+                     "Child %d: Released the start mutex", my_pid);
+    }
+    else {
+        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %d: Failure releasing the start mutex", my_pid);
+    }
+
+    /* Shutdown the worker threads */
+    if (!use_acceptex) {
+        for (i = 0; i < threads_created; i++) {
+            add_job(INVALID_SOCKET);
+        }
+    }
+    else { /* Windows NT/2000 */
+        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */
+        while (g_blocked_threads > 0) {
+            ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                         "Child %d: %d threads blocked on the completion port", my_pid, g_blocked_threads);
+            for (i=g_blocked_threads; i > 0; i--) {
+                PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_SHUTDOWN, NULL);
+            }
+            Sleep(1000);
+        }
+        /* Empty the accept queue of completion contexts */
+        apr_thread_mutex_lock(qlock);
+        while (qhead) {
+            CloseHandle(qhead->Overlapped.hEvent);
+            closesocket(qhead->accept_socket);
+            qhead = qhead->next;
+        }
+        apr_thread_mutex_unlock(qlock);
+    }
+
+    /* Give busy threads a chance to service their connections,
+     * (no more than the global server timeout period which 
+     * we track in msec remaining).
+     */
+    watch_thread = 0;
+    time_remains = (int)(ap_server_conf->timeout / APR_TIME_C(1000));
+
+    while (threads_created)
+    {
+        int nFailsafe = MAXIMUM_WAIT_OBJECTS;
+        DWORD dwRet;
+
+        /* Every time we roll over to wait on the first group
+         * of MAXIMUM_WAIT_OBJECTS threads, take a breather,
+         * and infrequently update the error log.
+         */
+        if (watch_thread >= threads_created) {
+            if ((time_remains -= 100) < 0)
+                break;
+
+            /* Every 30 seconds give an update */
+            if ((time_remains % 30000) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
+                             ap_server_conf,
+                             "Child %d: Waiting %d more seconds "
+                             "for %d worker threads to finish.", 
+                             my_pid, time_remains / 1000, threads_created);
+            }
+            /* We'll poll from the top, 10 times per second */
+            Sleep(100);
+            watch_thread = 0;
+        }
+
+        /* Fairness, on each iteration we will pick up with the thread
+         * after the one we just removed, even if it's a single thread.
+         * We don't block here.
+         */
+        dwRet = WaitForMultipleObjects(min(threads_created - watch_thread,
+                                           MAXIMUM_WAIT_OBJECTS),
+                                       child_handles + watch_thread, 0, 0);
+
+        if (dwRet == WAIT_FAILED) {
+            break;
+        }
+        if (dwRet == WAIT_TIMEOUT) {
+            /* none ready */
+            watch_thread += MAXIMUM_WAIT_OBJECTS;
+            continue;
+        }
+        else if (dwRet >= WAIT_ABANDONED_0) {
+            /* We just got the ownership of the object, which
+             * should happen at most MAXIMUM_WAIT_OBJECTS times.
+             * It does NOT mean that the object is signaled.
+             */
+            if ((nFailsafe--) < 1)
+                break;
+        }
+        else {
+            watch_thread += (dwRet - WAIT_OBJECT_0);
+            if (watch_thread >= threads_created)
+                break;
+            cleanup_thread(child_handles, &threads_created, watch_thread);
+        }
+    }
+ 
+    /* Kill remaining threads off the hard way */
+    if (threads_created) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Terminating %d threads that failed to exit.",
+                     my_pid, threads_created);
+    }
+    for (i = 0; i < threads_created; i++) {
+        int *score_idx;
+        TerminateThread(child_handles[i], 1);
+        CloseHandle(child_handles[i]);
+        /* Reset the scoreboard entry for the thread we just whacked */
+        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
+        if (score_idx) {
+            ap_update_child_status_from_indexes(0, *score_idx,
+                                                SERVER_DEAD, NULL);
+        }
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: All worker threads have exited.", my_pid);
+
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    apr_thread_mutex_destroy(child_lock);
+
+    if (use_acceptex) {
+        apr_thread_mutex_destroy(qlock);
+        CloseHandle(qwait_event);
+    }
+
+    apr_pool_destroy(pchild);
+    CloseHandle(exit_event);
 }

@@ -1,1 +1,1 @@
-die(_("%s: cannot lock the ref"), ref.buf);
+printf("num commits: %d\n", num_commits);

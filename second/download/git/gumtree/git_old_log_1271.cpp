@@ -1,2 +1,1 @@
-error("chmod on %s failed: %s",
-				lock->filename, strerror(errno));
+printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);

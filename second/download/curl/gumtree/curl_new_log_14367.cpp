@@ -1,8 +1,10 @@
 fputs(
-"              3XX  response code), this option will make curl redo the request\n"
-"              on the new place. If used together with  -i,  --include  or  -I,\n"
-"              --head,  headers  from  all  requested pages will be shown. When\n"
-"              authentication is used, curl only sends its credentials  to  the\n"
-"              initial  host.  If a redirect takes curl to a different host, it\n"
-"              won't be able to intercept the user+password. See  also  --loca-\n"
+"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
+"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"\n"
+"              If  you  also use the -Y, --speed-limit option, that option will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
+"\n"
 , stdout);

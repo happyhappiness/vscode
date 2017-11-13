@@ -1,1 +1,1 @@
-out_of_memory("read_unbuffered");
+io_printf(f_out, "@ERROR: invalid uid %s\n", p);

@@ -1,4 +1,4 @@
-FILE *mingw_fopen (const char *filename, const char *otype)
+FILE *mingw_freopen (const char *filename, const char *otype, FILE *stream)
 {
 	int hide = needs_hiding(filename);
 	FILE *file;
@@ -12,7 +12,7 @@ FILE *mingw_fopen (const char *filename, const char *otype)
 		error("could not unhide %s", filename);
 		return NULL;
 	}
-	file = _wfopen(wfilename, wotype);
+	file = _wfreopen(wfilename, wotype, stream);
 	if (file && hide && set_hidden_flag(wfilename, 1))
 		warning("could not mark '%s' as hidden.", filename);
 	return file;

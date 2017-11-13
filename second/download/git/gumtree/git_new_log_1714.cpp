@@ -1,1 +1,1 @@
-die("Not a mark: %s", p);
+die_errno(_("could not create file '%s'"), d->edit_path);

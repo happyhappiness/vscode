@@ -1,81 +1,120 @@
-static apr_status_t read_table(cache_handle_t *handle, request_rec *r,
-                               apr_table_t *table, apr_file_t *file)
+static int get_form_auth(request_rec * r,
+                             const char *username,
+                             const char *password,
+                             const char *location,
+                             const char *method,
+                             const char *mimetype,
+                             const char *body,
+                             const char **sent_user,
+                             const char **sent_pw,
+                             const char **sent_loc,
+                             const char **sent_method,
+                             const char **sent_mimetype,
+                             apr_bucket_brigade **sent_body,
+                             auth_form_config_rec * conf)
 {
-    char w[MAX_STRING_LEN];
-    char *l;
-    int p;
-    apr_status_t rv;
+    /* sanity check - are we a POST request? */
 
-    while (1) {
+    /* find the username and password in the form */
+    apr_array_header_t *pairs = NULL;
+    apr_off_t len;
+    apr_size_t size;
+    int res;
+    char *buffer;
 
-        /* ### What about APR_EOF? */
-        rv = apr_file_gets(w, MAX_STRING_LEN - 1, file);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00717)
-                          "Premature end of cache headers.");
-            return rv;
-        }
-
-        /* Delete terminal (CR?)LF */
-
-        p = strlen(w);
-        /* Indeed, the host's '\n':
-           '\012' for UNIX; '\015' for MacOS; '\025' for OS/390
-           -- whatever the script generates.
-        */
-        if (p > 0 && w[p - 1] == '\n') {
-            if (p > 1 && w[p - 2] == CR) {
-                w[p - 2] = '\0';
-            }
-            else {
-                w[p - 1] = '\0';
-            }
-        }
-
-        /* If we've finished reading the headers, break out of the loop. */
-        if (w[0] == '\0') {
-            break;
-        }
-
-#if APR_CHARSET_EBCDIC
-        /* Chances are that we received an ASCII header text instead of
-         * the expected EBCDIC header lines. Try to auto-detect:
-         */
-        if (!(l = strchr(w, ':'))) {
-            int maybeASCII = 0, maybeEBCDIC = 0;
-            unsigned char *cp, native;
-            apr_size_t inbytes_left, outbytes_left;
-
-            for (cp = w; *cp != '\0'; ++cp) {
-                native = apr_xlate_conv_byte(ap_hdrs_from_ascii, *cp);
-                if (apr_isprint(*cp) && !apr_isprint(native))
-                    ++maybeEBCDIC;
-                if (!apr_isprint(*cp) && apr_isprint(native))
-                    ++maybeASCII;
-            }
-            if (maybeASCII > maybeEBCDIC) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00718)
-                        "CGI Interface Error: Script headers apparently ASCII: (CGI = %s)",
-                        r->filename);
-                inbytes_left = outbytes_left = cp - w;
-                apr_xlate_conv_buffer(ap_hdrs_from_ascii,
-                                      w, &inbytes_left, w, &outbytes_left);
-            }
-        }
-#endif /*APR_CHARSET_EBCDIC*/
-
-        /* if we see a bogus header don't ignore it. Shout and scream */
-        if (!(l = strchr(w, ':'))) {
-            return APR_EGENERAL;
-        }
-
-        *l++ = '\0';
-        while (apr_isspace(*l)) {
-            ++l;
-        }
-
-        apr_table_add(table, w, l);
+    /* have we isolated the user and pw before? */
+    get_notes_auth(r, sent_user, sent_pw, sent_method, sent_mimetype);
+    if (*sent_user && *sent_pw) {
+        return OK;
     }
 
-    return APR_SUCCESS;
+    res = ap_parse_form_data(r, NULL, &pairs, -1, conf->form_size);
+    if (res != OK) {
+        return res;
+    }
+    while (pairs && !apr_is_empty_array(pairs)) {
+        ap_form_pair_t *pair = (ap_form_pair_t *) apr_array_pop(pairs);
+        if (username && !strcmp(pair->name, username) && sent_user) {
+            apr_brigade_length(pair->value, 1, &len);
+            size = (apr_size_t) len;
+            buffer = apr_palloc(r->pool, size + 1);
+            apr_brigade_flatten(pair->value, buffer, &size);
+            buffer[len] = 0;
+            *sent_user = buffer;
+        }
+        else if (password && !strcmp(pair->name, password) && sent_pw) {
+            apr_brigade_length(pair->value, 1, &len);
+            size = (apr_size_t) len;
+            buffer = apr_palloc(r->pool, size + 1);
+            apr_brigade_flatten(pair->value, buffer, &size);
+            buffer[len] = 0;
+            *sent_pw = buffer;
+        }
+        else if (location && !strcmp(pair->name, location) && sent_loc) {
+            apr_brigade_length(pair->value, 1, &len);
+            size = (apr_size_t) len;
+            buffer = apr_palloc(r->pool, size + 1);
+            apr_brigade_flatten(pair->value, buffer, &size);
+            buffer[len] = 0;
+            *sent_loc = buffer;
+        }
+        else if (method && !strcmp(pair->name, method) && sent_method) {
+            apr_brigade_length(pair->value, 1, &len);
+            size = (apr_size_t) len;
+            buffer = apr_palloc(r->pool, size + 1);
+            apr_brigade_flatten(pair->value, buffer, &size);
+            buffer[len] = 0;
+            *sent_method = buffer;
+        }
+        else if (mimetype && !strcmp(pair->name, mimetype) && sent_mimetype) {
+            apr_brigade_length(pair->value, 1, &len);
+            size = (apr_size_t) len;
+            buffer = apr_palloc(r->pool, size + 1);
+            apr_brigade_flatten(pair->value, buffer, &size);
+            buffer[len] = 0;
+            *sent_mimetype = buffer;
+        }
+        else if (body && !strcmp(pair->name, body) && sent_body) {
+            *sent_body = pair->value;
+        }
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  "from form: user: %s, pw: %s, method: %s, mimetype: %s, location: %s",
+                  sent_user ? *sent_user : "<null>", sent_pw ? *sent_pw : "<null>",
+                  sent_method ? *sent_method : "<null>",
+                  sent_mimetype ? *sent_mimetype : "<null>",
+                  sent_loc ? *sent_loc : "<null>");
+
+    /* set the user, even though the user is unauthenticated at this point */
+    if (sent_user && *sent_user) {
+        r->user = (char *) *sent_user;
+    }
+
+    /* a missing username or missing password means auth denied */
+    if (!sent_user || !*sent_user) {
+
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "form parsed, but username field '%s' was missing or empty, unauthorized",
+                      username);
+
+        return HTTP_UNAUTHORIZED;
+    }
+    if (!sent_pw || !*sent_pw) {
+
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "form parsed, but password field '%s' was missing or empty, unauthorized",
+                      password);
+
+        return HTTP_UNAUTHORIZED;
+    }
+
+    /*
+     * save away the username, password, mimetype and method, so that they
+     * are available should the auth need to be run again.
+     */
+    set_notes_auth(r, *sent_user, *sent_pw, sent_method ? *sent_method : NULL,
+                   sent_mimetype ? *sent_mimetype : NULL);
+
+    return OK;
 }

@@ -1,1 +1,0 @@
-printf("%s ", caller_name ? caller_name : oid_to_hex(oid));

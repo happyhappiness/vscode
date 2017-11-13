@@ -1,130 +1,64 @@
-static apr_status_t decrypt_string(request_rec * r, const apr_crypto_t *f,
-        session_crypto_dir_conf *dconf, const char *in, char **out)
+static authz_status
+forward_dns_check_authorization(request_rec *r,
+                                const char *require_line,
+                                const void *parsed_require_line)
 {
-    apr_status_t res;
-    apr_crypto_key_t *key = NULL;
-    apr_size_t ivSize = 0;
-    apr_crypto_block_t *block = NULL;
-    unsigned char *decrypted = NULL;
-    apr_size_t decryptedlen, tlen;
-    apr_size_t decodedlen;
-    char *decoded;
-    apr_size_t blockSize = 0;
-    apr_crypto_block_key_type_e *cipher;
-    unsigned char auth[AP_SIPHASH_DSIZE];
-    int i = 0;
+    const char *err = NULL;
+    const ap_expr_info_t *expr = parsed_require_line;
+    const char *require, *t;
+    char *w;
 
-    /* strip base64 from the string */
-    decoded = apr_palloc(r->pool, apr_base64_decode_len(in));
-    decodedlen = apr_base64_decode(decoded, in);
-    decoded[decodedlen] = '\0';
-
-    /* sanity check - decoded too short? */
-    if (decodedlen < (AP_SIPHASH_DSIZE + sizeof(apr_uuid_t))) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO()
-                "too short to decrypt, aborting");
-        return APR_ECRYPT;
+    /* the require line is an expression, which is evaluated now. */
+    require = ap_expr_str_exec(r, expr, &err);
+    if (err) {
+      ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03354)
+                    "Can't evaluate require expression: %s", err);
+      return AUTHZ_DENIED;
     }
 
-    res = crypt_init(r, f, &cipher, dconf);
-    if (res != APR_SUCCESS) {
-        return res;
+    /* tokenize expected list of names */
+    t = require;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+
+        apr_sockaddr_t *sa;
+        apr_status_t rv;
+        char *hash_ptr;
+
+        /* stop on apache configuration file comments */
+        if ((hash_ptr = ap_strchr(w, '#'))) {
+            if (hash_ptr == w) {
+                break;
+            }
+            *hash_ptr = '\0';
+        }
+
+        /* does the client ip match one of the names? */
+        rv = apr_sockaddr_info_get(&sa, w, APR_UNSPEC, 0, 0, r->pool);
+        if (rv == APR_SUCCESS) {
+
+            while (sa) {
+                int match = apr_sockaddr_equal(sa, r->useragent_addr);
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03355)
+                              "access check for %s as '%s': %s",
+                              r->useragent_ip, w, match? "yes": "no");
+                if (match) {
+                    return AUTHZ_GRANTED;
+                }
+
+                sa = sa->next;
+            }
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(03356)
+                          "No sockaddr info for \"%s\"", w);
+        }
+
+        /* stop processing, we are in a comment */
+        if (hash_ptr) {
+            break;
+        }
     }
 
-    /* try each passphrase in turn */
-    for (; i < dconf->passphrases->nelts; i++) {
-        const char *passphrase = APR_ARRAY_IDX(dconf->passphrases, i, char *);
-        apr_size_t passlen = strlen(passphrase);
-        apr_size_t len = decodedlen - AP_SIPHASH_DSIZE;
-        unsigned char *slider = (unsigned char *)decoded + AP_SIPHASH_DSIZE;
-
-        /* Verify authentication of the whole salt+IV+ciphertext by computing
-         * the MAC and comparing it (timing safe) with the one in the payload.
-         */
-        compute_auth(slider, len, passphrase, passlen, auth);
-        if (!ap_crypto_equals(auth, decoded, AP_SIPHASH_DSIZE)) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO()
-                    "auth does not match, skipping");
-            continue;
-        }
-
-        /* encrypt using the first passphrase in the list */
-        res = apr_crypto_passphrase(&key, &ivSize, passphrase, passlen,
-                                    slider, sizeof(apr_uuid_t),
-                                    *cipher, APR_MODE_CBC, 1, 4096,
-                                    f, r->pool);
-        if (APR_STATUS_IS_ENOKEY(res)) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01832)
-                    "the passphrase '%s' was empty", passphrase);
-            continue;
-        }
-        else if (APR_STATUS_IS_EPADDING(res)) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01833)
-                    "padding is not supported for cipher");
-            continue;
-        }
-        else if (APR_STATUS_IS_EKEYTYPE(res)) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01834)
-                    "the key type is not known");
-            continue;
-        }
-        else if (APR_SUCCESS != res) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01835)
-                    "encryption could not be configured.");
-            continue;
-        }
-
-        /* sanity check - decoded too short? */
-        if (len < (sizeof(apr_uuid_t) + ivSize)) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(01836)
-                    "too short to decrypt, skipping");
-            res = APR_ECRYPT;
-            continue;
-        }
-
-        /* bypass the salt at the start of the decoded block */
-        slider += sizeof(apr_uuid_t);
-        len -= sizeof(apr_uuid_t);
-
-        res = apr_crypto_block_decrypt_init(&block, &blockSize, slider, key,
-                                            r->pool);
-        if (APR_SUCCESS != res) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01837)
-                    "apr_crypto_block_decrypt_init failed");
-            continue;
-        }
-
-        /* bypass the iv at the start of the decoded block */
-        slider += ivSize;
-        len -= ivSize;
-
-        /* decrypt the given string */
-        res = apr_crypto_block_decrypt(&decrypted, &decryptedlen,
-                                       slider, len, block);
-        if (res) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01838)
-                    "apr_crypto_block_decrypt failed");
-            continue;
-        }
-        *out = (char *) decrypted;
-
-        res = apr_crypto_block_decrypt_finish(decrypted + decryptedlen, &tlen, block);
-        if (APR_SUCCESS != res) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01839)
-                    "apr_crypto_block_decrypt_finish failed");
-            continue;
-        }
-        decryptedlen += tlen;
-        decrypted[decryptedlen] = 0;
-
-        break;
-    }
-
-    if (APR_SUCCESS != res) {
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, res, r, APLOGNO(01840)
-                "decryption failed");
-    }
-
-    return res;
-
+    return AUTHZ_DENIED;
 }

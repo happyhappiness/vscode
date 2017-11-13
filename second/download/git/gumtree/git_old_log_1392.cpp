@@ -1,3 +1,2 @@
-error(_("Cannot add notes. Found existing notes "
-				       "for object %s. Use '-f' to overwrite "
-				       "existing notes"), sha1_to_hex(object));
+die(_("parse_object_buffer failed on %s for %s"),
+		    sha1_to_hex(tagged), ref->refname);

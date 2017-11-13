@@ -1,1 +1,1 @@
-die("BUG: we don't know how to pass the flags down?");
+argv_array_pushf(&av, "--max-age=%lu", deepen_since);

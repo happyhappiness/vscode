@@ -1,1 +1,1 @@
-fprintf(s->fp, "%c %s%c", prefix, path, eol_char);
+print_verbose(args, _("Server supports multi_ack_detailed"));

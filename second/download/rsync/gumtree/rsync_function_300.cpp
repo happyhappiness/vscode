@@ -1,40 +1,49 @@
-void do_server_recv(int argc,char *argv[])
+int copy_file(char *source, char *dest, mode_t mode)
 {
-  int status;
-  char *dir = NULL;
-  struct file_list *flist;
-  char *local_name=NULL;
-  
-  if (verbose > 2)
-    fprintf(FERROR,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
+	int ifd;
+	int ofd;
+	char buf[1024 * 8];
+	int len;   /* Number of bytes read into `buf'. */
 
-  if (argc > 0) {
-    dir = argv[0];
-    argc--;
-    argv++;
-    if (chdir(dir) != 0) {
-      fprintf(FERROR,"chdir %s : %s (4)\n",dir,strerror(errno));
-      exit_cleanup(1);
-    }    
-  }
+	ifd = open(source, O_RDONLY);
+	if (ifd == -1) {
+		fprintf(FERROR,"open %s: %s\n",
+			source,strerror(errno));
+		return -1;
+	}
 
-  if (delete_mode)
-    recv_exclude_list(STDIN_FILENO);
+	if (unlink(dest) && errno != ENOENT) {
+		fprintf(FERROR,"unlink %s: %s\n",
+			dest,strerror(errno));
+		return -1;
+	}
 
-  flist = recv_file_list(STDIN_FILENO);
-  if (!flist || flist->count == 0) {
-    fprintf(FERROR,"nothing to do\n");
-    exit_cleanup(1);
-  }
+	ofd = open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode);
+	if (ofd < 0) {
+		fprintf(FERROR,"open %s: %s\n",
+			dest,strerror(errno));
+		close(ifd);
+		return -1;
+	}
 
-  if (argc > 0) {    
-    if (strcmp(dir,".")) {
-      argv[0] += strlen(dir);
-      if (argv[0][0] == '/') argv[0]++;
-    }
-    local_name = get_local_name(flist,argv[0]);
-  }
+	while ((len = safe_read(ifd, buf, sizeof(buf))) > 0) {
+		if (full_write(ofd, buf, len) < 0) {
+			fprintf(FERROR,"write %s: %s\n",
+				dest,strerror(errno));
+			close(ifd);
+			close(ofd);
+			return -1;
+		}
+	}
 
-  status = do_recv(STDIN_FILENO,STDOUT_FILENO,flist,local_name);
-  exit_cleanup(status);
+	close(ifd);
+	close(ofd);
+
+	if (len < 0) {
+		fprintf(FERROR,"read %s: %s\n",
+			source,strerror(errno));
+		return -1;
+	}
+
+	return 0;
 }

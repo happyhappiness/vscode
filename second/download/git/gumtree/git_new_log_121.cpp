@@ -1,1 +1,1 @@
-die_errno("%s: index file open failed", path);
+die("verify: missing <ref>");

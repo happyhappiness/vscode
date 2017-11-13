@@ -1,1 +1,2 @@
-die("bad %s argument: %s", opt, arg);
+die("could not read file '%s': %s", filename,
+				strerror(errno));

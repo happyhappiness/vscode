@@ -1,1 +1,0 @@
-printf_ln(_("  HEAD branch: %s"), _("(not queried)"));

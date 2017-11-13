@@ -1,27 +1,20 @@
-int64 read_longint(int f)
+int read_write(int fd_in,int fd_out,int size)
 {
-	extern int remote_version;
-	int64 ret;
-	char b[8];
-	ret = read_int(f);
+  static char *buf=NULL;
+  int bufsize = sparse_files?SPARSE_WRITE_SIZE:WRITE_SIZE;
+  int total=0;
+  
+  if (!buf) {
+    buf = (char *)malloc(bufsize);
+    if (!buf) out_of_memory("read_write");
+  }
 
-	if (ret != -1) return ret;
-
-#ifndef HAVE_LONGLONG
-	fprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");
-	exit_cleanup(1);
-#else
-	if (remote_version >= 16) {
-		if ((ret=readfd(f,b,8)) != 8) {
-			if (verbose > 1) 
-				fprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
-					getpid(),8,ret==-1?strerror(errno):"EOF");
-			exit_cleanup(1);
-		}
-		total_read += 8;
-		ret = IVAL(b,0) | (((int64)IVAL(b,4))<<32);
-	}
-#endif
-
-	return ret;
+  while (total < size) {
+    int n = MIN(size-total,bufsize);
+    read_buf(fd_in,buf,n);
+    if (write_sparse(fd_out,buf,n) != n)
+      return total;
+    total += n;
+  }
+  return total;
 }

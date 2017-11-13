@@ -1,16 +1,22 @@
-static char *resolve_relative_path(const char *rel)
+int replace_each_worktree_head_symref(const char *oldref, const char *newref)
 {
-	if (!starts_with(rel, "./") && !starts_with(rel, "../"))
-		return NULL;
+	int ret = 0;
+	struct worktree **worktrees = get_worktrees();
+	int i;
 
-	if (!startup_info)
-		die("BUG: startup_info struct is not initialized.");
+	for (i = 0; worktrees[i]; i++) {
+		if (worktrees[i]->is_detached)
+			continue;
+		if (strcmp(oldref, worktrees[i]->head_ref))
+			continue;
 
-	if (!is_inside_work_tree())
-		die("relative path syntax can't be used outside working tree.");
+		if (set_worktree_head_symref(worktrees[i]->git_dir, newref)) {
+			ret = -1;
+			error(_("HEAD of working tree %s is not updated"),
+			      worktrees[i]->path);
+		}
+	}
 
-	/* die() inside prefix_path() if resolved path is outside worktree */
-	return prefix_path(startup_info->prefix,
-			   startup_info->prefix ? strlen(startup_info->prefix) : 0,
-			   rel);
+	free_worktrees(worktrees);
+	return ret;
 }

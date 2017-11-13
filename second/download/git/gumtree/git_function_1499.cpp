@@ -1,59 +1,83 @@
-int bisect_next_all(const char *prefix, int no_checkout)
+static void handle_commit(struct commit *commit, struct rev_info *rev)
 {
-	struct rev_info revs;
-	struct commit_list *tried;
-	int reaches = 0, all = 0, nr, steps;
-	const unsigned char *bisect_rev;
-	char bisect_rev_hex[41];
+	int saved_output_format = rev->diffopt.output_format;
+	const char *commit_buffer;
+	const char *author, *author_end, *committer, *committer_end;
+	const char *encoding, *message;
+	char *reencoded = NULL;
+	struct commit_list *p;
+	int i;
 
-	if (read_bisect_refs())
-		die("reading bisect refs failed");
+	rev->diffopt.output_format = DIFF_FORMAT_CALLBACK;
 
-	check_good_are_ancestors_of_bad(prefix, no_checkout);
+	parse_commit_or_die(commit);
+	commit_buffer = get_commit_buffer(commit, NULL);
+	author = strstr(commit_buffer, "\nauthor ");
+	if (!author)
+		die ("Could not find author in commit %s",
+		     sha1_to_hex(commit->object.sha1));
+	author++;
+	author_end = strchrnul(author, '\n');
+	committer = strstr(author_end, "\ncommitter ");
+	if (!committer)
+		die ("Could not find committer in commit %s",
+		     sha1_to_hex(commit->object.sha1));
+	committer++;
+	committer_end = strchrnul(committer, '\n');
+	message = strstr(committer_end, "\n\n");
+	encoding = find_encoding(committer_end, message);
+	if (message)
+		message += 2;
 
-	bisect_rev_setup(&revs, prefix, "%s", "^%s", 1);
-	revs.limited = 1;
+	if (commit->parents &&
+	    get_object_mark(&commit->parents->item->object) != 0 &&
+	    !full_tree) {
+		parse_commit_or_die(commit->parents->item);
+		diff_tree_sha1(commit->parents->item->tree->object.sha1,
+			       commit->tree->object.sha1, "", &rev->diffopt);
+	}
+	else
+		diff_root_tree_sha1(commit->tree->object.sha1,
+				    "", &rev->diffopt);
 
-	bisect_common(&revs);
+	/* Export the referenced blobs, and remember the marks. */
+	for (i = 0; i < diff_queued_diff.nr; i++)
+		if (!S_ISGITLINK(diff_queued_diff.queue[i]->two->mode))
+			export_blob(diff_queued_diff.queue[i]->two->sha1);
 
-	revs.commits = find_bisection(revs.commits, &reaches, &all,
-				       !!skipped_revs.nr);
-	revs.commits = managed_skipped(revs.commits, &tried);
+	mark_next_object(&commit->object);
+	if (!is_encoding_utf8(encoding))
+		reencoded = reencode_string(message, "UTF-8", encoding);
+	if (!commit->parents)
+		printf("reset %s\n", (const char*)commit->util);
+	printf("commit %s\nmark :%"PRIu32"\n%.*s\n%.*s\ndata %u\n%s",
+	       (const char *)commit->util, last_idnum,
+	       (int)(author_end - author), author,
+	       (int)(committer_end - committer), committer,
+	       (unsigned)(reencoded
+			  ? strlen(reencoded) : message
+			  ? strlen(message) : 0),
+	       reencoded ? reencoded : message ? message : "");
+	free(reencoded);
+	unuse_commit_buffer(commit, commit_buffer);
 
-	if (!revs.commits) {
-		/*
-		 * We should exit here only if the "bad"
-		 * commit is also a "skip" commit.
-		 */
-		exit_if_skipped_commits(tried, NULL);
-
-		printf("%s was both good and bad\n",
-		       sha1_to_hex(current_bad_sha1));
-		exit(1);
+	for (i = 0, p = commit->parents; p; p = p->next) {
+		int mark = get_object_mark(&p->item->object);
+		if (!mark)
+			continue;
+		if (i == 0)
+			printf("from :%d\n", mark);
+		else
+			printf("merge :%d\n", mark);
+		i++;
 	}
 
-	if (!all) {
-		fprintf(stderr, "No testable commit found.\n"
-			"Maybe you started with bad path parameters?\n");
-		exit(4);
-	}
+	if (full_tree)
+		printf("deleteall\n");
+	log_tree_diff_flush(rev);
+	rev->diffopt.output_format = saved_output_format;
 
-	bisect_rev = revs.commits->item->object.sha1;
-	memcpy(bisect_rev_hex, sha1_to_hex(bisect_rev), 41);
+	printf("\n");
 
-	if (!hashcmp(bisect_rev, current_bad_sha1)) {
-		exit_if_skipped_commits(tried, current_bad_sha1);
-		printf("%s is the first bad commit\n", bisect_rev_hex);
-		show_diff_tree(prefix, revs.commits->item);
-		/* This means the bisection process succeeded. */
-		exit(10);
-	}
-
-	nr = all - reaches - 1;
-	steps = estimate_bisect_steps(all);
-	printf("Bisecting: %d revision%s left to test after this "
-	       "(roughly %d step%s)\n", nr, (nr == 1 ? "" : "s"),
-	       steps, (steps == 1 ? "" : "s"));
-
-	return bisect_checkout(bisect_rev_hex, no_checkout);
+	show_progress();
 }

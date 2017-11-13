@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: password too long (> %d)" NL,
-                argv[0], MAX_STRING_LEN);
+ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_netos_error(), ap_server_conf,
+                    "winnt_accept: getsockname error on listening socket, is IPv6 available?");

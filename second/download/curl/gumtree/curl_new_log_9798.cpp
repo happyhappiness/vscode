@@ -1,9 +1,10 @@
 fputs(
-"              should  be used in this session if they match. Using this method\n"
-"              also activates the \"cookie parser\" which will make  curl  record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination with the -L, --location option. The file  format  of\n"
-"              the  file  to  read cookies from should be plain HTTP headers or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              doesn't exist, it will be  created.   Note  that  this  flag  is\n"
+"              ignored by some SFTP servers (including OpenSSH).\n"
 "\n"
+"       -A, --user-agent <agent string>\n"
+"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
+"              Some  badly  done  CGIs  fail  if  this  field  isn't   set   to\n"
+"              \"Mozilla/4.0\".  To  encode  blanks  in  the string, surround the\n"
+"              string with single quote marks. This can also be  set  with  the\n"
 , stdout);

@@ -1,2 +1,1 @@
-fprintf(stderr, "Checking %s %s\n",
-			printable_type(obj), describe_object(obj));
+warning_errno(_("could not read '%s'"), path);

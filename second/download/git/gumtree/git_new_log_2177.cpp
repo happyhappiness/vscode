@@ -1,2 +1,1 @@
-strbuf_addf(err, "Fetching submodule %s%s\n",
-					    spf->prefix, ce->name);
+error("unable to write current sha1 into %s: %s", newrefname, err.buf);

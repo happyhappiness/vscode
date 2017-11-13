@@ -1,38 +1,130 @@
-static void core_dump_config(apr_pool_t *p, server_rec *s)
+static int stream_reqbody_cl(apr_pool_t *p,
+                                      request_rec *r,
+                                      proxy_conn_rec *p_conn,
+                                      conn_rec *origin,
+                                      apr_bucket_brigade *header_brigade,
+                                      apr_bucket_brigade *input_brigade,
+                                      const char *old_cl_val)
 {
-    core_server_config *sconf = ap_get_core_module_config(s->module_config);
-    apr_file_t *out = NULL;
-    const char *tmp;
-    const char **defines;
-    int i;
-    if (!ap_exists_config_define("DUMP_RUN_CFG"))
-        return;
+    int seen_eos = 0, rv = 0;
+    apr_status_t status = APR_SUCCESS;
+    apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
+    apr_bucket_brigade *bb;
+    apr_bucket *e;
+    apr_off_t cl_val = 0;
+    apr_off_t bytes;
+    apr_off_t bytes_streamed = 0;
 
-    apr_file_open_stdout(&out, p);
-    apr_file_printf(out, "ServerRoot: \"%s\"\n", ap_server_root);
-    tmp = ap_server_root_relative(p, sconf->ap_document_root);
-    apr_file_printf(out, "Main DocumentRoot: \"%s\"\n", tmp);
-    if (s->error_fname[0] != '|' && strcmp(s->error_fname, "syslog") != 0)
-        tmp = ap_server_root_relative(p, s->error_fname);
-    else
-        tmp = s->error_fname;
-    apr_file_printf(out, "Main ErrorLog: \"%s\"\n", tmp);
-    if (ap_scoreboard_fname) {
-        tmp = ap_server_root_relative(p, ap_scoreboard_fname);
-        apr_file_printf(out, "ScoreBoardFile: \"%s\"\n", tmp);
-    }
-    ap_dump_mutexes(p, s, out);
-    ap_mpm_dump_pidfile(p, out);
+    if (old_cl_val) {
+        char *endstr;
 
-    defines = (const char **)ap_server_config_defines->elts;
-    for (i = 0; i < ap_server_config_defines->nelts; i++) {
-        const char *name = defines[i];
-        const char *val = NULL;
-        if (server_config_defined_vars)
-           val = apr_table_get(server_config_defined_vars, name);
-        if (val)
-            apr_file_printf(out, "Define: %s=%s\n", name, val);
-        else
-            apr_file_printf(out, "Define: %s\n", name);
+        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
+        status = apr_strtoff(&cl_val, old_cl_val, &endstr, 10);
+        
+        if (status || *endstr || endstr == old_cl_val || cl_val < 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                          "proxy: could not parse request Content-Length (%s)",
+                          old_cl_val);
+            return HTTP_BAD_REQUEST;
+        }
     }
+    terminate_headers(bucket_alloc, header_brigade);
+
+    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
+    {
+        apr_brigade_length(input_brigade, 1, &bytes);
+        bytes_streamed += bytes;
+
+        /* If this brigade contains EOS, either stop or remove it. */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
+            seen_eos = 1;
+
+            /* We can't pass this EOS to the output_filters. */
+            e = APR_BRIGADE_LAST(input_brigade);
+            apr_bucket_delete(e);
+
+            if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
+                e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(input_brigade, e);
+            }
+        }
+
+        /* C-L < bytes streamed?!?
+         * We will error out after the body is completely
+         * consumed, but we can't stream more bytes at the
+         * back end since they would in part be interpreted
+         * as another request!  If nothing is sent, then
+         * just send nothing.
+         *
+         * Prevents HTTP Response Splitting.
+         */
+        if (bytes_streamed > cl_val) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "proxy: read more bytes of request body than expected "
+                          "(got %" APR_OFF_T_FMT ", expected %" APR_OFF_T_FMT ")",
+                          bytes_streamed, cl_val);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        if (header_brigade) {
+            /* we never sent the header brigade, so go ahead and
+             * take care of that now
+             */
+            bb = header_brigade;
+
+            /*
+             * Save input_brigade in bb brigade. (At least) in the SSL case
+             * input_brigade contains transient buckets whose data would get
+             * overwritten during the next call of ap_get_brigade in the loop.
+             * ap_save_brigade ensures these buckets to be set aside.
+             * Calling ap_save_brigade with NULL as filter is OK, because
+             * bb brigade already has been created and does not need to get
+             * created by ap_save_brigade.
+             */
+            status = ap_save_brigade(NULL, &bb, &input_brigade, p);
+            if (status != APR_SUCCESS) {
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+
+            header_brigade = NULL;
+        }
+        else {
+            bb = input_brigade;
+        }
+
+        /* Once we hit EOS, we are ready to flush. */
+        rv = pass_brigade(bucket_alloc, r, p_conn, origin, bb, seen_eos);
+        if (rv != OK) {
+            return rv ;
+        }
+
+        if (seen_eos) {
+            break;
+        }
+
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                HUGE_STRING_LEN);
+
+        if (status != APR_SUCCESS) {
+            return HTTP_BAD_REQUEST;
+        }
+    }
+
+    if (bytes_streamed != cl_val) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "proxy: client %s given Content-Length did not match"
+                     " number of body bytes read", r->connection->remote_ip);
+        return HTTP_BAD_REQUEST;
+    }
+
+    if (header_brigade) {
+        /* we never sent the header brigade since there was no request
+         * body; send it now with the flush flag
+         */
+        bb = header_brigade;
+        return(pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1));
+    }
+
+    return OK;
 }

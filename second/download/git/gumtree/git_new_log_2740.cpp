@@ -1,1 +1,1 @@
-die("BUG: you need to specify a get_next_task function");
+fputs(pp->buffered_output.buf, stderr);

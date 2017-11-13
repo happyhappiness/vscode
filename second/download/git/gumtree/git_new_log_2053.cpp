@@ -1,2 +1,1 @@
-error(_("Mainline was specified but commit %s is not a merge."),
-			oid_to_hex(&commit->object.oid));
+error(_("You have not concluded your merge (MERGE_HEAD exists)."));

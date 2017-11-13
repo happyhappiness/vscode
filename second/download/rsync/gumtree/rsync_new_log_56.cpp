@@ -1,1 +1,1 @@
-fprintf(stderr,"open %s : %s\n",fnametmp,strerror(errno));
+fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);

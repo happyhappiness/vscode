@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                                  "... did not match '%s'", *type);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "Content-Type condition for '%s' did not match: "
+                          "no Content-Type", provider->frec->name);

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01317)
-                     "LDAP cache: LDAPSharedCacheSize is zero, disabling "
-                     "shared memory cache");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00811)
+                         "Cannot open socache DBM file `%s' for "
+                         "scanning",
+                         ctx->data_file);

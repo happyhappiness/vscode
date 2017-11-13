@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+die(_("commit '%s' lacks author header"), author_message);

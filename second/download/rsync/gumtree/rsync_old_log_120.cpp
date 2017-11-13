@@ -1,1 +1,1 @@
-fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+fprintf(stderr,"skipping directory %s\n",fname);

@@ -1,11 +1,10 @@
 fputs(
-"              Disable  the  NPN  TLS  extension.  NPN is enabled by default if\n"
-"              libcurl was built with an SSL library that supports NPN. NPN  is\n"
-"              used  by a libcurl that supports HTTP 2 to negotiate HTTP 2 sup-\n"
-"              port with the server during https sessions.\n"
+"       is a recommended separator. The long  \"double-dash\"  form,  --data  for\n"
+"       example, requires a space between it and its value.\n"
 "\n"
-"              (Added in 7.36.0)\n"
+"       Short version options that don't need any additional values can be used\n"
+"       immediately next to each other, like for example you  can  specify  all\n"
+"       the options -O, -L and -v at once as -OLv.\n"
 "\n"
-"       --no-alpn\n"
-"              Disable the ALPN TLS extension. ALPN is enabled  by  default  if\n"
+"       In general, all boolean options are enabled with --option and yet again\n"
 , stdout);

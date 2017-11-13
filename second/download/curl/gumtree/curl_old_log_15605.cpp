@@ -1,10 +1,11 @@
 fputs(
-"              See also --netrc-file. This option overrides -n, --netrc.\n"
+"              NOTE: The file size is not always known prior to  download,  and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
+"              both FTP and HTTP transfers.\n"
 "\n"
-"       -n, --netrc\n"
-"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
-"              user's home directory for login name and password. This is typi-\n"
-"              cally used for FTP on Unix. If used with HTTP, curl will  enable\n"
-"              user authentication. See netrc(5) ftp(1) for details on the file\n"
-"              format. Curl will not complain if that  file  doesn't  have  the\n"
+"              See also --limit-rate.\n"
+"\n"
+"       --max-redirs <num>\n"
+"              (HTTP)  Set  maximum  number  of redirection-followings allowed.\n"
 , stdout);

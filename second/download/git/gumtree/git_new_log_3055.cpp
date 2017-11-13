@@ -1,1 +1,1 @@
-die(_("Option --exec can only be used together with --remote"));
+die(_("Unexpected option --output"));

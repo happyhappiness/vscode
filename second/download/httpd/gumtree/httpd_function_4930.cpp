@@ -1,20 +1,40 @@
-static apr_status_t create_namebased_scoreboard(apr_pool_t *pool,
-                                                const char *fname)
+static const char *set_document_root(cmd_parms *cmd, void *dummy,
+                                     const char *arg)
 {
-#if APR_HAS_SHARED_MEMORY
-    apr_status_t rv;
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config(sconf, &core_module);
 
-    /* The shared memory file must not exist before we create the
-     * segment. */
-    apr_shm_remove(fname, pool); /* ignore errors */
-
-    rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, fname, pool);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "unable to create or access scoreboard \"%s\" "
-                     "(name-based shared memory failure)", fname);
-        return rv;
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE);
+    if (err != NULL) {
+        return err;
     }
-#endif /* APR_HAS_SHARED_MEMORY */
-    return APR_SUCCESS;
+
+    /* When ap_document_root_check is false; skip all the stuff below */
+    if (!ap_document_root_check) {
+       conf->ap_document_root = arg;
+       return NULL;
+    }
+
+    /* Make it absolute, relative to ServerRoot */
+    arg = ap_server_root_relative(cmd->pool, arg);
+    if (arg == NULL) {
+        return "DocumentRoot must be a directory";
+    }
+
+    /* TODO: ap_configtestonly */
+    if (apr_filepath_merge((char**)&conf->ap_document_root, NULL, arg,
+                           APR_FILEPATH_TRUENAME, cmd->pool) != APR_SUCCESS
+        || !ap_is_directory(cmd->pool, arg)) {
+        if (cmd->server->is_virtual) {
+            ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0,
+                          cmd->pool,
+                          "Warning: DocumentRoot [%s] does not exist",
+                          arg);
+            conf->ap_document_root = arg;
+        }
+        else {
+            return "DocumentRoot must be a directory";
+        }
+    }
+    return NULL;
 }

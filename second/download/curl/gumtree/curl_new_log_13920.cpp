@@ -1,11 +1,11 @@
 fputs(
-"              reply to the shutdown from the server. The active mode initiates\n"
-"              the shutdown and waits for a reply from the server.\n"
+"              must then instead enforce the correct -P, --ftp-port again.\n"
 "\n"
-"              See also --ftp-ssl-ccc. Added in 7.16.2.\n"
+"              Passive mode means that curl will try the EPSV command first and\n"
+"              then PASV, unless --disable-epsv is used.\n"
+"              See also --disable-epsv. Added in 7.11.0.\n"
 "\n"
-"       --ftp-ssl-ccc\n"
-"              (FTP) Use CCC (Clear Command Channel)  Shuts  down  the  SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
-"              munication will be unencrypted. This allows NAT routers to  fol-\n"
+"       -P, --ftp-port <address>\n"
+"              (FTP) Reverses the default initiator/listener  roles  when  con-\n"
+"              necting  with  FTP. This option makes curl use active mode. curl\n"
 , stdout);

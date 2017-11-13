@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02261)
-                              "Re-negotiation handshake failed: "
-                              "Not accepted by client!?");
+ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
+                     "Couldn't initialize cross-process lock in child "
+                     "(%s) (%s)",
+                     lockfile ? lockfile : "none",
+                     apr_proc_mutex_name(accept_mutex));

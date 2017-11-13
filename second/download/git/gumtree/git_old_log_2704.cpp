@@ -1,1 +1,0 @@
-die(_("bug: unhandled unmerged status %x"), stagemask);

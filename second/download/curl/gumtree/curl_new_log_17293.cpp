@@ -1,11 +1,9 @@
 puts(
-"          When an HTTP proxy is used, this option will cause non-\n"
-"          HTTP  protocols  to attempt to tunnel through the proxy\n"
-"          instead of merely using it to do HTTP-like  operations.\n"
-"          The tunnel approach is made with the HTTP proxy CONNECT\n"
-"          request and requires that the proxy allows direct  con�\n"
-"          nect  to  the  remote  port number curl wants to tunnel\n"
-"          through to.\n"
-"\n"
-"          If this option is used twice,  the  second  will  again\n"
+"          you  should  add a custom header that has the same name\n"
+"          as one of the internal ones curl would use, your exter�\n"
+"          nally  set  header will be used instead of the internal\n"
+"          one. This allows you to make even trickier  stuff  than\n"
+"          curl  would  normally do. You should not replace inter�\n"
+"          nally set headers without knowing perfectly  well  what\n"
+"          you're  doing.  Replacing  an  internal header with one\n"
 );

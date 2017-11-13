@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01366) "Invalid tag for set "
-                          "directive in %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01800)
+                          "Authorization of user %s to access %s failed, reason: "
+                          "user doesn't appear in DBM group file (%s).",
+                          r->user, r->uri, conf->grpfile);

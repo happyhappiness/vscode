@@ -1,9 +1,11 @@
 fputs(
-"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
-"              only  view.   Especially useful if you want to machine-parse the\n"
-"              contents of an FTP directory since  the  normal  directory  view\n"
-"              doesn't use a standard look or format.\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
+"              If you also use the -Y/--speed-limit option,  that  option  will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
-"              This  option  causes  an  FTP NLST command to be sent.  Some FTP\n"
-"              servers list only files in their response to NLST; they  do  not\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -l/--list-only\n"
 , stdout);

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01055)
-                      "pre_connection setup failed (%d)", rc);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(01310)
+                 "LDAP: Connection timeout option not supported by the "
+                 "LDAP SDK in use." );

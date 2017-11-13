@@ -1,1 +1,1 @@
-error("unable to unpack contents of %s", path);
+packet_write_fmt(1, "NAK\n");

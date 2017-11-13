@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(10005)
-                "too short to decrypt, aborting");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00036)
+                              "access to %s failed (filesystem path '%s')", 
+                              r->uri, r->filename);

@@ -1,64 +1,45 @@
-char *auth_server(int f_in, int f_out, int module, char *host, char *addr,
-		  char *leader)
+int unsafe_symlink(char *dest, char *src)
 {
-	char *users = lp_auth_users(module);
-	char challenge[MD4_SUM_LENGTH*2];
-	char line[MAXPATHLEN];
-	char secret[512];
-	char pass2[MD4_SUM_LENGTH*2];
-	char *tok, *pass;
+	char *tok;
+	int depth = 0;
 
-	/* if no auth list then allow anyone in! */
-	if (!users || !*users)
-		return "";
+	/* all absolute and null symlinks are unsafe */
+	if (!dest || !(*dest) || (*dest == '/')) return 1;
 
-	gen_challenge(addr, challenge);
+	src = strdup(src);
+	if (!src) out_of_memory("unsafe_symlink");
 
-	io_printf(f_out, "%s%s\n", leader, challenge);
-
-	if (!read_line(f_in, line, sizeof line - 1)
-	 || (pass = strchr(line, ' ')) == NULL) {
-		rprintf(FLOG, "auth failed on module %s from %s (%s): "
-			"invalid challenge response\n",
-			lp_name(module), host, addr);
-		return NULL;
+	/* find out what our safety margin is */
+	for (tok=strtok(src,"/"); tok; tok=strtok(NULL,"/")) {
+		if (strcmp(tok,"..") == 0) {
+			depth=0;
+		} else if (strcmp(tok,".") == 0) {
+			/* nothing */
+		} else {
+			depth++;
+		}
 	}
-	*pass++ = '\0';
+	free(src);
 
-	if (!(users = strdup(users)))
-		out_of_memory("auth_server");
+	/* drop by one to account for the filename portion */
+	depth--;
 
-	for (tok = strtok(users, " ,\t"); tok; tok = strtok(NULL, " ,\t")) {
-		if (wildmatch(tok, line))
-			break;
-	}
-	free(users);
+	dest = strdup(dest);
+	if (!dest) out_of_memory("unsafe_symlink");
 
-	if (!tok) {
-		rprintf(FLOG, "auth failed on module %s from %s (%s): "
-			"unauthorized user\n",
-			lp_name(module), host, addr);
-		return NULL;
-	}
-
-	memset(secret, 0, sizeof secret);
-	if (!get_secret(module, line, secret, sizeof secret - 1)) {
-		memset(secret, 0, sizeof secret);
-		rprintf(FLOG, "auth failed on module %s from %s (%s): "
-			"missing secret for user \"%s\"\n",
-			lp_name(module), host, addr, line);
-		return NULL;
+	for (tok=strtok(dest,"/"); tok; tok=strtok(NULL,"/")) {
+		if (strcmp(tok,"..") == 0) {
+			depth--;
+		} else if (strcmp(tok,".") == 0) {
+			/* nothing */
+		} else {
+			depth++;
+		}
+		/* if at any point we go outside the current directory then
+		   stop - it is unsafe */
+		if (depth < 0) break;
 	}
 
-	generate_hash(secret, challenge, pass2);
-	memset(secret, 0, sizeof secret);
-
-	if (strcmp(pass, pass2) != 0) {
-		rprintf(FLOG, "auth failed on module %s from %s (%s): "
-			"password mismatch\n",
-			lp_name(module), host, addr);
-		return NULL;
-	}
-
-	return strdup(line);
+	free(dest);
+	return (depth < 0);
 }

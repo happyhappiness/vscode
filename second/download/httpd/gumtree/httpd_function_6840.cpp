@@ -1,29 +1,9 @@
-static int authenticate_form_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-        apr_pool_t *ptemp, server_rec *s)
+static void *session_calloc(size_t n, size_t size, void *ctx)
 {
+    h2_session *session = ctx;
 
-    if (!ap_session_load_fn || !ap_session_get_fn || !ap_session_set_fn) {
-        ap_session_load_fn = APR_RETRIEVE_OPTIONAL_FN(ap_session_load);
-        ap_session_get_fn = APR_RETRIEVE_OPTIONAL_FN(ap_session_get);
-        ap_session_set_fn = APR_RETRIEVE_OPTIONAL_FN(ap_session_set);
-        if (!ap_session_load_fn || !ap_session_get_fn || !ap_session_set_fn) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02617)
-                    "You must load mod_session to enable the mod_auth_form "
-                                       "functions");
-            return !OK;
-        }
-    }
-
-    if (!ap_request_insert_filter_fn || !ap_request_remove_filter_fn) {
-        ap_request_insert_filter_fn = APR_RETRIEVE_OPTIONAL_FN(ap_request_insert_filter);
-        ap_request_remove_filter_fn = APR_RETRIEVE_OPTIONAL_FN(ap_request_remove_filter);
-        if (!ap_request_insert_filter_fn || !ap_request_remove_filter_fn) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02618)
-                    "You must load mod_request to enable the mod_auth_form "
-                                       "functions");
-            return !OK;
-        }
-    }
-
-    return OK;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
+                  "h2_session(%ld): calloc(%ld, %ld)",
+                  session->id, (long)n, (long)size);
+    return calloc(n, size);
 }

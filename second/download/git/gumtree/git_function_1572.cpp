@@ -1,13 +1,9 @@
-static const char *tracking_for_push_dest(struct remote *remote,
-					  const char *refname,
-					  struct strbuf *err)
+NORETURN
+void git_die_config_linenr(const char *key, const char *filename, int linenr)
 {
-	char *ret;
-
-	ret = apply_refspecs(remote->fetch, remote->fetch_refspec_nr, refname);
-	if (!ret)
-		return error_buf(err,
-				 _("push destination '%s' on remote '%s' has no local tracking branch"),
-				 refname, remote->name);
-	return ret;
+	if (!filename)
+		die(_("unable to parse '%s' from command-line config"), key);
+	else
+		die(_("bad config variable '%s' in file '%s' at line %d"),
+		    key, filename, linenr);
 }

@@ -1,6 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, c->base_server,
-        "mod_dumpio: %s [%s-%s] %" APR_OFF_T_FMT " readbytes",
-         f->frec->name,
-         whichmode(mode),
-         ((block) == APR_BLOCK_READ) ? "blocking" : "nonblocking",
-         readbytes);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Query execution error looking up '%s:%s' "
+                      "in database", user, realm);

@@ -1,1 +1,2 @@
-fputs(diff_get_color_opt(&opt->diffopt, DIFF_COMMIT), opt->diffopt.file);
+packet_write(1, "shallow %s",
+						oid_to_hex(&object->oid));

@@ -1,2 +1,2 @@
-warnf(config,
-              "built-in manual was disabled at build-time!\n");
+warnf(config, "--metalink option is ignored because the binary is "
+                "built without the Metalink support.\n");

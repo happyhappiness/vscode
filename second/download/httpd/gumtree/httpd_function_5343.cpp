@@ -1,16 +1,22 @@
-static int h2_task_process_conn(conn_rec* c)
+static void accept_mutex_error(const char *func, apr_status_t rv, int process_slot)
 {
-    h2_ctx *ctx = h2_ctx_get(c);
-    
-    if (h2_ctx_is_task(ctx)) {
-        if (!ctx->task->serialize_headers) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
-                          "h2_h2, processing request directly");
-            h2_task_process_request(ctx->task->request, c);
-            return DONE;
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
-                      "h2_task(%s), serialized handling", ctx->task->id);
+    int level = APLOG_EMERG;
+
+    if (ap_scoreboard_image->parent[process_slot].generation !=
+        ap_scoreboard_image->global->running_generation) {
+        level = APLOG_DEBUG; /* common to get these at restart time */
+    } 
+    else if (requests_this_child == INT_MAX  
+        || ((requests_this_child == ap_max_requests_per_child)
+            && ap_max_requests_per_child)) { 
+        ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                     "apr_proc_mutex_%s failed "
+                     "before this child process served any requests.",
+                     func);
+        clean_child_exit(APEXIT_CHILDSICK); 
     }
-    return DECLINED;
+    ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                 "apr_proc_mutex_%s failed. Attempting to "
+                 "shutdown process gracefully.", func);
+    signal_threads(ST_GRACEFUL);
 }

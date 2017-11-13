@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                 "mod_file_cache: unable to cache file: %s. Sendfile is not supported on this OS", filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize user: authorization denied for user %s to %s",
+                  getpid(), r->user, r->uri);

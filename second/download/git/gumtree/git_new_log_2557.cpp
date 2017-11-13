@@ -1,1 +1,0 @@
-die(_("'%s' is already locked"), av[0]);

@@ -1,1 +1,1 @@
-fprintf(f,"-T  --temp-dir DIR       create temporary files in directory DIR\n");
+fprintf(FINFO,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());

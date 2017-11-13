@@ -1,5 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): PUSH %s, weight=%d, "
-                      "depends=%d, returned=%d",
-                      session->id, stream->id, ptype, 
-                      ps.weight, ps.stream_id, rv);
+ap_log_error(APLOG_MARK, APLOG_WARNING,
+                                     0, main_s, "_default_ VirtualHost "
+                                     "overlap on port %u, the first has "
+                                     "precedence", sar->host_port);

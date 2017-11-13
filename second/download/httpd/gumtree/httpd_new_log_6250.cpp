@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, session->c,
-                      H2_SSSN_MSG(session, "no master event available"));
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(03101)
+                     "ap_queue_info_create() failed");

@@ -1,4 +1,6 @@
-fprintf(stderr, _("Some %s revs are not ancestor of the %s rev.\n"
-		"git bisect cannot work properly in this case.\n"
-		"Maybe you mistook %s and %s revs?\n"),
-		term_good, term_bad, term_good, term_bad);
+warning(_("the merge base between %s and [%s] "
+		"must be skipped.\n"
+		"So we cannot be sure the first %s commit is "
+		"between %s and %s.\n"
+		"We continue anyway."),
+		bad_hex, good_hex, term_bad, mb_hex, bad_hex);

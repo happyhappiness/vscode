@@ -1,98 +1,98 @@
-static const char *real_path_internal(const char *path, int die_on_error)
+void parse_pathspec(struct pathspec *pathspec,
+		    unsigned magic_mask, unsigned flags,
+		    const char *prefix, const char **argv)
 {
-	static struct strbuf sb = STRBUF_INIT;
-	char *retval = NULL;
+	struct pathspec_item *item;
+	const char *entry = argv ? *argv : NULL;
+	int i, n, prefixlen, warn_empty_string, nr_exclude = 0;
 
-	/*
-	 * If we have to temporarily chdir(), store the original CWD
-	 * here so that we can chdir() back to it at the end of the
-	 * function:
-	 */
-	struct strbuf cwd = STRBUF_INIT;
+	memset(pathspec, 0, sizeof(*pathspec));
 
-	int depth = MAXDEPTH;
-	char *last_elem = NULL;
-	struct stat st;
+	if (flags & PATHSPEC_MAXDEPTH_VALID)
+		pathspec->magic |= PATHSPEC_MAXDEPTH;
 
-	/* We've already done it */
-	if (path == sb.buf)
-		return path;
+	/* No arguments, no prefix -> no pathspec */
+	if (!entry && !prefix)
+		return;
 
-	if (!*path) {
-		if (die_on_error)
-			die("The empty string is not a valid path");
-		else
-			goto error_out;
+	if ((flags & PATHSPEC_PREFER_CWD) &&
+	    (flags & PATHSPEC_PREFER_FULL))
+		die("BUG: PATHSPEC_PREFER_CWD and PATHSPEC_PREFER_FULL are incompatible");
+
+	/* No arguments with prefix -> prefix pathspec */
+	if (!entry) {
+		static const char *raw[2];
+
+		if (flags & PATHSPEC_PREFER_FULL)
+			return;
+
+		if (!(flags & PATHSPEC_PREFER_CWD))
+			die("BUG: PATHSPEC_PREFER_CWD requires arguments");
+
+		pathspec->items = item = xcalloc(1, sizeof(*item));
+		item->match = prefix;
+		item->original = prefix;
+		item->nowildcard_len = item->len = strlen(prefix);
+		item->prefix = item->len;
+		raw[0] = prefix;
+		raw[1] = NULL;
+		pathspec->nr = 1;
+		pathspec->_raw = raw;
+		return;
 	}
 
-	strbuf_reset(&sb);
-	strbuf_addstr(&sb, path);
-
-	while (depth--) {
-		if (!is_directory(sb.buf)) {
-			char *last_slash = find_last_dir_sep(sb.buf);
-			if (last_slash) {
-				last_elem = xstrdup(last_slash + 1);
-				strbuf_setlen(&sb, last_slash - sb.buf + 1);
-			} else {
-				last_elem = xmemdupz(sb.buf, sb.len);
-				strbuf_reset(&sb);
-			}
+	n = 0;
+	warn_empty_string = 1;
+	while (argv[n]) {
+		if (*argv[n] == '\0' && warn_empty_string) {
+			warning(_("empty strings as pathspecs will be made invalid in upcoming releases. "
+				  "please use . instead if you meant to match all paths"));
+			warn_empty_string = 0;
 		}
-
-		if (sb.len) {
-			if (!cwd.len && strbuf_getcwd(&cwd)) {
-				if (die_on_error)
-					die_errno("Could not get current working directory");
-				else
-					goto error_out;
-			}
-
-			if (chdir(sb.buf)) {
-				if (die_on_error)
-					die_errno("Could not switch to '%s'",
-						  sb.buf);
-				else
-					goto error_out;
-			}
-		}
-		if (strbuf_getcwd(&sb)) {
-			if (die_on_error)
-				die_errno("Could not get current working directory");
-			else
-				goto error_out;
-		}
-
-		if (last_elem) {
-			if (sb.len && !is_dir_sep(sb.buf[sb.len - 1]))
-				strbuf_addch(&sb, '/');
-			strbuf_addstr(&sb, last_elem);
-			free(last_elem);
-			last_elem = NULL;
-		}
-
-		if (!lstat(sb.buf, &st) && S_ISLNK(st.st_mode)) {
-			struct strbuf next_sb = STRBUF_INIT;
-			ssize_t len = strbuf_readlink(&next_sb, sb.buf, 0);
-			if (len < 0) {
-				if (die_on_error)
-					die_errno("Invalid symlink '%s'",
-						  sb.buf);
-				else
-					goto error_out;
-			}
-			strbuf_swap(&sb, &next_sb);
-			strbuf_release(&next_sb);
-		} else
-			break;
+		n++;
 	}
 
-	retval = sb.buf;
-error_out:
-	free(last_elem);
-	if (cwd.len && chdir(cwd.buf))
-		die_errno("Could not change back to '%s'", cwd.buf);
-	strbuf_release(&cwd);
+	pathspec->nr = n;
+	ALLOC_ARRAY(pathspec->items, n);
+	item = pathspec->items;
+	pathspec->_raw = argv;
+	prefixlen = prefix ? strlen(prefix) : 0;
 
-	return retval;
+	for (i = 0; i < n; i++) {
+		unsigned short_magic;
+		entry = argv[i];
+
+		item[i].magic = prefix_pathspec(item + i, &short_magic,
+						argv + i, flags,
+						prefix, prefixlen, entry);
+		if ((flags & PATHSPEC_LITERAL_PATH) &&
+		    !(magic_mask & PATHSPEC_LITERAL))
+			item[i].magic |= PATHSPEC_LITERAL;
+		if (item[i].magic & PATHSPEC_EXCLUDE)
+			nr_exclude++;
+		if (item[i].magic & magic_mask)
+			unsupported_magic(entry,
+					  item[i].magic & magic_mask,
+					  short_magic);
+
+		if ((flags & PATHSPEC_SYMLINK_LEADING_PATH) &&
+		    has_symlink_leading_path(item[i].match, item[i].len)) {
+			die(_("pathspec '%s' is beyond a symbolic link"), entry);
+		}
+
+		if (item[i].nowildcard_len < item[i].len)
+			pathspec->has_wildcard = 1;
+		pathspec->magic |= item[i].magic;
+	}
+
+	if (nr_exclude == n)
+		die(_("There is nothing to exclude from by :(exclude) patterns.\n"
+		      "Perhaps you forgot to add either ':/' or '.' ?"));
+
+
+	if (pathspec->magic & PATHSPEC_MAXDEPTH) {
+		if (flags & PATHSPEC_KEEP_ORDER)
+			die("BUG: PATHSPEC_MAXDEPTH_VALID and PATHSPEC_KEEP_ORDER are incompatible");
+		QSORT(pathspec->items, pathspec->nr, pathspec_item_cmp);
+	}
 }

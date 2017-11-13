@@ -1,1 +1,0 @@
-die(_("cannot read object %s '%s'"), sha1_to_hex(sha), path);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03004)
-                              "%d:  NIL", i);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "*: using default reverse proxy worker for %s (no keepalive)", *url);

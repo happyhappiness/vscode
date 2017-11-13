@@ -1,10 +1,11 @@
 fputs(
-"              (FTP) Control what method curl should use to reach a file on  an\n"
-"              FTP(S)  server. The method argument should be one of the follow-\n"
-"              ing alternatives:\n"
+"              that text field from a file.\n"
 "\n"
-"              multicwd\n"
-"                     curl does a single CWD operation for each  path  part  in\n"
-"                     the  given URL. For deep hierarchies this means very many\n"
-"                     commands. This is how RFC 1738 says it  should  be  done.\n"
+"              Example:  to  send  an image to a server, where 'profile' is the\n"
+"              name of the form-field to which portrait.jpg will be the input:\n"
+"\n"
+"              curl -F profile=@portrait.jpg https://example.com/upload.cgi\n"
+"\n"
+"              To read content from stdin instead of a file, use - as the file-\n"
+"              name.  This  goes  for both @ and < constructs. Unfortunately it\n"
 , stdout);

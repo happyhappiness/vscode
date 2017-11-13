@@ -1,1 +1,2 @@
-die("'git status --porcelain=2' failed in submodule %s", path);
+status_printf_ln(s, color,
+				_("git-rebase-todo is missing."));

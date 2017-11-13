@@ -1,8 +1,11 @@
 fputs(
-"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
-"              name to use to read previously stored cookie lines  from,  which\n"
-"              should  be used in this session if they match. Using this method\n"
-"              also activates the \"cookie parser\" which will make  curl  record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination with the -L, --location option. The file  format  of\n"
+"              string with single quote marks. This can also be  set  with  the\n"
+"              -H, --header option of course.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --anyauth\n"
+"              (HTTP) Tells curl to figure out authentication method by itself,\n"
+"              and use the most secure one the remote site claims  to  support.\n"
+"              This is done by first doing a request and checking the response-\n"
 , stdout);

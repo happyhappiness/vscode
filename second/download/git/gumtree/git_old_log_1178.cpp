@@ -1,1 +1,2 @@
-die_errno("Invalid symlink '%s'", buf);
+error("cannot run %s: %s", cmd->argv[0],
+					strerror(ENOENT));

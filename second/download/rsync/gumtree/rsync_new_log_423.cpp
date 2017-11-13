@@ -1,1 +1,2 @@
-rprintf(FINFO,"created directory %s\n",name);
+rprintf(FERROR,"%s: %s\n",
+			dir,strerror(errno));

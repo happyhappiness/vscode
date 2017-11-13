@@ -1,1 +1,1 @@
-die(_("No such ref: %s"), "HEAD");
+fputs(env_hint, stderr);

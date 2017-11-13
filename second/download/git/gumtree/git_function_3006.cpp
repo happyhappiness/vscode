@@ -1,6 +1,6 @@
-static int input_error(struct line_buffer *file)
+static int write_strbuf(struct strbuf *sb, FILE *out)
 {
-	if (!buffer_ferror(file))
-		return error("delta preimage ends early");
-	return error("cannot read delta preimage: %s", strerror(errno));
+	if (fwrite(sb->buf, 1, sb->len, out) == sb->len)	/* Success. */
+		return 0;
+	return error("cannot write delta postimage: %s", strerror(errno));
 }

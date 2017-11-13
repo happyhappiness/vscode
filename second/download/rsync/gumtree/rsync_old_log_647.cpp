@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: Unknown command '%s'\n", line);
+out_of_memory("generate_sums");

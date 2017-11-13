@@ -1,55 +1,51 @@
-static const char *
-    set_proxy_dirconn(cmd_parms *parms, void *dummy, const char *arg)
+apr_status_t mpm_service_uninstall(void)
 {
-    server_rec *s = parms->server;
-    proxy_server_conf *conf =
-    ap_get_module_config(s->module_config, &proxy_module);
-    struct dirconn_entry *New;
-    struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-    int found = 0;
-    int i;
+    apr_status_t rv;
+    SC_HANDLE schService;
+    SC_HANDLE schSCManager;
 
-    /* Don't duplicate entries */
-    for (i = 0; i < conf->dirconn->nelts; i++) {
-        if (strcasecmp(arg, list[i].name) == 0) {
-            found = 1;
-            break;
-        }
+    fprintf(stderr,"Removing the %s service\n", mpm_display_name);
+
+    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                 SC_MANAGER_CONNECT);
+    if (!schSCManager) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00372)
+                     "Failed to open the WinNT service manager.");
+        return (rv);
     }
 
-    if (!found) {
-        New = apr_array_push(conf->dirconn);
-        New->name = apr_pstrdup(parms->pool, arg);
-        New->hostaddr = NULL;
+    /* ###: utf-ize */
+    schService = OpenService(schSCManager, mpm_service_name, DELETE);
 
-        if (ap_proxy_is_ipaddr(New, parms->pool)) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed addr %s", inet_ntoa(New->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed mask %s", inet_ntoa(New->mask));
-#endif
-        }
-        else if (ap_proxy_is_domainname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed domain %s", New->name);
-#endif
-        }
-        else if (ap_proxy_is_hostname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed host %s", New->name);
-#endif
-        }
-        else {
-            ap_proxy_is_word(New, parms->pool);
-#if DEBUGGING
-            fprintf(stderr, "Parsed word %s\n", New->name);
-#endif
-        }
+    if (!schService) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00373)
+                        "%s: OpenService failed", mpm_display_name);
+        return (rv);
     }
-    return NULL;
+
+    /* assure the service is stopped before continuing
+     *
+     * This may be out of order... we might not be able to be
+     * granted all access if the service is running anyway.
+     *
+     * And do we want to make it *this easy* for them
+     * to uninstall their service unintentionally?
+     */
+    /* ap_stop_service(schService);
+     */
+
+    if (DeleteService(schService) == 0) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00374)
+                     "%s: Failed to delete the service.", mpm_display_name);
+        return (rv);
+    }
+
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
+
+    fprintf(stderr,"The %s service has been removed successfully.\n", mpm_display_name);
+    return APR_SUCCESS;
 }

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                              APLOGNO(02536) "couldn't encode envvar '%s' in %"
-                              APR_SIZE_T_FMT " bytes",
-                              elts[next_elem].key, avail_len);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, APLOGNO(03352)
+                      "H2: failed to make connection to backend: %s",
+                      ctx->p_conn->hostname);

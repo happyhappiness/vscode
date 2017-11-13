@@ -1,1 +1,1 @@
-fprintf(stderr,"%s ",args[i]);
+fprintf(stderr,"add_exclude(%s)\n",pattern);

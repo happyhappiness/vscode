@@ -1,45 +1,66 @@
-static int proxy_connect_transfer(request_rec *r, conn_rec *c_i, conn_rec *c_o,
-                                  apr_bucket_brigade *bb, char *name)
+static authz_status dbmfilegroup_check_authorization(request_rec *r,
+                                              const char *require_args)
 {
-    int rv;
-#ifdef DEBUGGING
-    apr_off_t len;
-#endif
+    authz_dbm_config_rec *conf = ap_get_module_config(r->per_dir_config,
+                                                      &authz_dbm_module);
+    char *user = r->user;
+    const char *realm = ap_auth_name(r);
+    const char *filegroup = NULL;
+    const char *orig_groups = NULL;
+    apr_status_t status;
+    const char *groups;
+    char *v;
 
-    do {
-        apr_brigade_cleanup(bb);
-        rv = ap_get_brigade(c_i->input_filters, bb, AP_MODE_READBYTES,
-                            APR_NONBLOCK_READ, CONN_BLKSZ);
-        if (rv == APR_SUCCESS) {
-            if (c_o->aborted)
-                return APR_EPIPE;
-            if (APR_BRIGADE_EMPTY(bb))
-                break;
-#ifdef DEBUGGING
-            len = -1;
-            apr_brigade_length(bb, 0, &len);
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "proxy: CONNECT: read %" APR_OFF_T_FMT
-                          " bytes from %s", len, name);
-#endif
-            rv = ap_pass_brigade(c_o->output_filters, bb);
-            if (rv == APR_SUCCESS) {
-                ap_fflush(c_o->output_filters, bb);
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "proxy: CONNECT: error on %s - ap_pass_brigade",
-                              name);
-            }
-        } else if (!APR_STATUS_IS_EAGAIN(rv)) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "proxy: CONNECT: error on %s - ap_get_brigade",
-                          name);
-        }
-    } while (rv == APR_SUCCESS);
-
-    if (APR_STATUS_IS_EAGAIN(rv)) {
-        rv = APR_SUCCESS;
+    if (!user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
     }
-    return rv;
+
+    if (!conf->grpfile) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "No group file was specified in the configuration");
+        return AUTHZ_DENIED;
+    }
+
+    /* fetch group data from dbm file. */
+    status = get_dbm_grp(r, apr_pstrcat(r->pool, user, ":", realm, NULL),
+                         user, conf->grpfile, conf->dbmtype, &groups);
+
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "could not open dbm (type %s) group access "
+                      "file: %s", conf->dbmtype, conf->grpfile);
+        return AUTHZ_DENIED;
+    }
+
+    if (groups == NULL) {
+        /* no groups available, so exit immediately */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Authorization of user %s to access %s failed, reason: "
+                      "user doesn't appear in DBM group file (%s).", 
+                      r->user, r->uri, conf->grpfile);
+        return AUTHZ_DENIED;
+    }
+
+    orig_groups = groups;
+
+    filegroup = authz_owner_get_file_group(r);
+
+    if (filegroup) {
+        groups = orig_groups;
+        while (groups[0]) {
+            v = ap_getword(r->pool, &groups, ',');
+            if (!strcmp(v, filegroup)) {
+                return AUTHZ_GRANTED;
+            }
+        }
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Authorization of user %s to access %s failed, reason: "
+                  "user is not part of the 'require'ed group(s).",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

@@ -1,2 +1,4 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "No group file was specified in the configuration");
+                      "%s: Forcing worker (%s) into error state "
+                      "due to timeout and 'failonstatus' parameter being set",
+                       balancer->name, worker->name);

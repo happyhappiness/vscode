@@ -1,21 +1,14 @@
-static apr_status_t socache_mc_remove(ap_socache_instance_t *ctx, server_rec *s, 
-                                      const unsigned char *id, 
-                                      unsigned int idlen, apr_pool_t *p)
+static authz_status dbdlogout_check_authorization(request_rec *r,
+                                              const char *require_args)
 {
-    char buf[MC_KEY_LEN];
-    apr_status_t rv;
+    authz_dbd_cfg *cfg = ap_get_module_config(r->per_dir_config,
+                                              &authz_dbd_module);
 
-    if (socache_mc_id2key(ctx, id, idlen, buf, sizeof buf)) {
-        return APR_EINVAL;
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
     }
 
-    rv = apr_memcache_delete(ctx->mc, buf, 0);
-
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s,
-                     "scache_mc: error deleting key '%s' ",
-                     buf);
-    }
-
-    return rv;
+    return (authz_dbd_login(r, cfg, "logout") == OK ? AUTHZ_GRANTED : AUTHZ_DENIED);
 }

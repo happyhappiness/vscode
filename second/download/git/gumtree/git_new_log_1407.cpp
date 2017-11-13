@@ -1,1 +1,1 @@
-fprintf(stderr, "\n");
+die("BUG: %s ref_store '%s' initialized twice", type, name);

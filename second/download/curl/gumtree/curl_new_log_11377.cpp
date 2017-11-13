@@ -1,11 +1,11 @@
 fputs(
-"              note  that  if  --metalink  and  --include  are  used  together,\n"
-"              --include will be ignored. This is because including headers  in\n"
-"              the  response  will break Metalink parser and if the headers are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
+"              both FTP and HTTP transfers.\n"
 "\n"
-"              (Added in 7.27.0, if built against the libmetalink library.)\n"
+"       --mail-rcpt <address>\n"
+"              (SMTP) Specify a single address, user name or mailing list name.\n"
+"              When  performing a mail transfer, the recipient should specify a\n"
+"              valid email address to send the mail to. (Added in 7.20.0)\n"
 "\n"
-"       -n, --netrc\n"
+"              When performing an  address  verification  (VRFY  command),  the\n"
 , stdout);

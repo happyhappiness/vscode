@@ -1,164 +1,227 @@
-static void child_main(int child_num_arg)
+request_rec *ap_read_request(conn_rec *conn)
 {
-    apr_thread_t **threads;
-    apr_status_t rv;
-    thread_starter *ts;
-    apr_threadattr_t *thread_attr;
-    apr_thread_t *start_thread_id;
+    request_rec *r;
+    apr_pool_t *p;
+    const char *expect;
+    int access_status = HTTP_OK;
+    apr_bucket_brigade *tmp_bb;
+    apr_socket_t *csd;
+    apr_interval_time_t cur_timeout;
 
-    mpm_state = AP_MPMQ_STARTING; /* for benefit of any hooks that run as this
-                                   * child initializes
-                                   */
-    ap_my_pid = getpid();
-    ap_fatal_signal_child_setup(ap_server_conf);
-    apr_pool_create(&pchild, pconf);
 
-    /*stuff to do before we switch id's, so we have permissions.*/
-    ap_reopen_scoreboard(pchild, NULL, 0);
+    apr_pool_create(&p, conn->pool);
+    apr_pool_tag(p, "request");
+    r = apr_pcalloc(p, sizeof(request_rec));
+    AP_READ_REQUEST_ENTRY((intptr_t)r, (uintptr_t)conn);
+    r->pool            = p;
+    r->connection      = conn;
+    r->server          = conn->base_server;
 
-    rv = SAFE_ACCEPT(apr_proc_mutex_child_init(&accept_mutex,
-                                               apr_proc_mutex_lockfile(accept_mutex),
-                                               pchild));
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00280)
-                     "Couldn't initialize cross-process lock in child");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
+    r->user            = NULL;
+    r->ap_auth_type    = NULL;
 
-    if (ap_run_drop_privileges(pchild, ap_server_conf)) {
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
+    r->allowed_methods = ap_make_method_list(p, 2);
 
-    ap_run_child_init(pchild, ap_server_conf);
+    r->headers_in      = apr_table_make(r->pool, 25);
+    r->subprocess_env  = apr_table_make(r->pool, 25);
+    r->headers_out     = apr_table_make(r->pool, 12);
+    r->err_headers_out = apr_table_make(r->pool, 5);
+    r->notes           = apr_table_make(r->pool, 5);
 
-    /* done with init critical section */
+    r->request_config  = ap_create_request_config(r->pool);
+    /* Must be set before we run create request hook */
 
-    /* Just use the standard apr_setup_signal_thread to block all signals
-     * from being received.  The child processes no longer use signals for
-     * any communication with the parent process.
+    r->proto_output_filters = conn->output_filters;
+    r->output_filters  = r->proto_output_filters;
+    r->proto_input_filters = conn->input_filters;
+    r->input_filters   = r->proto_input_filters;
+    ap_run_create_request(r);
+    r->per_dir_config  = r->server->lookup_defaults;
+
+    r->sent_bodyct     = 0;                      /* bytect isn't for body */
+
+    r->read_length     = 0;
+    r->read_body       = REQUEST_NO_BODY;
+
+    r->status          = HTTP_OK;  /* Until further notice */
+    r->the_request     = NULL;
+
+    /* Begin by presuming any module can make its own path_info assumptions,
+     * until some module interjects and changes the value.
      */
-    rv = apr_setup_signal_thread();
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00281)
-                     "Couldn't initialize signal thread");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    r->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
+
+    r->useragent_addr = conn->client_addr;
+    r->useragent_ip = conn->client_ip;
+
+    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+
+    ap_run_pre_read_request(r, conn);
+
+    /* Get the request... */
+    if (!read_request_line(r, tmp_bb)) {
+        if (r->status == HTTP_REQUEST_URI_TOO_LARGE
+            || r->status == HTTP_BAD_REQUEST) {
+            if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00565)
+                              "request failed: URI too long (longer than %d)",
+                              r->server->limit_req_line);
+            }
+            else if (r->method == NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00566)
+                              "request failed: invalid characters in URI");
+            }
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        }
+        else if (r->status == HTTP_REQUEST_TIME_OUT) {
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            if (!r->connection->keepalives) {
+                ap_run_log_transaction(r);
+            }
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        }
+
+        apr_brigade_destroy(tmp_bb);
+        r = NULL;
+        goto traceout;
     }
 
-    if (ap_max_requests_per_child) {
-        requests_this_child = ap_max_requests_per_child;
+    /* We may have been in keep_alive_timeout mode, so toggle back
+     * to the normal timeout mode as we fetch the header lines,
+     * as necessary.
+     */
+    csd = ap_get_conn_socket(conn);
+    apr_socket_timeout_get(csd, &cur_timeout);
+    if (cur_timeout != conn->base_server->timeout) {
+        apr_socket_timeout_set(csd, conn->base_server->timeout);
+        cur_timeout = conn->base_server->timeout;
+    }
+
+    if (!r->assbackwards) {
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00567)
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        }
+
+        if (apr_table_get(r->headers_in, "Transfer-Encoding")
+            && apr_table_get(r->headers_in, "Content-Length")) {
+            /* 2616 section 4.4, point 3: "if both Transfer-Encoding
+             * and Content-Length are received, the latter MUST be
+             * ignored"; so unset it here to prevent any confusion
+             * later. */
+            apr_table_unset(r->headers_in, "Content-Length");
+        }
     }
     else {
-        /* coding a value of zero means infinity */
-        requests_this_child = INT_MAX;
+        if (r->header_only) {
+            /*
+             * Client asked for headers only with HTTP/0.9, which doesn't send
+             * headers! Have to dink things just to make sure the error message
+             * comes through...
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00568)
+                          "client sent invalid HTTP/0.9 request: HEAD %s",
+                          r->uri);
+            r->header_only = 0;
+            r->status = HTTP_BAD_REQUEST;
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        }
     }
 
-    /* Setup worker threads */
+    apr_brigade_destroy(tmp_bb);
 
-    /* clear the storage; we may not create all our threads immediately,
-     * and we want a 0 entry to indicate a thread which was not created
+    /* update what we think the virtual host is based on the headers we've
+     * now read. may update status.
      */
-    threads = (apr_thread_t **)ap_calloc(1,
-                                  sizeof(apr_thread_t *) * threads_per_child);
-    ts = (thread_starter *)apr_palloc(pchild, sizeof(*ts));
+    ap_update_vhost_from_headers(r);
 
-    apr_threadattr_create(&thread_attr, pchild);
-    /* 0 means PTHREAD_CREATE_JOINABLE */
-    apr_threadattr_detach_set(thread_attr, 0);
+    /* Toggle to the Host:-based vhost's timeout mode to fetch the
+     * request body and send the response body, if needed.
+     */
+    if (cur_timeout != r->server->timeout) {
+        apr_socket_timeout_set(csd, r->server->timeout);
+        cur_timeout = r->server->timeout;
+    }
 
-    if (ap_thread_stacksize != 0) {
-        rv = apr_threadattr_stacksize_set(thread_attr, ap_thread_stacksize);
-        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(02435)
-                         "WARNING: ThreadStackSize of %" APR_SIZE_T_FMT " is "
-                         "inappropriate, using default", 
-                         ap_thread_stacksize);
+    /* we may have switched to another server */
+    r->per_dir_config = r->server->lookup_defaults;
+
+    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
+        || ((r->proto_num == HTTP_VERSION(1, 1))
+            && !apr_table_get(r->headers_in, "Host"))) {
+        /*
+         * Client sent us an HTTP/1.1 or later request without telling us the
+         * hostname, either with a full URL or a Host: header. We therefore
+         * need to (as per the 1.1 spec) send an error.  As a special case,
+         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
+         * a Host: header, and the server MUST respond with 400 if it doesn't.
+         */
+        access_status = HTTP_BAD_REQUEST;
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00569)
+                      "client sent HTTP/1.1 request without hostname "
+                      "(see RFC2616 section 14.23): %s", r->uri);
+    }
+
+    /*
+     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
+     * called by ap_die and by ap_send_error_response works correctly on
+     * status codes that do not cause the connection to be dropped and
+     * in situations where the connection should be kept alive.
+     */
+
+    ap_add_input_filter_handle(ap_http_input_filter_handle,
+                               NULL, r, r->connection);
+
+    if (access_status != HTTP_OK
+        || (access_status = ap_run_post_read_request(r))) {
+        ap_die(access_status, r);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        r = NULL;
+        goto traceout;
+    }
+
+    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
+        && (expect[0] != '\0')) {
+        /*
+         * The Expect header field was added to HTTP/1.1 after RFC 2068
+         * as a means to signal when a 100 response is desired and,
+         * unfortunately, to signal a poor man's mandatory extension that
+         * the server must understand or return 417 Expectation Failed.
+         */
+        if (strcasecmp(expect, "100-continue") == 0) {
+            r->expecting_100 = 1;
+        }
+        else {
+            r->status = HTTP_EXPECTATION_FAILED;
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00570)
+                          "client sent an unrecognized expectation value of "
+                          "Expect: %s", expect);
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            goto traceout;
         }
     }
 
-    ts->threads = threads;
-    ts->listener = NULL;
-    ts->child_num_arg = child_num_arg;
-    ts->threadattr = thread_attr;
-
-    rv = apr_thread_create(&start_thread_id, thread_attr, start_threads,
-                           ts, pchild);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(00282)
-                     "apr_thread_create: unable to create worker thread");
-        /* let the parent decide how bad this really is */
-        clean_child_exit(APEXIT_CHILDSICK);
-    }
-
-    mpm_state = AP_MPMQ_RUNNING;
-
-    /* If we are only running in one_process mode, we will want to
-     * still handle signals. */
-    if (one_process) {
-        /* Block until we get a terminating signal. */
-        apr_signal_thread(check_signal);
-        /* make sure the start thread has finished; signal_threads()
-         * and join_workers() depend on that
-         */
-        /* XXX join_start_thread() won't be awakened if one of our
-         *     threads encounters a critical error and attempts to
-         *     shutdown this child
-         */
-        join_start_thread(start_thread_id);
-        signal_threads(ST_UNGRACEFUL); /* helps us terminate a little more
-                           * quickly than the dispatch of the signal thread
-                           * beats the Pipe of Death and the browsers
-                           */
-        /* A terminating signal was received. Now join each of the
-         * workers to clean them up.
-         *   If the worker already exited, then the join frees
-         *   their resources and returns.
-         *   If the worker hasn't exited, then this blocks until
-         *   they have (then cleans up).
-         */
-        join_workers(ts->listener, threads);
-    }
-    else { /* !one_process */
-        /* remove SIGTERM from the set of blocked signals...  if one of
-         * the other threads in the process needs to take us down
-         * (e.g., for MaxConnectionsPerChild) it will send us SIGTERM
-         */
-        unblock_signal(SIGTERM);
-        apr_signal(SIGTERM, dummy_signal_handler);
-        /* Watch for any messages from the parent over the POD */
-        while (1) {
-            rv = ap_worker_pod_check(pod);
-            if (rv == AP_NORESTART) {
-                /* see if termination was triggered while we slept */
-                switch(terminate_mode) {
-                case ST_GRACEFUL:
-                    rv = AP_GRACEFUL;
-                    break;
-                case ST_UNGRACEFUL:
-                    rv = AP_RESTART;
-                    break;
-                }
-            }
-            if (rv == AP_GRACEFUL || rv == AP_RESTART) {
-                /* make sure the start thread has finished;
-                 * signal_threads() and join_workers depend on that
-                 */
-                join_start_thread(start_thread_id);
-                signal_threads(rv == AP_GRACEFUL ? ST_GRACEFUL : ST_UNGRACEFUL);
-                break;
-            }
-        }
-
-        /* A terminating signal was received. Now join each of the
-         * workers to clean them up.
-         *   If the worker already exited, then the join frees
-         *   their resources and returns.
-         *   If the worker hasn't exited, then this blocks until
-         *   they have (then cleans up).
-         */
-        join_workers(ts->listener, threads);
-    }
-
-    free(threads);
-
-    clean_child_exit(resource_shortage ? APEXIT_CHILDSICK : 0);
+    AP_READ_REQUEST_SUCCESS((uintptr_t)r, (char *)r->method, (char *)r->uri, (char *)r->server->defn_name, r->status);
+    return r;
+    traceout:
+    AP_READ_REQUEST_FAILURE((uintptr_t)r);
+    return r;
 }

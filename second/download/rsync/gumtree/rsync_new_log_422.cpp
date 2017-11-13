@@ -1,1 +1,2 @@
-rprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));
+rprintf(FERROR,"readlink %s : %s\n",
+				fname,strerror(errno));

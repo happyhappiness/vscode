@@ -1,1 +1,1 @@
-error("%s", err.buf);
+error("unable to block SIGPIPE in async thread");

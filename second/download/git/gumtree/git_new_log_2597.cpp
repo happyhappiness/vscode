@@ -1,1 +1,2 @@
-not_found(&hdr, "Repository not exported: '%s'", dir);
+error(_("Commit %s is a merge but no -m option was given."),
+				oid_to_hex(&commit->object.oid));

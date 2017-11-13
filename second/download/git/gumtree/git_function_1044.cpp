@@ -68,8 +68,7 @@ struct child_process *git_connect(int fd[2], const char *url,
 		conn->in = conn->out = -1;
 		if (protocol == PROTO_SSH) {
 			const char *ssh;
-			int needs_batch = 0;
-			int port_option = 'p';
+			int putty = 0, tortoiseplink = 0;
 			char *ssh_host = hostandport;
 			const char *port = NULL;
 			transport_check_allowed("ssh");
@@ -95,10 +94,10 @@ struct child_process *git_connect(int fd[2], const char *url,
 				die("strange hostname '%s' blocked", ssh_host);
 
 			ssh = get_ssh_command();
-			if (ssh)
-				handle_ssh_variant(ssh, 1, &port_option,
-						   &needs_batch);
-			else {
+			if (!ssh) {
+				const char *base;
+				char *ssh_dup;
+
 				/*
 				 * GIT_SSH is the no-shell version of
 				 * GIT_SSH_COMMAND (and must remain so for
@@ -109,10 +108,17 @@ struct child_process *git_connect(int fd[2], const char *url,
 				ssh = getenv("GIT_SSH");
 				if (!ssh)
 					ssh = "ssh";
-				else
-					handle_ssh_variant(ssh, 0,
-							   &port_option,
-							   &needs_batch);
+
+				ssh_dup = xstrdup(ssh);
+				base = basename(ssh_dup);
+
+				tortoiseplink = !strcasecmp(base, "tortoiseplink") ||
+					!strcasecmp(base, "tortoiseplink.exe");
+				putty = tortoiseplink ||
+					!strcasecmp(base, "plink") ||
+					!strcasecmp(base, "plink.exe");
+
+				free(ssh_dup);
 			}
 
 			argv_array_push(&conn->args, ssh);
@@ -120,11 +126,11 @@ struct child_process *git_connect(int fd[2], const char *url,
 				argv_array_push(&conn->args, "-4");
 			else if (flags & CONNECT_IPV6)
 				argv_array_push(&conn->args, "-6");
-			if (needs_batch)
+			if (tortoiseplink)
 				argv_array_push(&conn->args, "-batch");
 			if (port) {
-				argv_array_pushf(&conn->args,
-						 "-%c", port_option);
+				/* P is for PuTTY, p is for OpenSSH */
+				argv_array_push(&conn->args, putty ? "-P" : "-p");
 				argv_array_push(&conn->args, port);
 			}
 			argv_array_push(&conn->args, ssh_host);

@@ -1,40 +1,12 @@
-static int mark_object(struct object *obj, int type, void *data, struct fsck_options *options)
+static void write_message(struct strbuf *msgbuf, const char *filename)
 {
-	struct object *parent = data;
+	static struct lock_file msg_file;
 
-	/*
-	 * The only case data is NULL or type is OBJ_ANY is when
-	 * mark_object_reachable() calls us.  All the callers of
-	 * that function has non-NULL obj hence ...
-	 */
-	if (!obj) {
-		/* ... these references to parent->fld are safe here */
-		printf("broken link from %7s %s\n",
-			   typename(parent->type), describe_object(parent));
-		printf("broken link from %7s %s\n",
-			   (type == OBJ_ANY ? "unknown" : typename(type)), "unknown");
-		errors_found |= ERROR_REACHABLE;
-		return 1;
-	}
-
-	if (type != OBJ_ANY && obj->type != type)
-		/* ... and the reference to parent is safe here */
-		objerror(parent, "wrong object type in link");
-
-	if (obj->flags & REACHABLE)
-		return 0;
-	obj->flags |= REACHABLE;
-	if (!(obj->flags & HAS_OBJ)) {
-		if (parent && !has_object_file(&obj->oid)) {
-			printf("broken link from %7s %s\n",
-				 typename(parent->type), describe_object(parent));
-			printf("              to %7s %s\n",
-				 typename(obj->type), describe_object(obj));
-			errors_found |= ERROR_REACHABLE;
-		}
-		return 1;
-	}
-
-	add_object_array(obj, NULL, &pending);
-	return 0;
+	int msg_fd = hold_lock_file_for_update(&msg_file, filename,
+					       LOCK_DIE_ON_ERROR);
+	if (write_in_full(msg_fd, msgbuf->buf, msgbuf->len) < 0)
+		die_errno(_("Could not write to %s"), filename);
+	strbuf_release(msgbuf);
+	if (commit_lock_file(&msg_file) < 0)
+		die(_("Error wrapping up %s."), filename);
 }

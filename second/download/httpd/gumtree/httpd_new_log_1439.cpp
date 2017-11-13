@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "request failed: client's request-line exceeds LimitRequestLine (longer than %d)",
-                              r->server->limit_req_line);
+ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %lu: Failure releasing the start mutex", my_pid);

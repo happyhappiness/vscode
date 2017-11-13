@@ -1,113 +1,148 @@
-static int process_entry(struct merge_options *o,
-			 const char *path, struct stage_data *entry)
+struct child_process *git_connect(int fd[2], const char *url,
+				  const char *prog, int flags)
 {
-	int clean_merge = 1;
-	int normalize = o->renormalize;
-	unsigned o_mode = entry->stages[1].mode;
-	unsigned a_mode = entry->stages[2].mode;
-	unsigned b_mode = entry->stages[3].mode;
-	unsigned char *o_sha = stage_sha(entry->stages[1].sha, o_mode);
-	unsigned char *a_sha = stage_sha(entry->stages[2].sha, a_mode);
-	unsigned char *b_sha = stage_sha(entry->stages[3].sha, b_mode);
+	char *hostandport, *path;
+	struct child_process *conn = &no_fork;
+	enum protocol protocol;
+	struct strbuf cmd = STRBUF_INIT;
 
-	entry->processed = 1;
-	if (entry->rename_conflict_info) {
-		struct rename_conflict_info *conflict_info = entry->rename_conflict_info;
-		switch (conflict_info->rename_type) {
-		case RENAME_NORMAL:
-		case RENAME_ONE_FILE_TO_ONE:
-			clean_merge = merge_content(o, path,
-						    o_sha, o_mode, a_sha, a_mode, b_sha, b_mode,
-						    conflict_info);
-			break;
-		case RENAME_DELETE:
-			clean_merge = 0;
-			conflict_rename_delete(o, conflict_info->pair1,
-					       conflict_info->branch1,
-					       conflict_info->branch2);
-			break;
-		case RENAME_ONE_FILE_TO_TWO:
-			clean_merge = 0;
-			conflict_rename_rename_1to2(o, conflict_info);
-			break;
-		case RENAME_TWO_FILES_TO_ONE:
-			clean_merge = 0;
-			conflict_rename_rename_2to1(o, conflict_info);
-			break;
-		default:
-			entry->processed = 0;
-			break;
-		}
-	} else if (o_sha && (!a_sha || !b_sha)) {
-		/* Case A: Deleted in one */
-		if ((!a_sha && !b_sha) ||
-		    (!b_sha && blob_unchanged(o_sha, o_mode, a_sha, a_mode, normalize, path)) ||
-		    (!a_sha && blob_unchanged(o_sha, o_mode, b_sha, b_mode, normalize, path))) {
-			/* Deleted in both or deleted in one and
-			 * unchanged in the other */
-			if (a_sha)
-				output(o, 2, _("Removing %s"), path);
-			/* do not touch working file if it did not exist */
-			remove_file(o, 1, path, !a_sha);
-		} else {
-			/* Modify/delete; deleted side may have put a directory in the way */
-			clean_merge = 0;
-			handle_modify_delete(o, path, o_sha, o_mode,
-					     a_sha, a_mode, b_sha, b_mode);
-		}
-	} else if ((!o_sha && a_sha && !b_sha) ||
-		   (!o_sha && !a_sha && b_sha)) {
-		/* Case B: Added in one. */
-		/* [nothing|directory] -> ([nothing|directory], file) */
+	/* Without this we cannot rely on waitpid() to tell
+	 * what happened to our children.
+	 */
+	signal(SIGCHLD, SIG_DFL);
 
-		const char *add_branch;
-		const char *other_branch;
-		unsigned mode;
-		const unsigned char *sha;
-		const char *conf;
-
-		if (a_sha) {
-			add_branch = o->branch1;
-			other_branch = o->branch2;
-			mode = a_mode;
-			sha = a_sha;
-			conf = _("file/directory");
-		} else {
-			add_branch = o->branch2;
-			other_branch = o->branch1;
-			mode = b_mode;
-			sha = b_sha;
-			conf = _("directory/file");
-		}
-		if (dir_in_way(path, !o->call_depth)) {
-			char *new_path = unique_path(o, path, add_branch);
-			clean_merge = 0;
-			output(o, 1, _("CONFLICT (%s): There is a directory with name %s in %s. "
-			       "Adding %s as %s"),
-			       conf, path, other_branch, path, new_path);
-			update_file(o, 0, sha, mode, new_path);
-			if (o->call_depth)
-				remove_file_from_cache(path);
-			free(new_path);
-		} else {
-			output(o, 2, _("Adding %s"), path);
-			/* do not overwrite file if already present */
-			update_file_flags(o, sha, mode, path, 1, !a_sha);
-		}
-	} else if (a_sha && b_sha) {
-		/* Case C: Added in both (check for same permissions) and */
-		/* case D: Modified in both, but differently. */
-		clean_merge = merge_content(o, path,
-					    o_sha, o_mode, a_sha, a_mode, b_sha, b_mode,
-					    NULL);
-	} else if (!o_sha && !a_sha && !b_sha) {
+	protocol = parse_connect_url(url, &hostandport, &path);
+	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
+		printf("Diag: url=%s\n", url ? url : "NULL");
+		printf("Diag: protocol=%s\n", prot_name(protocol));
+		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
+		printf("Diag: path=%s\n", path ? path : "NULL");
+		conn = NULL;
+	} else if (protocol == PROTO_GIT) {
 		/*
-		 * this entry was deleted altogether. a_mode == 0 means
-		 * we had that path and want to actively remove it.
+		 * Set up virtual host information based on where we will
+		 * connect, unless the user has overridden us in
+		 * the environment.
 		 */
-		remove_file(o, 1, path, !a_mode);
-	} else
-		die(_("Fatal merge failure, shouldn't happen."));
+		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
+		if (target_host)
+			target_host = xstrdup(target_host);
+		else
+			target_host = xstrdup(hostandport);
 
-	return clean_merge;
+		transport_check_allowed("git");
+
+		/* These underlying connection commands die() if they
+		 * cannot connect.
+		 */
+		if (git_use_proxy(hostandport))
+			conn = git_proxy_connect(fd, hostandport);
+		else
+			git_tcp_connect(fd, hostandport, flags);
+		/*
+		 * Separate original protocol components prog and path
+		 * from extended host header with a NUL byte.
+		 *
+		 * Note: Do not add any other headers here!  Doing so
+		 * will cause older git-daemon servers to crash.
+		 */
+		packet_write(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);
+		free(target_host);
+	} else {
+		conn = xmalloc(sizeof(*conn));
+		child_process_init(conn);
+
+		if (looks_like_command_line_option(path))
+			die("strange pathname '%s' blocked", path);
+
+		strbuf_addstr(&cmd, prog);
+		strbuf_addch(&cmd, ' ');
+		sq_quote_buf(&cmd, path);
+
+		/* remove repo-local variables from the environment */
+		conn->env = local_repo_env;
+		conn->use_shell = 1;
+		conn->in = conn->out = -1;
+		if (protocol == PROTO_SSH) {
+			const char *ssh;
+			int putty = 0, tortoiseplink = 0;
+			char *ssh_host = hostandport;
+			const char *port = NULL;
+			transport_check_allowed("ssh");
+			get_host_and_port(&ssh_host, &port);
+
+			if (!port)
+				port = get_port(ssh_host);
+
+			if (flags & CONNECT_DIAG_URL) {
+				printf("Diag: url=%s\n", url ? url : "NULL");
+				printf("Diag: protocol=%s\n", prot_name(protocol));
+				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+				printf("Diag: port=%s\n", port ? port : "NONE");
+				printf("Diag: path=%s\n", path ? path : "NULL");
+
+				free(hostandport);
+				free(path);
+				free(conn);
+				return NULL;
+			}
+
+			if (looks_like_command_line_option(ssh_host))
+				die("strange hostname '%s' blocked", ssh_host);
+
+			ssh = getenv("GIT_SSH_COMMAND");
+			if (!ssh) {
+				const char *base;
+				char *ssh_dup;
+
+				/*
+				 * GIT_SSH is the no-shell version of
+				 * GIT_SSH_COMMAND (and must remain so for
+				 * historical compatibility).
+				 */
+				conn->use_shell = 0;
+
+				ssh = getenv("GIT_SSH");
+				if (!ssh)
+					ssh = "ssh";
+
+				ssh_dup = xstrdup(ssh);
+				base = basename(ssh_dup);
+
+				tortoiseplink = !strcasecmp(base, "tortoiseplink") ||
+					!strcasecmp(base, "tortoiseplink.exe");
+				putty = tortoiseplink ||
+					!strcasecmp(base, "plink") ||
+					!strcasecmp(base, "plink.exe");
+
+				free(ssh_dup);
+			}
+
+			argv_array_push(&conn->args, ssh);
+			if (tortoiseplink)
+				argv_array_push(&conn->args, "-batch");
+			if (port) {
+				/* P is for PuTTY, p is for OpenSSH */
+				argv_array_push(&conn->args, putty ? "-P" : "-p");
+				argv_array_push(&conn->args, port);
+			}
+			argv_array_push(&conn->args, ssh_host);
+		} else {
+			transport_check_allowed("file");
+		}
+		argv_array_push(&conn->args, cmd.buf);
+
+		if (start_command(conn))
+			die("unable to fork");
+
+		fd[0] = conn->out; /* read from child's stdout */
+		fd[1] = conn->in;  /* write to child's stdin */
+		strbuf_release(&cmd);
+	}
+	free(hostandport);
+	free(path);
+	return conn;
 }

@@ -1,1 +1,5 @@
-ap_rvputs(r, "      <httpd:name>", balancer->name, "</httpd:name>\n", NULL);
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "missing argument for set element in %s",
+                      r->filename);

@@ -1,23 +1,10 @@
-static void delete_files(struct file_list *flist)
+void match_report(void)
 {
-  struct file_list *local_file_list;
-  char *dot=".";
-  int i;
-
-  if (!(local_file_list = send_file_list(-1,recurse,1,&dot)))
+  if (verbose <= 1)
     return;
 
-  for (i=0;i<local_file_list->count;i++) {
-    if (!local_file_list->files[i].name) continue;
-    if (S_ISDIR(local_file_list->files[i].mode)) continue;
-    if (-1 == flist_find(flist,&local_file_list->files[i])) {
-      if (verbose)
-	fprintf(stderr,"deleting %s\n",local_file_list->files[i].name);
-      if (!dry_run) {
-	if (unlink(local_file_list->files[i].name) != 0)
-	  fprintf(stderr,"unlink %s : %s\n",
-		  local_file_list->files[i].name,strerror(errno));
-      }
-    }    
-  }
+  fprintf(am_server?stderr:stdout,
+	  "total: matches=%d  tag_hits=%d  false_alarms=%d  data=%d\n",
+	  total_matches,total_tag_hits,
+	  total_false_alarms,total_data_transfer);
 }

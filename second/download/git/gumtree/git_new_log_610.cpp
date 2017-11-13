@@ -1,1 +1,1 @@
-error("%s: object missing", sha1_to_hex(sha1));
+error(_("unable to update cache tree\n"));

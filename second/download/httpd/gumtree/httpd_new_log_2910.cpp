@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02112)
-                          "Failed to create completion mutex");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "shmcb_subcache_remove removing matching session");

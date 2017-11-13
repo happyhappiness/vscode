@@ -1,101 +1,61 @@
-int diff_populate_filespec(struct diff_filespec *s, unsigned int flags)
+static int fetch_git(struct discovery *heads,
+	int nr_heads, struct ref **to_fetch)
 {
-	int size_only = flags & CHECK_SIZE_ONLY;
-	int err = 0;
-	/*
-	 * demote FAIL to WARN to allow inspecting the situation
-	 * instead of refusing.
-	 */
-	enum safe_crlf crlf_warn = (safe_crlf == SAFE_CRLF_FAIL
-				    ? SAFE_CRLF_WARN
-				    : safe_crlf);
+	struct rpc_state rpc;
+	struct strbuf preamble = STRBUF_INIT;
+	char *depth_arg = NULL;
+	int argc = 0, i, err;
+	const char *argv[17];
 
-	if (!DIFF_FILE_VALID(s))
-		die("internal error: asking to populate invalid file.");
-	if (S_ISDIR(s->mode))
-		return -1;
-
-	if (s->data)
-		return 0;
-
-	if (size_only && 0 < s->size)
-		return 0;
-
-	if (S_ISGITLINK(s->mode))
-		return diff_populate_gitlink(s, size_only);
-
-	if (!s->sha1_valid ||
-	    reuse_worktree_file(s->path, s->sha1, 0)) {
+	argv[argc++] = "fetch-pack";
+	argv[argc++] = "--stateless-rpc";
+	argv[argc++] = "--stdin";
+	argv[argc++] = "--lock-pack";
+	if (options.followtags)
+		argv[argc++] = "--include-tag";
+	if (options.thin)
+		argv[argc++] = "--thin";
+	if (options.verbosity >= 3) {
+		argv[argc++] = "-v";
+		argv[argc++] = "-v";
+	}
+	if (options.check_self_contained_and_connected)
+		argv[argc++] = "--check-self-contained-and-connected";
+	if (options.cloning)
+		argv[argc++] = "--cloning";
+	if (options.update_shallow)
+		argv[argc++] = "--update-shallow";
+	if (!options.progress)
+		argv[argc++] = "--no-progress";
+	if (options.depth) {
 		struct strbuf buf = STRBUF_INIT;
-		struct stat st;
-		int fd;
-
-		if (lstat(s->path, &st) < 0) {
-			if (errno == ENOENT) {
-			err_empty:
-				err = -1;
-			empty:
-				s->data = (char *)"";
-				s->size = 0;
-				return err;
-			}
-		}
-		s->size = xsize_t(st.st_size);
-		if (!s->size)
-			goto empty;
-		if (S_ISLNK(st.st_mode)) {
-			struct strbuf sb = STRBUF_INIT;
-
-			if (strbuf_readlink(&sb, s->path, s->size))
-				goto err_empty;
-			s->size = sb.len;
-			s->data = strbuf_detach(&sb, NULL);
-			s->should_free = 1;
-			return 0;
-		}
-		if (size_only)
-			return 0;
-		if ((flags & CHECK_BINARY) &&
-		    s->size > big_file_threshold && s->is_binary == -1) {
-			s->is_binary = 1;
-			return 0;
-		}
-		fd = open(s->path, O_RDONLY);
-		if (fd < 0)
-			goto err_empty;
-		s->data = xmmap(NULL, s->size, PROT_READ, MAP_PRIVATE, fd, 0);
-		close(fd);
-		s->should_munmap = 1;
-
-		/*
-		 * Convert from working tree format to canonical git format
-		 */
-		if (convert_to_git(s->path, s->data, s->size, &buf, crlf_warn)) {
-			size_t size = 0;
-			munmap(s->data, s->size);
-			s->should_munmap = 0;
-			s->data = strbuf_detach(&buf, &size);
-			s->size = size;
-			s->should_free = 1;
-		}
+		strbuf_addf(&buf, "--depth=%lu", options.depth);
+		depth_arg = strbuf_detach(&buf, NULL);
+		argv[argc++] = depth_arg;
 	}
-	else {
-		enum object_type type;
-		if (size_only || (flags & CHECK_BINARY)) {
-			type = sha1_object_info(s->sha1, &s->size);
-			if (type < 0)
-				die("unable to read %s", sha1_to_hex(s->sha1));
-			if (size_only)
-				return 0;
-			if (s->size > big_file_threshold && s->is_binary == -1) {
-				s->is_binary = 1;
-				return 0;
-			}
-		}
-		s->data = read_sha1_file(s->sha1, &type, &s->size);
-		if (!s->data)
-			die("unable to read %s", sha1_to_hex(s->sha1));
-		s->should_free = 1;
+	argv[argc++] = url.buf;
+	argv[argc++] = NULL;
+
+	for (i = 0; i < nr_heads; i++) {
+		struct ref *ref = to_fetch[i];
+		if (!*ref->name)
+			die("cannot fetch by sha1 over smart http");
+		packet_buf_write(&preamble, "%s %s\n",
+				 sha1_to_hex(ref->old_sha1), ref->name);
 	}
-	return 0;
+	packet_buf_flush(&preamble);
+
+	memset(&rpc, 0, sizeof(rpc));
+	rpc.service_name = "git-upload-pack",
+	rpc.argv = argv;
+	rpc.stdin_preamble = &preamble;
+	rpc.gzip_request = 1;
+
+	err = rpc_service(&rpc, heads);
+	if (rpc.result.len)
+		write_or_die(1, rpc.result.buf, rpc.result.len);
+	strbuf_release(&rpc.result);
+	strbuf_release(&preamble);
+	free(depth_arg);
+	return err;
 }

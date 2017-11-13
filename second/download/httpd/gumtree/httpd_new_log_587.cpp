@@ -1,1 +1,0 @@
-ap_close_listeners();

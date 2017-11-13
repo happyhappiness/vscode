@@ -1,1 +1,1 @@
-fprintf(stderr, "error creating request buffer: out of memory\n");
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1528965 $");

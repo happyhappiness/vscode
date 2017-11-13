@@ -1,1 +1,1 @@
-die(_("Not a git repository (or any of the parent directories): %s"), DEFAULT_GIT_DIR_ENVIRONMENT);
+error(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);

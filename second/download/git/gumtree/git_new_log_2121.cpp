@@ -1,1 +1,2 @@
-insert_one_record(log, author.buf, oneline.len ? oneline.buf : "<none>");
+argv_array_pushl(&cp.args, "update-ref", "HEAD",
+				 sha1_to_hex(commit->object.sha1), NULL);

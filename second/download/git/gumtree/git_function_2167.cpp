@@ -1,21 +1,19 @@
-static int create_symref_locked(struct ref_lock *lock, const char *refname,
-				const char *target, const char *logmsg)
+int commit_lock_file(struct lock_file *lk)
 {
-	if (prefer_symlink_refs && !create_ref_symlink(lock, target)) {
-		update_symref_reflog(lock, refname, target, logmsg);
-		return 0;
-	}
+	static struct strbuf result_file = STRBUF_INIT;
+	int err;
 
-	if (!fdopen_lock_file(lock->lk, "w"))
-		return error("unable to fdopen %s: %s",
-			     lock->lk->tempfile.filename.buf, strerror(errno));
+	if (!lk->active)
+		die("BUG: attempt to commit unlocked object");
 
-	update_symref_reflog(lock, refname, target, logmsg);
+	if (lk->filename.len <= LOCK_SUFFIX_LEN ||
+	    strcmp(lk->filename.buf + lk->filename.len - LOCK_SUFFIX_LEN, LOCK_SUFFIX))
+		die("BUG: lockfile filename corrupt");
 
-	/* no error check; commit_ref will check ferror */
-	fprintf(lock->lk->tempfile.fp, "ref: %s\n", target);
-	if (commit_ref(lock) < 0)
-		return error("unable to write symref for %s: %s", refname,
-			     strerror(errno));
-	return 0;
+	/* remove ".lock": */
+	strbuf_add(&result_file, lk->filename.buf,
+		   lk->filename.len - LOCK_SUFFIX_LEN);
+	err = commit_lock_file_to(lk, result_file.buf);
+	strbuf_reset(&result_file);
+	return err;
 }

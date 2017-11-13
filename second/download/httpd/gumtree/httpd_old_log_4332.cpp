@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
-                      "could not resolve address of OCSP responder %s", 
-                      uri->hostinfo);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "proxy_handler no URL in %s", r->filename);

@@ -1,548 +1,182 @@
-static int ap_proxy_ajp_request(apr_pool_t *p, request_rec *r,
-                                proxy_conn_rec *conn,
-                                conn_rec *origin,
-                                proxy_dir_conf *conf,
-                                apr_uri_t *uri,
-                                char *url, char *server_portstr)
+static void perform_idle_server_maintenance(void)
 {
-    apr_status_t status;
-    int result;
-    apr_bucket *e;
-    apr_bucket_brigade *input_brigade;
-    apr_bucket_brigade *output_brigade;
-    ajp_msg_t *msg;
-    apr_size_t bufsiz = 0;
-    char *buff;
-    char *send_body_chunk_buff;
-    apr_uint16_t size;
-    apr_byte_t conn_reuse = 0;
-    const char *tenc;
-    int havebody = 1;
-    int client_failed = 0;
-    int backend_failed = 0;
-    apr_off_t bb_len;
-    int data_sent = 0;
-    int request_ended = 0;
-    int headers_sent = 0;
-    int rv = OK;
-    apr_int32_t conn_poll_fd;
-    apr_pollfd_t *conn_poll;
-    proxy_server_conf *psf =
-    ap_get_module_config(r->server->module_config, &proxy_module);
-    apr_size_t maxsize = AJP_MSG_BUFFER_SZ;
-    int send_body = 0;
-    apr_off_t content_length = 0;
-    int original_status = r->status;
-    const char *original_status_line = r->status_line;
+    int i, j;
+    int idle_thread_count;
+    worker_score *ws;
+    process_score *ps;
+    int free_length;
+    int totally_free_length = 0;
+    int free_slots[MAX_SPAWN_RATE];
+    int last_non_dead;
+    int total_non_dead;
+    int active_thread_count = 0;
 
-    if (psf->io_buffer_size_set)
-       maxsize = psf->io_buffer_size;
-    if (maxsize > AJP_MAX_BUFFER_SZ)
-       maxsize = AJP_MAX_BUFFER_SZ;
-    else if (maxsize < AJP_MSG_BUFFER_SZ)
-       maxsize = AJP_MSG_BUFFER_SZ;
-    maxsize = APR_ALIGN(maxsize, 1024);
-       
-    /*
-     * Send the AJP request to the remote server
-     */
+    /* initialize the free_list */
+    free_length = 0;
 
-    /* send request headers */
-    status = ajp_send_header(conn->sock, r, maxsize, uri);
-    if (status != APR_SUCCESS) {
-        conn->close++;
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: AJP: request failed to %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        if (status == AJP_EOVERFLOW)
-            return HTTP_BAD_REQUEST;
-        else if  (status == AJP_EBAD_METHOD) {
-            return HTTP_NOT_IMPLEMENTED;
-        } else {
-            /*
-             * This is only non fatal when the method is idempotent. In this
-             * case we can dare to retry it with a different worker if we are
-             * a balancer member.
+    idle_thread_count = 0;
+    last_non_dead = -1;
+    total_non_dead = 0;
+
+    for (i = 0; i < ap_daemons_limit; ++i) {
+        /* Initialization to satisfy the compiler. It doesn't know
+         * that ap_threads_per_child is always > 0 */
+        int status = SERVER_DEAD;
+        int any_dying_threads = 0;
+        int any_dead_threads = 0;
+        int all_dead_threads = 1;
+
+        if (i >= ap_max_daemons_limit && totally_free_length == idle_spawn_rate)
+            break;
+        ps = &ap_scoreboard_image->parent[i];
+        for (j = 0; j < ap_threads_per_child; j++) {
+            ws = &ap_scoreboard_image->servers[i][j];
+            status = ws->status;
+
+            /* XXX any_dying_threads is probably no longer needed    GLA */
+            any_dying_threads = any_dying_threads ||
+                                (status == SERVER_GRACEFUL);
+            any_dead_threads = any_dead_threads || (status == SERVER_DEAD);
+            all_dead_threads = all_dead_threads &&
+                                   (status == SERVER_DEAD ||
+                                    status == SERVER_GRACEFUL);
+
+            /* We consider a starting server as idle because we started it
+             * at least a cycle ago, and if it still hasn't finished starting
+             * then we're just going to swamp things worse by forking more.
+             * So we hopefully won't need to fork more if we count it.
+             * This depends on the ordering of SERVER_READY and SERVER_STARTING.
              */
-            if (is_idempotent(r) == METHOD_IDEMPOTENT) {
-                return HTTP_SERVICE_UNAVAILABLE;
+            if (ps->pid != 0) { /* XXX just set all_dead_threads in outer for
+                                   loop if no pid?  not much else matters */
+                if (status <= SERVER_READY && 
+                        !ps->quiescing &&
+                        ps->generation == ap_my_generation) {
+                    ++idle_thread_count;
+                }
+                if (status >= SERVER_READY && status < SERVER_GRACEFUL) {
+                    ++active_thread_count;
+                }
             }
-            return HTTP_INTERNAL_SERVER_ERROR;
         }
-    }
-
-    /* allocate an AJP message to store the data of the buckets */
-    bufsiz = maxsize;
-    status = ajp_alloc_data_msg(r->pool, &buff, &bufsiz, &msg);
-    if (status != APR_SUCCESS) {
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: ajp_alloc_data_msg failed");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    /* read the first bloc of data */
-    input_brigade = apr_brigade_create(p, r->connection->bucket_alloc);
-    tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
-    if (tenc && (strcasecmp(tenc, "chunked") == 0)) {
-        /* The AJP protocol does not want body data yet */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: request is chunked");
-    } else {
-        /* Get client provided Content-Length header */
-        content_length = get_content_length(r);
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                maxsize - AJP_HEADER_SZ);
-
-        if (status != APR_SUCCESS) {
-            /* We had a failure: Close connection to backend */
-            conn->close++;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                         "proxy: ap_get_brigade failed");
-            apr_brigade_destroy(input_brigade);
-            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
-        }
-
-        /* have something */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: APR_BUCKET_IS_EOS");
-        }
-
-        /* Try to send something */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: data to read (max %" APR_SIZE_T_FMT
-                     " at %" APR_SIZE_T_FMT ")", bufsiz, msg->pos);
-
-        status = apr_brigade_flatten(input_brigade, buff, &bufsiz);
-        if (status != APR_SUCCESS) {
-            /* We had a failure: Close connection to backend */
-            conn->close++;
-            apr_brigade_destroy(input_brigade);
-            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: apr_brigade_flatten");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        apr_brigade_cleanup(input_brigade);
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: got %" APR_SIZE_T_FMT " bytes of data", bufsiz);
-        if (bufsiz > 0) {
-            status = ajp_send_data_msg(conn->sock, msg, bufsiz);
-            if (status != APR_SUCCESS) {
-                /* We had a failure: Close connection to backend */
-                conn->close++;
-                apr_brigade_destroy(input_brigade);
-                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                             "proxy: send failed to %pI (%s)",
-                             conn->worker->cp->addr,
-                             conn->worker->hostname);
-                /*
-                 * It is fatal when we failed to send a (part) of the request
-                 * body.
+        if (any_dead_threads && totally_free_length < idle_spawn_rate
+                && free_length < MAX_SPAWN_RATE
+                && (!ps->pid               /* no process in the slot */
+                    || ps->quiescing)) {   /* or at least one is going away */
+            if (all_dead_threads) {
+                /* great! we prefer these, because the new process can
+                 * start more threads sooner.  So prioritize this slot
+                 * by putting it ahead of any slots with active threads.
+                 *
+                 * first, make room by moving a slot that's potentially still
+                 * in use to the end of the array
                  */
-                return HTTP_INTERNAL_SERVER_ERROR;
+                free_slots[free_length] = free_slots[totally_free_length];
+                free_slots[totally_free_length++] = i;
             }
-            conn->worker->s->transferred += bufsiz;
-            send_body = 1;
+            else {
+                /* slot is still in use - back of the bus
+                 */
+                free_slots[free_length] = i;
+            }
+            ++free_length;
         }
-        else if (content_length > 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: read zero bytes, expecting"
-                         " %" APR_OFF_T_FMT " bytes",
-                         content_length);
-            /*
-             * We can only get here if the client closed the connection
-             * to us without sending the body.
-             * Now the connection is in the wrong state on the backend.
-             * Sending an empty data msg doesn't help either as it does
-             * not move this connection to the correct state on the backend
-             * for later resusage by the next request again.
-             * Close it to clean things up.
+        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
+        if (!any_dying_threads) {
+            last_non_dead = i;
+            ++total_non_dead;
+        }
+    }
+
+    if (sick_child_detected) {
+        if (active_thread_count > 0) {
+            /* some child processes appear to be working.  don't kill the
+             * whole server.
              */
-            conn->close++;
-            return HTTP_BAD_REQUEST;
+            sick_child_detected = 0;
+        }
+        else {
+            /* looks like a basket case.  give up.
+             */
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf,
+                         "No active workers found..."
+                         " Apache is exiting!");
+            /* the child already logged the failure details */
+            return;
         }
     }
 
-    /* read the response */
-    conn->data = NULL;
-    status = ajp_read_header(conn->sock, r, maxsize,
-                             (ajp_msg_t **)&(conn->data));
-    if (status != APR_SUCCESS) {
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        apr_brigade_destroy(input_brigade);
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: read response failed from %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
+    ap_max_daemons_limit = last_non_dead + 1;
 
-        /* If we had a successful cping/cpong and then a timeout
-         * we assume it is a request that cause a back-end timeout,
-         * but doesn't affect the whole worker.
-         */
-        if (APR_STATUS_IS_TIMEUP(status) && conn->worker->ping_timeout_set) {
-            return HTTP_GATEWAY_TIME_OUT;
-        }
-
-        /*
-         * This is only non fatal when we have not sent (parts) of a possible
-         * request body so far (we do not store it and thus cannot sent it
-         * again) and the method is idempotent. In this case we can dare to
-         * retry it with a different worker if we are a balancer member.
-         */
-        if (!send_body && (is_idempotent(r) == METHOD_IDEMPOTENT)) {
-            return HTTP_SERVICE_UNAVAILABLE;
-        }
-        return HTTP_INTERNAL_SERVER_ERROR;
+    if (idle_thread_count > max_spare_threads) {
+        /* Kill off one child */
+        ap_mpm_pod_signal(pod, TRUE);
+        idle_spawn_rate = 1;
     }
-    /* parse the reponse */
-    result = ajp_parse_type(r, conn->data);
-    output_brigade = apr_brigade_create(p, r->connection->bucket_alloc);
+    else if (idle_thread_count < min_spare_threads) {
+        /* terminate the free list */
+        if (free_length == 0) {
+            /* No room for more children, might warn about configuration */
+            if (active_thread_count >= ap_daemons_limit * ap_threads_per_child) {
+                /* no threads are "inactive" - starting, stopping, etc. - which would confuse matters */
+                /* Are all threads in use?  Then we're really at MaxClients */
+                if (0 == idle_thread_count) {
+                    /* only report this condition once */
+                    static int reported = 0;
 
-    /*
-     * Prepare apr_pollfd_t struct for possible later check if there is currently
-     * data available from the backend (do not flush response to client)
-     * or not (flush response to client)
-     */
-    conn_poll = apr_pcalloc(p, sizeof(apr_pollfd_t));
-    conn_poll->reqevents = APR_POLLIN;
-    conn_poll->desc_type = APR_POLL_SOCKET;
-    conn_poll->desc.s = conn->sock;
-
-    bufsiz = maxsize;
-    for (;;) {
-        switch (result) {
-            case CMD_AJP13_GET_BODY_CHUNK:
-                if (havebody) {
-                    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-                        /* This is the end */
-                        bufsiz = 0;
-                        havebody = 0;
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                                     "proxy: APR_BUCKET_IS_EOS");
-                    } else {
-                        status = ap_get_brigade(r->input_filters, input_brigade,
-                                                AP_MODE_READBYTES,
-                                                APR_BLOCK_READ,
-                                                maxsize - AJP_HEADER_SZ);
-                        if (status != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
-                                         r->server,
-                                         "ap_get_brigade failed");
-                            if (APR_STATUS_IS_TIMEUP(status)) {
-                                rv = HTTP_REQUEST_TIME_OUT;
-                            }
-                            else if (status == AP_FILTER_ERROR) {
-                                rv = AP_FILTER_ERROR;
-                            }
-                            client_failed = 1;
-                            break;
-                        }
-                        bufsiz = maxsize;
-                        status = apr_brigade_flatten(input_brigade, buff,
-                                                     &bufsiz);
-                        apr_brigade_cleanup(input_brigade);
-                        if (status != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
-                                         r->server,
-                                         "apr_brigade_flatten failed");
-                            rv = HTTP_INTERNAL_SERVER_ERROR;
-                            client_failed = 1;
-                            break;
-                        }
+                    if (!reported) {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     ap_server_conf,
+                                     "server reached MaxClients setting, consider"
+                                     " raising the MaxClients setting");
+                        reported = 1;
                     }
-
-                    ajp_msg_reset(msg);
-                    /* will go in ajp_send_data_msg */
-                    status = ajp_send_data_msg(conn->sock, msg, bufsiz);
-                    if (status != APR_SUCCESS) {
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                                     "ajp_send_data_msg failed");
-                        backend_failed = 1;
-                        break;
-                    }
-                    conn->worker->s->transferred += bufsiz;
                 } else {
-                    /*
-                     * something is wrong TC asks for more body but we are
-                     * already at the end of the body data
-                     */
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "ap_proxy_ajp_request error read after end");
-                    backend_failed = 1;
-                }
-                break;
-            case CMD_AJP13_SEND_HEADERS:
-                if (headers_sent) {
-                    /* Do not send anything to the client.
-                     * Backend already send us the headers.
-                     */
-                    backend_failed = 1;
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "proxy: Backend sent headers twice.");
-                    break;
-                }
-                /* AJP13_SEND_HEADERS: process them */
-                status = ajp_parse_header(r, conf, conn->data);
-                if (status != APR_SUCCESS) {
-                    backend_failed = 1;
-                }
-                else if ((r->status == 401) && psf->error_override) {
-                    const char *buf;
-                    const char *wa = "WWW-Authenticate";
-                    if ((buf = apr_table_get(r->headers_out, wa))) {
-                        apr_table_set(r->err_headers_out, wa, buf);
-                    } else {
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                     "ap_proxy_ajp_request: origin server "
-                                     "sent 401 without WWW-Authenticate header");
-                    }
-                }
-                headers_sent = 1;
-                break;
-            case CMD_AJP13_SEND_BODY_CHUNK:
-                /* AJP13_SEND_BODY_CHUNK: piece of data */
-                status = ajp_parse_data(r, conn->data, &size, &send_body_chunk_buff);
-                if (status == APR_SUCCESS) {
-                    /* If we are overriding the errors, we can't put the content
-                     * of the page into the brigade.
-                     */
-                    if (!psf->error_override || !ap_is_HTTP_ERROR(r->status)) {
-                    /* AJP13_SEND_BODY_CHUNK with zero length
-                     * is explicit flush message
-                     */
-                    if (size == 0) {
-                        if (headers_sent) {
-                            e = apr_bucket_flush_create(r->connection->bucket_alloc);
-                            APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                        }
-                        else {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "Ignoring flush message received before headers");
-                        }
-                    }
-                    else {
-                        apr_status_t rv;
+                    static int reported = 0;
 
-                        /* Handle the case where the error document is itself reverse
-                         * proxied and was successful. We must maintain any previous
-                         * error status so that an underlying error (eg HTTP_NOT_FOUND)
-                         * doesn't become an HTTP_OK.
-                         */
-                        if (psf->error_override && !ap_is_HTTP_ERROR(r->status)
-                                && ap_is_HTTP_ERROR(original_status)) {
-                            r->status = original_status;
-                            r->status_line = original_status_line;
-                        }
-
-                        e = apr_bucket_transient_create(send_body_chunk_buff, size,
-                                                        r->connection->bucket_alloc);
-                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-
-                        if ((conn->worker->flush_packets == flush_on) ||
-                            ((conn->worker->flush_packets == flush_auto) &&
-                            ((rv = apr_poll(conn_poll, 1, &conn_poll_fd,
-                                             conn->worker->flush_wait))
-                                             != APR_SUCCESS) &&
-                              APR_STATUS_IS_TIMEUP(rv))) {
-                            e = apr_bucket_flush_create(r->connection->bucket_alloc);
-                            APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                        }
-                        apr_brigade_length(output_brigade, 0, &bb_len);
-                        if (bb_len != -1)
-                            conn->worker->s->read += bb_len;
-                    }
-                    if (headers_sent) {
-                        if (ap_pass_brigade(r->output_filters,
-                                            output_brigade) != APR_SUCCESS) {
-                            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                          "proxy: error processing body.%s",
-                                          r->connection->aborted ?
-                                          " Client aborted connection." : "");
-                            client_failed = 1;
-                        }
-                        data_sent = 1;
-                        apr_brigade_cleanup(output_brigade);
+                    if (!reported) {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     ap_server_conf,
+                                     "server is within MinSpareThreads of MaxClients, consider"
+                                     " raising the MaxClients setting");
+                        reported = 1;
                     }
                 }
             }
-                else {
-                    backend_failed = 1;
-                }
-                break;
-            case CMD_AJP13_END_RESPONSE:
-                status = ajp_parse_reuse(r, conn->data, &conn_reuse);
-                if (status != APR_SUCCESS) {
-                    backend_failed = 1;
-                }
-                /* If we are overriding the errors, we must not send anything to
-                 * the client, especially as the brigade already contains headers.
-                 * So do nothing here, and it will be cleaned up below.
-                 */
-                if (!psf->error_override || !ap_is_HTTP_ERROR(r->status)) {
-                    e = apr_bucket_eos_create(r->connection->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                    if (ap_pass_brigade(r->output_filters,
-                                        output_brigade) != APR_SUCCESS) {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                      "proxy: error processing end");
-                        client_failed = 1;
-                    }
-                    /* XXX: what about flush here? See mod_jk */
-                    data_sent = 1;
-                }
-                request_ended = 1;
-                break;
-            default:
-                backend_failed = 1;
-                break;
+            idle_spawn_rate = 1;
         }
-
-        /*
-         * If connection has been aborted by client: Stop working.
-         * Pretend we are done (data_sent) to avoid further processing.
-         */
-        if (r->connection->aborted) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "client connection aborted");
-            /* no response yet (or ever), set status for access log */
-            if (!headers_sent) {
-                r->status = HTTP_BAD_REQUEST;
+        else {
+            if (free_length > idle_spawn_rate) {
+                free_length = idle_spawn_rate;
             }
-            client_failed = 1;
-            /* return DONE */
-            data_sent = 1;
-            break;
+            if (idle_spawn_rate >= 8) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "server seems busy, (you may need "
+                             "to increase StartServers, ThreadsPerChild "
+                             "or Min/MaxSpareThreads), "
+                             "spawning %d children, there are around %d idle "
+                             "threads, and %d total children", free_length,
+                             idle_thread_count, total_non_dead);
+            }
+            for (i = 0; i < free_length; ++i) {
+                make_child(ap_server_conf, free_slots[i]);
+            }
+            /* the next time around we want to spawn twice as many if this
+             * wasn't good enough, but not if we've just done a graceful
+             */
+            if (hold_off_on_exponential_spawning) {
+                --hold_off_on_exponential_spawning;
+            }
+            else if (idle_spawn_rate < MAX_SPAWN_RATE) {
+                idle_spawn_rate *= 2;
+            }
         }
-
-        /*
-         * We either have finished successfully or we failed.
-         * So bail out
-         */
-        if ((result == CMD_AJP13_END_RESPONSE)
-                || backend_failed || client_failed)
-            break;
-
-        /* read the response */
-        status = ajp_read_header(conn->sock, r, maxsize,
-                                 (ajp_msg_t **)&(conn->data));
-        if (status != APR_SUCCESS) {
-            backend_failed = 1;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                         "ajp_read_header failed");
-            break;
-        }
-        result = ajp_parse_type(r, conn->data);
-    }
-    apr_brigade_destroy(input_brigade);
-
-    /*
-     * Clear output_brigade to remove possible buckets that remained there
-     * after an error.
-     */
-    apr_brigade_cleanup(output_brigade);
-
-    if (backend_failed || client_failed) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Processing of request failed backend: %i, client: %i",
-                     backend_failed, client_failed);
-        /* We had a failure: Close connection to backend */
-        conn->close = 1;
-        if (data_sent) {
-            /* Return DONE to avoid error messages being added to the stream */
-            rv = DONE;
-        }
-    }
-    else if (!request_ended) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: Processing of request didn't terminate cleanly");
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        backend_failed = 1;
-        if (data_sent) {
-            /* Return DONE to avoid error messages being added to the stream */
-            rv = DONE;
-        }
-    }
-    else if (!conn_reuse) {
-        /* Our backend signalled connection close */
-        conn->close++;
     }
     else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: got response from %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-
-        if (psf->error_override && ap_is_HTTP_ERROR(r->status)) {
-            /* clear r->status for override error, otherwise ErrorDocument
-             * thinks that this is a recursive error, and doesn't find the
-             * custom error page
-             */
-            rv = r->status;
-            r->status = HTTP_OK;
-        } else {
-            rv = OK;
-        }
+      idle_spawn_rate = 1;
     }
-
-    if (backend_failed) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: dialog to %pI (%s) failed",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        /*
-         * If we already send data, signal a broken backend connection
-         * upwards in the chain.
-         */
-        if (data_sent) {
-            ap_proxy_backend_broke(r, output_brigade);
-        } else if (!send_body && (is_idempotent(r) == METHOD_IDEMPOTENT)) {
-            /*
-             * This is only non fatal when we have not sent (parts) of a possible
-             * request body so far (we do not store it and thus cannot sent it
-             * again) and the method is idempotent. In this case we can dare to
-             * retry it with a different worker if we are a balancer member.
-             */
-            rv = HTTP_SERVICE_UNAVAILABLE;
-        } else {
-            rv = HTTP_INTERNAL_SERVER_ERROR;
-        }
-    }
-    else if (client_failed) {
-        int level = (r->connection->aborted) ? APLOG_DEBUG : APLOG_ERR;
-        ap_log_error(APLOG_MARK, level, status, r->server,
-                     "dialog with client %pI failed",
-                     r->connection->remote_addr);
-        if (rv == OK) {
-            rv = HTTP_BAD_REQUEST;
-        }
-    }
-
-    /*
-     * Ensure that we sent an EOS bucket thru the filter chain, if we already
-     * have sent some data. Maybe ap_proxy_backend_broke was called and added
-     * one to the brigade already (no longer making it empty). So we should
-     * not do this in this case.
-     */
-    if (data_sent && !r->eos_sent && !r->connection->aborted
-            && APR_BRIGADE_EMPTY(output_brigade)) {
-        e = apr_bucket_eos_create(r->connection->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-    }
-
-    /* If we have added something to the brigade above, send it */
-    if (!APR_BRIGADE_EMPTY(output_brigade)
-        && ap_pass_brigade(r->output_filters, output_brigade) != APR_SUCCESS) {
-        rv = AP_FILTER_ERROR;
-    }
-
-    apr_brigade_destroy(output_brigade);
-
-    return rv;
 }

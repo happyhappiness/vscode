@@ -1,1 +1,1 @@
-(INFO_GTE(MISC, 2);
+out_of_memory("send_implied_dirs");

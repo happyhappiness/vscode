@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+die("remote-curl: fetch attempted without a local repo");

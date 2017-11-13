@@ -1,1 +1,0 @@
-printf(" %s ", diff_aligned_abbrev(&p->oid, opt->abbrev));

@@ -1,11 +1,10 @@
 fputs(
-"       --socks5-hostname <host[:port]>\n"
-"              Use the specified SOCKS5 proxy (and let the  proxy  resolve  the\n"
-"              host  name).  If the port number is not specified, it is assumed\n"
-"              at port 1080.\n"
+"              used instead of the method otherwise  used  (which  defaults  to\n"
+"              GET).  Read  the HTTP 1.1 specification for details and explana-\n"
+"              tions. Common additional HTTP requests include PUT  and  DELETE,\n"
+"              but related technologies like WebDAV offers PROPFIND, COPY, MOVE\n"
+"              and more.\n"
 "\n"
-"              This option overrides any previous use of -x, --proxy,  as  they\n"
-"              are mutually exclusive.\n"
-"\n"
-"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              Normally you don't need this option. All  sorts  of  GET,  HEAD,\n"
+"              POST and PUT requests are rather invoked by using dedicated com-\n"
 , stdout);

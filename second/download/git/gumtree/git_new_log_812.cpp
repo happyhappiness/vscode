@@ -1,1 +1,1 @@
-error("new object is the same as the old one: '%s'", oid_to_hex(&old));
+warning("ignoring alternate with restricted protocol: %s", url);

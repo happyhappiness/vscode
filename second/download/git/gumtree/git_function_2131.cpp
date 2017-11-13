@@ -1,37 +1,66 @@
-int main(int argc, const char **argv)
+static void builtin_diffstat(const char *name_a, const char *name_b,
+			     struct diff_filespec *one,
+			     struct diff_filespec *two,
+			     struct diffstat_t *diffstat,
+			     struct diff_options *o,
+			     struct diff_filepair *p)
 {
-	const char *socket_path;
-	int ignore_sighup = 0;
-	static const char *usage[] = {
-		"git-credential-cache--daemon [opts] <socket_path>",
-		NULL
-	};
-	int debug = 0;
-	const struct option options[] = {
-		OPT_BOOL(0, "debug", &debug,
-			 N_("print debugging messages to stderr")),
-		OPT_END()
-	};
+	mmfile_t mf1, mf2;
+	struct diffstat_file *data;
+	int same_contents;
+	int complete_rewrite = 0;
 
-	git_config_get_bool("credentialcache.ignoresighup", &ignore_sighup);
+	if (!DIFF_PAIR_UNMERGED(p)) {
+		if (p->status == DIFF_STATUS_MODIFIED && p->score)
+			complete_rewrite = 1;
+	}
 
-	argc = parse_options(argc, argv, NULL, options, usage, 0);
-	socket_path = argv[0];
+	data = diffstat_add(diffstat, name_a, name_b);
+	data->is_interesting = p->status != DIFF_STATUS_UNKNOWN;
 
-	if (!socket_path)
-		usage_with_options(usage, options);
+	if (!one || !two) {
+		data->is_unmerged = 1;
+		return;
+	}
 
-	if (!is_absolute_path(socket_path))
-		die("socket directory must be an absolute path");
+	same_contents = !hashcmp(one->sha1, two->sha1);
 
-	init_socket_directory(socket_path);
-	register_tempfile(&socket_file, socket_path);
+	if (diff_filespec_is_binary(one) || diff_filespec_is_binary(two)) {
+		data->is_binary = 1;
+		if (same_contents) {
+			data->added = 0;
+			data->deleted = 0;
+		} else {
+			data->added = diff_filespec_size(two);
+			data->deleted = diff_filespec_size(one);
+		}
+	}
 
-	if (ignore_sighup)
-		signal(SIGHUP, SIG_IGN);
+	else if (complete_rewrite) {
+		diff_populate_filespec(one, 0);
+		diff_populate_filespec(two, 0);
+		data->deleted = count_lines(one->data, one->size);
+		data->added = count_lines(two->data, two->size);
+	}
 
-	serve_cache(socket_path, debug);
-	delete_tempfile(&socket_file);
+	else if (!same_contents) {
+		/* Crazy xdl interfaces.. */
+		xpparam_t xpp;
+		xdemitconf_t xecfg;
 
-	return 0;
+		if (fill_mmfile(&mf1, one) < 0 || fill_mmfile(&mf2, two) < 0)
+			die("unable to read files to diff");
+
+		memset(&xpp, 0, sizeof(xpp));
+		memset(&xecfg, 0, sizeof(xecfg));
+		xpp.flags = o->xdl_opts;
+		xecfg.ctxlen = o->context;
+		xecfg.interhunkctxlen = o->interhunkcontext;
+		if (xdi_diff_outf(&mf1, &mf2, diffstat_consume, diffstat,
+				  &xpp, &xecfg))
+			die("unable to generate diffstat for %s", one->path);
+	}
+
+	diff_free_filespec_data(one);
+	diff_free_filespec_data(two);
 }

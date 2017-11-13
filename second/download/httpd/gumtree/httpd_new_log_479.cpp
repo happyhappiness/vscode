@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, apr_get_os_error(), r,
-                          "ISAPI: HSE_STATUS_ERROR result from "
-                          "HttpExtensionProc(): %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "[%d] ldap connection: Setting connection timeout to %ld seconds.", 
+                      getpid(), st->connectionTimeout);

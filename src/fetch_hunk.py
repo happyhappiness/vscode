@@ -91,7 +91,7 @@ def deal_file_diff( file_diff_info, file_diff, log_function, total_log_hunk, tot
 
     # deal with last hunk, if has log update
     total_hunk += 1
-    print 'now processing hunk %d' %(total_hunk),
+    print 'now processing hunk %d' %(total_hunk)
     if len(old_log_loc) != 0 or len(new_log_loc) != 0:
         total_log_hunk, old_hunk_name, new_hunk_name, patch_hunk_name = store_hunk(old_hunk, new_hunk, patch_hunk, total_log_hunk)
         writer.writerow(file_diff_info + [patch_hunk_name, old_hunk_name, new_hunk_name, \
@@ -184,7 +184,7 @@ def fetch_version_diff(is_recreate=False):
         total_log_hunk, total_hunk = deal_version_diff(version_diff_file, log_function, total_log_hunk, total_hunk, hunk_writer)
     # close file and output analysis result
     hunk_file.close()
-    commands.getoutput('echo #' + my_constant.REPOS + ': log hunk, hunk >> data/evaluate/statistics.txt')
+    commands.getoutput('echo ' + my_constant.REPOS + ': log hunk, hunk >> data/evaluate/statistics.txt')
     commands.getoutput('echo ' + str(total_log_hunk) + ',' + str(total_hunk) + ' >> data/evaluate/statistics.txt')
 
 

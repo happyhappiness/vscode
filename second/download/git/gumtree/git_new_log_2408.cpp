@@ -1,1 +1,1 @@
-error_errno("cannot open %s", filename ? filename : "NULL");
+fputs(oid_to_hex(&commit->object.oid), stdout);

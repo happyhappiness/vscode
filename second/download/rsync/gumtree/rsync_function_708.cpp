@@ -1,31 +1,54 @@
-void glob_expand(char *base1, char ***argv_ptr, int *argc_ptr, int *maxargs_ptr)
-{
-	char *s = (*argv_ptr)[*argc_ptr];
-	char *p, *q;
-	char *base = base1;
-	int base_len = strlen(base);
+static void singleOptionHelp(FILE * f, int maxLeftCol, 
+			     const struct poptOption * opt,
+			     const char *translation_domain) {
+    int indentLength = maxLeftCol + 5;
+    int lineLength = 79 - indentLength;
+    const char * help = D_(translation_domain, opt->descrip);
+    int helpLength;
+    const char * ch;
+    char format[10];
+    char * left;
+    const char * argDescrip = getArgDescrip(opt, translation_domain);
 
-	if (!s || !*s)
-		return;
+    left = malloc(maxLeftCol + 1);
+    *left = '\0';
 
-	if (strncmp(s, base, base_len) == 0)
-		s += base_len;
+    if (opt->longName && opt->shortName)
+	sprintf(left, "-%c, --%s", opt->shortName, opt->longName);
+    else if (opt->shortName) 
+	sprintf(left, "-%c", opt->shortName);
+    else if (opt->longName)
+	sprintf(left, "--%s", opt->longName);
+    if (!*left) return ;
+    if (argDescrip) {
+	strcat(left, "=");
+	strcat(left, argDescrip);
+    }
 
-	if (!(s = strdup(s)))
-		out_of_memory("glob_expand");
+    if (help)
+	fprintf(f,"  %-*s   ", maxLeftCol, left);
+    else {
+	fprintf(f,"  %s\n", left); 
+	goto out;
+    }
 
-	if (asprintf(&base," %s/", base1) <= 0)
-		out_of_memory("glob_expand");
-	base_len++;
+    helpLength = strlen(help);
+    while (helpLength > lineLength) {
+	ch = help + lineLength - 1;
+	while (ch > help && !isspace(*ch)) ch--;
+	if (ch == help) break;		/* give up */
+	while (ch > (help + 1) && isspace(*ch)) ch--;
+	ch++;
 
-	for (q = s; *q; q = p + base_len) {
-		if ((p = strstr(q, base)) != NULL)
-			*p = '\0'; /* split it at this point */
-		glob_expand_one(q, argv_ptr, argc_ptr, maxargs_ptr);
-		if (!p)
-			break;
-	}
+	sprintf(format, "%%.%ds\n%%%ds", (int) (ch - help), indentLength);
+	fprintf(f, format, help, " ");
+	help = ch;
+	while (isspace(*help) && *help) help++;
+	helpLength = strlen(help);
+    }
 
-	free(s);
-	free(base);
+    if (helpLength) fprintf(f, "%s\n", help);
+
+out:
+    free(left);
 }

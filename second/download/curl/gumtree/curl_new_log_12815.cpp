@@ -1,8 +1,11 @@
 fputs(
-"              to  establish  the  network  connection.  It does NOT affect the\n"
-"              hostname/port that is used for TLS/SSL  (e.g.  SNI,  certificate\n"
-"              verification)  or  for  the  application  protocols.  \"host\" and\n"
-"              \"port\" may be the empty string, meaning \"any host/port\".   \"con-\n"
-"              nect-to-host\"  and  \"connect-to-port\"  may  also  be  the  empty\n"
-"              string, meaning \"use the request's  original  host/port\".   This\n"
+"              should  ever  get  hurt  by attempting to reuse SSL session-IDs,\n"
+"              there seem to be broken SSL implementations in the wild that may\n"
+"              require  you to disable this in order for you to succeed. (Added\n"
+"              in 7.16.0)\n"
+"\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --sessionid to enforce session-ID caching.\n"
+"\n"
+"       --noproxy <no-proxy-list>\n"
 , stdout);

@@ -1,1 +1,1 @@
-die("No path in gitfile: %s", path);
+die("BUG: have_old is true but old_sha1 is NULL");

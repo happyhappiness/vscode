@@ -1,55 +1,65 @@
-static const char *
-    set_proxy_dirconn(cmd_parms *parms, void *dummy, const char *arg)
+apr_status_t mpm_service_start(apr_pool_t *ptemp, int argc,
+                               const char * const * argv)
 {
-    server_rec *s = parms->server;
-    proxy_server_conf *conf =
-    ap_get_module_config(s->module_config, &proxy_module);
-    struct dirconn_entry *New;
-    struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-    int found = 0;
-    int i;
+    apr_status_t rv;
+    CHAR **start_argv;
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
 
-    /* Don't duplicate entries */
-    for (i = 0; i < conf->dirconn->nelts; i++) {
-        if (strcasecmp(arg, list[i].name) == 0) {
-            found = 1;
-            break;
-        }
+    fprintf(stderr,"Starting the %s service\n", mpm_display_name);
+
+    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                 SC_MANAGER_CONNECT);
+    if (!schSCManager) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00375)
+                     "Failed to open the WinNT service manager");
+        return (rv);
     }
 
-    if (!found) {
-        New = apr_array_push(conf->dirconn);
-        New->name = apr_pstrdup(parms->pool, arg);
-        New->hostaddr = NULL;
-
-        if (ap_proxy_is_ipaddr(New, parms->pool)) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed addr %s", inet_ntoa(New->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed mask %s", inet_ntoa(New->mask));
-#endif
-        }
-        else if (ap_proxy_is_domainname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed domain %s", New->name);
-#endif
-        }
-        else if (ap_proxy_is_hostname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed host %s", New->name);
-#endif
-        }
-        else {
-            ap_proxy_is_word(New, parms->pool);
-#if DEBUGGING
-            fprintf(stderr, "Parsed word %s\n", New->name);
-#endif
-        }
+    /* ###: utf-ize */
+    schService = OpenService(schSCManager, mpm_service_name,
+                             SERVICE_START | SERVICE_QUERY_STATUS);
+    if (!schService) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00376)
+                     "%s: Failed to open the service.", mpm_display_name);
+        CloseServiceHandle(schSCManager);
+        return (rv);
     }
-    return NULL;
+
+    if (QueryServiceStatus(schService, &globdat.ssStatus)
+        && (globdat.ssStatus.dwCurrentState == SERVICE_RUNNING)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL, APLOGNO(00377)
+                     "Service %s is already started!", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return 0;
+    }
+
+    start_argv = malloc((argc + 1) * sizeof(const char **));
+    memcpy(start_argv, argv, argc * sizeof(const char **));
+    start_argv[argc] = NULL;
+
+    rv = APR_EINIT;
+    /* ###: utf-ize */
+    if (StartService(schService, argc, start_argv)
+        && signal_service_transition(schService, 0, /* test only */
+                                     SERVICE_START_PENDING,
+                                     SERVICE_RUNNING))
+        rv = APR_SUCCESS;
+    if (rv != APR_SUCCESS)
+        rv = apr_get_os_error();
+
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
+
+    if (rv == APR_SUCCESS)
+        fprintf(stderr,"The %s service is running.\n", mpm_display_name);
+    else
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00378)
+                     "%s: Failed to start the service process.",
+                     mpm_display_name);
+
+    return rv;
 }

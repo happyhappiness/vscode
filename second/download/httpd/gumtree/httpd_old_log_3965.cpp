@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                             "proxy: could not set 100-Continue timeout");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "could not open forensic log file %s.", fname);

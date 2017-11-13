@@ -1,1 +1,1 @@
-rprintf(FERROR,"fork: %s\n",strerror(errno));
+rprintf(FINFO,"recv mapped %s of size %d\n",fname,(int)st.st_size);

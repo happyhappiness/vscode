@@ -1,1 +1,1 @@
-die(_("positive width expected with the %%(align) atom"));
+die(_("malformed field name: %.*s"), (int)(ep-atom), atom);

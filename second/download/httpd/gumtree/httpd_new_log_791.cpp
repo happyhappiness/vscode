@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                     "Cannot open SSLSessionCache DBM file `%s' for status "
-                     "retrival",
-                     mc->szSessionCacheDataFile);
+ap_rvputs(r, "</td><td>", worker->s->route, NULL);

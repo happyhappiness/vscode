@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00785)
-                     "Failed to create Memcache Object of '%d' size.",
-                     nservers);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: checking dn match %s", dn);

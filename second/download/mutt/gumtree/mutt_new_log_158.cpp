@@ -1,1 +1,1 @@
-state_puts (_("Warning: The signature expired at: "), s);
+mutt_yesorno (tmp, MUTT_YES);

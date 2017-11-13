@@ -1,1 +1,1 @@
-die("missing blob object '%s'", oid_to_hex(&obj->oid));
+die("loose refname is dangerous: %s", refname.buf);

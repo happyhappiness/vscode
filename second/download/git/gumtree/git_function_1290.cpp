@@ -1,79 +1,74 @@
-static CURL *get_curl_handle(void)
+static off_t write_reuse_object(struct sha1file *f, struct object_entry *entry,
+				unsigned long limit, int usable_delta)
 {
-	CURL *result = curl_easy_init();
+	struct packed_git *p = entry->in_pack;
+	struct pack_window *w_curs = NULL;
+	struct revindex_entry *revidx;
+	off_t offset;
+	enum object_type type = entry->type;
+	off_t datalen;
+	unsigned char header[MAX_PACK_OBJECT_HEADER],
+		      dheader[MAX_PACK_OBJECT_HEADER];
+	unsigned hdrlen;
 
-	if (!result)
-		die("curl_easy_init failed");
+	if (entry->delta)
+		type = (allow_ofs_delta && entry->delta->idx.offset) ?
+			OBJ_OFS_DELTA : OBJ_REF_DELTA;
+	hdrlen = encode_in_pack_object_header(header, sizeof(header),
+					      type, entry->size);
 
-	if (!curl_ssl_verify) {
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 0);
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 0);
+	offset = entry->in_pack_offset;
+	revidx = find_pack_revindex(p, offset);
+	datalen = revidx[1].offset - offset;
+	if (!pack_to_stdout && p->index_version > 1 &&
+	    check_pack_crc(p, &w_curs, offset, datalen, revidx->nr)) {
+		error("bad packed object CRC for %s", sha1_to_hex(entry->idx.sha1));
+		unuse_pack(&w_curs);
+		return write_no_reuse_object(f, entry, limit, usable_delta);
+	}
+
+	offset += entry->in_pack_header_size;
+	datalen -= entry->in_pack_header_size;
+
+	if (!pack_to_stdout && p->index_version == 1 &&
+	    check_pack_inflate(p, &w_curs, offset, datalen, entry->size)) {
+		error("corrupt packed object for %s", sha1_to_hex(entry->idx.sha1));
+		unuse_pack(&w_curs);
+		return write_no_reuse_object(f, entry, limit, usable_delta);
+	}
+
+	if (type == OBJ_OFS_DELTA) {
+		off_t ofs = entry->idx.offset - entry->delta->idx.offset;
+		unsigned pos = sizeof(dheader) - 1;
+		dheader[pos] = ofs & 127;
+		while (ofs >>= 7)
+			dheader[--pos] = 128 | (--ofs & 127);
+		if (limit && hdrlen + sizeof(dheader) - pos + datalen + 20 >= limit) {
+			unuse_pack(&w_curs);
+			return 0;
+		}
+		sha1write(f, header, hdrlen);
+		sha1write(f, dheader + pos, sizeof(dheader) - pos);
+		hdrlen += sizeof(dheader) - pos;
+		reused_delta++;
+	} else if (type == OBJ_REF_DELTA) {
+		if (limit && hdrlen + 20 + datalen + 20 >= limit) {
+			unuse_pack(&w_curs);
+			return 0;
+		}
+		sha1write(f, header, hdrlen);
+		sha1write(f, entry->delta->idx.sha1, 20);
+		hdrlen += 20;
+		reused_delta++;
 	} else {
-		/* Verify authenticity of the peer's certificate */
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 1);
-		/* The name in the cert must match whom we tried to connect */
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 2);
+		if (limit && hdrlen + datalen + 20 >= limit) {
+			unuse_pack(&w_curs);
+			return 0;
+		}
+		sha1write(f, header, hdrlen);
 	}
-
-#if LIBCURL_VERSION_NUM >= 0x070907
-	curl_easy_setopt(result, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
-#endif
-#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
-	curl_easy_setopt(result, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
-#endif
-
-	if (http_proactive_auth)
-		init_curl_http_auth(result);
-
-	if (ssl_cert != NULL)
-		curl_easy_setopt(result, CURLOPT_SSLCERT, ssl_cert);
-	if (has_cert_password())
-		curl_easy_setopt(result, CURLOPT_KEYPASSWD, cert_auth.password);
-#if LIBCURL_VERSION_NUM >= 0x070903
-	if (ssl_key != NULL)
-		curl_easy_setopt(result, CURLOPT_SSLKEY, ssl_key);
-#endif
-#if LIBCURL_VERSION_NUM >= 0x070908
-	if (ssl_capath != NULL)
-		curl_easy_setopt(result, CURLOPT_CAPATH, ssl_capath);
-#endif
-	if (ssl_cainfo != NULL)
-		curl_easy_setopt(result, CURLOPT_CAINFO, ssl_cainfo);
-
-	if (curl_low_speed_limit > 0 && curl_low_speed_time > 0) {
-		curl_easy_setopt(result, CURLOPT_LOW_SPEED_LIMIT,
-				 curl_low_speed_limit);
-		curl_easy_setopt(result, CURLOPT_LOW_SPEED_TIME,
-				 curl_low_speed_time);
-	}
-
-	curl_easy_setopt(result, CURLOPT_FOLLOWLOCATION, 1);
-#if LIBCURL_VERSION_NUM >= 0x071301
-	curl_easy_setopt(result, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
-#elif LIBCURL_VERSION_NUM >= 0x071101
-	curl_easy_setopt(result, CURLOPT_POST301, 1);
-#endif
-
-	if (getenv("GIT_CURL_VERBOSE"))
-		curl_easy_setopt(result, CURLOPT_VERBOSE, 1);
-
-	curl_easy_setopt(result, CURLOPT_USERAGENT,
-		user_agent ? user_agent : git_user_agent());
-
-	if (curl_ftp_no_epsv)
-		curl_easy_setopt(result, CURLOPT_FTP_USE_EPSV, 0);
-
-#ifdef CURLOPT_USE_SSL
-	if (curl_ssl_try)
-		curl_easy_setopt(result, CURLOPT_USE_SSL, CURLUSESSL_TRY);
-#endif
-
-	if (curl_http_proxy) {
-		curl_easy_setopt(result, CURLOPT_PROXY, curl_http_proxy);
-		curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-	}
-
-	set_curl_keepalive(result);
-
-	return result;
+	copy_pack_data(f, p, &w_curs, offset, datalen);
+	unuse_pack(&w_curs);
+	reused++;
+	return hdrlen + datalen;
 }

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01275)
-                      "Can't open directory for index: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01636)
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

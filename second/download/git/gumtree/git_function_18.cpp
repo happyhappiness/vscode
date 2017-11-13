@@ -1,14 +1,12 @@
-int error_resolve_conflict(const char *me)
+static struct commit *check_commit(struct object *obj,
+				   const unsigned char *sha1,
+				   int quiet)
 {
-	error("'%s' is not possible because you have unmerged files.", me);
-	if (advice_resolve_conflict)
-		/*
-		 * Message used both when 'git commit' fails and when
-		 * other commands doing a merge do.
-		 */
-		advise(_("Fix them up in the work tree,\n"
-			 "and then use 'git add/rm <file>' as\n"
-			 "appropriate to mark resolution and make a commit,\n"
-			 "or use 'git commit -a'."));
-	return -1;
+	if (obj->type != OBJ_COMMIT) {
+		if (!quiet)
+			error("Object %s is a %s, not a commit",
+			      sha1_to_hex(sha1), typename(obj->type));
+		return NULL;
+	}
+	return (struct commit *) obj;
 }

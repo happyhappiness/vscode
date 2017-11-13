@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: Content-Type set to %s", r->content_type);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s is not executable; ensure interpreted scripts have "
+                      "\"#!\" or \"'!\" first line", *cmd);

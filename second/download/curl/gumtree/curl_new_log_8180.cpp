@@ -1,10 +1,10 @@
 fputs(
-"              Displays information about curl and the libcurl version it uses.\n"
-"              The  first  line  includes the full version of curl, libcurl and\n"
-"              other 3rd party libraries linked with the executable.\n"
+"              (HTTP/FTP)  Request a file that has been modified later than the\n"
+"              given time and date, or one that has been modified  before  that\n"
+"              time.  The <date expression> can be all sorts of date strings or\n"
+"              if it doesn't match any internal ones, it is taken as a filename\n"
+"              and  tries  to  get  the  modification  date (mtime) from <file>\n"
+"              instead. See the curl_getdate(3) man pages for  date  expression\n"
+"              details.\n"
 "\n"
-"              The second line (starts with \"Protocols:\") shows  all  protocols\n"
-"              that libcurl reports to support.\n"
-"\n"
-"              The third line (starts with \"Features:\") shows specific features\n"
 , stdout);

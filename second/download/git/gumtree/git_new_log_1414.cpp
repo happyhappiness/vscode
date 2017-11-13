@@ -1,1 +1,1 @@
-error("%s", err.buf);
+die("BUG: commit called on a closed reference transaction");

@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00146) "%s", msg);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01864)
+                      "query execution error removing session '%s' "
+                      "from database", key);

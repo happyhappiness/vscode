@@ -1,1 +1,1 @@
-out_of_memory("parse_arguments");
+fprintf(out, "local const z_crc_t FAR ");

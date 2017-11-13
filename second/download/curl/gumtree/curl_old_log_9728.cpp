@@ -1,9 +1,12 @@
 fputs(
-"              mand  line,  the  data  pieces specified will be merged together\n"
-"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"              nects within the given period it will continue - if not it  will\n"
+"              exit.  Since version 7.32.0, this option accepts decimal values.\n"
 "\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              file  name  to read the data from, or - if you want curl to read\n"
+"              See also the -m, --max-time option.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --create-dirs\n"
+"              When  used  in  conjunction with the -o option, curl will create\n"
+"              the necessary local directory hierarchy as needed.  This  option\n"
 , stdout);

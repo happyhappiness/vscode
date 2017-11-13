@@ -1,1 +1,1 @@
-die(_("invalid mode for object creation: %s"), value);
+error_errno(_("Cannot open patch file %s"), filename.buf);

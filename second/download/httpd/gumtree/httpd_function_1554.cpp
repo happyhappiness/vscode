@@ -1,202 +1,417 @@
-apr_status_t cache_generate_key_default(request_rec *r, apr_pool_t* p,
-                                        char**key)
+static apr_status_t deflate_in_filter(ap_filter_t *f,
+                                      apr_bucket_brigade *bb,
+                                      ap_input_mode_t mode,
+                                      apr_read_type_e block,
+                                      apr_off_t readbytes)
 {
-    cache_server_conf *conf;
-    cache_request_rec *cache;
-    char *port_str, *hn, *lcs;
-    const char *hostname, *scheme;
-    int i;
-    char *path, *querystring;
+    apr_bucket *bkt;
+    request_rec *r = f->r;
+    deflate_ctx *ctx = f->ctx;
+    int zRC;
+    apr_status_t rv;
+    deflate_filter_config *c;
+    deflate_dirconf_t *dc;
+    apr_off_t inflate_limit;
 
-    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
-                                                       &cache_module);
-    if (!cache) {
-        /* This should never happen */
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "cache: No cache request information available for key"
-                     " generation");
-        *key = "";
-        return APR_EGENERAL;
+    /* just get out of the way of things we don't want. */
+    if (mode != AP_MODE_READBYTES) {
+        return ap_get_brigade(f->next, bb, mode, block, readbytes);
     }
-    if (cache->key) {
-        /*
-         * We have been here before during the processing of this request.
-         * So return the key we already have.
+
+    c = ap_get_module_config(r->server->module_config, &deflate_module);
+    dc = ap_get_module_config(r->per_dir_config, &deflate_module);
+
+    if (!ctx || ctx->header_len < sizeof(ctx->header)) {
+        apr_size_t len;
+
+        if (!ctx) {
+            /* only work on main request/no subrequests */
+            if (!ap_is_initial_req(r)) {
+                ap_remove_input_filter(f);
+                return ap_get_brigade(f->next, bb, mode, block, readbytes);
+            }
+
+            /* We can't operate on Content-Ranges */
+            if (apr_table_get(r->headers_in, "Content-Range") != NULL) {
+                ap_remove_input_filter(f);
+                return ap_get_brigade(f->next, bb, mode, block, readbytes);
+            }
+
+            /* Check whether request body is gzipped.
+             *
+             * If it is, we're transforming the contents, invalidating
+             * some request headers including Content-Encoding.
+             *
+             * If not, we just remove ourself.
+             */
+            if (check_gzip(r, r->headers_in, NULL) == 0) {
+                ap_remove_input_filter(f);
+                return ap_get_brigade(f->next, bb, mode, block, readbytes);
+            }
+
+            f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
+            ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+            ctx->proc_bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+            ctx->buffer = apr_palloc(r->pool, c->bufferSize);
+        }
+
+        do {
+            apr_brigade_cleanup(ctx->bb);
+
+            len = sizeof(ctx->header) - ctx->header_len;
+            rv = ap_get_brigade(f->next, ctx->bb, AP_MODE_READBYTES, block,
+                                len);
+
+            /* ap_get_brigade may return success with an empty brigade for
+             * a non-blocking read which would block (an empty brigade for
+             * a blocking read is an issue which is simply forwarded here).
+             */
+            if (rv != APR_SUCCESS || APR_BRIGADE_EMPTY(ctx->bb)) {
+                return rv;
+            }
+
+            /* zero length body? step aside */
+            bkt = APR_BRIGADE_FIRST(ctx->bb);
+            if (APR_BUCKET_IS_EOS(bkt)) {
+                if (ctx->header_len) {
+                    /* If the header was (partially) read it's an error, this
+                     * is not a gzip Content-Encoding, as claimed.
+                     */
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Encountered premature end-of-stream while "
+                                  "reading inflate header");
+                    return APR_EGENERAL;
+                }
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_INSERT_TAIL(bb, bkt);
+                ap_remove_input_filter(f);
+                return APR_SUCCESS;
+            }
+
+            rv = apr_brigade_flatten(ctx->bb,
+                                     ctx->header + ctx->header_len, &len);
+            if (rv != APR_SUCCESS) {
+                return rv;
+            }
+            if (len && !ctx->header_len) {
+                apr_table_unset(r->headers_in, "Content-Length");
+                apr_table_unset(r->headers_in, "Content-MD5");
+            }
+            ctx->header_len += len;
+
+        } while (ctx->header_len < sizeof(ctx->header));
+
+        /* We didn't get the magic bytes. */
+        if (ctx->header[0] != deflate_magic[0] ||
+            ctx->header[1] != deflate_magic[1]) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Zlib: Invalid header");
+            return APR_EGENERAL;
+        }
+
+        ctx->zlib_flags = ctx->header[3];
+        if ((ctx->zlib_flags & RESERVED)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Zlib: Invalid flags %02x", ctx->zlib_flags);
+            return APR_EGENERAL;
+        }
+
+        zRC = inflateInit2(&ctx->stream, c->windowSize);
+
+        if (zRC != Z_OK) {
+            f->ctx = NULL;
+            inflateEnd(&ctx->stream);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "unable to init Zlib: "
+                          "inflateInit2 returned %d: URL %s",
+                          zRC, r->uri);
+            ap_remove_input_filter(f);
+            return ap_get_brigade(f->next, bb, mode, block, readbytes);
+        }
+
+        /* initialize deflate output buffer */
+        ctx->stream.next_out = ctx->buffer;
+        ctx->stream.avail_out = c->bufferSize;
+
+        apr_brigade_cleanup(ctx->bb);
+    }
+
+    inflate_limit = dc->inflate_limit; 
+    if (inflate_limit == 0) { 
+        /* The core is checking the deflated body, we'll check the inflated */
+        inflate_limit = ap_get_limit_req_body(f->r);
+    }
+
+    if (APR_BRIGADE_EMPTY(ctx->proc_bb)) {
+        rv = ap_get_brigade(f->next, ctx->bb, mode, block, readbytes);
+
+        /* Don't terminate on EAGAIN (or success with an empty brigade in
+         * non-blocking mode), just return focus.
          */
-        *key = apr_pstrdup(p, cache->key);
-        return APR_SUCCESS;
-    }
-
-    /*
-     * Get the module configuration. We need this for the CacheIgnoreQueryString
-     * option below.
-     */
-    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
-                                                      &cache_module);
-
-    /*
-     * Use the canonical name to improve cache hit rate, but only if this is
-     * not a proxy request or if this is a reverse proxy request.
-     * We need to handle both cases in the same manner as for the reverse proxy
-     * case we have the following situation:
-     *
-     * If a cached entry is looked up by mod_cache's quick handler r->proxyreq
-     * is still unset in the reverse proxy case as it only gets set in the
-     * translate name hook (either by ProxyPass or mod_rewrite) which is run
-     * after the quick handler hook. This is different to the forward proxy
-     * case where it gets set before the quick handler is run (in the
-     * post_read_request hook).
-     * If a cache entry is created by the CACHE_SAVE filter we always have
-     * r->proxyreq set correctly.
-     * So we must ensure that in the reverse proxy case we use the same code
-     * path and using the canonical name seems to be the right thing to do
-     * in the reverse proxy case.
-     */
-    if (!r->proxyreq || (r->proxyreq == PROXYREQ_REVERSE)) {
-        /* Use _default_ as the hostname if none present, as in mod_vhost */
-        hostname =  ap_get_server_name(r);
-        if (!hostname) {
-            hostname = "_default_";
+        if (block == APR_NONBLOCK_READ
+                && (APR_STATUS_IS_EAGAIN(rv)
+                    || (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(ctx->bb)))) {
+            return rv;
         }
-    }
-    else if(r->parsed_uri.hostname) {
-        /* Copy the parsed uri hostname */
-        hn = apr_pstrdup(p, r->parsed_uri.hostname);
-        ap_str_tolower(hn);
-        /* const work-around */
-        hostname = hn;
-    }
-    else {
-        /* We are a proxied request, with no hostname. Unlikely
-         * to get very far - but just in case */
-        hostname = "_default_";
-    }
-
-    /*
-     * Copy the scheme, ensuring that it is lower case. If the parsed uri
-     * contains no string or if this is not a proxy request get the http
-     * scheme for this request. As r->parsed_uri.scheme is not set if this
-     * is a reverse proxy request, it is ensured that the cases
-     * "no proxy request" and "reverse proxy request" are handled in the same
-     * manner (see above why this is needed).
-     */
-    if (r->proxyreq && r->parsed_uri.scheme) {
-        /* Copy the scheme and lower-case it */
-        lcs = apr_pstrdup(p, r->parsed_uri.scheme);
-        ap_str_tolower(lcs);
-        /* const work-around */
-        scheme = lcs;
-    }
-    else {
-        scheme = ap_http_scheme(r);
-    }
-
-    /*
-     * If this is a proxy request, but not a reverse proxy request (see comment
-     * above why these cases must be handled in the same manner), copy the
-     * URI's port-string (which may be a service name). If the URI contains
-     * no port-string, use apr-util's notion of the default port for that
-     * scheme - if available. Otherwise use the port-number of the current
-     * server.
-     */
-    if(r->proxyreq && (r->proxyreq != PROXYREQ_REVERSE)) {
-        if (r->parsed_uri.port_str) {
-            port_str = apr_pcalloc(p, strlen(r->parsed_uri.port_str) + 2);
-            port_str[0] = ':';
-            for (i = 0; r->parsed_uri.port_str[i]; i++) {
-                port_str[i + 1] = apr_tolower(r->parsed_uri.port_str[i]);
-            }
+        if (rv != APR_SUCCESS) {
+            inflateEnd(&ctx->stream);
+            return rv;
         }
-        else if (apr_uri_port_of_scheme(scheme)) {
-            port_str = apr_psprintf(p, ":%u", apr_uri_port_of_scheme(scheme));
-        }
-        else {
-            /* No port string given in the AbsoluteUri, and we have no
-             * idea what the default port for the scheme is. Leave it
-             * blank and live with the inefficiency of some extra cached
-             * entities.
-             */
-            port_str = "";
-        }
-    }
-    else {
-        /* Use the server port */
-        port_str = apr_psprintf(p, ":%u", ap_get_server_port(r));
-    }
 
-    /*
-     * Check if we need to ignore session identifiers in the URL and do so
-     * if needed.
-     */
-    path = r->uri;
-    querystring = r->parsed_uri.query;
-    if (conf->ignore_session_id->nelts) {
-        int i;
-        char **identifier;
+        for (bkt = APR_BRIGADE_FIRST(ctx->bb);
+             bkt != APR_BRIGADE_SENTINEL(ctx->bb);
+             bkt = APR_BUCKET_NEXT(bkt))
+        {
+            const char *data;
+            apr_size_t len;
 
-        identifier = (char **)conf->ignore_session_id->elts;
-        for (i = 0; i < conf->ignore_session_id->nelts; i++, identifier++) {
-            int len;
-            char *param;
+            /* If we actually see the EOS, that means we screwed up! */
+            if (APR_BUCKET_IS_EOS(bkt)) {
+                if (!ctx->done) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Encountered premature end-of-stream while inflating");
+                    return APR_EGENERAL;
+                }
 
-            len = strlen(*identifier);
-            /*
-             * Check that we have a parameter separator in the last segment
-             * of the path and that the parameter matches our identifier
-             */
-            if ((param = strrchr(path, ';'))
-                && !strncmp(param + 1, *identifier, len)
-                && (*(param + len + 1) == '=')
-                && !strchr(param + len + 2, '/')) {
-                path = apr_pstrndup(p, path, param - path);
+                /* Move everything to the returning brigade. */
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
                 break;
             }
-            /*
-             * Check if the identifier is in the querystring and cut it out.
-             */
-            if (querystring
-                && (param = strstr(querystring, *identifier))
-                && (*(param + len) == '=')
-                ) {
-                char *amp;
 
-                if (querystring != param) {
-                    querystring = apr_pstrndup(p, querystring,
-                                               param - querystring);
+            if (APR_BUCKET_IS_FLUSH(bkt)) {
+                apr_bucket *tmp_b;
+                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
+                if (zRC != Z_OK) {
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                  "Zlib error %d inflating data (%s)", zRC,
+                                  ctx->stream.msg);
+                    inflateEnd(&ctx->stream);
+                    return APR_EGENERAL;
                 }
-                else {
-                    querystring = "";
+
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+ 
+                ctx->inflate_total += len;
+                if (inflate_limit && ctx->inflate_total > inflate_limit) { 
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
+                            "Inflated content length of %" APR_OFF_T_FMT
+                            " is larger than the configured limit"
+                            " of %" APR_OFF_T_FMT, 
+                            ctx->inflate_total, inflate_limit);
+                    return APR_ENOSPC;
                 }
-                if ((amp = strchr(param + len + 1, '&'))) {
-                    querystring = apr_pstrcat(p, querystring, amp + 1, NULL);
-                }
-                break;
+
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                tmp_b = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_b);
+                ctx->stream.avail_out = c->bufferSize;
+
+                /* Flush everything so far in the returning brigade, but continue
+                 * reading should EOS/more follow (don't lose them).
+                 */
+                tmp_b = APR_BUCKET_PREV(bkt);
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
+                bkt = tmp_b;
+                continue;
             }
+
+            /* sanity check - data after completed compressed body and before eos? */
+            if (ctx->done) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Encountered extra data after compressed data");
+                return APR_EGENERAL;
+            }
+
+            /* read */
+            apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
+            if (!len) {
+                continue;
+            }
+            if (len > APR_INT32_MAX) {
+                apr_bucket_split(bkt, APR_INT32_MAX);
+                apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
+            }
+
+            if (ctx->zlib_flags) {
+                rv = consume_zlib_flags(ctx, &data, &len);
+                if (rv == APR_SUCCESS) {
+                    ctx->zlib_flags = 0;
+                }
+                if (!len) {
+                    continue;
+                }
+            }
+
+            /* pass through zlib inflate. */
+            ctx->stream.next_in = (unsigned char *)data;
+            ctx->stream.avail_in = (int)len;
+
+            zRC = Z_OK;
+
+            if (!ctx->validation_buffer) {
+                while (ctx->stream.avail_in != 0) {
+                    if (ctx->stream.avail_out == 0) {
+                        apr_bucket *tmp_heap;
+                        ctx->stream.next_out = ctx->buffer;
+                        len = c->bufferSize - ctx->stream.avail_out;
+
+                        ctx->inflate_total += len;
+                        if (inflate_limit && ctx->inflate_total > inflate_limit) { 
+                            inflateEnd(&ctx->stream);
+                            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                    "Inflated content length of %" APR_OFF_T_FMT
+                                    " is larger than the configured limit"
+                                    " of %" APR_OFF_T_FMT, 
+                                    ctx->inflate_total, inflate_limit);
+                            return APR_ENOSPC;
+                        }
+
+                        if (!check_ratio(r, ctx, dc)) {
+                            inflateEnd(&ctx->stream);
+                            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
+                                    "Inflated content ratio is larger than the "
+                                    "configured limit %i by %i time(s)",
+                                    dc->ratio_limit, dc->ratio_burst);
+                            return APR_EINVAL;
+                        }
+
+                        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                        tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                          NULL, f->c->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                        ctx->stream.avail_out = c->bufferSize;
+                    }
+
+                    zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+
+                    if (zRC == Z_STREAM_END) {
+                        ctx->validation_buffer = apr_pcalloc(r->pool,
+                                                             VALIDATION_SIZE);
+                        ctx->validation_buffer_length = 0;
+                        break;
+                    }
+
+                    if (zRC != Z_OK) {
+                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                      "Zlib error %d inflating data (%s)", zRC,
+                                      ctx->stream.msg);
+                        inflateEnd(&ctx->stream);
+                        return APR_EGENERAL;
+                    }
+                }
+            }
+
+            if (ctx->validation_buffer) {
+                apr_bucket *tmp_heap;
+                apr_size_t avail, valid;
+                unsigned char *buf = ctx->validation_buffer;
+
+                avail = ctx->stream.avail_in;
+                valid = (apr_size_t)VALIDATION_SIZE -
+                         ctx->validation_buffer_length;
+
+                /*
+                 * We have inflated all data. Now try to capture the
+                 * validation bytes. We may not have them all available
+                 * right now, but capture what is there.
+                 */
+                if (avail < valid) {
+                    memcpy(buf + ctx->validation_buffer_length,
+                           ctx->stream.next_in, avail);
+                    ctx->validation_buffer_length += avail;
+                    continue;
+                }
+                memcpy(buf + ctx->validation_buffer_length,
+                       ctx->stream.next_in, valid);
+                ctx->validation_buffer_length += valid;
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "Zlib: Inflated %ld to %ld : URL %s",
+                              ctx->stream.total_in, ctx->stream.total_out,
+                              r->uri);
+
+                len = c->bufferSize - ctx->stream.avail_out;
+
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                  NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                ctx->stream.avail_out = c->bufferSize;
+
+                {
+                    unsigned long compCRC, compLen;
+                    compCRC = getLong(buf);
+                    if (ctx->crc != compCRC) {
+                        inflateEnd(&ctx->stream);
+                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                      "Zlib: CRC error inflating data");
+                        return APR_EGENERAL;
+                    }
+                    compLen = getLong(buf + VALIDATION_SIZE / 2);
+                    /* gzip stores original size only as 4 byte value */
+                    if ((ctx->stream.total_out & 0xFFFFFFFF) != compLen) {
+                        inflateEnd(&ctx->stream);
+                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                      "Zlib: Length %ld of inflated data does "
+                                      "not match expected value %ld",
+                                      ctx->stream.total_out, compLen);
+                        return APR_EGENERAL;
+                    }
+                }
+
+                inflateEnd(&ctx->stream);
+
+                ctx->done = 1;
+
+                /* Did we have trailing data behind the closing 8 bytes? */
+                if (avail > valid) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Encountered extra data after compressed data");
+                    return APR_EGENERAL;
+                }
+            }
+
+        }
+        apr_brigade_cleanup(ctx->bb);
+    }
+
+    /* If we are about to return nothing for a 'blocking' read and we have
+     * some data in our zlib buffer, flush it out so we can return something.
+     */
+    if (block == APR_BLOCK_READ &&
+            APR_BRIGADE_EMPTY(ctx->proc_bb) &&
+            ctx->stream.avail_out < c->bufferSize) {
+        apr_bucket *tmp_heap;
+        apr_size_t len;
+        ctx->stream.next_out = ctx->buffer;
+        len = c->bufferSize - ctx->stream.avail_out;
+
+        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+        tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                          NULL, f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+        ctx->stream.avail_out = c->bufferSize;
+    }
+
+    if (!APR_BRIGADE_EMPTY(ctx->proc_bb)) {
+        apr_bucket_brigade *newbb;
+
+        /* May return APR_INCOMPLETE which is fine by us. */
+        apr_brigade_partition(ctx->proc_bb, readbytes, &bkt);
+
+        newbb = apr_brigade_split(ctx->proc_bb, bkt);
+        APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
+        APR_BRIGADE_CONCAT(ctx->proc_bb, newbb);
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
+            ap_remove_input_filter(f);
         }
     }
-
-    /* Key format is a URI, optionally without the query-string */
-    if (conf->ignorequerystring) {
-        *key = apr_pstrcat(p, scheme, "://", hostname, port_str,
-                           path, "?", NULL);
-    }
-    else {
-        *key = apr_pstrcat(p, scheme, "://", hostname, port_str,
-                           path, "?", querystring, NULL);
-    }
-
-    /*
-     * Store the key in the request_config for the cache as r->parsed_uri
-     * might have changed in the time from our first visit here triggered by the
-     * quick handler and our possible second visit triggered by the CACHE_SAVE
-     * filter (e.g. r->parsed_uri got unescaped). In this case we would save the
-     * resource in the cache under a key where it is never found by the quick
-     * handler during following requests.
-     */
-    cache->key = apr_pstrdup(r->pool, *key);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                 "cache: Key for entity %s?%s is %s", r->uri,
-                 r->parsed_uri.query, *key);
 
     return APR_SUCCESS;
 }

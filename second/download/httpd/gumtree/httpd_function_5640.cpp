@@ -1,71 +1,65 @@
-static int fcgi_do_request(apr_pool_t *p, request_rec *r,
-                           proxy_conn_rec *conn,
-                           conn_rec *origin,
-                           proxy_dir_conf *conf,
-                           apr_uri_t *uri,
-                           char *url, char *server_portstr)
+apr_status_t mpm_service_start(apr_pool_t *ptemp, int argc,
+                               const char * const * argv)
 {
-    /* Request IDs are arbitrary numbers that we assign to a
-     * single request. This would allow multiplex/pipelining of
-     * multiple requests to the same FastCGI connection, but
-     * we don't support that, and always use a value of '1' to
-     * keep things simple. */
-    apr_uint16_t request_id = 1;
     apr_status_t rv;
-    apr_pool_t *temp_pool;
-    const char *err;
-    int bad_request = 0,
-        has_responded = 0;
+    CHAR **start_argv;
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
 
-    /* Step 1: Send AP_FCGI_BEGIN_REQUEST */
-    rv = send_begin_request(conn, request_id);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01073)
-                      "Failed Writing Request to %s:", server_portstr);
-        conn->close = 1;
-        return HTTP_SERVICE_UNAVAILABLE;
+    fprintf(stderr,"Starting the %s service\n", mpm_display_name);
+
+    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                 SC_MANAGER_CONNECT);
+    if (!schSCManager) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00375)
+                     "Failed to open the WinNT service manager");
+        return (rv);
     }
 
-    apr_pool_create(&temp_pool, r->pool);
-
-    /* Step 2: Send Environment via FCGI_PARAMS */
-    rv = send_environment(conn, r, temp_pool, request_id);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01074)
-                      "Failed writing Environment to %s:", server_portstr);
-        conn->close = 1;
-        return HTTP_SERVICE_UNAVAILABLE;
+    /* ###: utf-ize */
+    schService = OpenService(schSCManager, mpm_service_name,
+                             SERVICE_START | SERVICE_QUERY_STATUS);
+    if (!schService) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00376)
+                     "%s: Failed to open the service.", mpm_display_name);
+        CloseServiceHandle(schSCManager);
+        return (rv);
     }
 
-    /* Step 3: Read records from the back end server and handle them. */
-    rv = dispatch(conn, conf, r, temp_pool, request_id,
-                  &err, &bad_request, &has_responded);
-    if (rv != APR_SUCCESS) {
-        /* If the client aborted the connection during retrieval or (partially)
-         * sending the response, don't return a HTTP_SERVICE_UNAVAILABLE, since
-         * this is not a backend problem. */
-        if (r->connection->aborted) {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, rv, r, 
-                          "The client aborted the connection.");
-            conn->close = 1;
-            return OK;
-        }
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01075)
-                      "Error dispatching request to %s: %s%s%s",
-                      server_portstr,
-                      err ? "(" : "",
-                      err ? err : "",
-                      err ? ")" : "");
-        conn->close = 1;
-        if (has_responded) {
-            return AP_FILTER_ERROR;
-        }
-        if (bad_request) {
-            return ap_map_http_request_error(rv, HTTP_BAD_REQUEST);
-        }
-        return HTTP_SERVICE_UNAVAILABLE;
+    if (QueryServiceStatus(schService, &globdat.ssStatus)
+        && (globdat.ssStatus.dwCurrentState == SERVICE_RUNNING)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL, APLOGNO(00377)
+                     "Service %s is already started!", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return 0;
     }
 
-    return OK;
+    start_argv = malloc((argc + 1) * sizeof(const char **));
+    memcpy(start_argv, argv, argc * sizeof(const char **));
+    start_argv[argc] = NULL;
+
+    rv = APR_EINIT;
+    /* ###: utf-ize */
+    if (StartService(schService, argc, start_argv)
+        && signal_service_transition(schService, 0, /* test only */
+                                     SERVICE_START_PENDING,
+                                     SERVICE_RUNNING))
+        rv = APR_SUCCESS;
+    if (rv != APR_SUCCESS)
+        rv = apr_get_os_error();
+
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
+
+    if (rv == APR_SUCCESS)
+        fprintf(stderr,"The %s service is running.\n", mpm_display_name);
+    else
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00378)
+                     "%s: Failed to start the service process.",
+                     mpm_display_name);
+
+    return rv;
 }

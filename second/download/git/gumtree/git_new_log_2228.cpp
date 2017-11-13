@@ -1,1 +1,2 @@
-fprintf_ln(stderr, "    git pull %s %s", _("<remote>"), _("<branch>"));
+die_errno("failed to write to %s",
+				  get_lock_file_path(shallow_lock));

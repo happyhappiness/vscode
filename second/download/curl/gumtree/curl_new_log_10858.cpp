@@ -1,11 +1,10 @@
 fputs(
-"              appended to the URL with a HEAD request.\n"
+"              (FTP) Tell curl to send a PRET command before PASV  (and  EPSV).\n"
+"              Certain  FTP  servers,  mainly drftpd, require this non-standard\n"
+"              command for directory listings as well as up  and  downloads  in\n"
+"              PASV mode.  (Added in 7.20.x)\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.  This is because undoing a GET doesn't make sense, but you\n"
-"              should then instead enforce the alternative method you prefer.\n"
-"\n"
-"       -H, --header <header>\n"
-"              (HTTP) Extra header to include in the request when sending  HTTP\n"
-"              to  a  server. You may specify any number of extra headers. Note\n"
+"       --ftp-ssl-ccc\n"
+"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
+"              layer after authenticating. The rest of the control channel com-\n"
 , stdout);

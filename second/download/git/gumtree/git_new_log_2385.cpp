@@ -1,1 +1,1 @@
-error_errno("short read");
+printf("%s\n", oid_to_hex(&result->item->object.oid));

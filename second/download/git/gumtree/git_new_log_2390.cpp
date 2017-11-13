@@ -1,1 +1,1 @@
-die(_("invalid value for %s"), var);
+printf(_("Updating %s..%s\n"), from, to);

@@ -1,70 +1,50 @@
-static apr_status_t vm_construct(void **vm, void *params, apr_pool_t *lifecycle_pool)
-{
-    lua_State* L;
-
-    ap_lua_vm_spec *spec = params;
-
-    L = luaL_newstate();
-#ifdef AP_ENABLE_LUAJIT
-    luaopen_jit(L);
-#endif
-    luaL_openlibs(L);
-    if (spec->package_paths) {
-        munge_path(L, 
-                   "path", "?.lua", "./?.lua", 
-                   lifecycle_pool,
-                   spec->package_paths, 
-                   spec->file);
+apr_status_t h2_ngn_shed_pull_task(h2_ngn_shed *shed, 
+                                   h2_req_engine *ngn, 
+                                   apr_uint32_t capacity, 
+                                   int want_shutdown,
+                                   h2_task **ptask)
+{   
+    h2_ngn_entry *entry;
+    
+    AP_DEBUG_ASSERT(ngn);
+    *ptask = NULL;
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
+                  "h2_ngn_shed(%ld): pull task for engine %s, shutdown=%d", 
+                  shed->c->id, ngn->id, want_shutdown);
+    if (shed->aborted) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, shed->c,
+                      "h2_ngn_shed(%ld): abort while pulling requests %s", 
+                      shed->c->id, ngn->id);
+        ngn->shutdown = 1;
+        return APR_ECONNABORTED;
     }
-    if (spec->package_cpaths) {
-        munge_path(L, "cpath", "?.so", "./?.so", lifecycle_pool,
-            spec->package_cpaths, spec->file);
-    }
-
-    if (spec->cb) {
-        spec->cb(L, lifecycle_pool, spec->cb_arg);
-    }
-
-
-    if (spec->bytecode && spec->bytecode_len > 0) {
-        luaL_loadbuffer(L, spec->bytecode, spec->bytecode_len, spec->file);
-        lua_pcall(L, 0, LUA_MULTRET, 0);
-    }
-    else {
-        int rc;
-        ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(01481)
-            "loading lua file %s", spec->file);
-        rc = luaL_loadfile(L, spec->file);
-        if (rc != 0) {
-            char *err;
-            switch (rc) {
-                case LUA_ERRSYNTAX:
-                    err = "syntax error";
-                    break;
-                case LUA_ERRMEM:
-                    err = "memory allocation error";
-                    break;
-                case LUA_ERRFILE:
-                    err = "error opening or reading file";
-                    break;
-                default:
-                    err = "unknown error";
-                    break;
-            }
-            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(01482)
-                "Loading lua file %s: %s",
-                spec->file, err);
-            return APR_EBADF;
+    
+    ngn->capacity = capacity;
+    if (H2_REQ_ENTRIES_EMPTY(&ngn->entries)) {
+        if (want_shutdown) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
+                          "h2_ngn_shed(%ld): emtpy queue, shutdown engine %s", 
+                          shed->c->id, ngn->id);
+            ngn->shutdown = 1;
         }
-        lua_pcall(L, 0, LUA_MULTRET, 0);
+        return ngn->shutdown? APR_EOF : APR_EAGAIN;
     }
-
-#ifdef AP_ENABLE_LUAJIT
-    loadjitmodule(L, lifecycle_pool);
-#endif
-    lua_pushlightuserdata(L, lifecycle_pool);
-    lua_setfield(L, LUA_REGISTRYINDEX, "Apache2.Wombat.pool");
-    *vm = L;
-
-    return APR_SUCCESS;
+    
+    if ((entry = pop_detached(ngn))) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, entry->task->c,
+                      "h2_ngn_shed(%ld): pulled request %s for engine %s", 
+                      shed->c->id, entry->task->id, ngn->id);
+        ngn->no_live++;
+        *ptask = entry->task;
+        entry->task->assigned = ngn;
+        return APR_SUCCESS;
+    }
+    
+    if (1) {
+        h2_ngn_entry *entry = H2_REQ_ENTRIES_FIRST(&ngn->entries);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
+                      "h2_ngn_shed(%ld): pull task, nothing, first task %s", 
+                      shed->c->id, entry->task->id);
+    }
+    return APR_EAGAIN;
 }

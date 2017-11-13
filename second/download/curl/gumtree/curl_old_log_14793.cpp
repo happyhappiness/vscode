@@ -1,11 +1,10 @@
 fputs(
-"              forest in your setup for example.\n"
+"              there is no file part in the specified URL, curl will append the\n"
+"              local file name. NOTE that you must use a trailing / on the last\n"
+"              directory  to really prove to Curl that there is no file name or\n"
+"              curl will think that your last directory name is the remote file\n"
+"              name to use. That will most likely cause the upload operation to\n"
+"              fail. If this is used on an HTTP(S) server, the PUT command will\n"
+"              be used.\n"
 "\n"
-"              To  specify  the domain name use either Down-Level Logon Name or\n"
-"              UPN (User Principal Name) formats. For example, EXAMPLE\\user and\n"
-"              user@example.com respectively.\n"
-"\n"
-"              If  you  use a Windows SSPI-enabled curl binary and perform Ker-\n"
-"              beros V5, Negotiate, NTLM or Digest authentication then you  can\n"
-"              tell  curl  to select the user name and password from your envi-\n"
 , stdout);

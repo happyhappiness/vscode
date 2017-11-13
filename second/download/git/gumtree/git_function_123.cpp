@@ -1,47 +1,32 @@
-static int log_ref_write(const char *refname, const unsigned char *old_sha1,
-			 const unsigned char *new_sha1, const char *msg)
+static const char *parse_cmd_verify(struct strbuf *input, const char *next)
 {
-	int logfd, result, written, oflags = O_APPEND | O_WRONLY;
-	unsigned maxlen, len;
-	int msglen;
-	char log_file[PATH_MAX];
-	char *logrec;
-	const char *committer;
+	char *refname;
+	unsigned char new_sha1[20];
+	unsigned char old_sha1[20];
+	int have_old;
 
-	if (log_all_ref_updates < 0)
-		log_all_ref_updates = !is_bare_repository();
+	refname = parse_refname(input, &next);
+	if (!refname)
+		die("verify: missing <ref>");
 
-	result = log_ref_setup(refname, log_file, sizeof(log_file));
-	if (result)
-		return result;
-
-	logfd = open(log_file, oflags);
-	if (logfd < 0)
-		return 0;
-	msglen = msg ? strlen(msg) : 0;
-	committer = git_committer_info(0);
-	maxlen = strlen(committer) + msglen + 100;
-	logrec = xmalloc(maxlen);
-	len = sprintf(logrec, "%s %s %s\n",
-		      sha1_to_hex(old_sha1),
-		      sha1_to_hex(new_sha1),
-		      committer);
-	if (msglen)
-		len += copy_msg(logrec + len - 1, msg) - 1;
-	written = len <= maxlen ? write_in_full(logfd, logrec, len) : -1;
-	free(logrec);
-	if (written != len) {
-		int save_errno = errno;
-		close(logfd);
-		error("Unable to append to %s", log_file);
-		errno = save_errno;
-		return -1;
+	if (parse_next_sha1(input, &next, old_sha1, "verify", refname,
+			    PARSE_SHA1_OLD)) {
+		hashclr(new_sha1);
+		have_old = 0;
+	} else {
+		hashcpy(new_sha1, old_sha1);
+		have_old = 1;
 	}
-	if (close(logfd)) {
-		int save_errno = errno;
-		error("Unable to append to %s", log_file);
-		errno = save_errno;
-		return -1;
-	}
-	return 0;
+
+	if (*next != line_termination)
+		die("verify %s: extra input: %s", refname, next);
+
+	if (ref_transaction_update(transaction, refname, new_sha1, old_sha1,
+				   update_flags, have_old, &err))
+		die("%s", err.buf);
+
+	update_flags = 0;
+	free(refname);
+
+	return next;
 }

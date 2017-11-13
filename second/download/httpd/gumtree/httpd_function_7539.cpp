@@ -1,10 +1,7 @@
-static char *xstrdup(const char *s)
+static int abort_on_oom(int retcode)
 {
-    char *ret = strdup(s);
-    if (ret == NULL) {
-        fprintf(stderr, "Could not allocate memory (%"
-                APR_SIZE_T_FMT " bytes)\n", strlen(s));
-        exit(1);
-    }
-    return ret;
+    fprintf(stderr, "Could not allocate memory\n");
+    exit(1);
+    /* not reached */
+    return retcode;
 }

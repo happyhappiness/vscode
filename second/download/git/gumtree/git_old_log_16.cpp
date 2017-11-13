@@ -1,2 +1,2 @@
-error("Object %s is a %s, not a tag",
-		      sha1_to_hex(sha1), typename(obj->type));
+die("Expected commit for '%s', got %s",
+			    sha1_to_hex(commit->object.sha1), typename(type));

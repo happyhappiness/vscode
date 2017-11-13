@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -w                : hold open the console window on error");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "could not split line from buffered SSL brigade");

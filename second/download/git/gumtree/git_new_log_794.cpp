@@ -1,4 +1,2 @@
-printf("M %06o %s ", spec->mode,
-				       sha1_to_hex(anonymize ?
-						   anonymize_sha1(&spec->oid) :
-						   spec->oid.hash));
+usage_msg_opt(_("--abort expects no arguments"),
+			      builtin_merge_usage, builtin_merge_options);

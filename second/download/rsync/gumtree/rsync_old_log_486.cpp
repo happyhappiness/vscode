@@ -1,1 +1,1 @@
-fprintf(FINFO,"done hash search\n");
+fprintf(f,"-S, --sparse             handle sparse files efficiently\n");

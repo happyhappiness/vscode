@@ -1,2 +1,1 @@
-error("copy-fd: write returned %s",
-					     strerror(write_error));
+printf("%s %s\n", sha1_to_hex(note_sha1), sha1_to_hex(object_sha1));

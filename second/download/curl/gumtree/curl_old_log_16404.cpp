@@ -1,11 +1,11 @@
 fputs(
-"              proxy, you can set proxy to \"\" to override it.\n"
+"              Tells curl to limit what protocols it may use on redirect.  Pro-\n"
+"              tocols  denied by --proto are not overridden by this option. See\n"
+"              --proto for how protocols are represented.\n"
 "\n"
-"              All operations that are performed over an HTTP proxy will trans-\n"
-"              parently be converted to HTTP. It means  that  certain  protocol\n"
-"              specific operations might not be available. This is not the case\n"
-"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
-"              ytunnel option.\n"
+"              Example, allow only HTTP and HTTPS on redirect:\n"
 "\n"
-"              User and password that might be provided in the proxy string are\n"
+"               curl --proto-redir -all,http,https http://example.com\n"
+"\n"
+"              By default curl will allow all protocols on redirect except sev-\n"
 , stdout);

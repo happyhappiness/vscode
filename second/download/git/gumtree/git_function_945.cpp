@@ -1,34 +1,30 @@
-static void prepare_cmd(struct argv_array *out, const struct child_process *cmd)
+static int is_alternate_allowed(const char *url)
 {
-	if (!cmd->argv[0])
-		die("BUG: command is empty");
+	const char *protocols[] = {
+		"http", "https", "ftp", "ftps"
+	};
+	int i;
 
-	/*
-	 * Add SHELL_PATH so in the event exec fails with ENOEXEC we can
-	 * attempt to interpret the command with 'sh'.
-	 */
-	argv_array_push(out, SHELL_PATH);
-
-	if (cmd->git_cmd) {
-		argv_array_push(out, "git");
-		argv_array_pushv(out, cmd->argv);
-	} else if (cmd->use_shell) {
-		prepare_shell_cmd(out, cmd->argv);
-	} else {
-		argv_array_pushv(out, cmd->argv);
+	if (http_follow_config != HTTP_FOLLOW_ALWAYS) {
+		warning("alternate disabled by http.followRedirects: %s", url);
+		return 0;
 	}
 
-	/*
-	 * If there are no '/' characters in the command then perform a path
-	 * lookup and use the resolved path as the command to exec.  If there
-	 * are no '/' characters or if the command wasn't found in the path,
-	 * have exec attempt to invoke the command directly.
-	 */
-	if (!strchr(out->argv[1], '/')) {
-		char *program = locate_in_PATH(out->argv[1]);
-		if (program) {
-			free((char *)out->argv[1]);
-			out->argv[1] = program;
-		}
+	for (i = 0; i < ARRAY_SIZE(protocols); i++) {
+		const char *end;
+		if (skip_prefix(url, protocols[i], &end) &&
+		    starts_with(end, "://"))
+			break;
 	}
+
+	if (i >= ARRAY_SIZE(protocols)) {
+		warning("ignoring alternate with unknown protocol: %s", url);
+		return 0;
+	}
+	if (!is_transport_allowed(protocols[i], 0)) {
+		warning("ignoring alternate with restricted protocol: %s", url);
+		return 0;
+	}
+
+	return 1;
 }

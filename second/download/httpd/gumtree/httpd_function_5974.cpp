@@ -1,20 +1,29 @@
-static int h2_h2_late_fixups(request_rec *r)
+apr_status_t h2_conn_run(struct h2_ctx *ctx, conn_rec *c)
 {
-    /* slave connection? */
-    if (r->connection->master) {
-        h2_ctx *ctx = h2_ctx_rget(r);
-        struct h2_task *task = h2_ctx_get_task(ctx);
-        if (task) {
-            /* check if we copy vs. setaside files in this location */
-            task->output.copy_files = h2_config_geti(h2_config_rget(r), 
-                                                     H2_CONF_COPY_FILES);
-            if (task->output.copy_files) {
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                              "h2_slave_out(%s): copy_files on", task->id);
-                h2_beam_on_file_beam(task->output.beam, h2_beam_no_files, NULL);
-            }
-            check_push(r, "late_fixup");
+    apr_status_t status;
+    int mpm_state = 0;
+    
+    do {
+        if (c->cs) {
+            c->cs->sense = CONN_SENSE_DEFAULT;
         }
-    }
-    return DECLINED;
+        status = h2_session_process(h2_ctx_session_get(ctx), async_mpm);
+        
+        if (APR_STATUS_IS_EOF(status)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03045)
+                          "h2_session(%ld): process, closing conn", c->id);
+            c->keepalive = AP_CONN_CLOSE;
+        }
+        else {
+            c->keepalive = AP_CONN_KEEPALIVE;
+        }
+        
+        if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state)) {
+            break;
+        }
+    } while (!async_mpm
+             && c->keepalive == AP_CONN_KEEPALIVE 
+             && mpm_state != AP_MPMQ_STOPPING);
+    
+    return DONE;
 }

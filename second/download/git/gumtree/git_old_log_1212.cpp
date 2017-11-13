@@ -1,1 +1,1 @@
-die("Not a valid object name %s", obj_name);
+printf("committer-time %lu\n", ci.committer_time);

@@ -1,30 +1,33 @@
-int cmd_verify_tag(int argc, const char **argv, const char *prefix)
+static void prune_worktrees(void)
 {
-	int i = 1, verbose = 0, had_error = 0;
-	unsigned flags = 0;
-	const struct option verify_tag_options[] = {
-		OPT__VERBOSE(&verbose, N_("print tag contents")),
-		OPT_BIT(0, "raw", &flags, N_("print raw gpg status output"), GPG_VERIFY_RAW),
-		OPT_END()
-	};
-
-	git_config(git_verify_tag_config, NULL);
-
-	argc = parse_options(argc, argv, prefix, verify_tag_options,
-			     verify_tag_usage, PARSE_OPT_KEEP_ARGV0);
-	if (argc <= i)
-		usage_with_options(verify_tag_usage, verify_tag_options);
-
-	if (verbose)
-		flags |= GPG_VERIFY_VERBOSE;
-
-	while (i < argc) {
-		unsigned char sha1[20];
-		const char *name = argv[i++];
-		if (get_sha1(name, sha1))
-			had_error = !!error("tag '%s' not found.", name);
-		else if (gpg_verify_tag(sha1, name, flags))
-			had_error = 1;
+	struct strbuf reason = STRBUF_INIT;
+	struct strbuf path = STRBUF_INIT;
+	DIR *dir = opendir(git_path("worktrees"));
+	struct dirent *d;
+	int ret;
+	if (!dir)
+		return;
+	while ((d = readdir(dir)) != NULL) {
+		if (!strcmp(d->d_name, ".") || !strcmp(d->d_name, ".."))
+			continue;
+		strbuf_reset(&reason);
+		if (!prune_worktree(d->d_name, &reason))
+			continue;
+		if (show_only || verbose)
+			printf("%s\n", reason.buf);
+		if (show_only)
+			continue;
+		strbuf_reset(&path);
+		strbuf_addstr(&path, git_path("worktrees/%s", d->d_name));
+		ret = remove_dir_recursively(&path, 0);
+		if (ret < 0 && errno == ENOTDIR)
+			ret = unlink(path.buf);
+		if (ret)
+			error(_("failed to remove: %s"), strerror(errno));
 	}
-	return had_error;
+	closedir(dir);
+	if (!show_only)
+		rmdir(git_path("worktrees"));
+	strbuf_release(&reason);
+	strbuf_release(&path);
 }

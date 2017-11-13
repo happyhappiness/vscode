@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: Unknown module '%s'\n", line);
+out_of_memory("receive_sums");

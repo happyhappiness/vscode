@@ -1,3 +1,2 @@
-fprintf(stderr, "[%s] [crit] (%d) %s: %s failed "
-                        "to initial context, exiting\n", 
-                        ctimebuff, stat, (*argv)[0], failed);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                     "SSL connection destroyed without being closed");

@@ -1,2 +1,1 @@
-warnf(config,
-                    "fcntl failed on fd=%d: %s\n", infd, strerror(errno));
+fputs("\n", config->global->errors);

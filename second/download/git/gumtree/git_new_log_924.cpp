@@ -1,1 +1,1 @@
-die(_("ls-tree returned unexpected return code %d"), code);
+error("invalid key: %s", key);

@@ -1,145 +1,54 @@
-apr_status_t h2_task_input_read(h2_task_input *input,
-                                ap_filter_t* f,
-                                apr_bucket_brigade* bb,
-                                ap_input_mode_t mode,
-                                apr_read_type_e block,
-                                apr_off_t readbytes)
+static const char *check_macro_arguments(apr_pool_t * pool,
+                                         const ap_macro_t * macro)
 {
-    apr_status_t status = APR_SUCCESS;
-    apr_off_t bblen = 0;
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_task_input(%s): read, block=%d, mode=%d, readbytes=%ld", 
-                  input->task->id, block, mode, (long)readbytes);
-    
-    if (mode == AP_MODE_INIT) {
-        return ap_get_brigade(f->c->input_filters, bb, mode, block, readbytes);
-    }
-    
-    if (is_aborted(f)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task_input(%s): is aborted", input->task->id);
-        return APR_ECONNABORTED;
-    }
-    
-    if (input->bb) {
-        status = apr_brigade_length(input->bb, 1, &bblen);
-        if (status != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, f->c,
-                          APLOGNO(02958) "h2_task_input(%s): brigade length fail", 
-                          input->task->id);
-            return status;
+    char **tab = (char **) macro->arguments->elts;
+    int nelts = macro->arguments->nelts;
+    int i;
+
+    for (i = 0; i < nelts; i++) {
+        size_t ltabi = strlen(tab[i]);
+        int j;
+
+        if (ltabi == 0) {
+            return apr_psprintf(pool,
+                                "macro '%s' (%s): empty argument #%d name",
+                                macro->name, macro->location, i + 1);
         }
-    }
-    
-    if ((bblen == 0) && input->task->input_eos) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task_input(%s): eos", input->task->id);
-        return APR_EOF;
-    }
-    
-    while (bblen == 0) {
-        /* Get more data for our stream from mplx.
-         */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      input->task->id, block, 
-                      (long)readbytes, (long)bblen);
-        
-        /* Override the block mode we get called with depending on the input's
-         * setting. 
-         */
-        status = h2_mplx_in_read(input->task->mplx, block,
-                                 input->task->stream_id, input->bb, 
-                                 f->r? f->r->trailers_in : NULL, 
-                                 input->task->io);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): mplx in read returned",
-                      input->task->id);
-        if (APR_STATUS_IS_EAGAIN(status) 
-            && (mode == AP_MODE_GETLINE || block == APR_BLOCK_READ)) {
-            /* chunked input handling does not seem to like it if we
-             * return with APR_EAGAIN from a GETLINE read... 
-             * upload 100k test on test-ser.example.org hangs */
-            status = APR_SUCCESS;
+        else if (!looks_like_an_argument(tab[i])) {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
+                         "macro '%s' (%s) "
+                         "argument name '%s' (#%d) without expected prefix, "
+                         "better prefix argument names with one of '%s'.",
+                         macro->name, macro->location,
+                         tab[i], i + 1, ARG_PREFIX);
         }
-        else if (status != APR_SUCCESS) {
-            return status;
-        }
-        
-        status = apr_brigade_length(input->bb, 1, &bblen);
-        if (status != APR_SUCCESS) {
-            return status;
-        }
-        
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): mplx in read, %ld bytes in brigade",
-                      input->task->id, (long)bblen);
-        if (h2_task_logio_add_bytes_in) {
-            h2_task_logio_add_bytes_in(f->c, bblen);
-        }
-    }
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                  "h2_task_input(%s): read, mode=%d, block=%d, "
-                  "readbytes=%ld, queued=%ld",
-                  input->task->id, mode, block, 
-                  (long)readbytes, (long)bblen);
-           
-    if (!APR_BRIGADE_EMPTY(input->bb)) {
-        if (mode == AP_MODE_EXHAUSTIVE) {
-            /* return all we have */
-            status = h2_util_move(bb, input->bb, readbytes, NULL, 
-                                  "task_input_read(exhaustive)");
-        }
-        else if (mode == AP_MODE_READBYTES) {
-            status = h2_util_move(bb, input->bb, readbytes, NULL, 
-                                  "task_input_read(readbytes)");
-        }
-        else if (mode == AP_MODE_SPECULATIVE) {
-            /* return not more than was asked for */
-            status = h2_util_copy(bb, input->bb, readbytes,  
-                                  "task_input_read(speculative)");
-        }
-        else if (mode == AP_MODE_GETLINE) {
-            /* we are reading a single LF line, e.g. the HTTP headers */
-            status = apr_brigade_split_line(bb, input->bb, block, 
-                                            HUGE_STRING_LEN);
-            if (APLOGctrace1(f->c)) {
-                char buffer[1024];
-                apr_size_t len = sizeof(buffer)-1;
-                apr_brigade_flatten(bb, buffer, &len);
-                buffer[len] = 0;
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                              "h2_task_input(%s): getline: %s",
-                              input->task->id, buffer);
+
+        for (j = i + 1; j < nelts; j++) {
+            size_t ltabj = strlen(tab[j]);
+
+            /* must not use the same argument name twice */
+            if (!strcmp(tab[i], tab[j])) {
+                return apr_psprintf(pool,
+                                   "argument name conflict in macro '%s' (%s): "
+                                    "argument '%s': #%d and #%d, "
+                                    "change argument names!",
+                                    macro->name, macro->location,
+                                    tab[i], i + 1, j + 1);
+            }
+
+            /* warn about common prefix, but only if non empty names */
+            if (ltabi && ltabj &&
+                !strncmp(tab[i], tab[j], ltabi < ltabj ? ltabi : ltabj)) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING,
+                             0, NULL,
+                             "macro '%s' (%s): "
+                            "argument name prefix conflict (%s #%d and %s #%d),"
+                             " be careful about your macro definition!",
+                             macro->name, macro->location,
+                             tab[i], i + 1, tab[j], j + 1);
             }
         }
-        else {
-            /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
-             * to support it. Seems to work. */
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                          APLOGNO(02942) 
-                          "h2_task_input, unsupported READ mode %d", mode);
-            status = APR_ENOTIMPL;
-        }
-        
-        if (APLOGctrace1(f->c)) {
-            apr_brigade_length(bb, 0, &bblen);
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                          "h2_task_input(%s): return %ld data bytes",
-                          input->task->id, (long)bblen);
-        }
-        return status;
     }
-    
-    if (is_aborted(f)) {
-        return APR_ECONNABORTED;
-    }
-    
-    status = (block == APR_NONBLOCK_READ)? APR_EAGAIN : APR_EOF;
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                  "h2_task_input(%s): no data", input->task->id);
-    return status;
+
+    return NULL;
 }

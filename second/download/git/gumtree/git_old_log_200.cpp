@@ -1,3 +1,1 @@
-die("Cannot read blob %s for path %s",
-			    sha1_to_hex(o->blob_sha1),
-			    o->path);
+fprintf(file, "base-commit: %s\n", oid_to_hex(&bases->base_commit));

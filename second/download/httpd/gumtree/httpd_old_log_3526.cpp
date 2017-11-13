@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                    "cannot read directory for multi: %s", neg->dir_name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "shmcb_subcache_retrieve discarding expired entry");

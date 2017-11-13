@@ -1,715 +1,377 @@
-int ssl_hook_Access(request_rec *r)
+static void output_directories(struct ent **ar, int n,
+                               autoindex_config_rec *d, request_rec *r,
+                               apr_int32_t autoindex_opts, char keyid,
+                               char direction, const char *colargs)
 {
-    SSLDirConfigRec *dc         = myDirConfig(r);
-    SSLSrvConfigRec *sc         = mySrvConfig(r->server);
-    SSLConnRec *sslconn         = myConnConfig(r->connection);
-    SSL *ssl                    = sslconn ? sslconn->ssl : NULL;
-    server_rec *handshakeserver = sslconn ? sslconn->server : NULL;
-    SSL_CTX *ctx = NULL;
-    apr_array_header_t *requires;
-    ssl_require_t *ssl_requires;
-    char *cp;
-    int ok, i;
-    BOOL renegotiate = FALSE, renegotiate_quick = FALSE;
-    X509 *cert;
-    X509 *peercert;
-    X509_STORE *cert_store = NULL;
-    X509_STORE_CTX cert_store_ctx;
-    STACK_OF(SSL_CIPHER) *cipher_list_old = NULL, *cipher_list = NULL;
-    const SSL_CIPHER *cipher = NULL;
-    int depth, verify_old, verify, n;
+    int x;
+    apr_size_t rv;
+    char *name = r->uri;
+    char *tp;
+    int static_columns = !!(autoindex_opts & SUPPRESS_COLSORT);
+    apr_pool_t *scratch;
+    int name_width;
+    int desc_width;
+    char *name_scratch;
+    char *pad_scratch;
+    char *breakrow = "";
 
-    if (ssl) {
-        ctx = SSL_get_SSL_CTX(ssl);
+    apr_pool_create(&scratch, r->pool);
+    if (name[0] == '\0') {
+        name = "/";
     }
 
-    /*
-     * Support for SSLRequireSSL directive
-     */
-    if (dc->bSSLRequired && !ssl) {
-        if (sc->enabled == SSL_ENABLED_OPTIONAL) {
-            /* This vhost was configured for optional SSL, just tell the
-             * client that we need to upgrade.
-             */
-            apr_table_setn(r->err_headers_out, "Upgrade", "TLS/1.0, HTTP/1.1");
-            apr_table_setn(r->err_headers_out, "Connection", "Upgrade");
+    name_width = d->name_width;
+    desc_width = d->desc_width;
 
-            return HTTP_UPGRADE_REQUIRED;
-        }
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "access to %s failed, reason: %s",
-                      r->filename, "SSL connection required");
-
-        /* remember forbidden access for strict require option */
-        apr_table_setn(r->notes, "ssl-access-forbidden", "1");
-
-        return HTTP_FORBIDDEN;
-    }
-
-    /*
-     * Check to see whether SSL is in use; if it's not, then no
-     * further access control checks are relevant.  (the test for
-     * sc->enabled is probably strictly unnecessary)
-     */
-    if (sc->enabled == SSL_ENABLED_FALSE || !ssl) {
-        return DECLINED;
-    }
-
-    /*
-     * Support for per-directory reconfigured SSL connection parameters.
-     *
-     * This is implemented by forcing an SSL renegotiation with the
-     * reconfigured parameter suite. But Apache's internal API processing
-     * makes our life very hard here, because when internal sub-requests occur
-     * we nevertheless should avoid multiple unnecessary SSL handshakes (they
-     * require extra network I/O and especially time to perform).
-     *
-     * But the optimization for filtering out the unnecessary handshakes isn't
-     * obvious and trivial.  Especially because while Apache is in its
-     * sub-request processing the client could force additional handshakes,
-     * too. And these take place perhaps without our notice. So the only
-     * possibility is to explicitly _ask_ OpenSSL whether the renegotiation
-     * has to be performed or not. It has to performed when some parameters
-     * which were previously known (by us) are not those we've now
-     * reconfigured (as known by OpenSSL) or (in optimized way) at least when
-     * the reconfigured parameter suite is stronger (more restrictions) than
-     * the currently active one.
-     */
-
-    /*
-     * Override of SSLCipherSuite
-     *
-     * We provide two options here:
-     *
-     * o The paranoid and default approach where we force a renegotiation when
-     *   the cipher suite changed in _any_ way (which is straight-forward but
-     *   often forces renegotiations too often and is perhaps not what the
-     *   user actually wanted).
-     *
-     * o The optimized and still secure way where we force a renegotiation
-     *   only if the currently active cipher is no longer contained in the
-     *   reconfigured/new cipher suite. Any other changes are not important
-     *   because it's the servers choice to select a cipher from the ones the
-     *   client supports. So as long as the current cipher is still in the new
-     *   cipher suite we're happy. Because we can assume we would have
-     *   selected it again even when other (better) ciphers exists now in the
-     *   new cipher suite. This approach is fine because the user explicitly
-     *   has to enable this via ``SSLOptions +OptRenegotiate''. So we do no
-     *   implicit optimizations.
-     */
-    if (dc->szCipherSuite || (r->server != handshakeserver)) {
-        /* remember old state */
-
-        if (dc->nOptions & SSL_OPT_OPTRENEGOTIATE) {
-            cipher = SSL_get_current_cipher(ssl);
-        }
-        else {
-            cipher_list_old = (STACK_OF(SSL_CIPHER) *)SSL_get_ciphers(ssl);
-
-            if (cipher_list_old) {
-                cipher_list_old = sk_SSL_CIPHER_dup(cipher_list_old);
-            }
-        }
-
-        /* configure new state */
-        if ((dc->szCipherSuite || sc->server->auth.cipher_suite) &&
-            !modssl_set_cipher_list(ssl, dc->szCipherSuite ?
-                                         dc->szCipherSuite :
-                                         sc->server->auth.cipher_suite)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "Unable to reconfigure (per-directory) "
-                          "permitted SSL ciphers");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
-
-            if (cipher_list_old) {
-                sk_SSL_CIPHER_free(cipher_list_old);
-            }
-
-            return HTTP_FORBIDDEN;
-        }
-
-        /* determine whether a renegotiation has to be forced */
-        cipher_list = (STACK_OF(SSL_CIPHER) *)SSL_get_ciphers(ssl);
-
-        if (dc->nOptions & SSL_OPT_OPTRENEGOTIATE) {
-            /* optimized way */
-            if ((!cipher && cipher_list) ||
-                (cipher && !cipher_list))
-            {
-                renegotiate = TRUE;
-            }
-            else if (cipher && cipher_list &&
-                     (sk_SSL_CIPHER_find(cipher_list, cipher) < 0))
-            {
-                renegotiate = TRUE;
-            }
-        }
-        else {
-            /* paranoid way */
-            if ((!cipher_list_old && cipher_list) ||
-                (cipher_list_old && !cipher_list))
-            {
-                renegotiate = TRUE;
-            }
-            else if (cipher_list_old && cipher_list) {
-                for (n = 0;
-                     !renegotiate && (n < sk_SSL_CIPHER_num(cipher_list));
-                     n++)
-                {
-                    SSL_CIPHER *value = sk_SSL_CIPHER_value(cipher_list, n);
-
-                    if (sk_SSL_CIPHER_find(cipher_list_old, value) < 0) {
-                        renegotiate = TRUE;
-                    }
+    if ((autoindex_opts & (FANCY_INDEXING | TABLE_INDEXING))
+                        == FANCY_INDEXING) {
+        if (d->name_adjust == K_ADJUST) {
+            for (x = 0; x < n; x++) {
+                int t = strlen(ar[x]->name);
+                if (t > name_width) {
+                    name_width = t;
                 }
+            }
+        }
 
-                for (n = 0;
-                     !renegotiate && (n < sk_SSL_CIPHER_num(cipher_list_old));
-                     n++)
-                {
-                    SSL_CIPHER *value = sk_SSL_CIPHER_value(cipher_list_old, n);
-
-                    if (sk_SSL_CIPHER_find(cipher_list, value) < 0) {
-                        renegotiate = TRUE;
+        if (d->desc_adjust == K_ADJUST) {
+            for (x = 0; x < n; x++) {
+                if (ar[x]->desc != NULL) {
+                    int t = strlen(ar[x]->desc);
+                    if (t > desc_width) {
+                        desc_width = t;
                     }
                 }
             }
         }
-
-        /* cleanup */
-        if (cipher_list_old) {
-            sk_SSL_CIPHER_free(cipher_list_old);
-        }
-
-        if (renegotiate) {
-#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
-            if (sc->cipher_server_pref == TRUE) {
-                SSL_set_options(ssl, SSL_OP_CIPHER_SERVER_PREFERENCE);
-            }
-#endif
-            /* tracing */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                         "Reconfigured cipher suite will force renegotiation");
-        }
     }
+    name_scratch = apr_palloc(r->pool, name_width + 1);
+    pad_scratch = apr_palloc(r->pool, name_width + 1);
+    memset(pad_scratch, ' ', name_width);
+    pad_scratch[name_width] = '\0';
 
-    /*
-     * override of SSLVerifyDepth
-     *
-     * The depth checks are handled by us manually inside the verify callback
-     * function and not by OpenSSL internally (and our function is aware of
-     * both the per-server and per-directory contexts). So we cannot ask
-     * OpenSSL about the currently verify depth. Instead we remember it in our
-     * SSLConnRec attached to the SSL* of OpenSSL.  We've to force the
-     * renegotiation if the reconfigured/new verify depth is less than the
-     * currently active/remembered verify depth (because this means more
-     * restriction on the certificate chain).
-     */
-    n = sslconn->verify_depth ?
-        sslconn->verify_depth :
-        (mySrvConfig(handshakeserver))->server->auth.verify_depth;
-    /* determine the new depth */
-    sslconn->verify_depth = (dc->nVerifyDepth != UNSET) ?
-                            dc->nVerifyDepth : sc->server->auth.verify_depth;
-    if (sslconn->verify_depth < n) {
-        renegotiate = TRUE;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                     "Reduced client verification depth will force "
-                     "renegotiation");
-    }
-
-    /*
-     * override of SSLVerifyClient
-     *
-     * We force a renegotiation if the reconfigured/new verify type is
-     * stronger than the currently active verify type.
-     *
-     * The order is: none << optional_no_ca << optional << require
-     *
-     * Additionally the following optimization is possible here: When the
-     * currently active verify type is "none" but a client certificate is
-     * already known/present, it's enough to manually force a client
-     * verification but at least skip the I/O-intensive renegotation
-     * handshake.
-     */
-    if ((dc->nVerifyClient != SSL_CVERIFY_UNSET) ||
-        (sc->server->auth.verify_mode != SSL_CVERIFY_UNSET)) {
-        /* remember old state */
-        verify_old = SSL_get_verify_mode(ssl);
-        /* configure new state */
-        verify = SSL_VERIFY_NONE;
-
-        if ((dc->nVerifyClient == SSL_CVERIFY_REQUIRE) ||
-            (sc->server->auth.verify_mode == SSL_CVERIFY_REQUIRE)) {
-            verify |= SSL_VERIFY_PEER_STRICT;
-        }
-
-        if ((dc->nVerifyClient == SSL_CVERIFY_OPTIONAL) ||
-            (dc->nVerifyClient == SSL_CVERIFY_OPTIONAL_NO_CA) ||
-            (sc->server->auth.verify_mode == SSL_CVERIFY_OPTIONAL) ||
-            (sc->server->auth.verify_mode == SSL_CVERIFY_OPTIONAL_NO_CA))
-        {
-            verify |= SSL_VERIFY_PEER;
-        }
-
-        modssl_set_verify(ssl, verify, ssl_callback_SSLVerify);
-        SSL_set_verify_result(ssl, X509_V_OK);
-
-        /* determine whether we've to force a renegotiation */
-        if (!renegotiate && verify != verify_old) {
-            if (((verify_old == SSL_VERIFY_NONE) &&
-                 (verify     != SSL_VERIFY_NONE)) ||
-
-                (!(verify_old & SSL_VERIFY_PEER) &&
-                  (verify     & SSL_VERIFY_PEER)) ||
-
-                (!(verify_old & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) &&
-                  (verify     & SSL_VERIFY_FAIL_IF_NO_PEER_CERT)))
-            {
-                renegotiate = TRUE;
-                /* optimization */
-
-                if ((dc->nOptions & SSL_OPT_OPTRENEGOTIATE) &&
-                    (verify_old == SSL_VERIFY_NONE) &&
-                    ((peercert = SSL_get_peer_certificate(ssl)) != NULL))
-                {
-                    renegotiate_quick = TRUE;
-                    X509_free(peercert);
+    if (autoindex_opts & TABLE_INDEXING) {
+        int cols = 1;
+        ap_rputs("<table><tr>", r);
+        if (!(autoindex_opts & SUPPRESS_ICON)) {
+            ap_rputs("<th>", r);
+            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
+                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
+                             "\" alt=\"[ICO]\"", NULL);
+                if (d->icon_width) {
+                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                }
+                if (d->icon_height) {
+                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
                 }
 
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "Changed client verification type will force "
-                              "%srenegotiation",
-                              renegotiate_quick ? "quick " : "");
-             }
+                if (autoindex_opts & EMIT_XHTML) {
+                    ap_rputs(" /", r);
+                }
+                ap_rputs("></th>", r);
+            }
+            else {
+                ap_rputs("&nbsp;</th>", r);
+            }
+
+            ++cols;
         }
-        /* If we're handling a request for a vhost other than the default one,
-         * then we need to make sure that client authentication is properly
-         * enforced. For clients supplying an SNI extension, the peer
-         * certificate verification has happened in the handshake already
-         * (and r->server == handshakeserver). For non-SNI requests,
-         * an additional check is needed here. If client authentication
-         * is configured as mandatory, then we can only proceed if the
-         * CA list doesn't have to be changed (OpenSSL doesn't provide
-         * an option to change the list for an existing session).
-         */
-        if ((r->server != handshakeserver)
-            && renegotiate
-            && ((verify & SSL_VERIFY_PEER) ||
-                (verify & SSL_VERIFY_FAIL_IF_NO_PEER_CERT))) {
-            SSLSrvConfigRec *hssc = mySrvConfig(handshakeserver);
+        ap_rputs("<th>", r);
+        emit_link(r, "Name", K_NAME, keyid, direction,
+                  colargs, static_columns);
+        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+            ap_rputs("</th><th>", r);
+            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
+                      colargs, static_columns);
+            ++cols;
+        }
+        if (!(autoindex_opts & SUPPRESS_SIZE)) {
+            ap_rputs("</th><th>", r);
+            emit_link(r, "Size", K_SIZE, keyid, direction,
+                      colargs, static_columns);
+            ++cols;
+        }
+        if (!(autoindex_opts & SUPPRESS_DESC)) {
+            ap_rputs("</th><th>", r);
+            emit_link(r, "Description", K_DESC, keyid, direction,
+                      colargs, static_columns);
+            ++cols;
+        }
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            breakrow = apr_psprintf(r->pool,
+                                    "<tr><th colspan=\"%d\">"
+                                    "<hr%s></th></tr>\n", cols,
+                                    (autoindex_opts & EMIT_XHTML) ? " /" : "");
+        }
+        ap_rvputs(r, "</th></tr>", breakrow, NULL);
+    }
+    else if (autoindex_opts & FANCY_INDEXING) {
+        ap_rputs("<pre>", r);
+        if (!(autoindex_opts & SUPPRESS_ICON)) {
+            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
+                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
+                             "\" alt=\"Icon \"", NULL);
+                if (d->icon_width) {
+                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                }
+                if (d->icon_height) {
+                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                }
 
-#define MODSSL_CFG_CA_NE(f, sc1, sc2) \
-            (sc1->server->auth.f && \
-             (!sc2->server->auth.f || \
-              strNE(sc1->server->auth.f, sc2->server->auth.f)))
-
-            if (MODSSL_CFG_CA_NE(ca_cert_file, sc, hssc) ||
-                MODSSL_CFG_CA_NE(ca_cert_path, sc, hssc)) {
-                if (verify & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) {
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                         "Non-default virtual host with SSLVerify set to "
-                         "'require' and VirtualHost-specific CA certificate "
-                         "list is only available to clients with TLS server "
-                         "name indication (SNI) support");
-                    modssl_set_verify(ssl, verify_old, NULL);
-                    return HTTP_FORBIDDEN;
-                } else
-                    /* let it pass, possibly with an "incorrect" peer cert,
-                     * so make sure the SSL_CLIENT_VERIFY environment variable
-                     * will indicate partial success only, later on.
-                     */
-                    sslconn->verify_info = "GENEROUS";
+                if (autoindex_opts & EMIT_XHTML) {
+                    ap_rputs(" /", r);
+                }
+                ap_rputs("> ", r);
+            }
+            else {
+                ap_rputs("      ", r);
             }
         }
-    }
-
-    /*
-     * override SSLCACertificateFile & SSLCACertificatePath
-     * This is only enabled if the SSL_set_cert_store() function
-     * is available in the ssl library.  the 1.x based mod_ssl
-     * used SSL_CTX_set_cert_store which is not thread safe.
-     */
-
-#ifdef HAVE_SSL_SET_CERT_STORE
-    /*
-     * check if per-dir and per-server config field are not the same.
-     * if f is defined in per-dir and not defined in per-server
-     * or f is defined in both but not the equal ...
-     */
-#define MODSSL_CFG_NE(f) \
-     (dc->f && (!sc->f || (sc->f && strNE(dc->f, sc->f))))
-
-#define MODSSL_CFG_CA(f) \
-     (dc->f ? dc->f : sc->f)
-
-    if (MODSSL_CFG_NE(szCACertificateFile) ||
-        MODSSL_CFG_NE(szCACertificatePath))
-    {
-        STACK_OF(X509_NAME) *ca_list;
-        const char *ca_file = MODSSL_CFG_CA(szCACertificateFile);
-        const char *ca_path = MODSSL_CFG_CA(szCACertificatePath);
-
-        cert_store = X509_STORE_new();
-
-        if (!X509_STORE_load_locations(cert_store, ca_file, ca_path)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Unable to reconfigure verify locations "
-                          "for client authentication");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
-
-            X509_STORE_free(cert_store);
-
-            return HTTP_FORBIDDEN;
-        }
-
-        /* SSL_free will free cert_store */
-        SSL_set_cert_store(ssl, cert_store);
-
-        if (!(ca_list = ssl_init_FindCAList(r->server, r->pool,
-                                            ca_file, ca_path)))
-        {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "Unable to determine list of available "
-                         "CA certificates for client authentication");
-
-            return HTTP_FORBIDDEN;
-        }
-
-        SSL_set_client_CA_list(ssl, ca_list);
-        renegotiate = TRUE;
-
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "Changed client verification locations will force "
-                      "renegotiation");
-    }
-#endif /* HAVE_SSL_SET_CERT_STORE */
-
-    /* If a renegotiation is now required for this location, and the
-     * request includes a message body (and the client has not
-     * requested a "100 Continue" response), then the client will be
-     * streaming the request body over the wire already.  In that
-     * case, it is not possible to stop and perform a new SSL
-     * handshake immediately; once the SSL library moves to the
-     * "accept" state, it will reject the SSL packets which the client
-     * is sending for the request body.
-     *
-     * To allow authentication to complete in this auth hook, the
-     * solution used here is to fill a (bounded) buffer with the
-     * request body, and then to reinject that request body later.
-     */
-    if (renegotiate && !renegotiate_quick
-        && (apr_table_get(r->headers_in, "transfer-encoding")
-            || (apr_table_get(r->headers_in, "content-length")
-                && strcmp(apr_table_get(r->headers_in, "content-length"), "0")))
-        && !r->expecting_100) {
-        int rv;
-        apr_size_t rsize;
-
-        rsize = dc->nRenegBufferSize == UNSET ? DEFAULT_RENEG_BUFFER_SIZE :
-                                                dc->nRenegBufferSize;
-        if (rsize > 0) {
-            /* Fill the I/O buffer with the request body if possible. */
-            rv = ssl_io_buffer_fill(r, rsize);
-        }
-        else {
-            /* If the reneg buffer size is set to zero, just fail. */
-            rv = HTTP_REQUEST_ENTITY_TOO_LARGE;
-        }
-
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "could not buffer message body to allow "
-                          "SSL renegotiation to proceed");
-            return rv;
-        }
-    }
-
-    /*
-     * now do the renegotiation if anything was actually reconfigured
-     */
-    if (renegotiate) {
+        emit_link(r, "Name", K_NAME, keyid, direction,
+                  colargs, static_columns);
+        ap_rputs(pad_scratch + 4, r);
         /*
-         * Now we force the SSL renegotation by sending the Hello Request
-         * message to the client. Here we have to do a workaround: Actually
-         * OpenSSL returns immediately after sending the Hello Request (the
-         * intent AFAIK is because the SSL/TLS protocol says it's not a must
-         * that the client replies to a Hello Request). But because we insist
-         * on a reply (anything else is an error for us) we have to go to the
-         * ACCEPT state manually. Using SSL_set_accept_state() doesn't work
-         * here because it resets too much of the connection.  So we set the
-         * state explicitly and continue the handshake manually.
+         * Emit the guaranteed-at-least-one-space-between-columns byte.
          */
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                      "Requesting connection re-negotiation");
-
-        if (renegotiate_quick) {
-            STACK_OF(X509) *cert_stack;
-
-            /* perform just a manual re-verification of the peer */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                         "Performing quick renegotiation: "
-                         "just re-verifying the peer");
-
-            cert_stack = (STACK_OF(X509) *)SSL_get_peer_cert_chain(ssl);
-
-            cert = SSL_get_peer_certificate(ssl);
-
-            if (!cert_stack && cert) {
-                /* client cert is in the session cache, but there is
-                 * no chain, since ssl3_get_client_certificate()
-                 * sk_X509_shift-ed the peer cert out of the chain.
-                 * we put it back here for the purpose of quick_renegotiation.
-                 */
-                cert_stack = sk_X509_new_null();
-                sk_X509_push(cert_stack, MODSSL_PCHAR_CAST cert);
+        ap_rputs(" ", r);
+        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
+                      colargs, static_columns);
+            ap_rputs("      ", r);
+        }
+        if (!(autoindex_opts & SUPPRESS_SIZE)) {
+            emit_link(r, "Size", K_SIZE, keyid, direction,
+                      colargs, static_columns);
+            ap_rputs("  ", r);
+        }
+        if (!(autoindex_opts & SUPPRESS_DESC)) {
+            emit_link(r, "Description", K_DESC, keyid, direction,
+                      colargs, static_columns);
+        }
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr", r);
+            if (autoindex_opts & EMIT_XHTML) {
+                ap_rputs(" /", r);
             }
-
-            if (!cert_stack || (sk_X509_num(cert_stack) == 0)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Cannot find peer certificate chain");
-
-                return HTTP_FORBIDDEN;
-            }
-
-            if (!(cert_store ||
-                  (cert_store = SSL_CTX_get_cert_store(ctx))))
-            {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Cannot find certificate storage");
-
-                return HTTP_FORBIDDEN;
-            }
-
-            if (!cert) {
-                cert = sk_X509_value(cert_stack, 0);
-            }
-
-            X509_STORE_CTX_init(&cert_store_ctx, cert_store, cert, cert_stack);
-            depth = SSL_get_verify_depth(ssl);
-
-            if (depth >= 0) {
-                X509_STORE_CTX_set_depth(&cert_store_ctx, depth);
-            }
-
-            X509_STORE_CTX_set_ex_data(&cert_store_ctx,
-                                       SSL_get_ex_data_X509_STORE_CTX_idx(),
-                                       (char *)ssl);
-
-            if (!modssl_X509_verify_cert(&cert_store_ctx)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation verification step failed");
-                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
-            }
-
-            SSL_set_verify_result(ssl, cert_store_ctx.error);
-            X509_STORE_CTX_cleanup(&cert_store_ctx);
-
-            if (cert_stack != SSL_get_peer_cert_chain(ssl)) {
-                /* we created this ourselves, so free it */
-                sk_X509_pop_free(cert_stack, X509_free);
-            }
+            ap_rputs(">", r);
         }
         else {
-            const char *reneg_support;
-            request_rec *id = r->main ? r->main : r;
+            ap_rputc('\n', r);
+        }
+    }
+    else {
+        ap_rputs("<ul>", r);
+    }
 
-            /* Additional mitigation for CVE-2009-3555: At this point,
-             * before renegotiating, an (entire) request has been read
-             * from the connection.  An attacker may have sent further
-             * data to "prefix" any subsequent request by the victim's
-             * client after the renegotiation; this data may already
-             * have been read and buffered.  Forcing a connection
-             * closure after the response ensures such data will be
-             * discarded.  Legimately pipelined HTTP requests will be
-             * retried anyway with this approach. */
-            if (has_buffered_data(r)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "insecure SSL re-negotiation required, but "
-                              "a pipelined request is present; keepalive "
-                              "disabled");
-                r->connection->keepalive = AP_CONN_CLOSE;
+    for (x = 0; x < n; x++) {
+        char *anchor, *t, *t2;
+        int nwidth;
+
+        apr_pool_clear(scratch);
+
+        t = ar[x]->name;
+        anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
+
+        if (!x && t[0] == '/') {
+            t2 = "Parent Directory";
+        }
+        else {
+            t2 = t;
+        }
+
+        if (autoindex_opts & TABLE_INDEXING) {
+            ap_rputs("<tr>", r);
+            if (!(autoindex_opts & SUPPRESS_ICON)) {
+                ap_rputs("<td valign=\"top\">", r);
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
+                }
+                if ((ar[x]->icon) || d->default_icon) {
+                    ap_rvputs(r, "<img src=\"",
+                              ap_escape_html(scratch,
+                                             ar[x]->icon ? ar[x]->icon
+                                                         : d->default_icon),
+                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+                              "]\"", NULL);
+                    if (d->icon_width) {
+                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                    }
+                    if (d->icon_height) {
+                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                    }
+
+                    if (autoindex_opts & EMIT_XHTML) {
+                        ap_rputs(" /", r);
+                    }
+                    ap_rputs(">", r);
+                }
+                else {
+                    ap_rputs("&nbsp;", r);
+                }
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rputs("</a></td>", r);
+                }
+                else {
+                    ap_rputs("</td>", r);
+                }
             }
-
-#if defined(SSL_get_secure_renegotiation_support)
-            reneg_support = SSL_get_secure_renegotiation_support(ssl) ?
-                            "client does" : "client does not";
-#else
-            reneg_support = "server does not";
-#endif
-            /* Perform a full renegotiation. */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Performing full renegotiation: complete handshake "
-                          "protocol (%s support secure renegotiation)",
-                          reneg_support);
-
-            SSL_set_session_id_context(ssl,
-                                       (unsigned char *)&id,
-                                       sizeof(id));
-
-            /* Toggle the renegotiation state to allow the new
-             * handshake to proceed. */
-            sslconn->reneg_state = RENEG_ALLOW;
-            
-            SSL_renegotiate(ssl);
-            SSL_do_handshake(ssl);
-
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation request failed");
-                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
-
-                r->connection->aborted = 1;
-                return HTTP_FORBIDDEN;
+            if (d->name_adjust == K_ADJUST) {
+                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2), "</a>", NULL);
             }
+            else {
+                nwidth = strlen(t2);
+                if (nwidth > name_width) {
+                  memcpy(name_scratch, t2, name_width - 3);
+                  name_scratch[name_width - 3] = '.';
+                  name_scratch[name_width - 2] = '.';
+                  name_scratch[name_width - 1] = '>';
+                  name_scratch[name_width] = 0;
+                  t2 = name_scratch;
+                  nwidth = name_width;
+                }
+                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2),
+                          "</a>", pad_scratch + nwidth, NULL);
+            }
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                 "</td><td align=\"right\">%d-%b-%Y %H:%M  ",
+                                 &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    ap_rputs("</td><td>&nbsp;", r);
+                }
+            }
+            if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                char buf[5];
+                ap_rvputs(r, "</td><td align=\"right\">",
+                          apr_strfsize(ar[x]->size, buf), NULL);
+            }
+            if (!(autoindex_opts & SUPPRESS_DESC)) {
+                if (ar[x]->desc) {
+                    if (d->desc_adjust == K_ADJUST) {
+                        ap_rvputs(r, "</td><td>", ar[x]->desc, NULL);
+                    }
+                    else {
+                        ap_rvputs(r, "</td><td>",
+                                  terminate_description(d, ar[x]->desc,
+                                                        autoindex_opts,
+                                                        desc_width), NULL);
+                    }
+                }
+                else {
+                    ap_rputs("</td><td>&nbsp;", r);
+                }
+            }
+            ap_rputs("</td></tr>\n", r);
+        }
+        else if (autoindex_opts & FANCY_INDEXING) {
+            if (!(autoindex_opts & SUPPRESS_ICON)) {
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
+                }
+                if ((ar[x]->icon) || d->default_icon) {
+                    ap_rvputs(r, "<img src=\"",
+                              ap_escape_html(scratch,
+                                             ar[x]->icon ? ar[x]->icon
+                                                         : d->default_icon),
+                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+                              "]\"", NULL);
+                    if (d->icon_width) {
+                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                    }
+                    if (d->icon_height) {
+                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                    }
 
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Awaiting re-negotiation handshake");
-
-            /* XXX: Should replace SSL_set_state with SSL_renegotiate(ssl);
-             * However, this causes failures in perl-framework currently,
-             * perhaps pre-test if we have already negotiated?
+                    if (autoindex_opts & EMIT_XHTML) {
+                        ap_rputs(" /", r);
+                    }
+                    ap_rputs(">", r);
+                }
+                else {
+                    ap_rputs("     ", r);
+                }
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rputs("</a> ", r);
+                }
+                else {
+                    ap_rputc(' ', r);
+                }
+            }
+            nwidth = strlen(t2);
+            if (nwidth > name_width) {
+                memcpy(name_scratch, t2, name_width - 3);
+                name_scratch[name_width - 3] = '.';
+                name_scratch[name_width - 2] = '.';
+                name_scratch[name_width - 1] = '>';
+                name_scratch[name_width] = 0;
+                t2 = name_scratch;
+                nwidth = name_width;
+            }
+            ap_rvputs(r, "<a href=\"", anchor, "\">",
+                      ap_escape_html(scratch, t2),
+                      "</a>", pad_scratch + nwidth, NULL);
+            /*
+             * The blank before the storm.. er, before the next field.
              */
-            SSL_set_state(ssl, SSL_ST_ACCEPT);
-            SSL_do_handshake(ssl);
-
-            sslconn->reneg_state = RENEG_REJECT;
-
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation handshake failed: "
-                              "Not accepted by client!?");
-
-                r->connection->aborted = 1;
-                return HTTP_FORBIDDEN;
-            }
-        }
-
-        /*
-         * Remember the peer certificate's DN
-         */
-        if ((cert = SSL_get_peer_certificate(ssl))) {
-            if (sslconn->client_cert) {
-                X509_free(sslconn->client_cert);
-            }
-            sslconn->client_cert = cert;
-            sslconn->client_dn = NULL;
-        }
-
-        /*
-         * Finally check for acceptable renegotiation results
-         */
-        if ((dc->nVerifyClient != SSL_CVERIFY_NONE) ||
-            (sc->server->auth.verify_mode != SSL_CVERIFY_NONE)) {
-            BOOL do_verify = ((dc->nVerifyClient == SSL_CVERIFY_REQUIRE) ||
-                              (sc->server->auth.verify_mode == SSL_CVERIFY_REQUIRE));
-
-            if (do_verify && (SSL_get_verify_result(ssl) != X509_V_OK)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation handshake failed: "
-                              "Client verification failed");
-
-                return HTTP_FORBIDDEN;
-            }
-
-            if (do_verify) {
-                if ((peercert = SSL_get_peer_certificate(ssl)) == NULL) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Re-negotiation handshake failed: "
-                                  "Client certificate missing");
-
-                    return HTTP_FORBIDDEN;
+            ap_rputs(" ", r);
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                "%d-%b-%Y %H:%M  ", &ts);
+                    ap_rputs(time_str, r);
                 }
-
-                X509_free(peercert);
+                else {
+                    /*Length="22-Feb-1998 23:42  " (see 4 lines above) */
+                    ap_rputs("                   ", r);
+                }
             }
-        }
-
-        /*
-         * Also check that SSLCipherSuite has been enforced as expected.
-         */
-        if (cipher_list) {
-            cipher = SSL_get_current_cipher(ssl);
-            if (sk_SSL_CIPHER_find(cipher_list, cipher) < 0) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                             "SSL cipher suite not renegotiated: "
-                             "access to %s denied using cipher %s",
-                              r->filename,
-                              SSL_CIPHER_get_name(cipher));
-                return HTTP_FORBIDDEN;
+            if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                char buf[5];
+                ap_rputs(apr_strfsize(ar[x]->size, buf), r);
+                ap_rputs("  ", r);
             }
+            if (!(autoindex_opts & SUPPRESS_DESC)) {
+                if (ar[x]->desc) {
+                    ap_rputs(terminate_description(d, ar[x]->desc,
+                                                   autoindex_opts,
+                                                   desc_width), r);
+                }
+            }
+            ap_rputc('\n', r);
+        }
+        else {
+            ap_rvputs(r, "<li><a href=\"", anchor, "\"> ",
+                      ap_escape_html(scratch, t2),
+                      "</a></li>\n", NULL);
         }
     }
-
-    /* If we're trying to have the user name set from a client
-     * certificate then we need to set it here. This should be safe as
-     * the user name probably isn't important from an auth checking point
-     * of view as the certificate supplied acts in that capacity.
-     * However, if FakeAuth is being used then this isn't the case so
-     * we need to postpone setting the username until later.
-     */
-    if ((dc->nOptions & SSL_OPT_FAKEBASICAUTH) == 0 && dc->szUserName) {
-        char *val = ssl_var_lookup(r->pool, r->server, r->connection,
-                                   r, (char *)dc->szUserName);
-        if (val && val[0])
-            r->user = val;
+    if (autoindex_opts & TABLE_INDEXING) {
+        ap_rvputs(r, breakrow, "</table>\n", NULL);
     }
-
-    /*
-     * Check SSLRequire boolean expressions
-     */
-    requires = dc->aRequirement;
-    ssl_requires = (ssl_require_t *)requires->elts;
-
-    for (i = 0; i < requires->nelts; i++) {
-        ssl_require_t *req = &ssl_requires[i];
-        ok = ssl_expr_exec(r, req->mpExpr);
-
-        if (ok < 0) {
-            cp = apr_psprintf(r->pool,
-                              "Failed to execute "
-                              "SSL requirement expression: %s",
-                              ssl_expr_get_error());
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "access to %s failed, reason: %s",
-                          r->filename, cp);
-
-            /* remember forbidden access for strict require option */
-            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
-
-            return HTTP_FORBIDDEN;
+    else if (autoindex_opts & FANCY_INDEXING) {
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr", r);
+            if (autoindex_opts & EMIT_XHTML) {
+                ap_rputs(" /", r);
+            }
+            ap_rputs("></pre>\n", r);
         }
-
-        if (ok != 1) {
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Access to %s denied for %s "
-                          "(requirement expression not fulfilled)",
-                          r->filename, r->connection->remote_ip);
-
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Failed expression: %s", req->cpExpr);
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "access to %s failed, reason: %s",
-                          r->filename,
-                          "SSL requirement expression not fulfilled "
-                          "(see SSL logfile for more details)");
-
-            /* remember forbidden access for strict require option */
-            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
-
-            return HTTP_FORBIDDEN;
+        else {
+            ap_rputs("</pre>\n", r);
         }
     }
-
-    /*
-     * Else access is granted from our point of view (except vendor
-     * handlers override). But we have to return DECLINED here instead
-     * of OK, because mod_auth and other modules still might want to
-     * deny access.
-     */
-
-    return DECLINED;
+    else {
+        ap_rputs("</ul>\n", r);
+    }
 }

@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, lvl, rv, r, APLOGNO(01460)
-                      "apr_file_read(child output), len %" APR_SIZE_T_FMT,
-                      !rv ? len : -1);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01714)
+                      "auth_ldap authorize: require group: testing for %s: "
+                      "%s (%s)",
+                      ent[i].name,
+                      sec->group_attrib_is_dn ? req->dn : req->user, t);

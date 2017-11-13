@@ -1,25 +1,28 @@
-static struct child_process *git_proxy_connect(int fd[2], char *host)
+static void show_ref(struct refinfo *info, const char *format, int quote_style)
 {
-	const char *port = STR(DEFAULT_GIT_PORT);
-	struct child_process *proxy;
+	const char *cp, *sp, *ep;
 
-	get_host_and_port(&host, &port);
+	for (cp = format; *cp && (sp = find_next(cp)); cp = ep + 1) {
+		struct atom_value *atomv;
 
-	if (looks_like_command_line_option(host))
-		die("strange hostname '%s' blocked", host);
-	if (looks_like_command_line_option(port))
-		die("strange port '%s' blocked", port);
+		ep = strchr(sp, ')');
+		if (cp < sp)
+			emit(cp, sp);
+		get_value(info, parse_atom(sp + 2, ep), &atomv);
+		print_value(atomv, quote_style);
+	}
+	if (*cp) {
+		sp = cp + strlen(cp);
+		emit(cp, sp);
+	}
+	if (need_color_reset_at_eol) {
+		struct atom_value resetv;
+		char color[COLOR_MAXLEN] = "";
 
-	proxy = xmalloc(sizeof(*proxy));
-	child_process_init(proxy);
-	argv_array_push(&proxy->args, git_proxy_command);
-	argv_array_push(&proxy->args, host);
-	argv_array_push(&proxy->args, port);
-	proxy->in = -1;
-	proxy->out = -1;
-	if (start_command(proxy))
-		die("cannot start proxy %s", git_proxy_command);
-	fd[0] = proxy->out; /* read from proxy stdout */
-	fd[1] = proxy->in;  /* write to proxy stdin */
-	return proxy;
+		if (color_parse("reset", color) < 0)
+			die("BUG: couldn't parse 'reset' as a color");
+		resetv.s = color;
+		print_value(&resetv, quote_style);
+	}
+	putchar('\n');
 }

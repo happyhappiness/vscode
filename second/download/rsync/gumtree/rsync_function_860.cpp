@@ -1,47 +1,96 @@
-void gen_trees_header()
+void rwrite(enum logcode code, char *buf, int len)
 {
-    FILE *header = fopen("trees.h", "w");
-    int i;
+	int trailing_CR_or_NL;
+	FILE *f = NULL;
 
-    Assert (header != NULL, "Can't open trees.h");
-    fprintf(header,
-            "/* header created automatically with -DGEN_TREES_H */\n\n");
+	if (len < 0)
+		exit_cleanup(RERR_MESSAGEIO);
 
-    fprintf(header, "local const ct_data static_ltree[L_CODES+2] = {\n");
-    for (i = 0; i < L_CODES+2; i++) {
-        fprintf(header, "{{%3u},{%3u}}%s", static_ltree[i].Code,
-                static_ltree[i].Len, SEPARATOR(i, L_CODES+1, 5));
-    }
+	if (am_server && msg_fd_out >= 0) {
+		/* Pass the message to our sibling. */
+		send_msg((enum msgcode)code, buf, len);
+		return;
+	}
 
-    fprintf(header, "local const ct_data static_dtree[D_CODES] = {\n");
-    for (i = 0; i < D_CODES; i++) {
-        fprintf(header, "{{%2u},{%2u}}%s", static_dtree[i].Code,
-                static_dtree[i].Len, SEPARATOR(i, D_CODES-1, 5));
-    }
+	if (code == FSOCKERR) /* This gets simplified for a non-sibling. */
+		code = FERROR;
 
-    fprintf(header, "const uch _dist_code[DIST_CODE_LEN] = {\n");
-    for (i = 0; i < DIST_CODE_LEN; i++) {
-        fprintf(header, "%2u%s", _dist_code[i],
-                SEPARATOR(i, DIST_CODE_LEN-1, 20));
-    }
+	if (code == FCLIENT)
+		code = FINFO;
+	else if (am_daemon || logfile_name) {
+		static int in_block;
+		char msg[2048];
+		int priority = code == FERROR ? LOG_WARNING : LOG_INFO;
 
-    fprintf(header, "const uch _length_code[MAX_MATCH-MIN_MATCH+1]= {\n");
-    for (i = 0; i < MAX_MATCH-MIN_MATCH+1; i++) {
-        fprintf(header, "%2u%s", _length_code[i],
-                SEPARATOR(i, MAX_MATCH-MIN_MATCH, 20));
-    }
+		if (in_block)
+			return;
+		in_block = 1;
+		if (!log_initialised)
+			log_init(0);
+		strlcpy(msg, buf, MIN((int)sizeof msg, len + 1));
+		logit(priority, msg);
+		in_block = 0;
 
-    fprintf(header, "local const int base_length[LENGTH_CODES] = {\n");
-    for (i = 0; i < LENGTH_CODES; i++) {
-        fprintf(header, "%1u%s", base_length[i],
-                SEPARATOR(i, LENGTH_CODES-1, 20));
-    }
+		if (code == FLOG || (am_daemon && !am_server))
+			return;
+	} else if (code == FLOG)
+		return;
 
-    fprintf(header, "local const int base_dist[D_CODES] = {\n");
-    for (i = 0; i < D_CODES; i++) {
-        fprintf(header, "%5u%s", base_dist[i],
-                SEPARATOR(i, D_CODES-1, 10));
-    }
+	if (quiet && code != FERROR)
+		return;
 
-    fclose(header);
+	if (am_server) {
+		/* Pass the message to the non-server side. */
+		if (send_msg((enum msgcode)code, buf, len))
+			return;
+		if (am_daemon) {
+			/* TODO: can we send the error to the user somehow? */
+			return;
+		}
+	}
+
+	switch (code) {
+	case FERROR:
+		log_got_error = 1;
+		f = stderr;
+		break;
+	case FINFO:
+		f = am_server ? stderr : stdout;
+		break;
+	default:
+		exit_cleanup(RERR_MESSAGEIO);
+	}
+
+	trailing_CR_or_NL = len && (buf[len-1] == '\n' || buf[len-1] == '\r')
+			  ? buf[--len] : 0;
+
+#if defined HAVE_ICONV_OPEN && defined HAVE_ICONV_H
+	if (ic_chck != (iconv_t)-1) {
+		char convbuf[1024];
+		char *in_buf = buf, *out_buf = convbuf;
+		size_t in_cnt = len, out_cnt = sizeof convbuf - 1;
+
+		iconv(ic_chck, NULL, 0, NULL, 0);
+		while (iconv(ic_chck, &in_buf,&in_cnt,
+				 &out_buf,&out_cnt) == (size_t)-1) {
+			if (out_buf != convbuf) {
+				filtered_fwrite(f, convbuf, out_buf - convbuf, 0);
+				out_buf = convbuf;
+				out_cnt = sizeof convbuf - 1;
+			}
+			if (errno == E2BIG)
+				continue;
+			fprintf(f, "\\#%03o", *(uchar*)in_buf++);
+			in_cnt--;
+		}
+		if (out_buf != convbuf)
+			filtered_fwrite(f, convbuf, out_buf - convbuf, 0);
+	} else
+#endif
+		filtered_fwrite(f, buf, len, !allow_8bit_chars);
+
+	if (trailing_CR_or_NL) {
+		fputc(trailing_CR_or_NL, f);
+		fflush(f);
+	}
 }

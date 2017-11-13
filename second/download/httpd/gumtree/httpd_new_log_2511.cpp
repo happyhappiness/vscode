@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authorize: require group: testing for %s: "
-                      "%s (%s)",
-                      ent[i].name,
-                      sec->group_attrib_is_dn ? req->dn : req->user, t);
+apr_file_printf(errfile, "Not cached: %s" APR_EOL_STR,
+                            argv[o->ind]);

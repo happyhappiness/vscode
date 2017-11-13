@@ -1,12 +1,12 @@
 fputs(
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.  Use  \"%\"  as\n"
-"              filename to have the output sent to stderr.\n"
+"              --socks5-gssapi-nec allows the unprotected exchange of the  pro-\n"
+"              tection mode negotiation. (Added in 7.19.4).\n"
 "\n"
-"              This option overrides previous uses of -v, --verbose or --trace-\n"
-"              ascii.\n"
+"       --stderr <file>\n"
+"              Redirect  all writes to stderr to the specified file instead. If\n"
+"              the file name is a plain '-', it is instead written to stdout.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --trace-ascii <file>\n"
+"       -t, --telnet-option <OPT=val>\n"
 , stdout);

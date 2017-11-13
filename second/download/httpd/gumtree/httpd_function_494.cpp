@@ -1,78 +1,100 @@
-static apr_status_t ssl_io_filter_buffer(ap_filter_t *f,
-                                         apr_bucket_brigade *bb,
-                                         ap_input_mode_t mode,
-                                         apr_read_type_e block,
-                                         apr_off_t bytes)
+void ap_reclaim_child_processes(int terminate)
 {
-    struct modssl_buffer_ctx *ctx = f->ctx;
-    apr_status_t rv;
+    int i;
+    long int waittime = 1024 * 16;      /* in usecs */
+    apr_status_t waitret;
+    int tries;
+    int not_dead_yet;
+    int max_daemons;
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                  "read from buffered SSL brigade, mode %d, "
-                  "%" APR_OFF_T_FMT " bytes",
-                  mode, bytes);
+    ap_mpm_query(AP_MPMQ_MAX_DAEMON_USED, &max_daemons);
 
-    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
-        return APR_ENOTIMPL;
-    }
+    for (tries = terminate ? 4 : 1; tries <= 9; ++tries) {
+        /* don't want to hold up progress any more than
+         * necessary, but we need to allow children a few moments to exit.
+         * Set delay with an exponential backoff.
+         */
+        apr_sleep(waittime);
+        waittime = waittime * 4;
 
-    if (mode == AP_MODE_READBYTES) {
-        apr_bucket *e;
+        /* now see who is done */
+        not_dead_yet = 0;
+        for (i = 0; i < max_daemons; ++i) {
+            pid_t pid = MPM_CHILD_PID(i);
+            apr_proc_t proc;
 
-        /* Partition the buffered brigade. */
-        rv = apr_brigade_partition(ctx->bb, bytes, &e);
-        if (rv && rv != APR_INCOMPLETE) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                          "could not partition buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
+            if (pid == 0)
+                continue;
+
+            proc.pid = pid;
+            waitret = apr_proc_wait(&proc, NULL, NULL, APR_NOWAIT);
+            if (waitret != APR_CHILD_NOTDONE) {
+                MPM_NOTE_CHILD_KILLED(i);
+                continue;
+            }
+
+            ++not_dead_yet;
+            switch (tries) {
+            case 1:     /*  16ms */
+            case 2:     /*  82ms */
+            case 3:     /* 344ms */
+            case 4:     /*  16ms */
+                break;
+
+            case 5:     /*  82ms */
+            case 6:     /* 344ms */
+            case 7:     /* 1.4sec */
+                /* ok, now it's being annoying */
+                ap_log_error(APLOG_MARK, APLOG_WARNING,
+                             0, ap_server_conf,
+                             "child process %ld still did not exit, "
+                             "sending a SIGTERM",
+                             (long)pid);
+                kill(pid, SIGTERM);
+                break;
+
+            case 8:     /*  6 sec */
+                /* die child scum */
+                ap_log_error(APLOG_MARK, APLOG_ERR,
+                             0, ap_server_conf,
+                             "child process %ld still did not exit, "
+                             "sending a SIGKILL",
+                             (long)pid);
+#ifndef BEOS
+                kill(pid, SIGKILL);
+#else
+                /* sending a SIGKILL kills the entire team on BeOS, and as
+                 * httpd thread is part of that team it removes any chance
+                 * of ever doing a restart.  To counter this I'm changing to
+                 * use a kinder, gentler way of killing a specific thread
+                 * that is just as effective.
+                 */
+                kill_thread(pid);
+#endif
+                break;
+
+            case 9:     /* 14 sec */
+                /* gave it our best shot, but alas...  If this really
+                 * is a child we are trying to kill and it really hasn't
+                 * exited, we will likely fail to bind to the port
+                 * after the restart.
+                 */
+                ap_log_error(APLOG_MARK, APLOG_ERR,
+                             0, ap_server_conf,
+                             "could not make child process %ld exit, "
+                             "attempting to continue anyway",
+                             (long)pid);
+                break;
+            }
         }
 
-        /* If the buffered brigade contains less then the requested
-         * length, just pass it all back. */
-        if (rv == APR_INCOMPLETE) {
-            APR_BRIGADE_CONCAT(bb, ctx->bb);
-        } else {
-            apr_bucket *d = APR_BRIGADE_FIRST(ctx->bb);
+#if APR_HAS_OTHER_CHILD
+        apr_proc_other_child_check();
+#endif
 
-            e = APR_BUCKET_PREV(e);
-            
-            /* Unsplice the partitioned segment and move it into the
-             * passed-in brigade; no convenient way to do this with
-             * the APR_BRIGADE_* macros. */
-            APR_RING_UNSPLICE(d, e, link);
-            APR_RING_SPLICE_HEAD(&bb->list, d, e, apr_bucket, link);
-
-            APR_BRIGADE_CHECK_CONSISTENCY(bb);
-            APR_BRIGADE_CHECK_CONSISTENCY(ctx->bb);
+        if (!not_dead_yet) {
+            /* nothing left to wait for */
+            break;
         }
     }
-    else {
-        /* Split a line into the passed-in brigade. */
-        rv = apr_brigade_split_line(bb, ctx->bb, mode, bytes);
-
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                          "could not split line from buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
-        }
-    }
-
-    if (APR_BRIGADE_EMPTY(ctx->bb)) {
-        apr_bucket *e = APR_BRIGADE_LAST(bb);
-        
-        /* Ensure that the brigade is terminated by an EOS if the
-         * buffered request body has been entirely consumed. */
-        if (e == APR_BRIGADE_SENTINEL(bb) || !APR_BUCKET_IS_EOS(e)) {
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
-        }
-
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                      "buffered SSL brigade now exhausted; removing filter");
-        ap_remove_input_filter(f);
-    }
-
-    return APR_SUCCESS;
 }

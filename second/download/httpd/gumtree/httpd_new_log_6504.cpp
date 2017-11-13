@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02334)
-                 "storing %s", storename);
+ap_rputs("<tr><td colspan='2'>\n<table align='center'><tr><th>Health Check param</th><th>Value</th></tr>\n", r);

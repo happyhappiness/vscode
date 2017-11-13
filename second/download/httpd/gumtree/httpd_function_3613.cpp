@@ -1,138 +1,185 @@
-static int match_headers(request_rec *r)
+static int dav_method_vsn_control(request_rec *r)
 {
-    sei_cfg_rec *sconf;
-    sei_entry *entries;
-    const apr_table_entry_t *elts;
-    const char *val, *err;
-    apr_size_t val_len = 0;
-    int i, j;
-    char *last_name;
-    ap_regmatch_t regm[AP_MAX_REG_MATCH];
+    dav_resource *resource;
+    int resource_state;
+    dav_auto_version_info av_info;
+    const dav_hooks_locks *locks_hooks = DAV_GET_HOOKS_LOCKS(r);
+    const dav_hooks_vsn *vsn_hooks = DAV_GET_HOOKS_VSN(r);
+    dav_error *err;
+    apr_xml_doc *doc;
+    const char *target = NULL;
+    int result;
 
-    if (!ap_get_module_config(r->request_config, &setenvif_module)) {
-        ap_set_module_config(r->request_config, &setenvif_module,
-                             SEI_MAGIC_HEIRLOOM);
-        sconf  = (sei_cfg_rec *) ap_get_module_config(r->server->module_config,
-                                                      &setenvif_module);
+    /* if no versioning provider, decline the request */
+    if (vsn_hooks == NULL)
+        return DECLINED;
+
+    /* ask repository module to resolve the resource */
+    err = dav_get_resource(r, 0 /* label_allowed */, 0 /* use_checked_in */,
+                           &resource);
+    if (err != NULL)
+        return dav_handle_err(r, err, NULL);
+
+    /* remember the pre-creation resource state */
+    resource_state = dav_get_resource_state(r, resource);
+
+    /* parse the request body (may be a version-control element) */
+    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
+        return result;
     }
-    else {
-        sconf = (sei_cfg_rec *) ap_get_module_config(r->per_dir_config,
-                                                     &setenvif_module);
-    }
-    entries = (sei_entry *) sconf->conditionals->elts;
-    last_name = NULL;
-    val = NULL;
-    for (i = 0; i < sconf->conditionals->nelts; ++i) {
-        sei_entry *b = &entries[i];
+    /* note: doc == NULL if no request body */
 
-        if (!b->expr) {
-            /* Optimize the case where a bunch of directives in a row use the
-             * same header.  Remember we don't need to strcmp the two header
-             * names because we made sure the pointers were equal during
-             * configuration.
-             */
-            if (b->name != last_name) {
-                last_name = b->name;
-                switch (b->special_type) {
-                case SPECIAL_REMOTE_ADDR:
-                    val = r->useragent_ip;
-                    break;
-                case SPECIAL_SERVER_ADDR:
-                    val = r->connection->local_ip;
-                    break;
-                case SPECIAL_REMOTE_HOST:
-                    val =  ap_get_remote_host(r->connection, r->per_dir_config,
-                                              REMOTE_NAME, NULL);
-                    break;
-                case SPECIAL_REQUEST_URI:
-                    val = r->uri;
-                    break;
-                case SPECIAL_REQUEST_METHOD:
-                    val = r->method;
-                    break;
-                case SPECIAL_REQUEST_PROTOCOL:
-                    val = r->protocol;
-                    break;
-                case SPECIAL_NOT:
-                    if (b->pnamereg) {
-                        /* Matching headers_in against a regex. Iterate through
-                         * the headers_in until we find a match or run out of
-                         * headers.
-                         */
-                        const apr_array_header_t
-                            *arr = apr_table_elts(r->headers_in);
+    if (doc != NULL) {
+        const apr_xml_elem *child;
+        apr_size_t tsize;
 
-                        elts = (const apr_table_entry_t *) arr->elts;
-                        val = NULL;
-                        for (j = 0; j < arr->nelts; ++j) {
-                            if (!ap_regexec(b->pnamereg, elts[j].key, 0, NULL, 0)) {
-                                val = elts[j].val;
-                            }
-                        }
-                    }
-                    else {
-                        /* Not matching against a regex */
-                        val = apr_table_get(r->headers_in, b->name);
-                        if (val == NULL) {
-                            val = apr_table_get(r->subprocess_env, b->name);
-                        }
-                    }
-                }
-                val_len = val ? strlen(val) : 0;
-            }
-
+        if (!dav_validate_root(doc, "version-control")) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The request body does not contain "
+                          "a \"version-control\" element.");
+            return HTTP_BAD_REQUEST;
         }
 
-        /*
-         * A NULL value indicates that the header field or special entity
-         * wasn't present or is undefined.  Represent that as an empty string
-         * so that REs like "^$" will work and allow envariable setting
-         * based on missing or empty field. This is also necessary to make
-         * ap_pregsub work after evaluating an ap_expr_t which does set the
-         * regexp backref data.
+        /* get the version URI */
+        if ((child = dav_find_child(doc->root, "version")) == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The \"version-control\" element does not contain "
+                          "a \"version\" element.");
+            return HTTP_BAD_REQUEST;
+        }
+
+        if ((child = dav_find_child(child, "href")) == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The \"version\" element does not contain "
+                          "an \"href\" element.");
+            return HTTP_BAD_REQUEST;
+        }
+
+        /* get version URI */
+        apr_xml_to_text(r->pool, child, APR_XML_X2T_INNER, NULL, NULL,
+                        &target, &tsize);
+        if (tsize == 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "An \"href\" element does not contain a URI.");
+            return HTTP_BAD_REQUEST;
+        }
+    }
+
+    /* Check request preconditions */
+
+    /* ### need a general mechanism for reporting precondition violations
+     * ### (should be returning XML document for 403/409 responses)
+     */
+
+    /* if not versioning existing resource, must specify version to select */
+    if (!resource->exists && target == NULL) {
+        err = dav_new_error(r->pool, HTTP_CONFLICT, 0, 0,
+                            "<DAV:initial-version-required/>");
+        return dav_handle_err(r, err, NULL);
+    }
+    else if (resource->exists) {
+        /* cannot add resource to existing version history */
+        if (target != NULL) {
+            err = dav_new_error(r->pool, HTTP_CONFLICT, 0, 0,
+                                "<DAV:cannot-add-to-existing-history/>");
+            return dav_handle_err(r, err, NULL);
+        }
+
+        /* resource must be unversioned and versionable, or version selector */
+        if (resource->type != DAV_RESOURCE_TYPE_REGULAR
+            || (!resource->versioned && !(vsn_hooks->versionable)(resource))) {
+            err = dav_new_error(r->pool, HTTP_CONFLICT, 0, 0,
+                                "<DAV:must-be-versionable/>");
+            return dav_handle_err(r, err, NULL);
+        }
+
+        /* the DeltaV spec says if resource is a version selector,
+         * then VERSION-CONTROL is a no-op
          */
-        if (val == NULL) {
-            val = "";
-            val_len = 0;
-        }
+        if (resource->versioned) {
+            /* set the Cache-Control header, per the spec */
+            apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
 
-        if ((b->pattern && apr_strmatch(b->pattern, val, val_len)) ||
-            (b->preg && !ap_regexec(b->preg, val, AP_MAX_REG_MATCH, regm, 0)) ||
-            (b->expr && ap_expr_exec_re(r, b->expr, AP_MAX_REG_MATCH, regm, &val, &err) > 0))
-        {
-            const apr_array_header_t *arr = apr_table_elts(b->features);
-            elts = (const apr_table_entry_t *) arr->elts;
+            /* no body */
+            ap_set_content_length(r, 0);
 
-            for (j = 0; j < arr->nelts; ++j) {
-                if (*(elts[j].val) == '!') {
-                    apr_table_unset(r->subprocess_env, elts[j].key);
-                }
-                else {
-                    if (!b->pattern) {
-                        char *replaced = ap_pregsub(r->pool, elts[j].val, val,
-                                                    AP_MAX_REG_MATCH, regm);
-                        if (replaced) {
-                            apr_table_setn(r->subprocess_env, elts[j].key,
-                                           replaced);
-                        }
-                        else {
-                            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01505)
-                                          "Regular expression replacement "
-                                          "failed for '%s', value too long?",
-                                          elts[j].key);
-                            return HTTP_INTERNAL_SERVER_ERROR;
-                        }
-                    }
-                    else {
-                        apr_table_setn(r->subprocess_env, elts[j].key,
-                                       elts[j].val);
-                    }
-                }
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "Setting %s",
-                              elts[j].key);
-            }
+            return DONE;
         }
     }
 
-    return DECLINED;
+    /* Check If-Headers and existing locks */
+    /* Note: depth == 0. Implies no need for a multistatus response. */
+    if ((err = dav_validate_request(r, resource, 0, NULL, NULL,
+                                    resource_state == DAV_RESOURCE_NULL ?
+                                    DAV_VALIDATE_PARENT :
+                                    DAV_VALIDATE_RESOURCE, NULL)) != NULL) {
+        return dav_handle_err(r, err, NULL);
+    }
+
+    /* if in versioned collection, make sure parent is checked out */
+    if ((err = dav_auto_checkout(r, resource, 1 /* parent_only */,
+                                 &av_info)) != NULL) {
+        return dav_handle_err(r, err, NULL);
+    }
+
+    /* attempt to version-control the resource */
+    if ((err = (*vsn_hooks->vsn_control)(resource, target)) != NULL) {
+        dav_auto_checkin(r, resource, 1 /*undo*/, 0 /*unlock*/, &av_info);
+        err = dav_push_error(r->pool, HTTP_CONFLICT, 0,
+                             apr_psprintf(r->pool,
+                                          "Could not VERSION-CONTROL resource %s.",
+                                          ap_escape_html(r->pool, r->uri)),
+                             err);
+        return dav_handle_err(r, err, NULL);
+    }
+
+    /* revert writability of parent directory */
+    err = dav_auto_checkin(r, resource, 0 /*undo*/, 0 /*unlock*/, &av_info);
+    if (err != NULL) {
+        /* just log a warning */
+        err = dav_push_error(r->pool, err->status, 0,
+                             "The VERSION-CONTROL was successful, but there "
+                             "was a problem automatically checking in "
+                             "the parent collection.",
+                             err);
+        dav_log_err(r, err, APLOG_WARNING);
+    }
+
+    /* if the resource is lockable, let lock system know of new resource */
+    if (locks_hooks != NULL
+        && (*locks_hooks->get_supportedlock)(resource) != NULL) {
+        dav_lockdb *lockdb;
+
+        if ((err = (*locks_hooks->open_lockdb)(r, 0, 0, &lockdb)) != NULL) {
+            /* The resource creation was successful, but the locking failed. */
+            err = dav_push_error(r->pool, err->status, 0,
+                                 "The VERSION-CONTROL was successful, but there "
+                                 "was a problem opening the lock database "
+                                 "which prevents inheriting locks from the "
+                                 "parent resources.",
+                                 err);
+            return dav_handle_err(r, err, NULL);
+        }
+
+        /* notify lock system that we have created/replaced a resource */
+        err = dav_notify_created(r, lockdb, resource, resource_state, 0);
+
+        (*locks_hooks->close_lockdb)(lockdb);
+
+        if (err != NULL) {
+            /* The dir creation was successful, but the locking failed. */
+            err = dav_push_error(r->pool, err->status, 0,
+                                 "The VERSION-CONTROL was successful, but there "
+                                 "was a problem updating its lock "
+                                 "information.",
+                                 err);
+            return dav_handle_err(r, err, NULL);
+        }
+    }
+
+    /* set the Cache-Control header, per the spec */
+    apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
+
+    /* return an appropriate response (HTTP_CREATED) */
+    return dav_created(r, resource->uri, "Version selector", 0 /*replaced*/);
 }

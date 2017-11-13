@@ -1,38 +1,71 @@
-static int show_active_hooks(request_rec * r)
+static apr_status_t isapi_load(apr_pool_t *p, server_rec *s, isapi_loaded *isa)
 {
-    int i;
-    ap_rputs("<h2><a name=\"startup_hooks\">Startup Hooks</a></h2>\n<dl>", r);
+    apr_status_t rv;
 
-    for (i = 0; startup_hooks[i].name; i++) {
-        ap_rprintf(r, "<dt><strong>%s:</strong>\n <br /><tt>\n",
-                   startup_hooks[i].name);
-        dump_a_hook(r, startup_hooks[i].get);
-        ap_rputs("\n  </tt>\n</dt>\n", r);
+    isa->isapi_version = apr_pcalloc(p, sizeof(HSE_VERSION_INFO));
+
+    /* TODO: These aught to become overrideable, so that we
+     * assure a given isapi can be fooled into behaving well.
+     *
+     * The tricky bit, they aren't really a per-dir sort of
+     * config, they will always be constant across every
+     * reference to the .dll no matter what context (vhost,
+     * location, etc) they apply to.
+     */
+    isa->report_version = 0x500; /* Revision 5.0 */
+    isa->timeout = 300 * 1000000; /* microsecs, not used */
+
+    rv = apr_dso_load(&isa->handle, isa->filename, p);
+    if (rv)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: failed to load %s", isa->filename);
+        isa->handle = NULL;
+        return rv;
     }
 
-    ap_rputs
-        ("</dl>\n<hr />\n<h2><a name=\"request_hooks\">Request Hooks</a></h2>\n<dl>",
-         r);
-
-    for (i = 0; request_hooks[i].name; i++) {
-        ap_rprintf(r, "<dt><strong>%s:</strong>\n <br /><tt>\n",
-                   request_hooks[i].name);
-        dump_a_hook(r, request_hooks[i].get);
-        ap_rputs("\n  </tt>\n</dt>\n", r);
+    rv = apr_dso_sym((void**)&isa->GetExtensionVersion, isa->handle,
+                     "GetExtensionVersion");
+    if (rv)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: missing GetExtensionVersion() in %s",
+                     isa->filename);
+        apr_dso_unload(isa->handle);
+        isa->handle = NULL;
+        return rv;
     }
 
-    ap_rputs
-        ("</dl>\n<hr />\n<h2><a name=\"other_hooks\">Other Hooks</a></h2>\n<dl>",
-         r);
-
-    for (i = 0; other_hooks[i].name; i++) {
-        ap_rprintf(r, "<dt><strong>%s:</strong>\n <br /><tt>\n",
-                   other_hooks[i].name);
-        dump_a_hook(r, other_hooks[i].get);
-        ap_rputs("\n  </tt>\n</dt>\n", r);
+    rv = apr_dso_sym((void**)&isa->HttpExtensionProc, isa->handle,
+                     "HttpExtensionProc");
+    if (rv)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: missing HttpExtensionProc() in %s",
+                     isa->filename);
+        apr_dso_unload(isa->handle);
+        isa->handle = NULL;
+        return rv;
     }
 
-    ap_rputs("</dl>\n<hr />\n", r);
+    /* TerminateExtension() is an optional interface */
+    rv = apr_dso_sym((void**)&isa->TerminateExtension, isa->handle,
+                     "TerminateExtension");
+    apr_set_os_error(0);
 
-    return 0;
+    /* Run GetExtensionVersion() */
+    if (!(isa->GetExtensionVersion)(isa->isapi_version)) {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: failed call to GetExtensionVersion() in %s",
+                     isa->filename);
+        apr_dso_unload(isa->handle);
+        isa->handle = NULL;
+        return rv;
+    }
+
+    apr_pool_cleanup_register(p, isa, cleanup_isapi,
+                              apr_pool_cleanup_null);
+
+    return APR_SUCCESS;
 }

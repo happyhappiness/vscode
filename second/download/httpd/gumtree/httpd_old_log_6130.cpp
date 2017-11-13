@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, master,
-                  "h2_conn(%ld): create slave", master->id);
+ap_log_perror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, pool,
+                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
+                      session_id, req->id);

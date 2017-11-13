@@ -1,33 +1,16 @@
-static int grep_source_load_file(struct grep_source *gs)
+static int sockopt_callback(void *client, curl_socket_t fd, curlsocktype type)
 {
-	const char *filename = gs->identifier;
-	struct stat st;
-	char *data;
-	size_t size;
-	int i;
+	int ka = 1;
+	int rc;
+	socklen_t len = (socklen_t)sizeof(ka);
 
-	if (lstat(filename, &st) < 0) {
-	err_ret:
-		if (errno != ENOENT)
-			error(_("'%s': %s"), filename, strerror(errno));
-		return -1;
-	}
-	if (!S_ISREG(st.st_mode))
-		return -1;
-	size = xsize_t(st.st_size);
-	i = open(filename, O_RDONLY);
-	if (i < 0)
-		goto err_ret;
-	data = xmallocz(size);
-	if (st.st_size != read_in_full(i, data, size)) {
-		error(_("'%s': short read %s"), filename, strerror(errno));
-		close(i);
-		free(data);
-		return -1;
-	}
-	close(i);
+	if (type != CURLSOCKTYPE_IPCXN)
+		return 0;
 
-	gs->buf = data;
-	gs->size = size;
-	return 0;
+	rc = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (void *)&ka, len);
+	if (rc < 0)
+		warning("unable to set SO_KEEPALIVE on socket %s",
+			strerror(errno));
+
+	return 0; /* CURL_SOCKOPT_OK only exists since curl 7.21.5 */
 }

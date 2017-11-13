@@ -1,2 +1,1 @@
-fprintf(stderr, "Checking reflog %s->%s\n",
-			oid_to_hex(ooid), oid_to_hex(noid));
+printf("%s %s^{}\n", hex, refname);

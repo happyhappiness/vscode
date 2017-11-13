@@ -1,62 +1,112 @@
-static int reclaim_one_pid(pid_t pid, action_t action)
+static BOOL stapling_renew_response(server_rec *s, modssl_ctx_t *mctx, SSL *ssl,
+                                    certinfo *cinf, OCSP_RESPONSE **prsp,
+                                    apr_pool_t *pool)
 {
-    apr_proc_t proc;
-    apr_status_t waitret;
-    apr_exit_why_e why;
-    int status;
+    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
+    apr_pool_t *vpool;
+    OCSP_REQUEST *req = NULL;
+    OCSP_CERTID *id = NULL;
+    STACK_OF(X509_EXTENSION) *exts;
+    int i;
+    BOOL ok = FALSE;
+    BOOL rv = TRUE;
+    const char *ocspuri;
+    apr_uri_t uri;
 
-    /* Ensure pid sanity. */
-    if (pid < 1) {
-        return 1;
-    }        
+    *prsp = NULL;
+    /* Build up OCSP query from server certificate info */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_renew_response: querying responder");
 
-    proc.pid = pid;
-    waitret = apr_proc_wait(&proc, &status, &why, APR_NOWAIT);
-    if (waitret != APR_CHILD_NOTDONE) {
-        if (waitret == APR_CHILD_DONE)
-            ap_process_child_status(&proc, why, status);
-        return 1;
+    req = OCSP_REQUEST_new();
+    if (!req)
+        goto err;
+    id = OCSP_CERTID_dup(cinf->cid);
+    if (!id)
+        goto err;
+    if (!OCSP_request_add0_id(req, id))
+        goto err;
+    id = NULL;
+    /* Add any extensions to the request */
+    SSL_get_tlsext_status_exts(ssl, &exts);
+    for (i = 0; i < sk_X509_EXTENSION_num(exts); i++) {
+        X509_EXTENSION *ext = sk_X509_EXTENSION_value(exts, i);
+        if (!OCSP_REQUEST_add_ext(req, ext, -1))
+            goto err;
     }
 
-    switch(action) {
-    case DO_NOTHING:
-        break;
+    if (mctx->stapling_force_url)
+        ocspuri = mctx->stapling_force_url;
+    else
+        ocspuri = cinf->uri;
 
-    case SEND_SIGTERM:
-        /* ok, now it's being annoying */
-        ap_log_error(APLOG_MARK, APLOG_WARNING,
-                     0, ap_server_conf,
-                     "child process %" APR_PID_T_FMT
-                     " still did not exit, "
-                     "sending a SIGTERM",
-                     pid);
-        kill(pid, SIGTERM);
-        break;
+    /* Create a temporary pool to constrain memory use */
+    apr_pool_create(&vpool, conn->pool);
 
-    case SEND_SIGKILL:
-        ap_log_error(APLOG_MARK, APLOG_ERR,
-                     0, ap_server_conf,
-                     "child process %" APR_PID_T_FMT
-                     " still did not exit, "
-                     "sending a SIGKILL",
-                     pid);
-        kill(pid, SIGKILL);
-        break;
-
-    case GIVEUP:
-        /* gave it our best shot, but alas...  If this really
-         * is a child we are trying to kill and it really hasn't
-         * exited, we will likely fail to bind to the port
-         * after the restart.
-         */
-        ap_log_error(APLOG_MARK, APLOG_ERR,
-                     0, ap_server_conf,
-                     "could not make child process %" APR_PID_T_FMT
-                     " exit, "
-                     "attempting to continue anyway",
-                     pid);
-        break;
+    ok = apr_uri_parse(vpool, ocspuri, &uri);
+    if (ok != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_renew_response: Error parsing uri %s",
+                      ocspuri);
+        rv = FALSE;
+        goto done;
+    } 
+    else if (strcmp(uri.scheme, "http")) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_renew_response: Unsupported uri %s", ocspuri);
+        rv = FALSE;
+        goto done;
     }
 
-    return 0;
+    if (!uri.port) {
+        uri.port = apr_uri_port_of_scheme(uri.scheme);
+    }
+
+    *prsp = modssl_dispatch_ocsp_request(&uri, mctx->stapling_responder_timeout,
+                                         req, conn, vpool);
+
+    apr_pool_destroy(vpool);
+
+    if (!*prsp) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_renew_response: responder error");
+        if (mctx->stapling_fake_trylater) {
+            *prsp = OCSP_response_create(OCSP_RESPONSE_STATUS_TRYLATER, NULL);
+        }
+        else {
+            goto done;
+        }
+    } 
+    else {
+        int response_status = OCSP_response_status(*prsp);
+
+        if (response_status == OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                        "stapling_renew_response: query response received");
+            stapling_check_response(s, mctx, cinf, *prsp, &ok);
+            if (ok == FALSE) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "stapling_renew_response: error in retreived response!");
+            }
+        } 
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_renew_response: responder error %s",
+                         OCSP_response_status_str(response_status));
+        }
+    }
+    if (stapling_cache_response(s, mctx, *prsp, cinf, ok, pool) == FALSE) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_renew_response: error caching response!");
+    }
+
+done:
+    if (id)
+        OCSP_CERTID_free(id);
+    if (req)
+        OCSP_REQUEST_free(req);
+    return rv;
+err:
+    rv = FALSE;
+    goto done;
 }

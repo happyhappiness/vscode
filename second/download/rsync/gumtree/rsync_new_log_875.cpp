@@ -1,1 +1,1 @@
-out_of_memory("add_suffix");
+out_of_memory("add_nocompress_suffixes");

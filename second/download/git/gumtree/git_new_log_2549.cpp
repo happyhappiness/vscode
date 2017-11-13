@@ -1,1 +1,0 @@
-die(_("Expecting a full ref name, got %s"), refname);

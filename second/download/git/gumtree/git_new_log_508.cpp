@@ -1,2 +1,4 @@
-print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-				 "fetch first", porcelain, summary_width);
+warning(
+				"external filter '%s' requested unsupported filter capability '%s'",
+				cmd, cap_name
+			);

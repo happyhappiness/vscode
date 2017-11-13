@@ -1,10 +1,17 @@
-void die_if_checked_out(const char *branch)
+FILE *xfopen(const char *path, const char *mode)
 {
-	char *existing;
+	for (;;) {
+		FILE *fp = fopen(path, mode);
+		if (fp)
+			return fp;
+		if (errno == EINTR)
+			continue;
 
-	existing = find_shared_symref("HEAD", branch);
-	if (existing) {
-		skip_prefix(branch, "refs/heads/", &branch);
-		die(_("'%s' is already checked out at '%s'"), branch, existing);
+		if (*mode && mode[1] == '+')
+			die_errno(_("could not open '%s' for reading and writing"), path);
+		else if (*mode == 'w' || *mode == 'a')
+			die_errno(_("could not open '%s' for writing"), path);
+		else
+			die_errno(_("could not open '%s' for reading"), path);
 	}
 }

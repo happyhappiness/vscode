@@ -1,46 +1,84 @@
-static int get_trace_fd(struct trace_key *key)
+static struct untracked_cache_dir *validate_untracked_cache(struct dir_struct *dir,
+						      int base_len,
+						      const struct pathspec *pathspec)
 {
-	static struct trace_key trace_default = { "GIT_TRACE" };
-	const char *trace;
+	struct untracked_cache_dir *root;
 
-	/* use default "GIT_TRACE" if NULL */
-	if (!key)
-		key = &trace_default;
+	if (!dir->untracked || getenv("GIT_DISABLE_UNTRACKED_CACHE"))
+		return NULL;
 
-	/* don't open twice */
-	if (key->initialized)
-		return key->fd;
+	/*
+	 * We only support $GIT_DIR/info/exclude and core.excludesfile
+	 * as the global ignore rule files. Any other additions
+	 * (e.g. from command line) invalidate the cache. This
+	 * condition also catches running setup_standard_excludes()
+	 * before setting dir->untracked!
+	 */
+	if (dir->unmanaged_exclude_files)
+		return NULL;
 
-	trace = getenv(key->key);
+	/*
+	 * Optimize for the main use case only: whole-tree git
+	 * status. More work involved in treat_leading_path() if we
+	 * use cache on just a subset of the worktree. pathspec
+	 * support could make the matter even worse.
+	 */
+	if (base_len || (pathspec && pathspec->nr))
+		return NULL;
 
-	if (!trace || !strcmp(trace, "") ||
-	    !strcmp(trace, "0") || !strcasecmp(trace, "false"))
-		key->fd = 0;
-	else if (!strcmp(trace, "1") || !strcasecmp(trace, "true"))
-		key->fd = STDERR_FILENO;
-	else if (strlen(trace) == 1 && isdigit(*trace))
-		key->fd = atoi(trace);
-	else if (is_absolute_path(trace)) {
-		int fd = open(trace, O_WRONLY | O_APPEND | O_CREAT, 0666);
-		if (fd == -1) {
-			fprintf(stderr,
-				"Could not open '%s' for tracing: %s\n"
-				"Defaulting to tracing on stderr...\n",
-				trace, strerror(errno));
-			key->fd = STDERR_FILENO;
-		} else {
-			key->fd = fd;
-			key->need_close = 1;
-		}
-	} else {
-		fprintf(stderr, "What does '%s' for %s mean?\n"
-			"If you want to trace into a file, then please set "
-			"%s to an absolute pathname (starting with /).\n"
-			"Defaulting to tracing on stderr...\n",
-			trace, key->key, key->key);
-		key->fd = STDERR_FILENO;
+	/* Different set of flags may produce different results */
+	if (dir->flags != dir->untracked->dir_flags ||
+	    /*
+	     * See treat_directory(), case index_nonexistent. Without
+	     * this flag, we may need to also cache .git file content
+	     * for the resolve_gitlink_ref() call, which we don't.
+	     */
+	    !(dir->flags & DIR_SHOW_OTHER_DIRECTORIES) ||
+	    /* We don't support collecting ignore files */
+	    (dir->flags & (DIR_SHOW_IGNORED | DIR_SHOW_IGNORED_TOO |
+			   DIR_COLLECT_IGNORED)))
+		return NULL;
+
+	/*
+	 * If we use .gitignore in the cache and now you change it to
+	 * .gitexclude, everything will go wrong.
+	 */
+	if (dir->exclude_per_dir != dir->untracked->exclude_per_dir &&
+	    strcmp(dir->exclude_per_dir, dir->untracked->exclude_per_dir))
+		return NULL;
+
+	/*
+	 * EXC_CMDL is not considered in the cache. If people set it,
+	 * skip the cache.
+	 */
+	if (dir->exclude_list_group[EXC_CMDL].nr)
+		return NULL;
+
+	if (!ident_in_untracked(dir->untracked)) {
+		warning(_("Untracked cache is disabled on this system."));
+		return NULL;
 	}
 
-	key->initialized = 1;
-	return key->fd;
+	if (!dir->untracked->root) {
+		const int len = sizeof(*dir->untracked->root);
+		dir->untracked->root = xmalloc(len);
+		memset(dir->untracked->root, 0, len);
+	}
+
+	/* Validate $GIT_DIR/info/exclude and core.excludesfile */
+	root = dir->untracked->root;
+	if (hashcmp(dir->ss_info_exclude.sha1,
+		    dir->untracked->ss_info_exclude.sha1)) {
+		invalidate_gitignore(dir->untracked, root);
+		dir->untracked->ss_info_exclude = dir->ss_info_exclude;
+	}
+	if (hashcmp(dir->ss_excludes_file.sha1,
+		    dir->untracked->ss_excludes_file.sha1)) {
+		invalidate_gitignore(dir->untracked, root);
+		dir->untracked->ss_excludes_file = dir->ss_excludes_file;
+	}
+
+	/* Make sure this directory is not dropped out at saving phase */
+	root->recurse = 1;
+	return root;
 }

@@ -1,1 +1,1 @@
-error_errno(_("could not write to '%s'"), filename);
+error(_("failed to delete ref NOTES_MERGE_PARTIAL"));

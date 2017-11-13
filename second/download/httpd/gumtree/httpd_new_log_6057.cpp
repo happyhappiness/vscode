@@ -1,2 +1,3 @@
-ap_register_output_filter("H2_SLAVE_OUT", h2_filter_slave_output,
-                              NULL, AP_FTYPE_NETWORK);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      "h2_session(%ld): destroy, %d streams open",
+                      session->id, (int)h2_ihash_count(session->streams));

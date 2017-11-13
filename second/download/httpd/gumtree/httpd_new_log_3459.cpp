@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01309)
-                 "ldap connection: Setting connection timeout to %ld seconds.",
-                 st->connectionTimeout);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00804)
+                     "Cannot create socache DBM file `%s'",
+                     ctx->data_file);

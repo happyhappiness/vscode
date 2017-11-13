@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00672)
-                                      "Regex substitution in '%s' failed. "
-                                      "Replacement too long?", alias->real);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00836)
+                 "leaving socache_shmcb_retrieve successfully");

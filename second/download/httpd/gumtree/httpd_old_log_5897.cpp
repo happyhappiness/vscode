@@ -1,2 +1,3 @@
-ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
-                      NULL);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, &env->c,
+                          "h2_task_input(%s): serialize request %s %s", 
+                          env->id, env->method, env->path);

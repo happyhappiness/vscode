@@ -1,93 +1,66 @@
-static int winnt_check_config(apr_pool_t *pconf, apr_pool_t *plog,
-                              apr_pool_t *ptemp, server_rec* s)
+static void log_tracing_state(MODSSL_INFO_CB_ARG_TYPE ssl, conn_rec *c, 
+                              server_rec *s, int where, int rc)
 {
-    int is_parent;
-    static int restart_num = 0;
-    int startup = 0;
-
-    /* We want this only in the parent and only the first time around */
-    is_parent = (parent_pid == my_pid);
-    if (is_parent && restart_num++ == 0) {
-        startup = 1;
-    }
-
-    if (thread_limit > MAX_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadLimit of %d exceeds compile-time "
-                         "limit of", thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
-        } else if (is_parent) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
-        }
-        thread_limit = MAX_THREAD_LIMIT;
-    }
-    else if (thread_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadLimit of %d not allowed, "
-                         "increasing to 1.", thread_limit);
-        } else if (is_parent) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
-        }
-        thread_limit = 1;
-    }
-
-    /* You cannot change ThreadLimit across a restart; ignore
-     * any such attempts.
+    /*
+     * create the various trace messages
      */
-    if (!first_thread_limit) {
-        first_thread_limit = thread_limit;
+    if (where & SSL_CB_HANDSHAKE_START) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Handshake: start", SSL_LIBRARY_NAME);
     }
-    else if (thread_limit != first_thread_limit) {
-        /* Don't need a startup console version here */
-        if (is_parent) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "changing ThreadLimit to %d from original value "
-                         "of %d not allowed during restart",
-                         thread_limit, first_thread_limit);
+    else if (where & SSL_CB_HANDSHAKE_DONE) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Handshake: done", SSL_LIBRARY_NAME);
+    }
+    else if (where & SSL_CB_LOOP) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Loop: %s",
+                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_READ) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Read: %s",
+                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_WRITE) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Write: %s",
+                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_ALERT) {
+        char *str = (where & SSL_CB_READ) ? "read" : "write";
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Alert: %s:%s:%s",
+                      SSL_LIBRARY_NAME, str,
+                      SSL_alert_type_string_long(rc),
+                      SSL_alert_desc_string_long(rc));
+    }
+    else if (where & SSL_CB_EXIT) {
+        if (rc == 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                          "%s: Exit: failed in %s",
+                          SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
         }
-        thread_limit = first_thread_limit;
+        else if (rc < 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                          "%s: Exit: error in %s",
+                          SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+        }
     }
 
-    if (ap_threads_per_child > thread_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", ap_threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         thread_limit, thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ThreadLimit "
-                         "directive.");
-        } else if (is_parent) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         ap_threads_per_child, thread_limit);
-        }
-        ap_threads_per_child = thread_limit;
+    /*
+     * Because SSL renegotations can happen at any time (not only after
+     * SSL_accept()), the best way to log the current connection details is
+     * right after a finished handshake.
+     */
+    if (where & SSL_CB_HANDSHAKE_DONE) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "Connection: Client IP: %s, Protocol: %s, "
+                      "Cipher: %s (%s/%s bits)",
+                      ssl_var_lookup(NULL, s, c, NULL, "REMOTE_ADDR"),
+                      ssl_var_lookup(NULL, s, c, NULL, "SSL_PROTOCOL"),
+                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
+                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
+                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
     }
-    else if (ap_threads_per_child < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", ap_threads_per_child);
-        } else if (is_parent) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         ap_threads_per_child);
-        }
-        ap_threads_per_child = 1;
-    }
-
-    return OK;
 }

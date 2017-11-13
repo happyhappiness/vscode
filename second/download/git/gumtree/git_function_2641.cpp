@@ -1,51 +1,46 @@
-static int make_room_for_path(struct merge_options *o, const char *path)
+size_t fill_textconv(struct userdiff_driver *driver,
+		     struct diff_filespec *df,
+		     char **outbuf)
 {
-	int status, i;
-	const char *msg = _("failed to create path '%s'%s");
+	size_t size;
 
-	/* Unlink any D/F conflict files that are in the way */
-	for (i = 0; i < o->df_conflict_file_set.nr; i++) {
-		const char *df_path = o->df_conflict_file_set.items[i].string;
-		size_t pathlen = strlen(path);
-		size_t df_pathlen = strlen(df_path);
-		if (df_pathlen < pathlen &&
-		    path[df_pathlen] == '/' &&
-		    strncmp(path, df_path, df_pathlen) == 0) {
-			output(o, 3,
-			       _("Removing %s to make room for subdirectory\n"),
-			       df_path);
-			unlink(df_path);
-			unsorted_string_list_delete_item(&o->df_conflict_file_set,
-							 i, 0);
-			break;
+	if (!driver) {
+		if (!DIFF_FILE_VALID(df)) {
+			*outbuf = "";
+			return 0;
 		}
+		if (diff_populate_filespec(df, 0))
+			die("unable to read files to diff");
+		*outbuf = df->data;
+		return df->size;
 	}
 
-	/* Make sure leading directories are created */
-	status = safe_create_leading_directories_const(path);
-	if (status) {
-		if (status == SCLD_EXISTS) {
-			/* something else exists */
-			error(msg, path, _(": perhaps a D/F conflict?"));
-			return -1;
-		}
-		die(msg, path, "");
+	if (!driver->textconv)
+		die("BUG: fill_textconv called with non-textconv driver");
+
+	if (driver->textconv_cache && df->sha1_valid) {
+		*outbuf = notes_cache_get(driver->textconv_cache, df->sha1,
+					  &size);
+		if (*outbuf)
+			return size;
 	}
 
-	/*
-	 * Do not unlink a file in the work tree if we are not
-	 * tracking it.
-	 */
-	if (would_lose_untracked(path))
-		return error(_("refusing to lose untracked file at '%s'"),
-			     path);
+	*outbuf = run_textconv(driver->textconv, df, &size);
+	if (!*outbuf)
+		die("unable to read files to diff");
 
-	/* Successful unlink is good.. */
-	if (!unlink(path))
-		return 0;
-	/* .. and so is no existing file */
-	if (errno == ENOENT)
-		return 0;
-	/* .. but not some other error (who really cares what?) */
-	return error(msg, path, _(": perhaps a D/F conflict?"));
+	if (driver->textconv_cache && df->sha1_valid) {
+		/* ignore errors, as we might be in a readonly repository */
+		notes_cache_put(driver->textconv_cache, df->sha1, *outbuf,
+				size);
+		/*
+		 * we could save up changes and flush them all at the end,
+		 * but we would need an extra call after all diffing is done.
+		 * Since generating a cache entry is the slow path anyway,
+		 * this extra overhead probably isn't a big deal.
+		 */
+		notes_cache_write(driver->textconv_cache);
+	}
+
+	return size;
 }

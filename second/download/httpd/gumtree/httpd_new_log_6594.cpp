@@ -1,2 +1,2 @@
-ap_log_rerror(
-                APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(02462) "cache: Method '%s' not cacheable by mod_cache, ignoring: %s", r->method, r->uri);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, m->c,
+                  "h2_mplx(%s): out open", task->id);

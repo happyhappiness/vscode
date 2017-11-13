@@ -1,10 +1,55 @@
-void ssl_io_filter_register(apr_pool_t *p)
+static proxy_worker *find_session_route(proxy_balancer *balancer,
+                                        request_rec *r,
+                                        char **route,
+                                        const char **sticky_used,
+                                        char **url)
 {
-    ap_register_input_filter  (ssl_io_filter, ssl_io_filter_input,  NULL, AP_FTYPE_CONNECTION + 5);
-    ap_register_output_filter (ssl_io_coalesce, ssl_io_filter_coalesce, NULL, AP_FTYPE_CONNECTION + 4);
-    ap_register_output_filter (ssl_io_filter, ssl_io_filter_output, NULL, AP_FTYPE_CONNECTION + 5);
+    proxy_worker *worker = NULL;
 
-    ap_register_input_filter  (ssl_io_buffer, ssl_io_filter_buffer, NULL, AP_FTYPE_PROTOCOL);
-
-    return;
+    if (!balancer->sticky)
+        return NULL;
+    /* Try to find the sticky route inside url */
+    *route = get_path_param(r->pool, *url, balancer->sticky_path, balancer->scolonsep);
+    if (*route) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: BALANCER: Found value %s for "
+                     "stickysession %s", *route, balancer->sticky_path);
+        *sticky_used =  balancer->sticky_path;
+    }
+    else {
+        *route = get_cookie_param(r, balancer->sticky);
+        if (*route) {
+            *sticky_used =  balancer->sticky;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: BALANCER: Found value %s for "
+                         "stickysession %s", *route, balancer->sticky);
+        }
+    }
+    /*
+     * If we found a value for sticksession, find the first '.' within.
+     * Everything after '.' (if present) is our route.
+     */
+    if ((*route) && ((*route = strchr(*route, '.')) != NULL ))
+        (*route)++;
+    if ((*route) && (**route)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                  "proxy: BALANCER: Found route %s", *route);
+        /* We have a route in path or in cookie
+         * Find the worker that has this route defined.
+         */
+        worker = find_route_worker(balancer, *route, r);
+        if (worker && strcmp(*route, worker->s->route)) {
+            /*
+             * Notice that the route of the worker chosen is different from
+             * the route supplied by the client.
+             */
+            apr_table_setn(r->subprocess_env, "BALANCER_ROUTE_CHANGED", "1");
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: BALANCER: Route changed from %s to %s",
+                         *route, worker->s->route);
+        }
+        return worker;
+    }
+    else
+        return NULL;
 }

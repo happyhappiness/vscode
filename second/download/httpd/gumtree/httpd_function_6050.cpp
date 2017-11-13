@@ -1,29 +1,20 @@
-static apr_status_t open_response(h2_task *task)
+static int on_invalid_frame_recv_cb(nghttp2_session *ngh2,
+                                    const nghttp2_frame *frame,
+                                    int error, void *userp)
 {
-    h2_response *response;
-    response = h2_from_h1_get_response(task->output.from_h1);
-    if (!response) {
-        /* This happens currently when ap_die(status, r) is invoked
-         * by a read request filter. */
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, APLOGNO(03204)
-                      "h2_task(%s): write without response for %s %s %s",
-                      task->id, 
-                      task->request->method, 
-                      task->request->authority, 
-                      task->request->path);
-        task->c->aborted = 1;
-        return APR_ECONNABORTED;
-    }
+    h2_session *session = (h2_session *)userp;
+    (void)ngh2;
     
-    if (h2_task_logio_add_bytes_out) {
-        /* count headers as if we'd do a HTTP/1.1 serialization */
-        task->output.written = h2_util_table_bytes(response->headers, 3)+1;
-        h2_task_logio_add_bytes_out(task->c, task->output.written);
+    if (session->aborted) {
+        return NGHTTP2_ERR_CALLBACK_FAILURE;
     }
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, APLOGNO(03348)
-                  "h2_task(%s): open response to %s %s %s",
-                  task->id, task->request->method, 
-                  task->request->authority, 
-                  task->request->path);
-    return h2_mplx_out_open(task->mplx, task->stream_id, response);
+    if (APLOGctrace2(session->c)) {
+        char buffer[256];
+        
+        frame_print(frame, buffer, sizeof(buffer)/sizeof(buffer[0]));
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                      "h2_session: callback on_invalid_frame_recv error=%d %s",
+                      error, buffer);
+    }
+    return 0;
 }

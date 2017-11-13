@@ -1,1 +1,2 @@
-error(_("You have not concluded your merge (MERGE_HEAD exists)."));
+packet_buf_write(req_buf,
+				 "%.*s", (int)(np - cp), cp);

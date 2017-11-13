@@ -1,11 +1,11 @@
 fputs(
-"              a document that is older than the given date/time, default is  a\n"
-"              document that is newer than the specified date/time.\n"
+"              rides -3, --sslv3 and -1, --tlsv1 and --tlsv1.1 and --tlsv1.2.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       -3, --sslv3\n"
+"              (SSL) Forces curl to use SSL version 3 when negotiating  with  a\n"
+"              remote  SSL  server.  Sometimes curl is built without SSLv3 sup-\n"
+"              port. SSLv3 is widely considered insecure (see RFC 7568).\n"
 "\n"
-"       --tlsauthtype <type>\n"
-"              Set  TLS  authentication  type.  Currently,  the  only supported\n"
-"              option is \"SRP\",  for  TLS-SRP  (RFC  5054).  If  --tlsuser  and\n"
-"              --tlspassword  are specified but --tlsauthtype is not, then this\n"
+"              See also --http1.1 and --http2. -3, --sslv3  requires  that  the\n"
+"              underlying  libcurl  was built to support TLS. This option over-\n"
 , stdout);

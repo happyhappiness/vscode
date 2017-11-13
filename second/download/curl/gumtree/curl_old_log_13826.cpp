@@ -1,10 +1,9 @@
 fputs(
-"              requires that the proxy allows direct connect to the remote port\n"
-"              number curl wants to tunnel through to.\n"
+"              want the file saved in a  different  directory,  make  sure  you\n"
+"              change  the  current working directory before invoking curl with\n"
+"              this option.\n"
 "\n"
-"       -P, --ftp-port <address>\n"
-"              (FTP)  Reverses  the  default initiator/listener roles when con-\n"
-"              necting with FTP. This switch makes curl  use  active  mode.  In\n"
-"              practice,  curl  then  tells  the  server to connect back to the\n"
-"              client's specified address and port, while passive mode asks the\n"
+"              The remote file name to use for saving  is  extracted  from  the\n"
+"              given  URL,  nothing  else,  and if it already exists it will be\n"
+"              overwritten. If you want the server to be  able  to  choose  the\n"
 , stdout);

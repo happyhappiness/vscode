@@ -1,1 +1,2 @@
-apr_file_printf(writetty, "In order to read them you have to provide the pass phrases.\n");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "mod_rewrite: could not init map cache in child");

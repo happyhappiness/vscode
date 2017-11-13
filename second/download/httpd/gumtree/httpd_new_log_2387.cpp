@@ -1,6 +1,3 @@
-printf("<tr %s><th %s>Processing:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mintot - mincon, tdstring,
-               (total / done) - (totalcon / done), tdstring, maxtot - maxcon);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", min_spare_threads);

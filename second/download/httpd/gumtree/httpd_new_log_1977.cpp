@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
+ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r,
+                                       "proxy: CONNECT: err/hup on backconn");

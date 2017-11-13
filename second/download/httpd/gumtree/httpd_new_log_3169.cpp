@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, r->server,
-                     "Child %ld camping out on mutex for %" APR_INT64_T_FMT
-                     " microseconds",
-                     (long int) getpid(), timecamped);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01622)
+                      "Could not open password file: %s", conf->pwfile);

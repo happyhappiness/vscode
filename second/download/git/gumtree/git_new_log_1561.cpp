@@ -1,1 +1,2 @@
-printf("\n%s\n", _(common_cmd_groups[common_cmds[i].group]));
+die(_("bad numeric config value '%s' for '%s' in %s: %s"),
+		    value, name, cf->name, reason);

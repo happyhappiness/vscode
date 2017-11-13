@@ -1,11 +1,11 @@
 fputs(
-"       --ftp-pasv\n"
-"              (FTP) Use passive mode for the data connection. Passive  is  the\n"
-"              internal  default behavior, but using this option can be used to\n"
-"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.  Undoing  an  enforced passive really isn't doable but you\n"
-"              must then instead enforce the correct -P, --ftp-port again.\n"
+"       --ftp-alternative-to-user <command>\n"
+"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
+"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
+"              Transport  server  over  FTPS  using a client certificate, using\n"
+"              \"SITE AUTH\" will tell the server to retrieve the  username  from\n"
+"              the certificate. (Added in 7.15.5)\n"
 "\n"
 , stdout);

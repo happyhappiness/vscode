@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-            MODNAME ": read failed from uncompress of %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request is missing a Destination header.");

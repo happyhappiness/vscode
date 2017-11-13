@@ -1,211 +1,186 @@
-char *util_ald_cache_display(request_rec *r, util_ldap_state_t *st)
+int main(int argc, const char * const argv[])
 {
-    unsigned long i,j;
-    char *buf, *t1, *t2, *t3;
-    char *id1, *id2, *id3;
-    char *argfmt = "cache=%s&id=%d&off=%d";
-    char *scanfmt = "cache=%4s&id=%u&off=%u%1s";
-    apr_pool_t *pool = r->pool;
-    util_cache_node_t *p = NULL;
-    util_url_node_t *n = NULL;
+    apr_file_t *fpw = NULL;
+    char record[MAX_STRING_LEN];
+    char line[MAX_STRING_LEN];
+    char *password = NULL;
+    char *pwfilename = NULL;
+    char *user = NULL;
+    char *tn;
+    char scratch[MAX_STRING_LEN];
+    int found = 0;
+    int i;
+    int alg = ALG_CRYPT;
+    int mask = 0;
+    apr_pool_t *pool;
+    int existing_file = 0;
+#if APR_CHARSET_EBCDIC
+    apr_status_t rv;
+    apr_xlate_t *to_ascii;
+#endif
 
-    util_ald_cache_t *util_ldap_cache = st->util_ldap_cache;
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(apr_terminate);
+#ifdef NETWARE
+    atexit(nwTerminate);
+#endif
+    apr_pool_create(&pool, NULL);
+    apr_file_open_stderr(&errfile, pool);
+
+#if APR_CHARSET_EBCDIC
+    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, pool);
+    if (rv) {
+        apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);
+        exit(1);
+    }
+    rv = apr_SHA1InitEBCDIC(to_ascii);
+    if (rv) {
+        apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d\n", rv);
+        exit(1);
+    }
+    rv = apr_MD5InitEBCDIC(to_ascii);
+    if (rv) {
+        apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d\n", rv);
+        exit(1);
+    }
+#endif /*APR_CHARSET_EBCDIC*/
+
+    check_args(pool, argc, argv, &alg, &mask, &user, &pwfilename, &password);
 
 
-    if (!util_ldap_cache) {
-        return "<tr valign='top'><td nowrap colspan=7>Cache has not been enabled/initialised.</td></tr>";
+#if defined(WIN32) || defined(NETWARE)
+    if (alg == ALG_CRYPT) {
+        alg = ALG_APMD5;
+        apr_file_printf(errfile, "Automatically using MD5 format.\n");
+    }
+#endif
+
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+    if (alg == ALG_PLAIN) {
+        apr_file_printf(errfile,"Warning: storing passwords as plain text "
+                        "might just not work on this platform.\n");
+    }
+#endif
+
+    /*
+     * Only do the file checks if we're supposed to frob it.
+     */
+    if (!(mask & APHTP_NOFILE)) {
+        existing_file = exists(pwfilename, pool);
+        if (existing_file) {
+            /*
+             * Check that this existing file is readable and writable.
+             */
+            if (!accessible(pool, pwfilename, APR_READ | APR_APPEND)) {
+                apr_file_printf(errfile, "%s: cannot open file %s for "
+                                "read/write access\n", argv[0], pwfilename);
+                exit(ERR_FILEPERM);
+            }
+        }
+        else {
+            /*
+             * Error out if -c was omitted for this non-existant file.
+             */
+            if (!(mask & APHTP_NEWFILE)) {
+                apr_file_printf(errfile,
+                        "%s: cannot modify file %s; use '-c' to create it\n",
+                        argv[0], pwfilename);
+                exit(ERR_FILEPERM);
+            }
+            /*
+             * As it doesn't exist yet, verify that we can create it.
+             */
+            if (!accessible(pool, pwfilename, APR_CREATE | APR_WRITE)) {
+                apr_file_printf(errfile, "%s: cannot create file %s\n",
+                                argv[0], pwfilename);
+                exit(ERR_FILEPERM);
+            }
+        }
     }
 
-    if (r->args && strlen(r->args)) {
-        char cachetype[5], lint[2];
-        unsigned int id, off;
-        char date_str[APR_CTIME_LEN+1];
+    /*
+     * All the file access checks (if any) have been made.  Time to go to work;
+     * try to create the record for the username in question.  If that
+     * fails, there's no need to waste any time on file manipulations.
+     * Any error message text is returned in the record buffer, since
+     * the mkrecord() routine doesn't have access to argv[].
+     */
+    i = mkrecord(user, record, sizeof(record) - 1,
+                 password, alg);
+    if (i != 0) {
+        apr_file_printf(errfile, "%s: %s\n", argv[0], record);
+        exit(i);
+    }
+    if (mask & APHTP_NOFILE) {
+        printf("%s\n", record);
+        exit(0);
+    }
 
-        if ((3 == sscanf(r->args, scanfmt, cachetype, &id, &off, lint)) &&
-            (id < util_ldap_cache->size)) {
+    /*
+     * We can access the files the right way, and we have a record
+     * to add or update.  Let's do it..
+     */
+    tn = get_tempname(pool);
+    if (apr_file_mktemp(&ftemp, tn, 0, pool) != APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
+                        argv[0], tn);
+        exit(ERR_FILEPERM);
+    }
 
-            if ((p = util_ldap_cache->nodes[id]) != NULL) {
-                n = (util_url_node_t *)p->payload;
-                buf = (char*)n->url;
+    /*
+     * If we're not creating a new file, copy records from the existing
+     * one to the temporary file until we find the specified user.
+     */
+    if (existing_file && !(mask & APHTP_NEWFILE)) {
+        if (apr_file_open(&fpw, pwfilename, APR_READ | APR_BUFFERED,
+                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
+            apr_file_printf(errfile, "%s: unable to read file %s\n", 
+                            argv[0], pwfilename);
+            exit(ERR_FILEPERM);
+        }
+        while (apr_file_gets(line, sizeof(line), fpw) == APR_SUCCESS) {
+            char *colon;
+
+            if ((line[0] == '#') || (line[0] == '\0')) {
+                putline(ftemp, line);
+                continue;
+            }
+            strcpy(scratch, line);
+            /*
+             * See if this is our user.
+             */
+            colon = strchr(scratch, ':');
+            if (colon != NULL) {
+                *colon = '\0';
+            }
+            if (strcmp(user, scratch) != 0) {
+                putline(ftemp, line);
+                continue;
             }
             else {
-                buf = "";
-            }
-
-            ap_rputs(apr_psprintf(r->pool, 
-                     "<p>\n"
-                     "<table border='0'>\n"
-                     "<tr>\n"
-                     "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Cache Name:</b></font></td>"
-                     "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%s (%s)</b></font></td>"
-                     "</tr>\n"
-                     "</table>\n</p>\n",
-                 buf,
-                 cachetype[0] == 'm'? "Main" : 
-                                  (cachetype[0] == 's' ? "Search" : 
-                                   (cachetype[0] == 'c' ? "Compares" : "DNCompares"))), r);
-            
-            switch (cachetype[0]) {
-                case 'm':
-                    if (util_ldap_cache->marktime) {
-                        apr_ctime(date_str, util_ldap_cache->marktime);
-                    }
-                    else
-                        date_str[0] = 0;
-
-                    ap_rputs(apr_psprintf(r->pool, 
-                            "<p>\n"
-                            "<table border='0'>\n"
-                            "<tr>\n"
-                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Size:</b></font></td>"
-                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
-                            "</tr>\n"
-                            "<tr>\n"
-                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Max Entries:</b></font></td>"
-                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
-                            "</tr>\n"
-                            "<tr>\n"
-                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b># Entries:</b></font></td>"
-                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
-                            "</tr>\n"
-                            "<tr>\n"
-                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark:</b></font></td>"
-                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%ld</b></font></td>"
-                            "</tr>\n"
-                            "<tr>\n"
-                            "<td bgcolor='#000000'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark Time:</b></font></td>"
-                            "<td bgcolor='#ffffff'><font size='-1' face='Arial,Helvetica' color='#000000'><b>%s</b></font></td>"
-                            "</tr>\n"
-                            "</table>\n</p>\n",
-                        util_ldap_cache->size,
-                        util_ldap_cache->maxentries,
-                        util_ldap_cache->numentries,
-                        util_ldap_cache->fullmark,
-                        date_str), r);
-
-                    ap_rputs("<p>\n"
-                             "<table border='0'>\n"
-                             "<tr bgcolor='#000000'>\n"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>LDAP URL</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Size</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Max Entries</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b># Entries</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Full Mark Time</b></font></td>"
-                             "</tr>\n", r
-                            );
-                    for (i=0; i < util_ldap_cache->size; ++i) {
-                        for (p = util_ldap_cache->nodes[i]; p != NULL; p = p->next) {
-
-                            (*util_ldap_cache->display)(r, util_ldap_cache, p->payload);
-                        }
-                    }
-                    ap_rputs("</table>\n</p>\n", r);
-                    
-
-                    break;
-                case 's':
-                    ap_rputs("<p>\n"
-                             "<table border='0'>\n"
-                             "<tr bgcolor='#000000'>\n"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>LDAP Filter</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>User Name</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Last Bind</b></font></td>"
-                             "</tr>\n", r
-                            );
-                    for (i=0; i < n->search_cache->size; ++i) {
-                        for (p = n->search_cache->nodes[i]; p != NULL; p = p->next) {
-
-                            (*n->search_cache->display)(r, n->search_cache, p->payload);
-                        }
-                    }
-                    ap_rputs("</table>\n</p>\n", r);
-                    break;
-                case 'c':
-                    ap_rputs("<p>\n"
-                             "<table border='0'>\n"
-                             "<tr bgcolor='#000000'>\n"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>DN</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Attribute</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Value</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Last Compare</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Result</b></font></td>"
-                             "</tr>\n", r
-                            );
-                    for (i=0; i < n->compare_cache->size; ++i) {
-                        for (p = n->compare_cache->nodes[i]; p != NULL; p = p->next) {
-
-                            (*n->compare_cache->display)(r, n->compare_cache, p->payload);
-                        }
-                    }
-                    ap_rputs("</table>\n</p>\n", r);
-                    break;
-                case 'd':
-                    ap_rputs("<p>\n"
-                             "<table border='0'>\n"
-                             "<tr bgcolor='#000000'>\n"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Require DN</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Actual DN</b></font></td>"
-                             "</tr>\n", r
-                            );
-                    for (i=0; i < n->dn_compare_cache->size; ++i) {
-                        for (p = n->dn_compare_cache->nodes[i]; p != NULL; p = p->next) {
-
-                            (*n->dn_compare_cache->display)(r, n->dn_compare_cache, p->payload);
-                        }
-                    }
-                    ap_rputs("</table>\n</p>\n", r);
-                    break;
-                default:
-                    break;
-            }
-
-        }
-    }
-    else {
-        ap_rputs("<p>\n"
-                 "<table border='0'>\n"
-                 "<tr bgcolor='#000000'>\n"
-                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Cache Name</b></font></td>"
-                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Entries</b></font></td>"
-                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Avg. Chain Len.</b></font></td>"
-                 "<td colspan='2'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Hits</b></font></td>"
-                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Ins/Rem</b></font></td>"
-                 "<td colspan='2'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Purges</b></font></td>"
-                 "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Avg Purge Time</b></font></td>"
-                 "</tr>\n", r
-                );
-
-
-        id1 = apr_psprintf(pool, argfmt, "main", 0, 0);
-        buf = util_ald_cache_display_stats(r, st->util_ldap_cache, "LDAP URL Cache", id1);
-    
-        for (i=0; i < util_ldap_cache->size; ++i) {
-            for (p = util_ldap_cache->nodes[i],j=0; p != NULL; p = p->next,j++) {
-    
-                n = (util_url_node_t *)p->payload;
-    
-                t1 = apr_psprintf(pool, "%s (Searches)", n->url);
-                t2 = apr_psprintf(pool, "%s (Compares)", n->url);
-                t3 = apr_psprintf(pool, "%s (DNCompares)", n->url);
-                id1 = apr_psprintf(pool, argfmt, "srch", i, j);
-                id2 = apr_psprintf(pool, argfmt, "cmpr", i, j);
-                id3 = apr_psprintf(pool, argfmt, "dncp", i, j);
-    
-                buf = apr_psprintf(pool, "%s\n\n"
-                                         "%s\n\n"
-                                         "%s\n\n"
-                                         "%s\n\n",
-                                         buf,
-                                         util_ald_cache_display_stats(r, n->search_cache, t1, id1),
-                                         util_ald_cache_display_stats(r, n->compare_cache, t2, id2),
-                                         util_ald_cache_display_stats(r, n->dn_compare_cache, t3, id3)
-                                  );
+                /* We found the user we were looking for, add him to the file.
+                 */
+                apr_file_printf(errfile, "Updating ");
+                putline(ftemp, record);
+                found++;
             }
         }
-        ap_rputs(buf, r);
-        ap_rputs("</table>\n</p>\n", r);
+        apr_file_close(fpw);
     }
+    if (!found) {
+        apr_file_printf(errfile, "Adding ");
+        putline(ftemp, record);
+    }
+    apr_file_printf(errfile, "password for user %s\n", user);
 
-    return buf;
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(tn, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
+        APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to update file %s\n", 
+                        argv[0], pwfilename);
+        exit(ERR_FILEPERM);
+    }
+    apr_file_close(ftemp);
+    return 0;
 }

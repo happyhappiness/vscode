@@ -1,1 +1,1 @@
-error(_("Pulling is not possible because you have unmerged files."));
+printf("branch %s\n", wt->head_ref);

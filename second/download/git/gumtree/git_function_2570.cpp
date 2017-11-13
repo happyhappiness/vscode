@@ -1,33 +1,28 @@
-NORETURN
-static void die_bad_number(const char *name, const char *value)
+static int expire_reflog_ent(unsigned char *osha1, unsigned char *nsha1,
+			     const char *email, unsigned long timestamp, int tz,
+			     const char *message, void *cb_data)
 {
-	const char * error_type = (errno == ERANGE)? _("out of range"):_("invalid unit");
+	struct expire_reflog_cb *cb = cb_data;
+	struct expire_reflog_policy_cb *policy_cb = cb->policy_cb;
 
-	if (!value)
-		value = "";
+	if (cb->flags & EXPIRE_REFLOGS_REWRITE)
+		osha1 = cb->last_kept_sha1;
 
-	if (!(cf && cf->name))
-		die(_("bad numeric config value '%s' for '%s': %s"),
-		    value, name, error_type);
-
-	switch (cf->origin_type) {
-	case CONFIG_ORIGIN_BLOB:
-		die(_("bad numeric config value '%s' for '%s' in blob %s: %s"),
-		    value, name, cf->name, error_type);
-	case CONFIG_ORIGIN_FILE:
-		die(_("bad numeric config value '%s' for '%s' in file %s: %s"),
-		    value, name, cf->name, error_type);
-	case CONFIG_ORIGIN_STDIN:
-		die(_("bad numeric config value '%s' for '%s' in standard input: %s"),
-		    value, name, error_type);
-	case CONFIG_ORIGIN_SUBMODULE_BLOB:
-		die(_("bad numeric config value '%s' for '%s' in submodule-blob %s: %s"),
-		    value, name, cf->name, error_type);
-	case CONFIG_ORIGIN_CMDLINE:
-		die(_("bad numeric config value '%s' for '%s' in command line %s: %s"),
-		    value, name, cf->name, error_type);
-	default:
-		die(_("bad numeric config value '%s' for '%s' in %s: %s"),
-		    value, name, cf->name, error_type);
+	if ((*cb->should_prune_fn)(osha1, nsha1, email, timestamp, tz,
+				   message, policy_cb)) {
+		if (!cb->newlog)
+			printf("would prune %s", message);
+		else if (cb->flags & EXPIRE_REFLOGS_VERBOSE)
+			printf("prune %s", message);
+	} else {
+		if (cb->newlog) {
+			fprintf(cb->newlog, "%s %s %s %lu %+05d\t%s",
+				sha1_to_hex(osha1), sha1_to_hex(nsha1),
+				email, timestamp, tz, message);
+			hashcpy(cb->last_kept_sha1, nsha1);
+		}
+		if (cb->flags & EXPIRE_REFLOGS_VERBOSE)
+			printf("keep %s", message);
 	}
+	return 0;
 }

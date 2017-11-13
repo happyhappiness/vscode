@@ -1,52 +1,45 @@
-static BOOL stapling_cache_response(server_rec *s, modssl_ctx_t *mctx,
-                                    OCSP_RESPONSE *rsp, certinfo *cinf,
-                                    BOOL ok, apr_pool_t *pool)
+static int proxy_connect_transfer(request_rec *r, conn_rec *c_i, conn_rec *c_o,
+                                  apr_bucket_brigade *bb, char *name)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    unsigned char resp_der[MAX_STAPLING_DER];
-    unsigned char *p;
-    int resp_derlen;
-    BOOL rv;
-    apr_time_t expiry;
+    int rv;
+#ifdef DEBUGGING
+    apr_off_t len;
+#endif
 
-    resp_derlen = i2d_OCSP_RESPONSE(rsp, NULL) + 1;
+    do {
+        apr_brigade_cleanup(bb);
+        rv = ap_get_brigade(c_i->input_filters, bb, AP_MODE_READBYTES,
+                            APR_NONBLOCK_READ, CONN_BLKSZ);
+        if (rv == APR_SUCCESS) {
+            if (c_o->aborted)
+                return APR_EPIPE;
+            if (APR_BRIGADE_EMPTY(bb))
+                break;
+#ifdef DEBUGGING
+            len = -1;
+            apr_brigade_length(bb, 0, &len);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "proxy: CONNECT: read %" APR_OFF_T_FMT
+                          " bytes from %s", len, name);
+#endif
+            rv = ap_pass_brigade(c_o->output_filters, bb);
+            if (rv == APR_SUCCESS) {
+                ap_fflush(c_o->output_filters, bb);
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "proxy: CONNECT: error on %s - ap_pass_brigade",
+                              name);
+            }
+        } else if (!APR_STATUS_IS_EAGAIN(rv)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "proxy: CONNECT: error on %s - ap_get_brigade",
+                          name);
+        }
+    } while (rv == APR_SUCCESS);
 
-    if (resp_derlen <= 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "OCSP stapling response encode error??");
-        return FALSE;
+    if (APR_STATUS_IS_EAGAIN(rv)) {
+        rv = APR_SUCCESS;
     }
-
-    if (resp_derlen > sizeof resp_der) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "OCSP stapling response too big (%u bytes)", resp_derlen);
-        return FALSE;
-    }
-
-    p = resp_der;
-
-    /* TODO: potential optimization; _timeout members as apr_interval_time_t */
-    if (ok == TRUE) {
-        *p++ = 1;
-        expiry = apr_time_from_sec(mctx->stapling_cache_timeout);
-    } 
-    else {
-        *p++ = 0;
-        expiry = apr_time_from_sec(mctx->stapling_errcache_timeout);
-    }
-
-    expiry += apr_time_now();
-
-    i2d_OCSP_RESPONSE(rsp, &p);
-
-    rv = mc->stapling_cache->store(mc->stapling_cache_context, s,
-                                   cinf->idx, sizeof(cinf->idx),
-                                   expiry, resp_der, resp_derlen, pool);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "stapling_cache_response: OCSP response session store error!");
-        return FALSE;
-    }
-
-    return TRUE;
+    return rv;
 }

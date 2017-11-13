@@ -1,214 +1,208 @@
-static int event_check_config(apr_pool_t *p, apr_pool_t *plog,
-                              apr_pool_t *ptemp, server_rec *s)
+apr_status_t h2_session_process(h2_session *session)
 {
-    int startup = 0;
+    apr_status_t status = APR_SUCCESS;
+    apr_interval_time_t wait_micros = 0;
+    static const int MAX_WAIT_MICROS = 200 * 1000;
+    int got_streams = 0;
+    h2_stream *stream;
 
-    /* the reverse of pre_config, we want this only the first time around */
-    if (retained->module_loads == 1) {
-        startup = 1;
-    }
-
-    if (server_limit > MAX_SERVER_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00497)
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of %d servers, decreasing to %d.",
-                         server_limit, MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00498)
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
+    while (!session->aborted && (nghttp2_session_want_read(session->ngh2)
+                                 || nghttp2_session_want_write(session->ngh2))) {
+        int have_written = 0;
+        int have_read = 0;
+                                 
+        got_streams = !h2_stream_set_is_empty(session->streams);
+        if (got_streams) {            
+            h2_session_resume_streams_with_data(session);
+            
+            if (h2_stream_set_has_unsubmitted(session->streams)) {
+                int unsent_submits = 0;
+                
+                /* If we have responses ready, submit them now. */
+                while ((stream = h2_mplx_next_submit(session->mplx, session->streams))) {
+                    status = submit_response(session, stream);
+                    ++unsent_submits;
+                    
+                    /* Unsent push promises are written immediately, as nghttp2
+                     * 1.5.0 realizes internal stream data structures only on 
+                     * send and we might need them for other submits. 
+                     * Also, to conserve memory, we send at least every 10 submits
+                     * so that nghttp2 does not buffer all outbound items too 
+                     * long.
+                     */
+                    if (status == APR_SUCCESS 
+                        && (session->unsent_promises || unsent_submits > 10)) {
+                        int rv = nghttp2_session_send(session->ngh2);
+                        if (rv != 0) {
+                            ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                                          "h2_session: send: %s", nghttp2_strerror(rv));
+                            if (nghttp2_is_fatal(rv)) {
+                                h2_session_abort(session, status, rv);
+                                goto end_process;
+                            }
+                        }
+                        else {
+                            have_written = 1;
+                            wait_micros = 0;
+                            session->unsent_promises = 0;
+                            unsent_submits = 0;
+                        }
+                    }
+                }
+            }
         }
-        server_limit = MAX_SERVER_LIMIT;
-    }
-    else if (server_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00499)
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00500)
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
+        
+        /* Send data as long as we have it and window sizes allow. We are
+         * a server after all.
+         */
+        if (nghttp2_session_want_write(session->ngh2)) {
+            int rv;
+            
+            rv = nghttp2_session_send(session->ngh2);
+            if (rv != 0) {
+                ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                              "h2_session: send: %s", nghttp2_strerror(rv));
+                if (nghttp2_is_fatal(rv)) {
+                    h2_session_abort(session, status, rv);
+                    goto end_process;
+                }
+            }
+            else {
+                have_written = 1;
+                wait_micros = 0;
+                session->unsent_promises = 0;
+            }
         }
-        server_limit = 1;
-    }
-
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
-     */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
-    }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00501)
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
-    }
-
-    if (thread_limit > MAX_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00502)
-                         "WARNING: ThreadLimit of %d exceeds compile-time "
-                         "limit of %d threads, decreasing to %d.",
-                         thread_limit, MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00503)
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
+        
+        if (wait_micros > 0) {
+            if (APLOGcdebug(session->c)) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                              "h2_session: wait for data, %ld micros", 
+                              (long)wait_micros);
+            }
+            nghttp2_session_send(session->ngh2);
+            h2_conn_io_flush(&session->io);
+            status = h2_mplx_out_trywait(session->mplx, wait_micros, session->iowait);
+            
+            if (status == APR_TIMEUP) {
+                if (wait_micros < MAX_WAIT_MICROS) {
+                    wait_micros *= 2;
+                }
+            }
         }
-        thread_limit = MAX_THREAD_LIMIT;
-    }
-    else if (thread_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00504)
-                         "WARNING: ThreadLimit of %d not allowed, "
-                         "increasing to 1.", thread_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00505)
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
+        
+        if (nghttp2_session_want_read(session->ngh2))
+        {
+            /* When we
+             * - and have no streams at all
+             * - or have streams, but none is suspended or needs submit and
+             *   have nothing written on the last try
+             * 
+             * or, the other way around
+             * - have only streams where data can be sent, but could
+             *   not send anything
+             *
+             * then we are waiting on frames from the client (for
+             * example WINDOW_UPDATE or HEADER) and without new frames
+             * from the client, we cannot make any progress,
+             * 
+             * and *then* we can safely do a blocking read.
+             */
+            int may_block = (session->frames_received <= 1);
+            if (!may_block) {
+                if (got_streams) {
+                    may_block = (!have_written 
+                                 && !h2_stream_set_has_unsubmitted(session->streams)
+                                 && !h2_stream_set_has_suspended(session->streams));
+                }
+                else {
+                    may_block = 1;
+                }
+            }
+            
+            if (may_block) {
+                h2_conn_io_flush(&session->io);
+                if (session->c->cs) {
+                    session->c->cs->state = (got_streams? CONN_STATE_HANDLER
+                                             : CONN_STATE_WRITE_COMPLETION);
+                }
+                status = h2_conn_io_read(&session->io, APR_BLOCK_READ, 
+                                         session_receive, session);
+            }
+            else {
+                if (session->c->cs) {
+                    session->c->cs->state = CONN_STATE_HANDLER;
+                }
+                status = h2_conn_io_read(&session->io, APR_NONBLOCK_READ, 
+                                         session_receive, session);
+            }
+
+            switch (status) {
+                case APR_SUCCESS:       /* successful read, reset our idle timers */
+                    have_read = 1;
+                    wait_micros = 0;
+                    break;
+                case APR_EAGAIN:              /* non-blocking read, nothing there */
+                    break;
+                default:
+                    if (APR_STATUS_IS_ETIMEDOUT(status)
+                        || APR_STATUS_IS_ECONNABORTED(status)
+                        || APR_STATUS_IS_ECONNRESET(status)
+                        || APR_STATUS_IS_EOF(status)
+                        || APR_STATUS_IS_EBADF(status)) {
+                        /* common status for a client that has left */
+                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
+                                      "h2_session(%ld): terminating",
+                                      session->id);
+                        /* Stolen from mod_reqtimeout to speed up lingering when
+                         * a read timeout happened.
+                         */
+                        apr_table_setn(session->c->notes, "short-lingering-close", "1");
+                    }
+                    else {
+                        /* uncommon status, log on INFO so that we see this */
+                        ap_log_cerror( APLOG_MARK, APLOG_INFO, status, session->c,
+                                      APLOGNO(02950) 
+                                      "h2_session(%ld): error reading, terminating",
+                                      session->id);
+                    }
+                    h2_session_abort(session, status, 0);
+                    goto end_process;
+            }
         }
-        thread_limit = 1;
-    }
-
-    /* you cannot change ThreadLimit across a restart; ignore
-     * any such attempts
-     */
-    if (!retained->first_thread_limit) {
-        retained->first_thread_limit = thread_limit;
-    }
-    else if (thread_limit != retained->first_thread_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00506)
-                     "changing ThreadLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     thread_limit, retained->first_thread_limit);
-        thread_limit = retained->first_thread_limit;
-    }
-
-    if (threads_per_child > thread_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00507)
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d threads, decreasing to %d. "
-                         "To increase, please see the ThreadLimit directive.",
-                         threads_per_child, thread_limit, thread_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00508)
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         threads_per_child, thread_limit);
+        
+        got_streams = !h2_stream_set_is_empty(session->streams);
+        if (got_streams) {            
+            if (session->reprioritize) {
+                h2_mplx_reprioritize(session->mplx, stream_pri_cmp, session);
+                session->reprioritize = 0;
+            }
+            
+            if (!have_read && !have_written) {
+                /* Nothing read or written. That means no data yet ready to 
+                 * be send out. Slowly back off...
+                 */
+                if (wait_micros == 0) {
+                    wait_micros = 10;
+                }
+            }
+            
+            /* Check that any pending window updates are sent. */
+            status = h2_mplx_in_update_windows(session->mplx);
+            if (APR_STATUS_IS_EAGAIN(status)) {
+                status = APR_SUCCESS;
+            }
+            else if (status == APR_SUCCESS) {
+                /* need to flush window updates onto the connection asap */
+                h2_conn_io_flush(&session->io);
+            }
         }
-        threads_per_child = thread_limit;
-    }
-    else if (threads_per_child < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00509)
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", threads_per_child);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00510)
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         threads_per_child);
+        
+        if (have_written) {
+            h2_conn_io_flush(&session->io);
         }
-        threads_per_child = 1;
     }
-
-    if (max_workers < threads_per_child) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00511)
-                         "WARNING: MaxRequestWorkers of %d is less than "
-                         "ThreadsPerChild of %d, increasing to %d. "
-                         "MaxRequestWorkers must be at least as large "
-                         "as the number of threads in a single server.",
-                         max_workers, threads_per_child, threads_per_child);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00512)
-                         "MaxRequestWorkers of %d is less than ThreadsPerChild "
-                         "of %d, increasing to match",
-                         max_workers, threads_per_child);
-        }
-        max_workers = threads_per_child;
-    }
-
-    ap_daemons_limit = max_workers / threads_per_child;
-
-    if (max_workers % threads_per_child) {
-        int tmp_max_workers = ap_daemons_limit * threads_per_child;
-
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00513)
-                         "WARNING: MaxRequestWorkers of %d is not an integer "
-                         "multiple of ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d, for a maximum of %d servers.",
-                         max_workers, threads_per_child, tmp_max_workers,
-                         ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00514)
-                         "MaxRequestWorkers of %d is not an integer multiple "
-                         "of ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d", max_workers, threads_per_child,
-                         tmp_max_workers);
-        }
-        max_workers = tmp_max_workers;
-    }
-
-    if (ap_daemons_limit > server_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00515)
-                         "WARNING: MaxRequestWorkers of %d would require %d servers "
-                         "and would exceed ServerLimit of %d, decreasing to %d. "
-                         "To increase, please see the ServerLimit directive.",
-                         max_workers, ap_daemons_limit, server_limit,
-                         server_limit * threads_per_child);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00516)
-                         "MaxRequestWorkers of %d would require %d servers and "
-                         "exceed ServerLimit of %d, decreasing to %d",
-                         max_workers, ap_daemons_limit, server_limit,
-                         server_limit * threads_per_child);
-        }
-        ap_daemons_limit = server_limit;
-    }
-
-    /* ap_daemons_to_start > ap_daemons_limit checked in ap_mpm_run() */
-    if (ap_daemons_to_start < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00517)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00518)
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
-    }
-
-    if (min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00519)
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1 to avoid almost certain server "
-                         "failure. Please read the documentation.",
-                         min_spare_threads);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00520)
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         min_spare_threads);
-        }
-        min_spare_threads = 1;
-    }
-
-    /* max_spare_threads < min_spare_threads + threads_per_child
-     * checked in ap_mpm_run()
-     */
-
-    return OK;
+    
+end_process:
+    return status;
 }

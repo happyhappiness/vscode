@@ -1,1 +1,2 @@
-die("replace ref '%s' already exists", ref->buf);
+warning(_("ignore invalid color '%.*s' in log.graphColors"),
+				(int)(comma - start), start);

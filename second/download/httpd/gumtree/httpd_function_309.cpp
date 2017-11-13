@@ -1,95 +1,91 @@
-int main(int argc, const char * const argv[])
+static int CommandLineInterpreter(scr_t screenID, const char *commandLine)
 {
-    apr_file_t *f;
-    apr_status_t rv;
-    char tn[] = "htdigest.tmp.XXXXXX";
-    char user[MAX_STRING_LEN];
-    char realm[MAX_STRING_LEN];
-    char line[MAX_STRING_LEN];
-    char l[MAX_STRING_LEN];
-    char w[MAX_STRING_LEN];
-    char x[MAX_STRING_LEN];
-    char command[MAX_STRING_LEN];
-    int found;
-   
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate); 
-    apr_pool_create(&cntxt, NULL);
+    char *szCommand = "APACHE2 ";
+    int iCommandLen = 8;
+    char szcommandLine[256];
+    char *pID;
+    screenID = screenID;
 
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, cntxt);
-    if (rv) {
-        fprintf(stderr, "apr_xlate_open(): %s (%d)\n",
-                apr_strerror(rv, line, sizeof(line)), rv);
-        exit(1);
-    }
-#endif
-    
-    apr_signal(SIGINT, (void (*)(int)) interrupted);
-    if (argc == 5) {
-	if (strcmp(argv[1], "-c"))
-	    usage();
-	rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE, -1, cntxt);
-        if (rv != APR_SUCCESS) {
-            char errmsg[120];
 
-	    fprintf(stderr, "Could not open passwd file %s for writing: %s\n",
-		    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
-	    exit(1);
-	}
-	printf("Adding password for %s in realm %s.\n", argv[4], argv[3]);
-	add_password(argv[4], argv[3], f);
-	apr_file_close(f);
-	exit(0);
-    }
-    else if (argc != 4)
-	usage();
+    if (commandLine == NULL)
+        return NOTMYCOMMAND;
+    if (strlen(commandLine) <= strlen(szCommand))
+        return NOTMYCOMMAND;
 
-    if (apr_file_mktemp(&tfp, tn, 0, cntxt) != APR_SUCCESS) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
+    strncpy (szcommandLine, commandLine, sizeof(szcommandLine)-1);
+
+    /*  All added commands begin with "APACHE2 " */
+
+    if (!strnicmp(szCommand, szcommandLine, iCommandLen)) {
+        ActivateScreen (getscreenhandle());
+
+        /* If an instance id was not given but the nlm is loaded in 
+            protected space, then the the command belongs to the
+            OS address space instance to pass it on. */
+        pID = strstr (szcommandLine, "-p");
+        if ((pID == NULL) && nlmisloadedprotected())
+            return NOTMYCOMMAND;
+
+        /* If we got an instance id but it doesn't match this 
+            instance of the nlm, pass it on. */
+        if (pID) {
+            pID = &pID[2];
+            while (*pID && (*pID == ' '))
+                pID++;
+        }
+        if (pID && ap_my_addrspace && strnicmp(pID, ap_my_addrspace, strlen(ap_my_addrspace)))
+            return NOTMYCOMMAND;
+
+        /* If we have determined that this command belongs to this
+            instance of the nlm, then handle it. */
+        if (!strnicmp("RESTART",&szcommandLine[iCommandLen],3)) {
+            printf("Restart Requested...\n");
+            restart();
+        }
+        else if (!strnicmp("VERSION",&szcommandLine[iCommandLen],3)) {
+            printf("Server version: %s\n", ap_get_server_version());
+            printf("Server built:   %s\n", ap_get_server_built());
+        }
+        else if (!strnicmp("MODULES",&szcommandLine[iCommandLen],3)) {
+    	    ap_show_modules();
+        }
+        else if (!strnicmp("DIRECTIVES",&szcommandLine[iCommandLen],3)) {
+	        ap_show_directives();
+        }
+        else if (!strnicmp("SHUTDOWN",&szcommandLine[iCommandLen],3)) {
+            printf("Shutdown Requested...\n");
+            shutdown_pending = 1;
+        }
+        else if (!strnicmp("SETTINGS",&szcommandLine[iCommandLen],3)) {
+            if (show_settings) {
+                show_settings = 0;
+                ClearScreen (getscreenhandle());
+                show_server_data();
+            }
+            else {
+                show_settings = 1;
+                display_settings();
+            }
+        }
+        else {
+            show_settings = 0;
+            if (!strnicmp("HELP",&szcommandLine[iCommandLen],3))
+                printf("Unknown APACHE2 command %s\n", &szcommandLine[iCommandLen]);
+            printf("Usage: APACHE2 [command] [-p <instance ID>]\n");
+            printf("Commands:\n");
+            printf("\tDIRECTIVES - Show directives\n");
+            printf("\tHELP       - Display this help information\n");
+            printf("\tMODULES    - Show a list of the loaded modules\n");
+            printf("\tRESTART    - Reread the configurtion file and restart Apache\n");
+            printf("\tSETTINGS   - Show current thread status\n");
+            printf("\tSHUTDOWN   - Shutdown Apache\n");
+            printf("\tVERSION    - Display the server version information\n");
+        }
+
+        /*  Tell NetWare we handled the command */
+        return HANDLEDCOMMAND;
     }
 
-    if (apr_file_open(&f, argv[1], APR_READ, -1, cntxt) != APR_SUCCESS) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	exit(1);
-    }
-    strcpy(user, argv[3]);
-    strcpy(realm, argv[2]);
-
-    found = 0;
-    while (!(get_line(line, MAX_STRING_LEN, f))) {
-	if (found || (line[0] == '#') || (!line[0])) {
-	    putline(tfp, line);
-	    continue;
-	}
-	strcpy(l, line);
-	getword(w, l, ':');
-	getword(x, l, ':');
-	if (strcmp(user, w) || strcmp(realm, x)) {
-	    putline(tfp, line);
-	    continue;
-	}
-	else {
-	    printf("Changing password for user %s in realm %s\n", user, realm);
-	    add_password(user, realm, tfp);
-	    found = 1;
-	}
-    }
-    if (!found) {
-	printf("Adding user %s in realm %s\n", user, realm);
-	add_password(user, realm, tfp);
-    }
-    apr_file_close(f);
-#if defined(OS2) || defined(WIN32)
-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
-#else
-    sprintf(command, "cp %s %s", tn, argv[1]);
-#endif
-    system(command);
-    apr_file_close(tfp);
-    return 0;
+    /*  Tell NetWare that the command isn't mine */
+    return NOTMYCOMMAND;
 }

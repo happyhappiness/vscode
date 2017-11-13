@@ -1,1 +1,1 @@
-die(_("transport: invalid depth option '%s'"), value);
+die("user.useConfigOnly set but no mail given");

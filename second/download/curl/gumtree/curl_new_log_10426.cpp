@@ -1,1 +1,1 @@
-warnf(config->global, "curl_formadd failed!\n");
+warnf(config, "Failed to open %s to write libcurl code!\n", o);

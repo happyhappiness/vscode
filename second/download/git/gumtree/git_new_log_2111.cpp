@@ -1,1 +1,2 @@
-die(_("invalid number of threads specified (%d)"), num_threads);
+error(_("'%s' for '%s' is not a valid timestamp"),
+			     value, var);

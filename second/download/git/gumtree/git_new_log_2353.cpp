@@ -1,1 +1,1 @@
-die("corrupt MERGE_RR");
+printf(" (%s) in %s\n", tag->tag, oid_to_hex(&tag->object.oid));

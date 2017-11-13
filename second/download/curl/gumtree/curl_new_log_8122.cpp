@@ -1,10 +1,12 @@
 fputs(
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
-"              out will decrease in accuracy as the specified timeout increases\n"
-"              in decimal precision.  See also the --connect-timeout option.\n"
+"              off.)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              The remote file name to use for saving  is  extracted  from  the\n"
+"              given URL, nothing else.\n"
 "\n"
-"       --mail-auth <address>\n"
-"              (SMTP) Specify a single address. This will be  used  to  specify\n"
+"              Consequentially,  the  file will be saved in the current working\n"
+"              directory. If you want the file saved in a different  directory,\n"
+"              make sure you change current working directory before you invoke\n"
+"              curl with the -O, --remote-name flag!\n"
+"\n"
 , stdout);

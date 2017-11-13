@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
-                  H2_STRM_MSG(stream, "read_to, len=%ld eos=%d"),
-                  (long)*plen, *peos);
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(03140)
+                     "ap_queue_init() failed");

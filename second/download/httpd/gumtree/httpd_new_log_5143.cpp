@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(02901)
-                          "Unexpected body state (%i)", (int)ctx->state);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00229)
+                         "MaxThreads of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         ap_threads_limit, HARD_THREAD_LIMIT);

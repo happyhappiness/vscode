@@ -1,44 +1,34 @@
-static void receive_data(int f_in,char *buf,int fd)
+static void usage(FILE *f)
 {
-  int i,n,remainder,len,count;
-  int size = 0;
-  char *buf2=NULL;
-  off_t offset = 0;
-  off_t offset2;
+  fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
+	  VERSION);
+  fprintf(f,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
+  fprintf(f,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
+  fprintf(f,"Options:\n");
+  fprintf(f,"-v, --verbose            increase verbosity\n");
+  fprintf(f,"-c, --checksum           always checksum\n");
+  fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");
+  fprintf(f,"-r, --recursive          recurse into directories\n");
+  fprintf(f,"-b, --backup             make backups (default ~ extension)\n");
+  fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
+  fprintf(f,"-l, --links              preserve soft links\n");
+  fprintf(f,"-p, --perms              preserve permissions\n");
+  fprintf(f,"-o, --owner              preserve owner (root only)\n");
+  fprintf(f,"-g, --group              preserve group\n");
+  fprintf(f,"-D, --devices            preserve devices (root only)\n");
+  fprintf(f,"-t, --times              preserve times\n");  
+  fprintf(f,"-n, --dry-run            show what would have been transferred\n");
+  fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");  
+  fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
+  fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
+  fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
+  fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");
+  fprintf(f,"    --exclude FILE       exclude file FILE\n");
+  fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
+  fprintf(f,"    --suffix SUFFIX      override backup suffix\n");  
+  fprintf(f,"    --version            print version number\n");  
 
-  count = read_int(f_in);
-  n = read_int(f_in);
-  remainder = read_int(f_in);
-
-  for (i=read_int(f_in); i != 0; i=read_int(f_in)) {
-    if (i > 0) {
-      if (i > size) {
-	if (buf2) free(buf2);
-	buf2 = (char *)malloc(i);
-	size = i;
-	if (!buf2) out_of_memory("receive_data");
-      }
-
-      if (verbose > 3)
-	fprintf(stderr,"data recv %d at %d\n",i,(int)offset);
-
-      read_buf(f_in,buf2,i);
-      write(fd,buf2,i);
-      offset += i;
-    } else {
-      i = -(i+1);
-      offset2 = i*n;
-      len = n;
-      if (i == count-1 && remainder != 0)
-	len = remainder;
-
-      if (verbose > 3)
-	fprintf(stderr,"chunk[%d] of size %d at %d offset=%d\n",
-		i,len,(int)offset2,(int)offset);
-
-      write(fd,buf+offset2,len);
-      offset += len;
-    }
-  }
-  if (buf2) free(buf2);
+  fprintf(f,"\n");
+  fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+  fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
 }

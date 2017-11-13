@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00418)
-                 "Parent: Created child process %d", new_child.pid);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02260)
+                          "Performing full renegotiation: complete handshake "
+                          "protocol (%s support secure renegotiation)",
+                          reneg_support);

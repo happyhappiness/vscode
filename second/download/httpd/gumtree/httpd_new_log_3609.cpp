@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01558)
-                        MODNAME ": magic_init 1 test");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00595)
+                      "Depth must be 0 or \"infinity\" for LOCK.");

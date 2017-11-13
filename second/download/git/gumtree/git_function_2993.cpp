@@ -1,28 +1,24 @@
-int gpg_verify_tag(const unsigned char *sha1, const char *name_to_report,
-		unsigned flags)
+static int udt_do_read(struct unidirectional_transfer *t)
 {
-	enum object_type type;
-	char *buf;
-	unsigned long size;
-	int ret;
+	ssize_t bytes;
 
-	type = sha1_object_info(sha1, NULL);
-	if (type != OBJ_TAG)
-		return error("%s: cannot verify a non-tag object of type %s.",
-				name_to_report ?
-				name_to_report :
-				find_unique_abbrev(sha1, DEFAULT_ABBREV),
-				typename(type));
+	if (t->bufuse == BUFFERSIZE)
+		return 0;	/* No space for more. */
 
-	buf = read_sha1_file(sha1, &type, &size);
-	if (!buf)
-		return error("%s: unable to read file.",
-				name_to_report ?
-				name_to_report :
-				find_unique_abbrev(sha1, DEFAULT_ABBREV));
-
-	ret = run_gpg_verify(buf, size, flags);
-
-	free(buf);
-	return ret;
+	transfer_debug("%s is readable", t->src_name);
+	bytes = read(t->src, t->buf + t->bufuse, BUFFERSIZE - t->bufuse);
+	if (bytes < 0 && errno != EWOULDBLOCK && errno != EAGAIN &&
+		errno != EINTR) {
+		error("read(%s) failed: %s", t->src_name, strerror(errno));
+		return -1;
+	} else if (bytes == 0) {
+		transfer_debug("%s EOF (with %i bytes in buffer)",
+			t->src_name, (int)t->bufuse);
+		t->state = SSTATE_FLUSHING;
+	} else if (bytes > 0) {
+		t->bufuse += bytes;
+		transfer_debug("Read %i bytes from %s (buffer now at %i)",
+			(int)bytes, t->src_name, (int)t->bufuse);
+	}
+	return 0;
 }

@@ -1,129 +1,95 @@
-int mutt_signed_handler (BODY *a, STATE *s)
+static int show_one_sig_status (gpgme_ctx_t ctx, int idx, STATE *s)
 {
-  char tempfile[_POSIX_PATH_MAX];
-  char *protocol;
-  int protocol_major = TYPEOTHER;
-  char *protocol_minor = NULL;
-  
-  BODY *b = a;
-  BODY **signatures = NULL;
-  int sigcnt = 0;
-  int i;
-  short goodsig = 1;
-  int rc = 0;
+  const char *fpr;
+  gpgme_key_t key = NULL;
+  int i, anybad = 0, anywarn = 0;
+  unsigned int sum;
+  gpgme_verify_result_t result;
+  gpgme_signature_t sig;
+  gpgme_error_t err = GPG_ERR_NO_ERROR;
 
-  if (!WithCrypto)
-    return -1;
-
-  protocol = mutt_get_parameter ("protocol", a->parameter);
-  a = a->parts;
-
-  /* extract the protocol information */
-  
-  if (protocol)
-  {
-    char major[STRING];
-    char *t;
-
-    if ((protocol_minor = strchr (protocol, '/'))) protocol_minor++;
-    
-    strfcpy (major, protocol, sizeof(major));
-    if((t = strchr(major, '/')))
-      *t = '\0';
-    
-    protocol_major = mutt_check_mime_type (major);
-  }
-
-  /* consistency check */
-
-  if (!(a && a->next && a->next->type == protocol_major && 
-      !mutt_strcasecmp (a->next->subtype, protocol_minor)))
-  {
-    state_attach_puts (_("[-- Error: "
-                         "Inconsistent multipart/signed structure! --]\n\n"),
-                       s);
-    return mutt_body_handler (a, s);
-  }
-
-  
-  if ((WithCrypto & APPLICATION_PGP)
-      && protocol_major == TYPEAPPLICATION
-      && !ascii_strcasecmp (protocol_minor, "pgp-signature"))
-    ;
-  else if ((WithCrypto & APPLICATION_SMIME)
-           && protocol_major == TYPEAPPLICATION
-	   && !(ascii_strcasecmp (protocol_minor, "x-pkcs7-signature")
-	       && ascii_strcasecmp (protocol_minor, "pkcs7-signature")))
-    ;
-  else if (protocol_major == TYPEMULTIPART
-	   && !ascii_strcasecmp (protocol_minor, "mixed"))
-    ;
-  else
-  {
-    state_printf (s, _("[-- Error: "
-                       "Unknown multipart/signed protocol %s! --]\n\n"),
-                  protocol);
-    return mutt_body_handler (a, s);
-  }
-  
-  if (s->flags & M_DISPLAY)
-  {
-    
-    crypt_fetch_signatures (&signatures, a->next, &sigcnt);
-    
-    if (sigcnt)
+  result = gpgme_op_verify_result (ctx);
+  if (result)
     {
-      mutt_mktemp (tempfile, sizeof (tempfile));
-      if (crypt_write_signed (a, s, tempfile) == 0)
-      {
-	for (i = 0; i < sigcnt; i++)
+      /* FIXME: this code should use a static variable and remember
+	 the current position in the list of signatures, IMHO.
+	 -moritz.  */
+
+      for (i = 0, sig = result->signatures; sig && (i < idx);
+           i++, sig = sig->next)
+        ;
+      if (! sig)
+	return -1;		/* Signature not found.  */
+
+      if (signature_key)
 	{
-	  if ((WithCrypto & APPLICATION_PGP)
-              && signatures[i]->type == TYPEAPPLICATION 
-	      && !ascii_strcasecmp (signatures[i]->subtype, "pgp-signature"))
-	  {
-	    if (crypt_pgp_verify_one (signatures[i], s, tempfile) != 0)
-	      goodsig = 0;
-	    
-	    continue;
-	  }
-
-	  if ((WithCrypto & APPLICATION_SMIME)
-              && signatures[i]->type == TYPEAPPLICATION 
-	      && (!ascii_strcasecmp(signatures[i]->subtype, "x-pkcs7-signature")
-		  || !ascii_strcasecmp(signatures[i]->subtype, "pkcs7-signature")))
-	  {
-	    if (crypt_smime_verify_one (signatures[i], s, tempfile) != 0)
-	      goodsig = 0;
-	    
-	    continue;
-	  }
-
-	  state_printf (s, _("[-- Warning: "
-                             "We can't verify %s/%s signatures. --]\n\n"),
-			  TYPE(signatures[i]), signatures[i]->subtype);
+	  gpgme_key_release (signature_key);
+	  signature_key = NULL;
 	}
+      
+      fpr = sig->fpr;
+      sum = sig->summary;
+
+      if (gpg_err_code (sig->status) != GPG_ERR_NO_ERROR)
+	anybad = 1;
+
+      err = gpgme_get_key (ctx, fpr, &key, 0); /* secret key?  */
+      if (! err)
+	{
+	  if (! signature_key)
+	    signature_key = key;
+	}
+      else
+       {
+          key = NULL; /* Old gpgme versions did not set KEY to NULL on
+                         error.   Do it here to avoid a double free. */
+       }
+
+      if (!s || !s->fpout || !(s->flags & M_DISPLAY))
+	; /* No state information so no way to print anything. */
+      else if (err)
+	{
+          state_attach_puts (_("Error getting key information: "), s);
+          state_attach_puts ( gpgme_strerror (err), s );
+          state_attach_puts ("\n", s);
+          anybad = 1;
+	}
+      else if ((sum & GPGME_SIGSUM_GREEN))
+      {
+        print_smime_keyinfo (_("Good signature from:"), sig, key, s);
+	if (show_sig_summary (sum, ctx, key, idx, s, sig))
+	  anywarn = 1;
+	show_one_sig_validity (ctx, idx, s);
       }
-      
-      mutt_unlink (tempfile);
+      else if ((sum & GPGME_SIGSUM_RED))
+      {
+        print_smime_keyinfo (_("*BAD* signature from:"), sig, key, s);
+        show_sig_summary (sum, ctx, key, idx, s, sig);
+      }
+      else if (!anybad && key && (key->protocol == GPGME_PROTOCOL_OpenPGP))
+      { /* We can't decide (yellow) but this is a PGP key with a good
+           signature, so we display what a PGP user expects: The name,
+	   fingerprint and the key validity (which is neither fully or
+	   ultimate). */
+        print_smime_keyinfo (_("Good signature from:"), sig, key, s);
+	show_one_sig_validity (ctx, idx, s);
+	show_fingerprint (key,s);
+	if (show_sig_summary (sum, ctx, key, idx, s, sig))
+	  anywarn = 1;
+      }
+      else /* can't decide (yellow) */
+      {
+        print_smime_keyinfo (_("Problem signature from:"), sig, key, s);
+        state_attach_puts (_("               expires: "), s);
+        print_time (sig->exp_timestamp, s);
+        state_attach_puts ("\n", s);
+	show_sig_summary (sum, ctx, key, idx, s, sig);
+        anywarn = 1;
+      }
 
-      b->goodsig = goodsig;
-      b->badsig  = !goodsig;
-      
-      /* Now display the signed body */
-      state_attach_puts (_("[-- The following data is signed --]\n\n"), s);
-
-
-      FREE (&signatures);
+      if (key != signature_key)
+	gpgme_key_release (key);
     }
-    else
-      state_attach_puts (_("[-- Warning: Can't find any signatures. --]\n\n"), s);
-  }
-  
-  rc = mutt_body_handler (a, s);
-  
-  if (s->flags & M_DISPLAY && sigcnt)
-    state_attach_puts (_("\n[-- End of signed data --]\n"), s);
-  
-  return rc;
+
+  return anybad ? 1 : anywarn ? 2 : 0;
 }

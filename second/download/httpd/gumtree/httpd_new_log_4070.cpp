@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(00966) "Cannot init worker");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01539)
+                    MODNAME ": BOINK");

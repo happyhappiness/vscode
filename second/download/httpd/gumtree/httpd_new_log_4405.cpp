@@ -1,4 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, parms->temp_pool,
-                          APLOGNO(02296) "Unknown directive %s "
-                          "perhaps misspelled or defined by a module "
-                          "not included in the server configuration", dir);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "<%3.3u %s", rc, message);

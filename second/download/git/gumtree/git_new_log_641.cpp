@@ -1,3 +1,2 @@
-error(_("invalid 1st line of squash message:\n"
-				       "\n\t%.*s"),
-				     (int)(eol - buf.buf), buf.buf);
+error_errno(_("could not create sequencer directory '%s'"),
+				   git_path_seq_dir());

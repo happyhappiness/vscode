@@ -1,1 +1,1 @@
-printf("%s ", find_unique_abbrev(commit->object.oid.hash, DEFAULT_ABBREV));
+warning("core.bare and core.worktree do not make sense");

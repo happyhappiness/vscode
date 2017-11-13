@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
-                      H2_SSSN_LOG(APLOGNO(03402), session, 
-                      "proto error -> shutdown"));
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                                         ap_server_conf, APLOGNO(03097)
+                                         "Failed to create transaction pool");

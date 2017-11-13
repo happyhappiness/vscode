@@ -1,1 +1,2 @@
-error("Could not write %s: %s", path, strerror(errno));
+error("Writing %s failed: %s", path,
+			     strerror(errno));

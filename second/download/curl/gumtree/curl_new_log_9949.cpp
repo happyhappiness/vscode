@@ -1,9 +1,12 @@
 fputs(
-"              If a transient error is returned when curl tries  to  perform  a\n"
-"              transfer,  it  will retry this number of times before giving up.\n"
-"              Setting the number to 0 makes curl do no retries (which  is  the\n"
-"              default).  Transient  error  means either: a timeout, an FTP 4xx\n"
-"              response code or an HTTP 5xx response code.\n"
+"       -R, --remote-time\n"
+"              When used, this will make curl attempt to figure out  the  time-\n"
+"              stamp  of  the  remote  file,  and if that is available make the\n"
+"              local file get that same timestamp.\n"
 "\n"
-"              When curl is about to retry a transfer, it will first  wait  one\n"
+"       --random-file <file>\n"
+"              (SSL) Specify the path name to file containing what will be con-\n"
+"              sidered  as  random  data.  The  data is used to seed the random\n"
+"              engine for SSL connections.  See also the --egd-file option.\n"
+"\n"
 , stdout);

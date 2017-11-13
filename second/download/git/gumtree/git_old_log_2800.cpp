@@ -1,1 +1,1 @@
-error("Missing value for '%s'", var);
+die("user.useConfigOnly set but no name given");

@@ -1,1 +1,1 @@
-rp_error("failed to lock %s", name);
+die("No commit to dig up from?");

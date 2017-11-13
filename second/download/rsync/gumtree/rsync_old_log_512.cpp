@@ -1,2 +1,1 @@
-fprintf(FERROR,"link %s -> %s : %s\n",
-	      fname,file->link,strerror(errno));
+fprintf(FINFO,"file list sent\n");

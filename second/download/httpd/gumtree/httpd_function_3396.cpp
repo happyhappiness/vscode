@@ -1,366 +1,167 @@
-apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
-                            ap_input_mode_t mode, apr_read_type_e block,
-                            apr_off_t readbytes)
+static apr_status_t ap_cgi_build_command(const char **cmd, const char ***argv,
+                                         request_rec *r, apr_pool_t *p,
+                                         cgi_exec_info_t *e_info)
 {
-    apr_bucket *e;
-    http_ctx_t *ctx = f->ctx;
-    apr_status_t rv;
-    apr_off_t totalread;
-    int http_error = HTTP_REQUEST_ENTITY_TOO_LARGE;
-    apr_bucket_brigade *bb;
+    const apr_array_header_t *elts_arr = apr_table_elts(r->subprocess_env);
+    const apr_table_entry_t *elts = (apr_table_entry_t *) elts_arr->elts;
+    const char *ext = NULL;
+    const char *interpreter = NULL;
+    win32_dir_conf *d;
+    apr_file_t *fh;
+    const char *args = "";
+    int i;
 
-    /* just get out of the way of things we don't want. */
-    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
-        return ap_get_brigade(f->next, b, mode, block, readbytes);
-    }
+    d = (win32_dir_conf *)ap_get_module_config(r->per_dir_config,
+                                               &win32_module);
 
-    if (!ctx) {
-        const char *tenc, *lenp;
-        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
-        ctx->state = BODY_NONE;
-        ctx->pos = ctx->chunk_ln;
-        ctx->bb = apr_brigade_create(f->r->pool, f->c->bucket_alloc);
-        bb = ctx->bb;
-
-        /* LimitRequestBody does not apply to proxied responses.
-         * Consider implementing this check in its own filter.
-         * Would adding a directive to limit the size of proxied
-         * responses be useful?
+    if (e_info->cmd_type) {
+        /* We have to consider that the client gets any QUERY_ARGS
+         * without any charset interpretation, use prep_string to
+         * create a string of the literal QUERY_ARGS bytes.
          */
-        if (!f->r->proxyreq) {
-            ctx->limit = ap_get_limit_req_body(f->r);
+        *cmd = r->filename;
+        if (r->args && r->args[0] && !ap_strchr_c(r->args, '=')) {
+            args = r->args;
+        }
+    }
+    /* Handle the complete file name, we DON'T want to follow suexec, since
+     * an unrooted command is as predictable as shooting craps in Win32.
+     * Notice that unlike most mime extension parsing, we have to use the
+     * win32 parsing here, therefore the final extension is the only one
+     * we will consider.
+     */
+    ext = strrchr(apr_filepath_name_get(*cmd), '.');
+
+    /* If the file has an extension and it is not .com and not .exe and
+     * we've been instructed to search the registry, then do so.
+     * Let apr_proc_create do all of the .bat/.cmd dirty work.
+     */
+    if (ext && (!strcasecmp(ext,".exe") || !strcasecmp(ext,".com")
+                || !strcasecmp(ext,".bat") || !strcasecmp(ext,".cmd"))) {
+        interpreter = "";
+    }
+    if (!interpreter && ext
+          && (d->script_interpreter_source
+                     == INTERPRETER_SOURCE_REGISTRY
+           || d->script_interpreter_source
+                     == INTERPRETER_SOURCE_REGISTRY_STRICT)) {
+         /* Check the registry */
+        int strict = (d->script_interpreter_source
+                      == INTERPRETER_SOURCE_REGISTRY_STRICT);
+        interpreter = get_interpreter_from_win32_registry(r->pool, ext,
+                                                          strict);
+        if (interpreter && e_info->cmd_type != APR_SHELLCMD) {
+            e_info->cmd_type = APR_PROGRAM_PATH;
         }
         else {
-            ctx->limit = 0;
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 strict ? "No ExecCGI verb found for files of type '%s'."
+                        : "No ExecCGI or Open verb found for files of type '%s'.",
+                 ext);
         }
+    }
+    if (!interpreter) {
+        apr_status_t rv;
+        char buffer[1024];
+        apr_size_t bytes = sizeof(buffer);
+        apr_size_t i;
 
-        tenc = apr_table_get(f->r->headers_in, "Transfer-Encoding");
-        lenp = apr_table_get(f->r->headers_in, "Content-Length");
-
-        if (tenc) {
-            if (!strcasecmp(tenc, "chunked")) {
-                ctx->state = BODY_CHUNK;
-            }
-            /* test lenp, because it gives another case we can handle */
-            else if (!lenp) {
-                /* Something that isn't in HTTP, unless some future
-                 * edition defines new transfer ecodings, is unsupported.
-                 */
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                              "Unknown Transfer-Encoding: %s", tenc);
-                return bail_out_on_error(ctx, f, HTTP_NOT_IMPLEMENTED);
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r,
-                  "Unknown Transfer-Encoding: %s; using Content-Length", tenc);
-                tenc = NULL;
-            }
-        }
-        if (lenp && !tenc) {
-            char *endstr;
-
-            ctx->state = BODY_LENGTH;
-
-            /* Protects against over/underflow, non-digit chars in the
-             * string (excluding leading space) (the endstr checks)
-             * and a negative number. */
-            if (apr_strtoff(&ctx->remaining, lenp, &endstr, 10)
-                || endstr == lenp || *endstr || ctx->remaining < 0) {
-
-                ctx->remaining = 0;
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                              "Invalid Content-Length");
-
-                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
-            }
-
-            /* If we have a limit in effect and we know the C-L ahead of
-             * time, stop it here if it is invalid.
-             */
-            if (ctx->limit && ctx->limit < ctx->remaining) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                          "Requested content-length of %" APR_OFF_T_FMT
-                          " is larger than the configured limit"
-                          " of %" APR_OFF_T_FMT, ctx->remaining, ctx->limit);
-                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
-            }
-        }
-
-        /* If we don't have a request entity indicated by the headers, EOS.
-         * (BODY_NONE is a valid intermediate state due to trailers,
-         *  but it isn't a valid starting state.)
-         *
-         * RFC 2616 Section 4.4 note 5 states that connection-close
-         * is invalid for a request entity - request bodies must be
-         * denoted by C-L or T-E: chunked.
-         *
-         * Note that since the proxy uses this filter to handle the
-         * proxied *response*, proxy responses MUST be exempt.
+        /* Need to peek into the file figure out what it really is...
+         * ### aught to go back and build a cache for this one of these days.
          */
-        if (ctx->state == BODY_NONE && f->r->proxyreq != PROXYREQ_RESPONSE) {
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(b, e);
-            ctx->eos_sent = 1;
-            return APR_SUCCESS;
+        if ((rv = apr_file_open(&fh, *cmd, APR_READ | APR_BUFFERED,
+                                 APR_OS_DEFAULT, r->pool)) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Failed to open cgi file %s for testing", *cmd);
+            return rv;
+        }
+        if ((rv = apr_file_read(fh, buffer, &bytes)) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Failed to read cgi file %s for testing", *cmd);
+            return rv;
+        }
+        apr_file_close(fh);
+
+        /* Some twisted character [no pun intended] at MS decided that a
+         * zero width joiner as the lead wide character would be ideal for
+         * describing Unicode text files.  This was further convoluted to
+         * another MSism that the same character mapped into utf-8, EF BB BF
+         * would signify utf-8 text files.
+         *
+         * Since MS configuration files are all protecting utf-8 encoded
+         * Unicode path, file and resource names, we already have the correct
+         * WinNT encoding.  But at least eat the stupid three bytes up front.
+         *
+         * ### A more thorough check would also allow UNICODE text in buf, and
+         * convert it to UTF-8 for invoking unicode scripts.  Those are few
+         * and far between, so leave that code an enterprising soul with a need.
+         */
+        if ((bytes >= 3) && memcmp(buffer, "\xEF\xBB\xBF", 3) == 0) {
+            memmove(buffer, buffer + 3, bytes -= 3);
         }
 
-        /* Since we're about to read data, send 100-Continue if needed.
-         * Only valid on chunked and C-L bodies where the C-L is > 0. */
-        if ((ctx->state == BODY_CHUNK ||
-            (ctx->state == BODY_LENGTH && ctx->remaining > 0)) &&
-            f->r->expecting_100 && f->r->proto_num >= HTTP_VERSION(1,1) &&
-            !(f->r->eos_sent || f->r->bytes_sent)) {
-            if (!ap_is_HTTP_SUCCESS(f->r->status)) {
-                ctx->state = BODY_NONE;
-                ctx->eos_sent = 1;
-            } else {
-                char *tmp;
-                int len;
-
-                /* if we send an interim response, we're no longer
-                 * in a state of expecting one.
-                 */
-                f->r->expecting_100 = 0;
-                tmp = apr_pstrcat(f->r->pool, AP_SERVER_PROTOCOL, " ",
-                                  ap_get_status_line(HTTP_CONTINUE), CRLF CRLF,
-                                  NULL);
-                len = strlen(tmp);
-                ap_xlate_proto_to_ascii(tmp, len);
-                apr_brigade_cleanup(bb);
-                e = apr_bucket_pool_create(tmp, len, f->r->pool,
-                                           f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_HEAD(bb, e);
-                e = apr_bucket_flush_create(f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(bb, e);
-
-                ap_pass_brigade(f->c->output_filters, bb);
+        /* Script or executable, that is the question... */
+        if ((bytes >= 2) && (buffer[0] == '#') && (buffer[1] == '!')) {
+            /* Assuming file is a script since it starts with a shebang */
+            for (i = 2; i < bytes; i++) {
+                if ((buffer[i] == '\r') || (buffer[i] == '\n')) {
+                    buffer[i] = '\0';
+                    break;
+                }
+            }
+            if (i < bytes) {
+                interpreter = buffer + 2;
+                while (apr_isspace(*interpreter)) {
+                    ++interpreter;
+                }
+                if (e_info->cmd_type != APR_SHELLCMD) {
+                    e_info->cmd_type = APR_PROGRAM_PATH;
+                }
             }
         }
-
-        /* We can't read the chunk until after sending 100 if required. */
-        if (ctx->state == BODY_CHUNK) {
-            apr_brigade_cleanup(bb);
-
-            rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
-                                block, 0);
-
-            /* for timeout */
-            if (block == APR_NONBLOCK_READ &&
-                ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
-                  (APR_STATUS_IS_EAGAIN(rv)) )) {
-                ctx->state = BODY_CHUNK_PART;
-                return APR_EAGAIN;
-            }
-
-            if (rv == APR_SUCCESS) {
-                rv = get_chunk_line(ctx, bb, f->r->server->limit_req_line);
-                if (APR_STATUS_IS_EAGAIN(rv)) {
-                    apr_brigade_cleanup(bb);
-                    ctx->state = BODY_CHUNK_PART;
-                    return rv;
+        else if (bytes >= sizeof(IMAGE_DOS_HEADER)) {
+            /* Not a script, is it an executable? */
+            IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)buffer;
+            if (hdr->e_magic == IMAGE_DOS_SIGNATURE) {
+                if (hdr->e_lfarlc < 0x40) {
+                    /* Ought to invoke this 16 bit exe by a stub, (cmd /c?) */
+                    interpreter = "";
                 }
-                if (rv == APR_SUCCESS) {
-                    ctx->remaining = get_chunk_size(ctx->chunk_ln);
-                    if (ctx->remaining == INVALID_CHAR) {
-                        rv = APR_EGENERAL;
-                        http_error = HTTP_SERVICE_UNAVAILABLE;
-                    }
+                else {
+                    interpreter = "";
                 }
-            }
-            apr_brigade_cleanup(bb);
-
-            /* Detect chunksize error (such as overflow) */
-            if (rv != APR_SUCCESS || ctx->remaining < 0) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
-                              (ctx->remaining < 0) ? "(overflow)" : "");
-                ctx->remaining = 0; /* Reset it in case we have to
-                                     * come back here later */
-                if (APR_STATUS_IS_TIMEUP(rv)) { 
-                    http_error = HTTP_REQUEST_TIME_OUT;
-                }
-                return bail_out_on_error(ctx, f, http_error);
-            }
-
-            if (!ctx->remaining) {
-                /* Handle trailers by calling ap_get_mime_headers again! */
-                ctx->state = BODY_NONE;
-                ap_get_mime_headers(f->r);
-                e = apr_bucket_eos_create(f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(b, e);
-                ctx->eos_sent = 1;
-                return APR_SUCCESS;
             }
         }
     }
-    else {
-        bb = ctx->bb;
+    if (!interpreter) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s is not executable; ensure interpreted scripts have "
+                      "\"#!\" first line", *cmd);
+        return APR_EBADF;
     }
 
-    if (ctx->eos_sent) {
-        e = apr_bucket_eos_create(f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(b, e);
-        return APR_SUCCESS;
-    }
+    *argv = (const char **)(split_argv(p, interpreter, *cmd,
+                                       args)->elts);
+    *cmd = (*argv)[0];
 
-    if (!ctx->remaining) {
-        switch (ctx->state) {
-        case BODY_NONE:
-            break;
-        case BODY_LENGTH:
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(b, e);
-            ctx->eos_sent = 1;
-            return APR_SUCCESS;
-        case BODY_CHUNK:
-        case BODY_CHUNK_PART:
-            {
-                apr_brigade_cleanup(bb);
+    e_info->detached = 1;
 
-                /* We need to read the CRLF after the chunk.  */
-                if (ctx->state == BODY_CHUNK) {
-                    rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
-                                        block, 0);
-                    if (block == APR_NONBLOCK_READ &&
-                        ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
-                          (APR_STATUS_IS_EAGAIN(rv)) )) {
-                        return APR_EAGAIN;
-                    }
-                    /* If we get an error, then leave */
-                    if (rv != APR_SUCCESS) {
-                        return rv;
-                    }
-                    /*
-                     * We really don't care whats on this line. If it is RFC
-                     * compliant it should be only \r\n. If there is more
-                     * before we just ignore it as long as we do not get over
-                     * the limit for request lines.
-                     */
-                    rv = get_remaining_chunk_line(ctx, bb,
-                                                  f->r->server->limit_req_line);
-                    apr_brigade_cleanup(bb);
-                    if (APR_STATUS_IS_EAGAIN(rv)) {
-                        return rv;
-                    }
-                } else {
-                    rv = APR_SUCCESS;
-                }
-
-                if (rv == APR_SUCCESS) {
-                    /* Read the real chunk line. */
-                    rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
-                                        block, 0);
-                    /* Test timeout */
-                    if (block == APR_NONBLOCK_READ &&
-                        ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
-                          (APR_STATUS_IS_EAGAIN(rv)) )) {
-                        ctx->state = BODY_CHUNK_PART;
-                        return APR_EAGAIN;
-                    }
-                    ctx->state = BODY_CHUNK;
-                    if (rv == APR_SUCCESS) {
-                        rv = get_chunk_line(ctx, bb, f->r->server->limit_req_line);
-                        if (APR_STATUS_IS_EAGAIN(rv)) {
-                            ctx->state = BODY_CHUNK_PART;
-                            apr_brigade_cleanup(bb);
-                            return rv;
-                        }
-                        if (rv == APR_SUCCESS) {
-                            ctx->remaining = get_chunk_size(ctx->chunk_ln);
-                            if (ctx->remaining == INVALID_CHAR) {
-                                rv = APR_EGENERAL;
-                                http_error = HTTP_SERVICE_UNAVAILABLE;
-                            }
-                        }
-                    }
-                    apr_brigade_cleanup(bb);
-                }
-
-                /* Detect chunksize error (such as overflow) */
-                if (rv != APR_SUCCESS || ctx->remaining < 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading chunk %s ", 
-                                  (ctx->remaining < 0) ? "(overflow)" : "");
-                    ctx->remaining = 0; /* Reset it in case we have to
-                                         * come back here later */
-                    if (APR_STATUS_IS_TIMEUP(rv)) { 
-                        http_error = HTTP_REQUEST_TIME_OUT;
-                    }
-                    return bail_out_on_error(ctx, f, http_error);
-                }
-
-                if (!ctx->remaining) {
-                    /* Handle trailers by calling ap_get_mime_headers again! */
-                    ctx->state = BODY_NONE;
-                    ap_get_mime_headers(f->r);
-                    e = apr_bucket_eos_create(f->c->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(b, e);
-                    ctx->eos_sent = 1;
-                    return APR_SUCCESS;
-                }
-            }
-            break;
-        }
-    }
-
-    /* Ensure that the caller can not go over our boundary point. */
-    if (ctx->state == BODY_LENGTH || ctx->state == BODY_CHUNK) {
-        if (ctx->remaining < readbytes) {
-            readbytes = ctx->remaining;
-        }
-        AP_DEBUG_ASSERT(readbytes > 0);
-    }
-
-    rv = ap_get_brigade(f->next, b, mode, block, readbytes);
-
-    if (rv != APR_SUCCESS) {
-        return rv;
-    }
-
-    /* How many bytes did we just read? */
-    apr_brigade_length(b, 0, &totalread);
-
-    /* If this happens, we have a bucket of unknown length.  Die because
-     * it means our assumptions have changed. */
-    AP_DEBUG_ASSERT(totalread >= 0);
-
-    if (ctx->state != BODY_NONE) {
-        ctx->remaining -= totalread;
-        if (ctx->remaining > 0) {
-            e = APR_BRIGADE_LAST(b);
-            if (APR_BUCKET_IS_EOS(e))
-                return APR_EOF;
-        }
-    }
-
-    /* If we have no more bytes remaining on a C-L request,
-     * save the callter a roundtrip to discover EOS.
+    /* XXX: Must fix r->subprocess_env to follow utf-8 conventions from
+     * the client's octets so that win32 apr_proc_create is happy.
+     * The -best- way is to determine if the .exe is unicode aware
+     * (using 0x0080-0x00ff) or is linked as a command or windows
+     * application (following the OEM or Ansi code page in effect.)
      */
-    if (ctx->state == BODY_LENGTH && ctx->remaining == 0) {
-        e = apr_bucket_eos_create(f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(b, e);
-    }
-
-    /* We have a limit in effect. */
-    if (ctx->limit) {
-        /* FIXME: Note that we might get slightly confused on chunked inputs
-         * as we'd need to compensate for the chunk lengths which may not
-         * really count.  This seems to be up for interpretation.  */
-        ctx->limit_used += totalread;
-        if (ctx->limit < ctx->limit_used) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                          "Read content-length of %" APR_OFF_T_FMT
-                          " is larger than the configured limit"
-                          " of %" APR_OFF_T_FMT, ctx->limit_used, ctx->limit);
-            apr_brigade_cleanup(bb);
-            e = ap_bucket_error_create(HTTP_REQUEST_ENTITY_TOO_LARGE, NULL,
-                                       f->r->pool,
-                                       f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
-            ctx->eos_sent = 1;
-            return ap_pass_brigade(f->r->output_filters, bb);
+    for (i = 0; i < elts_arr->nelts; ++i) {
+        if (elts[i].key && *elts[i].key
+                && (strncmp(elts[i].key, "HTTP_", 5) == 0
+                 || strncmp(elts[i].key, "SERVER_", 7) == 0
+                 || strncmp(elts[i].key, "REQUEST_", 8) == 0
+                 || strcmp(elts[i].key, "QUERY_STRING") == 0
+                 || strcmp(elts[i].key, "PATH_INFO") == 0
+                 || strcmp(elts[i].key, "PATH_TRANSLATED") == 0)) {
+            prep_string((const char**) &elts[i].val, r->pool);
         }
     }
-
     return APR_SUCCESS;
 }

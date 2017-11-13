@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d exceeds ServerLimit "
-                         "value of", ap_daemons_limit);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to configure permitted SSL ciphers");

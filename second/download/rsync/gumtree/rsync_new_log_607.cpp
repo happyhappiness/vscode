@@ -1,1 +1,1 @@
-fprintf(logfile,"%s  %s", timestring(), buf);
+rprintf(FERROR, "deflate returned %d\n", r);

@@ -1,1 +1,1 @@
-memset(format, 0, sizeof(*format));
+strbuf_addstr(err, _("unknown repository extensions found:"));

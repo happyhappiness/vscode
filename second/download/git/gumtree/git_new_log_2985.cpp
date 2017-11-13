@@ -1,1 +1,1 @@
-error_errno("short read");
+error_errno("open(\"%s\")", path);

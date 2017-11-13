@@ -1,54 +1,42 @@
-static int process_diff_filepair(struct rev_info *rev,
-				 struct diff_filepair *pair,
-				 struct line_log_data *range,
-				 struct diff_ranges **diff_out)
+int report_path_error(const char *ps_matched,
+		      const struct pathspec *pathspec,
+		      const char *prefix)
 {
-	struct line_log_data *rg = range;
-	struct range_set tmp;
-	struct diff_ranges diff;
-	mmfile_t file_parent, file_target;
+	/*
+	 * Make sure all pathspec matched; otherwise it is an error.
+	 */
+	struct strbuf sb = STRBUF_INIT;
+	int num, errors = 0;
+	for (num = 0; num < pathspec->nr; num++) {
+		int other, found_dup;
 
-	assert(pair->two->path);
-	while (rg) {
-		assert(rg->path);
-		if (!strcmp(rg->path, pair->two->path))
-			break;
-		rg = rg->next;
+		if (ps_matched[num])
+			continue;
+		/*
+		 * The caller might have fed identical pathspec
+		 * twice.  Do not barf on such a mistake.
+		 * FIXME: parse_pathspec should have eliminated
+		 * duplicate pathspec.
+		 */
+		for (found_dup = other = 0;
+		     !found_dup && other < pathspec->nr;
+		     other++) {
+			if (other == num || !ps_matched[other])
+				continue;
+			if (!strcmp(pathspec->items[other].original,
+				    pathspec->items[num].original))
+				/*
+				 * Ok, we have a match already.
+				 */
+				found_dup = 1;
+		}
+		if (found_dup)
+			continue;
+
+		error("pathspec '%s' did not match any file(s) known to git.",
+		      pathspec->items[num].original);
+		errors++;
 	}
-
-	if (!rg)
-		return 0;
-	if (rg->ranges.nr == 0)
-		return 0;
-
-	assert(pair->two->sha1_valid);
-	diff_populate_filespec(pair->two, 0);
-	file_target.ptr = pair->two->data;
-	file_target.size = pair->two->size;
-
-	if (pair->one->sha1_valid) {
-		diff_populate_filespec(pair->one, 0);
-		file_parent.ptr = pair->one->data;
-		file_parent.size = pair->one->size;
-	} else {
-		file_parent.ptr = "";
-		file_parent.size = 0;
-	}
-
-	diff_ranges_init(&diff);
-	if (collect_diff(&file_parent, &file_target, &diff))
-		die("unable to generate diff for %s", pair->one->path);
-
-	/* NEEDSWORK should apply some heuristics to prevent mismatches */
-	free(rg->path);
-	rg->path = xstrdup(pair->one->path);
-
-	range_set_init(&tmp, 0);
-	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
-	range_set_release(&rg->ranges);
-	range_set_move(&rg->ranges, &tmp);
-
-	diff_ranges_release(&diff);
-
-	return ((*diff_out)->parent.nr > 0);
+	strbuf_release(&sb);
+	return errors;
 }

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                 "h2_workers: adding worker(%d)", h2_worker_get_id(w));
+log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(02809),
+                               "Options ExecCGI is off in this directory");

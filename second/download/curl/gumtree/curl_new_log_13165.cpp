@@ -1,10 +1,9 @@
 fputs(
-"              If this option is used several times, the  last  specified  file\n"
-"              name will be used.\n"
+"              -c, --cookie-jar option.\n"
 "\n"
-"       -C, --continue-at <offset>\n"
-"              Continue/Resume  a  previous  file transfer at the given offset.\n"
-"              The given offset is the exact  number  of  bytes  that  will  be\n"
-"              skipped,  counting  from the beginning of the source file before\n"
-"              it is transferred to the destination.  If used with uploads, the\n"
+"              Exercise  caution  if  you  are  using  this option and multiple\n"
+"              transfers may occur.  If you use the NAME1=VALUE1; format, or in\n"
+"              a  file  use  the  Set-Cookie format and don't specify a domain,\n"
+"              then the cookie is sent for any domain (even after redirects are\n"
+"              followed)  and cannot be modified by a server-set cookie. If the\n"
 , stdout);

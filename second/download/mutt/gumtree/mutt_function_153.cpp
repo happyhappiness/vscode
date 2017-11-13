@@ -1,13 +1,18 @@
-static void print_time(time_t t, STATE *s)
+int query_quadoption (int opt, const char *prompt)
 {
-  char p[STRING];
+  int v = quadoption (opt);
 
-  setlocale (LC_TIME, "");
-#ifdef HAVE_LANGINFO_D_T_FMT
-  strftime (p, sizeof (p), nl_langinfo (D_T_FMT), localtime (&t));
-#else
-  strftime (p, sizeof (p), "%c", localtime (&t));
-#endif
-  setlocale (LC_TIME, "C");
-  state_attach_puts (p, s);
+  switch (v)
+  {
+    case M_YES:
+    case M_NO:
+      return (v);
+
+    default:
+      v = mutt_yesorno (prompt, (v == M_ASKYES));
+      CLEARLINE (LINES - 1);
+      return (v);
+  }
+
+  /* not reached */
 }

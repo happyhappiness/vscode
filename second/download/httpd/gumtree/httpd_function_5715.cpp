@@ -1,89 +1,86 @@
-static void * APR_THREAD_FUNC worker_thread(apr_thread_t *thd, void * dummy)
+static int stapling_cb(SSL *ssl, void *arg)
 {
-    proc_info * ti = dummy;
-    int process_slot = ti->pid;
-    int thread_slot = ti->tid;
-    apr_socket_t *csd = NULL;
-    apr_bucket_alloc_t *bucket_alloc;
-    apr_pool_t *last_ptrans = NULL;
-    apr_pool_t *ptrans;                /* Pool for per-transaction stuff */
-    apr_status_t rv;
-    int is_idle = 0;
+    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
+    server_rec *s       = mySrvFromConn(conn);
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    SSLConnRec *sslconn = myConnConfig(conn);
+    modssl_ctx_t *mctx  = myCtxConfig(sslconn, sc);
+    certinfo *cinf = NULL;
+    OCSP_RESPONSE *rsp = NULL;
+    int rv;
 
-    free(ti);
-
-    ap_scoreboard_image->servers[process_slot][thread_slot].pid = ap_my_pid;
-    ap_scoreboard_image->servers[process_slot][thread_slot].tid = apr_os_thread_current();
-    ap_scoreboard_image->servers[process_slot][thread_slot].generation = retained->my_generation;
-    ap_update_child_status_from_indexes(process_slot, thread_slot, SERVER_STARTING, NULL);
-
-#ifdef HAVE_PTHREAD_KILL
-    unblock_signal(WORKER_SIGNAL);
-    apr_signal(WORKER_SIGNAL, dummy_signal_handler);
-#endif
-
-    while (!workers_may_exit) {
-        if (!is_idle) {
-            rv = ap_queue_info_set_idle(worker_queue_info, last_ptrans);
-            last_ptrans = NULL;
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                             "ap_queue_info_set_idle failed. Attempting to "
-                             "shutdown process gracefully.");
-                signal_threads(ST_GRACEFUL);
-                break;
-            }
-            is_idle = 1;
-        }
-
-        ap_update_child_status_from_indexes(process_slot, thread_slot, SERVER_READY, NULL);
-worker_pop:
-        if (workers_may_exit) {
-            break;
-        }
-        rv = ap_queue_pop(worker_queue, &csd, &ptrans);
-
-        if (rv != APR_SUCCESS) {
-            /* We get APR_EOF during a graceful shutdown once all the connections
-             * accepted by this server process have been handled.
-             */
-            if (APR_STATUS_IS_EOF(rv)) {
-                break;
-            }
-            /* We get APR_EINTR whenever ap_queue_pop() has been interrupted
-             * from an explicit call to ap_queue_interrupt_all(). This allows
-             * us to unblock threads stuck in ap_queue_pop() when a shutdown
-             * is pending.
-             *
-             * If workers_may_exit is set and this is ungraceful termination/
-             * restart, we are bound to get an error on some systems (e.g.,
-             * AIX, which sanity-checks mutex operations) since the queue
-             * may have already been cleaned up.  Don't log the "error" if
-             * workers_may_exit is set.
-             */
-            else if (APR_STATUS_IS_EINTR(rv)) {
-                goto worker_pop;
-            }
-            /* We got some other error. */
-            else if (!workers_may_exit) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                             "ap_queue_pop failed");
-            }
-            continue;
-        }
-        is_idle = 0;
-        worker_sockets[thread_slot] = csd;
-        bucket_alloc = apr_bucket_alloc_create(ptrans);
-        process_socket(thd, ptrans, csd, process_slot, thread_slot, bucket_alloc);
-        worker_sockets[thread_slot] = NULL;
-        requests_this_child--;
-        apr_pool_clear(ptrans);
-        last_ptrans = ptrans;
+    if (sc->server->stapling_enabled != TRUE) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01950)
+                     "stapling_cb: OCSP Stapling disabled");
+        return SSL_TLSEXT_ERR_NOACK;
     }
 
-    ap_update_child_status_from_indexes(process_slot, thread_slot,
-        (dying) ? SERVER_DEAD : SERVER_GRACEFUL, (request_rec *) NULL);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01951)
+                 "stapling_cb: OCSP Stapling callback called");
 
-    apr_thread_exit(thd, APR_SUCCESS);
-    return NULL;
+    cinf = stapling_get_certinfo(s, mctx, ssl);
+    if (cinf == NULL) {
+        return SSL_TLSEXT_ERR_NOACK;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01952)
+                 "stapling_cb: retrieved cached certificate data");
+
+    rv = get_and_check_cached_response(s, mctx, &rsp, cinf, conn->pool);
+    if (rv != 0) {
+        return rv;
+    }
+
+    if (rsp == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01954)
+                     "stapling_cb: renewing cached response");
+        stapling_refresh_mutex_on(s);
+        /* Maybe another request refreshed the OCSP response while this
+         * thread waited for the mutex.  Check again.
+         */
+        rv = get_and_check_cached_response(s, mctx, &rsp, cinf, conn->pool);
+        if (rv != 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_cb: error checking for cached response "
+                         "after obtaining refresh mutex");
+            stapling_refresh_mutex_off(s);
+            return rv;
+        }
+        else if (rsp) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_cb: don't need to refresh cached response "
+                         "after obtaining refresh mutex");
+            stapling_refresh_mutex_off(s);
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_cb: still must refresh cached response "
+                         "after obtaining refresh mutex");
+            rv = stapling_renew_response(s, mctx, ssl, cinf, &rsp, conn->pool);
+            stapling_refresh_mutex_off(s);
+
+            if (rv == TRUE) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "stapling_cb: success renewing response");
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01955)
+                             "stapling_cb: fatal error renewing response");
+                return SSL_TLSEXT_ERR_ALERT_FATAL;
+            }
+        }
+    }
+
+    if (rsp) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01956)
+                     "stapling_cb: setting response");
+        if (!stapling_set_response(ssl, rsp))
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
+        return SSL_TLSEXT_ERR_OK;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01957)
+                 "stapling_cb: no response available");
+
+    return SSL_TLSEXT_ERR_NOACK;
+
 }

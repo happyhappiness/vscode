@@ -1,63 +1,16 @@
-static const char *branch_get_push_1(struct branch *branch, struct strbuf *err)
+void convert_to_git_filter_fd(const char *path, int fd, struct strbuf *dst,
+			      enum safe_crlf checksafe)
 {
-	struct remote *remote;
+	struct conv_attrs ca;
+	convert_attrs(&ca, path);
 
-	if (!branch)
-		return error_buf(err, _("HEAD does not point to a branch"));
+	assert(ca.drv);
+	assert(ca.drv->clean);
 
-	remote = remote_get(pushremote_for_branch(branch, NULL));
-	if (!remote)
-		return error_buf(err,
-				 _("branch '%s' has no remote for pushing"),
-				 branch->name);
+	if (!apply_filter(path, NULL, 0, fd, dst, ca.drv->clean))
+		die("%s: clean filter '%s' failed", path, ca.drv->name);
 
-	if (remote->push_refspec_nr) {
-		char *dst;
-		const char *ret;
-
-		dst = apply_refspecs(remote->push, remote->push_refspec_nr,
-				     branch->refname);
-		if (!dst)
-			return error_buf(err,
-					 _("push refspecs for '%s' do not include '%s'"),
-					 remote->name, branch->name);
-
-		ret = tracking_for_push_dest(remote, dst, err);
-		free(dst);
-		return ret;
-	}
-
-	if (remote->mirror)
-		return tracking_for_push_dest(remote, branch->refname, err);
-
-	switch (push_default) {
-	case PUSH_DEFAULT_NOTHING:
-		return error_buf(err, _("push has no destination (push.default is 'nothing')"));
-
-	case PUSH_DEFAULT_MATCHING:
-	case PUSH_DEFAULT_CURRENT:
-		return tracking_for_push_dest(remote, branch->refname, err);
-
-	case PUSH_DEFAULT_UPSTREAM:
-		return branch_get_upstream(branch, err);
-
-	case PUSH_DEFAULT_UNSPECIFIED:
-	case PUSH_DEFAULT_SIMPLE:
-		{
-			const char *up, *cur;
-
-			up = branch_get_upstream(branch, err);
-			if (!up)
-				return NULL;
-			cur = tracking_for_push_dest(remote, branch->refname, err);
-			if (!cur)
-				return NULL;
-			if (strcmp(cur, up))
-				return error_buf(err,
-						 _("cannot resolve 'simple' push to a single destination"));
-			return cur;
-		}
-	}
-
-	die("BUG: unhandled push situation");
+	ca.crlf_action = input_crlf_action(ca.crlf_action, ca.eol_attr);
+	crlf_to_git(path, dst->buf, dst->len, dst, ca.crlf_action, checksafe);
+	ident_to_git(path, dst->buf, dst->len, dst, ca.ident);
 }

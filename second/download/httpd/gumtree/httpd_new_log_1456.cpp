@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "Digest: cannot check nonce count without shared memory");
+ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: SetEvent for child process %pp failed.",
+                         event_handles[CHILD_HANDLE]);

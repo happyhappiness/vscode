@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
-                              "h2_mplx(%ld-%d): close with trailers=%s", 
-                              m->id, io->id, trailers? "yes" : "no");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00410)
+                         "Parent: Unable to write duplicated socket %d to the child.", nsd);

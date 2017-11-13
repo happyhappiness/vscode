@@ -1,11 +1,10 @@
 fputs(
-"              http_code      The numerical response code that was found in the\n"
-"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
-"                             7.18.2 the alias response_code was added to  show\n"
-"                             the same info.\n"
+"              and seeing what's going on \"under the  hood\".  A  line  starting\n"
+"              with  '>'  means  \"header  data\" sent by curl, '<' means \"header\n"
+"              data\" received by curl that is hidden in  normal  cases,  and  a\n"
+"              line starting with '*' means additional info provided by curl.\n"
 "\n"
-"              http_connect   The  numerical  code  that  was found in the last\n"
-"                             response  (from  a  proxy)  to  a  curl   CONNECT\n"
-"                             request. (Added in 7.12.4)\n"
+"              If you only want HTTP headers in the output, -i, --include might\n"
+"              be the option you're looking for.\n"
 "\n"
 , stdout);

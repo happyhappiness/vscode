@@ -1,17 +1,30 @@
-FILE *xfopen(const char *path, const char *mode)
+static const char *apply_command(const char *command, const char *arg)
 {
-	for (;;) {
-		FILE *fp = fopen(path, mode);
-		if (fp)
-			return fp;
-		if (errno == EINTR)
-			continue;
+	struct strbuf cmd = STRBUF_INIT;
+	struct strbuf buf = STRBUF_INIT;
+	struct child_process cp = CHILD_PROCESS_INIT;
+	const char *argv[] = {NULL, NULL};
+	const char *result;
 
-		if (*mode && mode[1] == '+')
-			die_errno(_("could not open '%s' for reading and writing"), path);
-		else if (*mode == 'w' || *mode == 'a')
-			die_errno(_("could not open '%s' for writing"), path);
-		else
-			die_errno(_("could not open '%s' for reading"), path);
+	strbuf_addstr(&cmd, command);
+	if (arg)
+		strbuf_replace(&cmd, TRAILER_ARG_STRING, arg);
+
+	argv[0] = cmd.buf;
+	cp.argv = argv;
+	cp.env = local_repo_env;
+	cp.no_stdin = 1;
+	cp.use_shell = 1;
+
+	if (capture_command(&cp, &buf, 1024)) {
+		error("running trailer command '%s' failed", cmd.buf);
+		strbuf_release(&buf);
+		result = xstrdup("");
+	} else {
+		strbuf_trim(&buf);
+		result = strbuf_detach(&buf, NULL);
 	}
+
+	strbuf_release(&cmd);
+	return result;
 }

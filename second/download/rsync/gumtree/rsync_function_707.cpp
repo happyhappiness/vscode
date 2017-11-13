@@ -1,56 +1,54 @@
-static void glob_expand_one(char *s, char ***argv_ptr, int *argc_ptr,
-			    int *maxargs_ptr)
-{
-	char **argv = *argv_ptr;
-	int argc = *argc_ptr;
-	int maxargs = *maxargs_ptr;
-#if !(defined(HAVE_GLOB) && defined(HAVE_GLOB_H))
-	if (argc == maxargs) {
-		maxargs += MAX_ARGS;
-		if (!(argv = realloc_array(argv, char *, maxargs)))
-			out_of_memory("glob_expand_one");
-		*argv_ptr = argv;
-		*maxargs_ptr = maxargs;
-	}
-	if (!*s)
-		s = ".";
-	s = argv[argc++] = strdup(s);
-	exclude_server_path(s);
-#else
-	glob_t globbuf;
-	int i;
+static void singleOptionHelp(FILE * f, int maxLeftCol, 
+			     const struct poptOption * opt,
+			     const char *translation_domain) {
+    int indentLength = maxLeftCol + 5;
+    int lineLength = 79 - indentLength;
+    const char * help = D_(translation_domain, opt->descrip);
+    int helpLength;
+    const char * ch;
+    char format[10];
+    char * left;
+    const char * argDescrip = getArgDescrip(opt, translation_domain);
 
-	if (maxargs <= argc)
-		return;
-	if (!*s)
-		s = ".";
+    left = malloc(maxLeftCol + 1);
+    *left = '\0';
 
-	if (sanitize_paths)
-		s = sanitize_path(NULL, s, "", 0);
-	else
-		s = strdup(s);
+    if (opt->longName && opt->shortName)
+	sprintf(left, "-%c, --%s", opt->shortName, opt->longName);
+    else if (opt->shortName) 
+	sprintf(left, "-%c", opt->shortName);
+    else if (opt->longName)
+	sprintf(left, "--%s", opt->longName);
+    if (!*left) return ;
+    if (argDescrip) {
+	strcat(left, "=");
+	strcat(left, argDescrip);
+    }
 
-	memset(&globbuf, 0, sizeof globbuf);
-	if (!exclude_server_path(s))
-		glob(s, 0, NULL, &globbuf);
-	if (MAX((int)globbuf.gl_pathc, 1) > maxargs - argc) {
-		maxargs += globbuf.gl_pathc + MAX_ARGS;
-		if (!(argv = realloc_array(argv, char *, maxargs)))
-			out_of_memory("glob_expand_one");
-		*argv_ptr = argv;
-		*maxargs_ptr = maxargs;
-	}
-	if (globbuf.gl_pathc == 0)
-		argv[argc++] = s;
-	else {
-		int j = globbuf.gl_pathc;
-		free(s);
-		for (i = 0; i < j; i++) {
-			if (!(argv[argc++] = strdup(globbuf.gl_pathv[i])))
-				out_of_memory("glob_expand_one");
-		}
-	}
-	globfree(&globbuf);
-#endif
-	*argc_ptr = argc;
+    if (help)
+	fprintf(f,"  %-*s   ", maxLeftCol, left);
+    else {
+	fprintf(f,"  %s\n", left); 
+	goto out;
+    }
+
+    helpLength = strlen(help);
+    while (helpLength > lineLength) {
+	ch = help + lineLength - 1;
+	while (ch > help && !isspace(*ch)) ch--;
+	if (ch == help) break;		/* give up */
+	while (ch > (help + 1) && isspace(*ch)) ch--;
+	ch++;
+
+	sprintf(format, "%%.%ds\n%%%ds", (int) (ch - help), indentLength);
+	fprintf(f, format, help, " ");
+	help = ch;
+	while (isspace(*help) && *help) help++;
+	helpLength = strlen(help);
+    }
+
+    if (helpLength) fprintf(f, "%s\n", help);
+
+out:
+    free(left);
 }

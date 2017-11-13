@@ -1,1 +1,0 @@
-ap_rputs(" -D APR_USE_FLOCK_SERIALIZE\n", r);

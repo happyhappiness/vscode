@@ -1,21 +1,9 @@
-static const char *util_ldap_set_cache_bytes(cmd_parms *cmd, void *dummy,
-                                             const char *bytes)
+static int cache_filter(ap_filter_t *f, apr_bucket_brigade *in)
 {
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
-                                                  &ldap_module);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-
-    if (err != NULL) {
-        return err;
-    }
-
-    st->cache_bytes = atol(bytes);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "ldap cache: Setting shared memory cache size to "
-                 "%" APR_SIZE_T_FMT " bytes.",
-                 st->cache_bytes);
-
-    return NULL;
+    /* we are just a marker, so let's just remove ourselves */
+    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, f->r->server,
+                 "cache: CACHE filter was added twice, or was added in quick "
+    		     "handler mode and will be ignored.");
+    ap_remove_output_filter(f);
+    return ap_pass_brigade(f->next, in);
 }

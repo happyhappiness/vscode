@@ -1,2 +1,1 @@
-packet_write(1, "shallow %s",
-						sha1_to_hex(object->sha1));
+printf("%s missing\n", obj_name);

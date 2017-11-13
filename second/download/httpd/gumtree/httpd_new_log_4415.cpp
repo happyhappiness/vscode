@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(00113)
-                     "cannot use a full URL in a 401 ErrorDocument "
-                     "directive --- ignoring!");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                              "EPSV contacting remote host on port %d", data_port);

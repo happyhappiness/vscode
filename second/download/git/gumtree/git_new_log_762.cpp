@@ -1,1 +1,2 @@
-report_invalid_attr(cp, len, src, lineno);
+die("BUG: pool size too small for %d in paint_alloc()",
+			    size);

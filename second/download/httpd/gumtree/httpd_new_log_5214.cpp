@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p, APLOGNO(02641)
-                              "unable to control socket non-blocking status");
+ap_log_error(APLOG_MARK, APLOG_DEBUG,
+                                 rv, ap_server_conf, APLOGNO(00343)
+                                 "accept() failed, retrying.");

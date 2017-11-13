@@ -1,1 +1,3 @@
-ap_add_output_filter("H2_PARSE_H1", NULL, NULL, c);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03069)
+                  "session(%ld): sent GOAWAY, err=%d, msg=%s", 
+                  session->id, error, msg? msg : "");

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, level, rv, ap_server_conf, APLOGNO(00274)
-                             "apr_proc_mutex_unlock failed. Attempting to "
-                             "shutdown process gracefully.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 pServ, APLOGNO(02251)
+                                 "encrypted %s private key - pass phrase"
+                                 " reused", an);

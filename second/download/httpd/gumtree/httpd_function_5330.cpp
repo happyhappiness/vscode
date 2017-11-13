@@ -1,42 +1,74 @@
-apr_status_t h2_stream_prep_read(h2_stream *stream, 
-                                 apr_off_t *plen, int *peos)
+void mpm_signal_service(apr_pool_t *ptemp, int signal)
 {
-    apr_status_t status = APR_SUCCESS;
-    const char *src;
-    apr_table_t *trailers = NULL;
-    int test_read = (*plen == 0);
-    
-    if (stream->rst_error) {
-        return APR_ECONNRESET;
+    int success = FALSE;
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
+
+    schSCManager = OpenSCManager(NULL, NULL, // default machine & database
+                                 SC_MANAGER_CONNECT);
+
+    if (!schSCManager) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                     "Failed to open the NT Service Manager");
+        return;
     }
 
-    H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream prep_read_pre");
-    if (!APR_BRIGADE_EMPTY(stream->bbout)) {
-        src = "stream";
-        status = h2_util_bb_avail(stream->bbout, plen, peos);
-        if (!test_read && status == APR_SUCCESS && !*peos && !*plen) {
-            apr_brigade_cleanup(stream->bbout);
-            return h2_stream_prep_read(stream, plen, peos);
-        }
-        trailers = stream->response? stream->response->trailers : NULL;
+    /* ###: utf-ize */
+    schService = OpenService(schSCManager, mpm_service_name,
+                             SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
+                             SERVICE_USER_DEFINED_CONTROL |
+                             SERVICE_START | SERVICE_STOP);
+
+    if (schService == NULL) {
+        /* Could not open the service */
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                     "Failed to open the %s Service", mpm_display_name);
+        CloseServiceHandle(schSCManager);
+        return;
     }
-    else {
-        src = "mplx";
-        status = h2_mplx_out_readx(stream->session->mplx, stream->id, 
-                                   NULL, NULL, plen, peos, &trailers);
-        if (trailers && stream->response) {
-            h2_response_set_trailers(stream->response, trailers);
-        }    
+
+    if (!QueryServiceStatus(schService, &globdat.ssStatus)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                     "Query of Service %s failed", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
     }
-    
-    if (!test_read && status == APR_SUCCESS && !*peos && !*plen) {
-        status = APR_EAGAIN;
+
+    if (!signal && (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED)) {
+        fprintf(stderr,"The %s service is not started.\n", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
     }
-    
-    H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream prep_read_post");
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
-                  "h2_stream(%ld-%d): prep_read %s, len=%ld eos=%d, trailers=%s",
-                  stream->session->id, stream->id, src, (long)*plen, *peos,
-                  trailers? "yes" : "no");
-    return status;
+
+    fprintf(stderr,"The %s service is %s.\n", mpm_display_name,
+            signal ? "restarting" : "stopping");
+
+    if (!signal)
+        success = signal_service_transition(schService,
+                                            SERVICE_CONTROL_STOP,
+                                            SERVICE_STOP_PENDING,
+                                            SERVICE_STOPPED);
+    else if (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED) {
+        mpm_service_start(ptemp, 0, NULL);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
+    }
+    else
+        success = signal_service_transition(schService,
+                                            SERVICE_APACHE_RESTART,
+                                            SERVICE_START_PENDING,
+                                            SERVICE_RUNNING);
+
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
+
+    if (success)
+        fprintf(stderr,"The %s service has %s.\n", mpm_display_name,
+               signal ? "restarted" : "stopped");
+    else
+        fprintf(stderr,"Failed to %s the %s service.\n",
+               signal ? "restart" : "stop", mpm_display_name);
 }

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                      "Headers sent to client:");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "request failed: malformed request line");

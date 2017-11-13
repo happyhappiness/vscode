@@ -1,2 +1,1 @@
-error("bad tree pointer in commit %s",
-			     oid_to_hex(&item->object.oid));
+packet_write(fd, "shallow %s\n", oid_to_hex(&graft->oid));

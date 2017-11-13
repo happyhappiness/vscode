@@ -1,1 +1,2 @@
-error_errno("could not write config file %s", config_filename);
+error_errno("chmod on %s failed",
+				  get_lock_file_path(lock));

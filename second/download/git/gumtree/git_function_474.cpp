@@ -1,42 +1,44 @@
-static int sequencer_rollback(struct replay_opts *opts)
+static int add_possible_reference_from_superproject(
+		struct alternate_object_database *alt, void *sas_cb)
 {
-	FILE *f;
-	unsigned char sha1[20];
-	struct strbuf buf = STRBUF_INIT;
+	struct submodule_alternate_setup *sas = sas_cb;
 
-	f = fopen(git_path_head_file(), "r");
-	if (!f && errno == ENOENT) {
+	/*
+	 * If the alternate object store is another repository, try the
+	 * standard layout with .git/modules/<name>/objects
+	 */
+	if (ends_with(alt->path, ".git/objects")) {
+		char *sm_alternate;
+		struct strbuf sb = STRBUF_INIT;
+		struct strbuf err = STRBUF_INIT;
+		strbuf_add(&sb, alt->path, strlen(alt->path) - strlen("objects"));
+
 		/*
-		 * There is no multiple-cherry-pick in progress.
-		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
-		 * a single-cherry-pick in progress, abort that.
+		 * We need to end the new path with '/' to mark it as a dir,
+		 * otherwise a submodule name containing '/' will be broken
+		 * as the last part of a missing submodule reference would
+		 * be taken as a file name.
 		 */
-		return rollback_single_pick();
+		strbuf_addf(&sb, "modules/%s/", sas->submodule_name);
+
+		sm_alternate = compute_alternate_path(sb.buf, &err);
+		if (sm_alternate) {
+			string_list_append(sas->reference, xstrdup(sb.buf));
+			free(sm_alternate);
+		} else {
+			switch (sas->error_mode) {
+			case SUBMODULE_ALTERNATE_ERROR_DIE:
+				die(_("submodule '%s' cannot add alternate: %s"),
+				    sas->submodule_name, err.buf);
+			case SUBMODULE_ALTERNATE_ERROR_INFO:
+				fprintf(stderr, _("submodule '%s' cannot add alternate: %s"),
+					sas->submodule_name, err.buf);
+			case SUBMODULE_ALTERNATE_ERROR_IGNORE:
+				; /* nothing */
+			}
+		}
+		strbuf_release(&sb);
 	}
-	if (!f)
-		return error_errno(_("cannot open %s"), git_path_head_file());
-	if (strbuf_getline_lf(&buf, f)) {
-		error(_("cannot read %s: %s"), git_path_head_file(),
-		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));
-		fclose(f);
-		goto fail;
-	}
-	fclose(f);
-	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
-		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
-			git_path_head_file());
-		goto fail;
-	}
-	if (is_null_sha1(sha1)) {
-		error(_("cannot abort from a branch yet to be born"));
-		goto fail;
-	}
-	if (reset_for_rollback(sha1))
-		goto fail;
-	remove_sequencer_state();
-	strbuf_release(&buf);
+
 	return 0;
-fail:
-	strbuf_release(&buf);
-	return -1;
 }

@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, APLOGNO(03201)
-                  "h2_session(%ld): start, INITIAL_WINDOW_SIZE=%ld, "
-                  "MAX_CONCURRENT_STREAMS=%d", 
-                  session->id, (long)win_size, (int)session->max_stream_count);
+ap_log_rerror(SCRIPT_LOG_MARK, APLOG_TRACE4, 0, r,
+                              "Headers from script '%s':",
+                              apr_filepath_name_get(r->filename));

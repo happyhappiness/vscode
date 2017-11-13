@@ -1,18 +1,7 @@
-static void die_with_unpushed_submodules(struct string_list *needs_pushing)
+static void color_atom_parser(struct used_atom *atom, const char *color_value)
 {
-	int i;
-
-	fprintf(stderr, "The following submodule paths contain changes that can\n"
-			"not be found on any remote:\n");
-	for (i = 0; i < needs_pushing->nr; i++)
-		printf("  %s\n", needs_pushing->items[i].string);
-	fprintf(stderr, "\nPlease try\n\n"
-			"	git push --recurse-submodules=on-demand\n\n"
-			"or cd to the path and use\n\n"
-			"	git push\n\n"
-			"to push them to a remote.\n\n");
-
-	string_list_clear(needs_pushing, 0);
-
-	die("Aborting.");
+	if (!color_value)
+		die(_("expected format: %%(color:<color>)"));
+	if (color_parse(color_value, atom->u.color) < 0)
+		die(_("unrecognized color: %%(color:%s)"), color_value);
 }

@@ -1,10 +1,9 @@
 fputs(
-"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
+"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
+"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
+"              mode to  allow  reading  server  output  while  stdin  is  being\n"
+"              uploaded.\n"
 "\n"
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only shows the ASCII part of the dump. It makes  smaller  output\n"
-"              that might be easier to read for untrained humans.\n"
-"\n"
+"              You can specify one -T for each URL on the command line. Each -T\n"
 , stdout);

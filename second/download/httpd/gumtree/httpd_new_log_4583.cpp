@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s, APLOGNO(00203)
-                     "failure allocating shared memory, shutting down");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01817)
+                          "error while decoding the session, "
+                          "session not loaded: %s", r->uri);

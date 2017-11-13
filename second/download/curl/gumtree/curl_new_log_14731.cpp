@@ -1,9 +1,9 @@
 fputs(
-"              (HTTP) Sends the \"Referrer Page\" information to the HTTP server.\n"
-"              This can also be set with the -H, --header flag of course.  When\n"
-"              used with -L, --location you  can  append  \";auto\"  to  the  -e,\n"
-"              --referer  URL  to  make curl automatically set the previous URL\n"
-"              when it follows a Location: header. The \";auto\"  string  can  be\n"
-"              used alone, even if you don't set an initial -e, --referer.\n"
+"              server, prefix the command with an asterisk  (*)  to  make  curl\n"
+"              continue  even if the command fails as by default curl will stop\n"
+"              at first failure.\n"
 "\n"
+"              SFTP is a binary protocol. Unlike for FTP, curl interprets  SFTP\n"
+"              quote  commands  itself before sending them to the server.  File\n"
+"              names may be quoted shell-style to embed spaces or special char-\n"
 , stdout);

@@ -1,311 +1,163 @@
-static apr_status_t proxy_send_dir_filter(ap_filter_t *f,
-                                          apr_bucket_brigade *in)
+static int master_main(server_rec *s, HANDLE shutdown_event, HANDLE restart_event)
 {
-    request_rec *r = f->r;
-    conn_rec *c = r->connection;
-    apr_pool_t *p = r->pool;
-    apr_bucket_brigade *out = apr_brigade_create(p, c->bucket_alloc);
-    apr_status_t rv;
+    int rv, cld;
+    int child_created;
+    int restart_pending;
+    int shutdown_pending;
+    HANDLE child_exit_event;
+    HANDLE event_handles[NUM_WAIT_HANDLES];
+    DWORD child_pid;
 
-    register int n;
-    char *dir, *path, *reldir, *site, *str, *type;
+    child_created = restart_pending = shutdown_pending = 0;
 
-    const char *pwd = apr_table_get(r->notes, "Directory-PWD");
-    const char *readme = apr_table_get(r->notes, "Directory-README");
+    event_handles[SHUTDOWN_HANDLE] = shutdown_event;
+    event_handles[RESTART_HANDLE] = restart_event;
 
-    proxy_dir_ctx_t *ctx = f->ctx;
-
-    if (!ctx) {
-        f->ctx = ctx = apr_pcalloc(p, sizeof(*ctx));
-        ctx->in = apr_brigade_create(p, c->bucket_alloc);
-        ctx->buffer[0] = 0;
-        ctx->state = HEADER;
+    /* Create a single child process */
+    rv = create_process(pconf, &event_handles[CHILD_HANDLE],
+                        &child_exit_event, &child_pid);
+    if (rv < 0)
+    {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: create child process failed. Exiting.");
+        shutdown_pending = 1;
+        goto die_now;
     }
 
-    /* combine the stored and the new */
-    APR_BRIGADE_CONCAT(ctx->in, in);
+    child_created = 1;
 
-    if (HEADER == ctx->state) {
+    if (!strcasecmp(signal_arg, "runservice")) {
+        mpm_service_started();
+    }
 
-        /* basedir is either "", or "/%2f" for the "squid %2f hack" */
-        const char *basedir = "";  /* By default, path is relative to the $HOME dir */
-        char *wildcard = NULL;
+    /* Update the scoreboard. Note that there is only a single active
+     * child at once.
+     */
+    ap_scoreboard_image->parent[0].quiescing = 0;
+    ap_scoreboard_image->parent[0].pid = child_pid;
 
-        /* Save "scheme://site" prefix without password */
-        site = apr_uri_unparse(p, &f->r->parsed_uri, APR_URI_UNP_OMITPASSWORD | APR_URI_UNP_OMITPATHINFO);
-        /* ... and path without query args */
-        path = apr_uri_unparse(p, &f->r->parsed_uri, APR_URI_UNP_OMITSITEPART | APR_URI_UNP_OMITQUERY);
-
-        /* If path began with /%2f, change the basedir */
-        if (strncasecmp(path, "/%2f", 4) == 0) {
-            basedir = "/%2f";
+    /* Wait for shutdown or restart events or for child death */
+    winnt_mpm_state = AP_MPMQ_RUNNING;
+    rv = WaitForMultipleObjects(NUM_WAIT_HANDLES, (HANDLE *) event_handles, FALSE, INFINITE);
+    cld = rv - WAIT_OBJECT_0;
+    if (rv == WAIT_FAILED) {
+        /* Something serious is wrong */
+        ap_log_error(APLOG_MARK,APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: WaitForMultipeObjects WAIT_FAILED -- doing server shutdown");
+        shutdown_pending = 1;
+    }
+    else if (rv == WAIT_TIMEOUT) {
+        /* Hey, this cannot happen */
+        ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                     "master_main: WaitForMultipeObjects with INFINITE wait exited with WAIT_TIMEOUT");
+        shutdown_pending = 1;
+    }
+    else if (cld == SHUTDOWN_HANDLE) {
+        /* shutdown_event signalled */
+        shutdown_pending = 1;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s,
+                     "Parent: Received shutdown signal -- Shutting down the server.");
+        if (ResetEvent(shutdown_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "ResetEvent(shutdown_event)");
         }
-
-        /* Strip off a type qualifier. It is ignored for dir listings */
-        if ((type = strstr(path, ";type=")) != NULL)
-            *type++ = '\0';
-
-        (void)decodeenc(path);
-
-        while (path[1] == '/') /* collapse multiple leading slashes to one */
-            ++path;
-
-        reldir = strrchr(path, '/');
-        if (reldir != NULL && ftp_check_globbingchars(reldir)) {
-            wildcard = &reldir[1];
-            reldir[0] = '\0'; /* strip off the wildcard suffix */
+    }
+    else if (cld == RESTART_HANDLE) {
+        /* Received a restart event. Prepare the restart_event to be reused
+         * then signal the child process to exit.
+         */
+        restart_pending = 1;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                     "Parent: Received restart signal -- Restarting the server.");
+        if (ResetEvent(restart_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: ResetEvent(restart_event) failed.");
         }
-
-        /* Copy path, strip (all except the last) trailing slashes */
-        /* (the trailing slash is needed for the dir component loop below) */
-        path = dir = apr_pstrcat(p, path, "/", NULL);
-        for (n = strlen(path); n > 1 && path[n - 1] == '/' && path[n - 2] == '/'; --n)
-            path[n - 1] = '\0';
-
-        /* Add a link to the root directory (if %2f hack was used) */
-        str = (basedir[0] != '\0') ? "<a href=\"/%2f/\">%2f</a>/" : "";
-
-        /* print "ftp://host/" */
-        str = apr_psprintf(p, DOCTYPE_HTML_3_2
-                "<html>\n <head>\n  <title>%s%s%s</title>\n"
-                " </head>\n"
-                " <body>\n  <h2>Directory of "
-                "<a href=\"/\">%s</a>/%s",
-                site, basedir, ap_escape_html(p, path),
-                site, str);
-
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str),
-                                                          p, c->bucket_alloc));
-
-        for (dir = path+1; (dir = strchr(dir, '/')) != NULL; )
-        {
-            *dir = '\0';
-            if ((reldir = strrchr(path+1, '/'))==NULL) {
-                reldir = path+1;
-            }
-            else
-                ++reldir;
-            /* print "path/" component */
-            str = apr_psprintf(p, "<a href=\"%s%s/\">%s</a>/", basedir,
-                        ap_escape_uri(p, path),
-                        ap_escape_html(p, reldir));
-            *dir = '/';
-            while (*dir == '/')
-              ++dir;
-            APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str,
-                                                           strlen(str), p,
-                                                           c->bucket_alloc));
+        if (SetEvent(child_exit_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: SetEvent for child process %pp failed.",
+                         event_handles[CHILD_HANDLE]);
         }
-        if (wildcard != NULL) {
-            APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(wildcard,
-                                                           strlen(wildcard), p,
-                                                           c->bucket_alloc));
+        /* Don't wait to verify that the child process really exits,
+         * just move on with the restart.
+         */
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;
+    }
+    else {
+        /* The child process exited prematurely due to a fatal error. */
+        DWORD exitcode;
+        if (!GetExitCodeProcess(event_handles[CHILD_HANDLE], &exitcode)) {
+            /* HUH? We did exit, didn't we? */
+            exitcode = APEXIT_CHILDFATAL;
         }
-
-        /* If the caller has determined the current directory, and it differs */
-        /* from what the client requested, then show the real name */
-        if (pwd == NULL || strncmp(pwd, path, strlen(pwd)) == 0) {
-            str = apr_psprintf(p, "</h2>\n\n  <hr />\n\n<pre>");
+        if (   exitcode == APEXIT_CHILDFATAL
+            || exitcode == APEXIT_CHILDINIT
+            || exitcode == APEXIT_INIT) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "Parent: child process exited with status %lu -- Aborting.", exitcode);
+            shutdown_pending = 1;
         }
         else {
-            str = apr_psprintf(p, "</h2>\n\n(%s)\n\n  <hr />\n\n<pre>",
-                               ap_escape_html(p, pwd));
+            int i;
+            restart_pending = 1;
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Parent: child process exited with status %lu -- Restarting.", exitcode);
+            for (i = 0; i < ap_threads_per_child; i++) {
+                ap_update_child_status_from_indexes(0, i, SERVER_DEAD, NULL);
+            }
         }
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str),
-                                                           p, c->bucket_alloc));
-
-        /* print README */
-        if (readme) {
-            str = apr_psprintf(p, "%s\n</pre>\n\n<hr />\n\n<pre>\n",
-                               ap_escape_html(p, readme));
-
-            APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str,
-                                                           strlen(str), p,
-                                                           c->bucket_alloc));
-        }
-
-        /* make sure page intro gets sent out */
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_flush_create(c->bucket_alloc));
-        if (APR_SUCCESS != (rv = ap_pass_brigade(f->next, out))) {
-            return rv;
-        }
-        apr_brigade_cleanup(out);
-
-        ctx->state = BODY;
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;
     }
+    if (restart_pending) {
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
+    }
+die_now:
+    if (shutdown_pending)
+    {
+        int timeout = 30000;  /* Timeout is milliseconds */
+        winnt_mpm_state = AP_MPMQ_STOPPING;
 
-    /* loop through each line of directory */
-    while (BODY == ctx->state) {
-        char *filename;
-        int found = 0;
-        int eos = 0;
-
-        ap_regex_t *re = NULL;
-        ap_regmatch_t re_result[LS_REG_MATCH];
-
-        /* Compile the output format of "ls -s1" as a fallback for non-unix ftp listings */
-        re = ap_pregcomp(p, LS_REG_PATTERN, AP_REG_EXTENDED);
-        ap_assert(re != NULL);
-
-        /* get a complete line */
-        /* if the buffer overruns - throw data away */
-        while (!found && !APR_BRIGADE_EMPTY(ctx->in)) {
-            char *pos, *response;
-            apr_size_t len, max;
-            apr_bucket *e;
-
-            e = APR_BRIGADE_FIRST(ctx->in);
-            if (APR_BUCKET_IS_EOS(e)) {
-                eos = 1;
-                break;
-            }
-            if (APR_SUCCESS != (rv = apr_bucket_read(e, (const char **)&response, &len, APR_BLOCK_READ))) {
-                return rv;
-            }
-            pos = memchr(response, APR_ASCII_LF, len);
-            if (pos != NULL) {
-                if ((response + len) != (pos + 1)) {
-                    len = pos - response + 1;
-                    apr_bucket_split(e, pos - response + 1);
-                }
-                found = 1;
-            }
-            max = sizeof(ctx->buffer) - strlen(ctx->buffer) - 1;
-            if (len > max) {
-                len = max;
-            }
-
-            /* len+1 to leave space for the trailing nil char */
-            apr_cpystrn(ctx->buffer+strlen(ctx->buffer), response, len+1);
-
-            APR_BUCKET_REMOVE(e);
-            apr_bucket_destroy(e);
+        if (!child_created) {
+            return 0;  /* Tell the caller we do not want to restart */
         }
 
-        /* EOS? jump to footer */
-        if (eos) {
-            ctx->state = FOOTER;
-            break;
+        /* This shutdown is only marginally graceful. We will give the
+         * child a bit of time to exit gracefully. If the time expires,
+         * the child will be wacked.
+         */
+        if (!strcasecmp(signal_arg, "runservice")) {
+            mpm_service_stopping();
         }
-
-        /* not complete? leave and try get some more */
-        if (!found) {
-            return APR_SUCCESS;
+        /* Signal the child processes to exit */
+        if (SetEvent(child_exit_event) == 0) {
+                ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
+                             "Parent: SetEvent for child process %pp failed",
+                             event_handles[CHILD_HANDLE]);
         }
-
-        {
-            apr_size_t n = strlen(ctx->buffer);
-            if (ctx->buffer[n-1] == CRLF[1])  /* strip trailing '\n' */
-                ctx->buffer[--n] = '\0';
-            if (ctx->buffer[n-1] == CRLF[0])  /* strip trailing '\r' if present */
-                ctx->buffer[--n] = '\0';
-        }
-
-        /* a symlink? */
-        if (ctx->buffer[0] == 'l' && (filename = strstr(ctx->buffer, " -> ")) != NULL) {
-            char *link_ptr = filename;
-
-            do {
-                filename--;
-            } while (filename[0] != ' ' && filename > ctx->buffer);
-            if (filename > ctx->buffer)
-                *(filename++) = '\0';
-            *(link_ptr++) = '\0';
-            str = apr_psprintf(p, "%s <a href=\"%s\">%s %s</a>\n",
-                               ap_escape_html(p, ctx->buffer),
-                               ap_escape_uri(p, filename),
-                               ap_escape_html(p, filename),
-                               ap_escape_html(p, link_ptr));
-        }
-
-        /* a directory/file? */
-        else if (ctx->buffer[0] == 'd' || ctx->buffer[0] == '-' || ctx->buffer[0] == 'l' || apr_isdigit(ctx->buffer[0])) {
-            int searchidx = 0;
-            char *searchptr = NULL;
-            int firstfile = 1;
-            if (apr_isdigit(ctx->buffer[0])) {  /* handle DOS dir */
-                searchptr = strchr(ctx->buffer, '<');
-                if (searchptr != NULL)
-                    *searchptr = '[';
-                searchptr = strchr(ctx->buffer, '>');
-                if (searchptr != NULL)
-                    *searchptr = ']';
-            }
-
-            filename = strrchr(ctx->buffer, ' ');
-            if (filename == NULL) {
-                /* Line is broken.  Ignore it. */
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
-                             "proxy_ftp: could not parse line %s", ctx->buffer);
-                /* erase buffer for next time around */
-                ctx->buffer[0] = 0;
-                continue;  /* while state is BODY */
-            }
-            *(filename++) = '\0';
-
-            /* handle filenames with spaces in 'em */
-            if (!strcmp(filename, ".") || !strcmp(filename, "..") || firstfile) {
-                firstfile = 0;
-                searchidx = filename - ctx->buffer;
-            }
-            else if (searchidx != 0 && ctx->buffer[searchidx] != 0) {
-                *(--filename) = ' ';
-                ctx->buffer[searchidx - 1] = '\0';
-                filename = &ctx->buffer[searchidx];
-            }
-
-            /* Append a slash to the HREF link for directories */
-            if (!strcmp(filename, ".") || !strcmp(filename, "..") || ctx->buffer[0] == 'd') {
-                str = apr_psprintf(p, "%s <a href=\"%s/\">%s</a>\n",
-                                   ap_escape_html(p, ctx->buffer),
-                                   ap_escape_uri(p, filename),
-                                   ap_escape_html(p, filename));
+        if (event_handles[CHILD_HANDLE]) {
+            rv = WaitForSingleObject(event_handles[CHILD_HANDLE], timeout);
+            if (rv == WAIT_OBJECT_0) {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Child process exited successfully.");
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
             }
             else {
-                str = apr_psprintf(p, "%s <a href=\"%s\">%s</a>\n",
-                                   ap_escape_html(p, ctx->buffer),
-                                   ap_escape_uri(p, filename),
-                                   ap_escape_html(p, filename));
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %pp",
+                             event_handles[CHILD_HANDLE]);
+                TerminateProcess(event_handles[CHILD_HANDLE], 1);
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
             }
         }
-        /* Try a fallback for listings in the format of "ls -s1" */
-        else if (0 == ap_regexec(re, ctx->buffer, LS_REG_MATCH, re_result, 0)) {
-
-            filename = apr_pstrndup(p, &ctx->buffer[re_result[2].rm_so], re_result[2].rm_eo - re_result[2].rm_so);
-
-            str = apr_pstrcat(p, ap_escape_html(p, apr_pstrndup(p, ctx->buffer, re_result[2].rm_so)),
-                              "<a href=\"", ap_escape_uri(p, filename), "\">",
-                              ap_escape_html(p, filename), "</a>\n", NULL);
-        }
-        else {
-            strcat(ctx->buffer, "\n"); /* re-append the newline */
-            str = ap_escape_html(p, ctx->buffer);
-        }
-
-        /* erase buffer for next time around */
-        ctx->buffer[0] = 0;
-
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str), p,
-                                                            c->bucket_alloc));
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_flush_create(c->bucket_alloc));
-        if (APR_SUCCESS != (rv = ap_pass_brigade(f->next, out))) {
-            return rv;
-        }
-        apr_brigade_cleanup(out);
-
+        CloseHandle(child_exit_event);
+        return 0;  /* Tell the caller we do not want to restart */
     }
-
-    if (FOOTER == ctx->state) {
-        str = apr_psprintf(p, "</pre>\n\n  <hr />\n\n  %s\n\n </body>\n</html>\n", ap_psignature("", r));
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str), p,
-                                                            c->bucket_alloc));
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_flush_create(c->bucket_alloc));
-        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_eos_create(c->bucket_alloc));
-        if (APR_SUCCESS != (rv = ap_pass_brigade(f->next, out))) {
-            return rv;
-        }
-        apr_brigade_destroy(out);
-    }
-
-    return APR_SUCCESS;
+    winnt_mpm_state = AP_MPMQ_STARTING;
+    CloseHandle(child_exit_event);
+    return 1;      /* Tell the caller we want a restart */
 }

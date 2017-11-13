@@ -1,1 +1,0 @@
-error("%s: unable to read file.", name);

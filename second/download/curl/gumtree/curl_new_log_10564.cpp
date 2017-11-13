@@ -1,11 +1,11 @@
 fputs(
-"              FTP(S)  server. The method argument should be one of the follow-\n"
-"              ing alternatives:\n"
+"              name with the symbol <. The difference between @ and <  is  then\n"
+"              that  @  makes a file get attached in the post as a file upload,\n"
+"              while the < makes a text field and just  get  the  contents  for\n"
+"              that text field from a file.\n"
 "\n"
-"              multicwd\n"
-"                     curl does a single CWD operation for each  path  part  in\n"
-"                     the  given URL. For deep hierarchies this means very many\n"
-"                     commands. This is how RFC 1738 says it  should  be  done.\n"
-"                     This is the default but the slowest behavior.\n"
+"              Example,  to send your password file to the server, where 'pass-\n"
+"              word' is the name of the form-field to which /etc/passwd will be\n"
+"              the input:\n"
 "\n"
 , stdout);

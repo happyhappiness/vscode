@@ -1,2 +1,1 @@
-fprintf(stderr, "Marking %s as complete\n",
-				sha1_to_hex(complete->item->object.sha1));
+packet_write(1, "%s %s\n", sha1_to_hex(sha1), refname_nons);

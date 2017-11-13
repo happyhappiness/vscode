@@ -1,50 +1,49 @@
-static struct sum_struct *receive_sums(int f)
+void do_server_recv(int argc,char *argv[])
 {
-  struct sum_struct *s;
-  int i;
-  off_t offset = 0;
-  int block_len;
+  int pid,status;
+  char *dir = NULL;
+  struct file_list *flist;
+  char *local_name=NULL;
+  
+  if (verbose > 2)
+    fprintf(stderr,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
 
-  s = (struct sum_struct *)malloc(sizeof(*s));
-  if (!s) out_of_memory("receive_sums");
-
-  s->count = read_int(f);
-  s->n = read_int(f);
-  s->remainder = read_int(f);  
-  s->sums = NULL;
-
-  if (verbose > 3)
-    fprintf(stderr,"count=%d n=%d rem=%d\n",
-	    s->count,s->n,s->remainder);
-
-  block_len = s->n;
-
-  if (s->count == 0) 
-    return(s);
-
-  s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
-  if (!s->sums) out_of_memory("receive_sums");
-
-  for (i=0;i<s->count;i++) {
-    s->sums[i].sum1 = read_int(f);
-    read_buf(f,s->sums[i].sum2,csum_length);
-
-    s->sums[i].offset = offset;
-    s->sums[i].i = i;
-
-    if (i == s->count-1 && s->remainder != 0) {
-      s->sums[i].len = s->remainder;
-    } else {
-      s->sums[i].len = s->n;
-    }
-    offset += s->sums[i].len;
-
-    if (verbose > 3)
-      fprintf(stderr,"chunk[%d] len=%d offset=%d sum1=%08x\n",
-	      i,s->sums[i].len,(int)s->sums[i].offset,s->sums[i].sum1);
+  if (argc > 0) {
+    dir = argv[0];
+    argc--;
+    argv++;
+    if (chdir(dir) != 0) {
+      fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+      exit_cleanup(1);
+    }    
   }
 
-  s->flength = offset;
+  if (delete_mode)
+    recv_exclude_list(STDIN_FILENO);
 
-  return s;
+  flist = recv_file_list(STDIN_FILENO);
+  if (!flist || flist->count == 0) {
+    fprintf(stderr,"nothing to do\n");
+    exit_cleanup(1);
+  }
+
+  if (argc > 0) {    
+    if (strcmp(dir,".")) {
+      argv[0] += strlen(dir);
+      if (argv[0][0] == '/') argv[0]++;
+    }
+    local_name = get_local_name(flist,argv[0]);
+  }
+
+  if ((pid=fork()) == 0) {
+    recv_files(STDIN_FILENO,flist,local_name);
+    if (verbose > 2)
+      fprintf(stderr,"receiver read %d\n",read_total());
+    exit_cleanup(0);
+  }
+
+  generate_files(STDOUT_FILENO,flist,local_name);
+
+  waitpid(pid, &status, 0);
+  exit_cleanup(status);
 }

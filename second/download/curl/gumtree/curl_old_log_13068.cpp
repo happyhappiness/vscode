@@ -1,11 +1,11 @@
 fputs(
-"              name then both will be sent on a future transfer to that server,\n"
-"              likely not what you intended.  To address  these  issues  set  a\n"
-"              domain  in  Set-Cookie  (doing that will include sub-domains) or\n"
-"              use the Netscape format.\n"
+"              \"Mozilla/4.0\". To encode blanks  in  the  string,  surround  the\n"
+"              string  with  single  quote marks. This can also be set with the\n"
+"              -H, --header option of course.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -B, --use-ascii\n"
-"              (FTP/LDAP) Enable ASCII transfer. For  FTP,  this  can  also  be\n"
+"       --anyauth\n"
+"              (HTTP) Tells curl to figure out authentication method by itself,\n"
+"              and  use  the most secure one the remote site claims to support.\n"
 , stdout);

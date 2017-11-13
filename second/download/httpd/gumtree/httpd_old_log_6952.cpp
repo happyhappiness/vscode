@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, workers->s,
-                     APLOGNO(02962) "h2_workers: max_worker_idle_sec value of %d"
-                     " is not valid, ignored.", idle_secs);
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, workers->s,
+                     "h2_workers: reserved %d tx handles, %d/%d left", 
+                     (int)count, (int)workers->spare_tx_handles,
+                     (int)workers->max_tx_handles);

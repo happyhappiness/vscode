@@ -1,2 +1,1 @@
-io_printf(f_out, "@ERROR: max connections (%d) reached - try again later\n",
-				lp_max_connections(i));
+fprintf(f, " %s", fn);

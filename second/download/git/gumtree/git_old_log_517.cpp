@@ -1,1 +1,1 @@
-die("corrupt tree file");
+die("--name-only, --name-status, --check and -s are mutually exclusive");

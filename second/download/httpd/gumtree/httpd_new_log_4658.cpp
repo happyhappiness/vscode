@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00174)
-                             "apr_proc_detach failed");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01893)
+                 "Configuring TLS extension handling");

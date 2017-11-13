@@ -1,46 +1,21 @@
-static ap_filter_t *add_any_filter(const char *name, void *ctx,
-                                   request_rec *r, conn_rec *c,
-                                   const filter_trie_node *reg_filter_set,
-                                   ap_filter_t **r_filters,
-                                   ap_filter_t **p_filters,
-                                   ap_filter_t **c_filters)
+static int core_post_config(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
 {
-    if (reg_filter_set) {
-        const char *n;
-        const filter_trie_node *node;
+    ap__logio_add_bytes_out = APR_RETRIEVE_OPTIONAL_FN(ap_logio_add_bytes_out);
+    ident_lookup = APR_RETRIEVE_OPTIONAL_FN(ap_ident_lookup);
+    ap__authz_ap_some_auth_required = APR_RETRIEVE_OPTIONAL_FN(authz_some_auth_required);
+    authn_ap_auth_type = APR_RETRIEVE_OPTIONAL_FN(authn_ap_auth_type);
+    authn_ap_auth_name = APR_RETRIEVE_OPTIONAL_FN(authn_ap_auth_name);
+    access_compat_ap_satisfies = APR_RETRIEVE_OPTIONAL_FN(access_compat_ap_satisfies);
 
-        node = reg_filter_set;
-        for (n = name; *n; n++) {
-            int start, end;
-            start = 0;
-            end = node->nchildren - 1;
-            while (end >= start) {
-                int middle = (end + start) / 2;
-                char ch = node->children[middle].c;
-                if (*n == ch) {
-                    node = node->children[middle].child;
-                    break;
-                }
-                else if (*n < ch) {
-                    end = middle - 1;
-                }
-                else {
-                    start = middle + 1;
-                }
-            }
-            if (end < start) {
-                node = NULL;
-                break;
-            }
-        }
-
-        if (node && node->frec) {
-            return add_any_filter_handle(node->frec, ctx, r, c, r_filters,
-                                         p_filters, c_filters);
-        }
+    set_banner(pconf);
+    ap_setup_make_content_type(pconf);
+    ap_setup_auth_internal(ptemp);
+    if (!sys_privileges) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
+                     "Server MUST relinquish startup privileges before "
+                     "accepting connections.  Please ensure mod_unixd "
+                     "or other system security module is loaded.");
+        return !OK;
     }
-
-    ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, r ? r->connection : c, APLOGNO(00082)
-                  "an unknown filter was not added: %s", name);
-    return NULL;
+    return OK;
 }

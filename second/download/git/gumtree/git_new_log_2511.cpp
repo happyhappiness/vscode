@@ -1,1 +1,1 @@
-printf("%s\n", filename.buf + outdir_offset);
+opterror(opt, "must point to a commit", 0);

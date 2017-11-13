@@ -1,1 +1,1 @@
-ap_rvputs(r, "<td>", (*worker)->hostname, "</td><td>", NULL);
+ap_rputs("\"<b><code>S</code></b>\" Starting up, \n", r);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, server,
-                         "%s: reusing backend connection %pI<>%pI",
-                         scheme, local_addr, conn->addr);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(10005)
+                "too short to decrypt, aborting");

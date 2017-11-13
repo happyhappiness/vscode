@@ -1,1 +1,1 @@
-error(_("no such remote ref %s"), sought[i]->name);
+die(_(incremental_bitmap_conflict_error));

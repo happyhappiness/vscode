@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
-                                 "cgid daemon failed to initialize");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Unable to get upgradeable socket handle");

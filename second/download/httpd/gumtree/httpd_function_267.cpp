@@ -1,91 +1,71 @@
-static int CommandLineInterpreter(scr_t screenID, const char *commandLine)
+static int ap_listen_open(apr_pool_t *pool, apr_port_t port)
 {
-    char *szCommand = "APACHE2 ";
-    int iCommandLen = 8;
-    char szcommandLine[256];
-    char *pID;
-    screenID = screenID;
+    ap_listen_rec *lr;
+    ap_listen_rec *next;
+    int num_open;
+    const char *userdata_key = "ap_listen_open";
+    void *data;
 
-
-    if (commandLine == NULL)
-        return NOTMYCOMMAND;
-    if (strlen(commandLine) <= strlen(szCommand))
-        return NOTMYCOMMAND;
-
-    strncpy (szcommandLine, commandLine, sizeof(szcommandLine)-1);
-
-    /*  All added commands begin with "APACHE2 " */
-
-    if (!strnicmp(szCommand, szcommandLine, iCommandLen)) {
-        ActivateScreen (getscreenhandle());
-
-        /* If an instance id was not given but the nlm is loaded in 
-            protected space, then the the command belongs to the
-            OS address space instance to pass it on. */
-        pID = strstr (szcommandLine, "-p");
-        if ((pID == NULL) && nlmisloadedprotected())
-            return NOTMYCOMMAND;
-
-        /* If we got an instance id but it doesn't match this 
-            instance of the nlm, pass it on. */
-        if (pID) {
-            pID = &pID[2];
-            while (*pID && (*pID == ' '))
-                pID++;
-        }
-        if (pID && ap_my_addrspace && strnicmp(pID, ap_my_addrspace, strlen(ap_my_addrspace)))
-            return NOTMYCOMMAND;
-
-        /* If we have determined that this command belongs to this
-            instance of the nlm, then handle it. */
-        if (!strnicmp("RESTART",&szcommandLine[iCommandLen],3)) {
-            printf("Restart Requested...\n");
-            restart();
-        }
-        else if (!strnicmp("VERSION",&szcommandLine[iCommandLen],3)) {
-            printf("Server version: %s\n", ap_get_server_version());
-            printf("Server built:   %s\n", ap_get_server_built());
-        }
-        else if (!strnicmp("MODULES",&szcommandLine[iCommandLen],3)) {
-    	    ap_show_modules();
-        }
-        else if (!strnicmp("DIRECTIVES",&szcommandLine[iCommandLen],3)) {
-	        ap_show_directives();
-        }
-        else if (!strnicmp("SHUTDOWN",&szcommandLine[iCommandLen],3)) {
-            printf("Shutdown Requested...\n");
-            shutdown_pending = 1;
-        }
-        else if (!strnicmp("SETTINGS",&szcommandLine[iCommandLen],3)) {
-            if (show_settings) {
-                show_settings = 0;
-                ClearScreen (getscreenhandle());
-                show_server_data();
-            }
-            else {
-                show_settings = 1;
-                display_settings();
-            }
+    /* Don't allocate a default listener.  If we need to listen to a
+     * port, then the user needs to have a Listen directive in their
+     * config file.
+     */
+    num_open = 0;
+    for (lr = ap_listeners; lr; lr = lr->next) {
+        if (lr->active) {
+            ++num_open;
         }
         else {
-            show_settings = 0;
-            if (!strnicmp("HELP",&szcommandLine[iCommandLen],3))
-                printf("Unknown APACHE2 command %s\n", &szcommandLine[iCommandLen]);
-            printf("Usage: APACHE2 [command] [-p <instance ID>]\n");
-            printf("Commands:\n");
-            printf("\tDIRECTIVES - Show directives\n");
-            printf("\tHELP       - Display this help information\n");
-            printf("\tMODULES    - Show a list of the loaded modules\n");
-            printf("\tRESTART    - Reread the configurtion file and restart Apache\n");
-            printf("\tSETTINGS   - Show current thread status\n");
-            printf("\tSHUTDOWN   - Shutdown Apache\n");
-            printf("\tVERSION    - Display the server version information\n");
+            if (make_sock(pool, lr) == APR_SUCCESS) {
+                ++num_open;
+                lr->active = 1;
+            }
+            else {
+                /* fatal error */
+                return -1;
+            }
         }
-
-        /*  Tell NetWare we handled the command */
-        return HANDLEDCOMMAND;
     }
 
-    /*  Tell NetWare that the command isn't mine */
-    return NOTMYCOMMAND;
+    /* close the old listeners */
+    for (lr = old_listeners; lr; lr = next) {
+        apr_socket_close(lr->sd);
+        lr->active = 0;
+        next = lr->next;
+    }
+    old_listeners = NULL;
+
+#if AP_NONBLOCK_WHEN_MULTI_LISTEN
+    /* if multiple listening sockets, make them non-blocking so that
+     * if select()/poll() reports readability for a reset connection that
+     * is already forgotten about by the time we call accept, we won't
+     * be hung until another connection arrives on that port
+     */
+    if (ap_listeners && ap_listeners->next) {
+        for (lr = ap_listeners; lr; lr = lr->next) {
+            apr_status_t status;
+
+            status = apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
+            if (status != APR_SUCCESS) {
+                ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
+                              "ap_listen_open: unable to make socket non-blocking");
+                return -1;
+            }
+        }
+    }
+#endif /* AP_NONBLOCK_WHEN_MULTI_LISTEN */
+
+    /* we come through here on both passes of the open logs phase
+     * only register the cleanup once... otherwise we try to close
+     * listening sockets twice when cleaning up prior to exec
+     */
+    apr_pool_userdata_get(&data, userdata_key, pool);
+    if (!data) {
+        apr_pool_userdata_set((const void *)1, userdata_key,
+                              apr_pool_cleanup_null, pool);
+        apr_pool_cleanup_register(pool, NULL, apr_pool_cleanup_null,
+                                  close_listeners_on_exec);
+    }
+
+    return num_open ? 0 : -1;
 }

@@ -1,29 +1,23 @@
-static void then_atom_handler(struct atom_value *atomv, struct ref_formatting_state *state)
+void read_gitfile_error_die(int error_code, const char *path, const char *dir)
 {
-	struct ref_formatting_stack *cur = state->stack;
-	struct if_then_else *if_then_else = NULL;
-
-	if (cur->at_end == if_then_else_handler)
-		if_then_else = (struct if_then_else *)cur->at_end_data;
-	if (!if_then_else)
-		die(_("format: %%(then) atom used without an %%(if) atom"));
-	if (if_then_else->then_atom_seen)
-		die(_("format: %%(then) atom used more than once"));
-	if (if_then_else->else_atom_seen)
-		die(_("format: %%(then) atom used after %%(else)"));
-	if_then_else->then_atom_seen = 1;
-	/*
-	 * If the 'equals' or 'notequals' attribute is used then
-	 * perform the required comparison. If not, only non-empty
-	 * strings satisfy the 'if' condition.
-	 */
-	if (if_then_else->cmp_status == COMPARE_EQUAL) {
-		if (!strcmp(if_then_else->str, cur->output.buf))
-			if_then_else->condition_satisfied = 1;
-	} else if (if_then_else->cmp_status == COMPARE_UNEQUAL) {
-		if (strcmp(if_then_else->str, cur->output.buf))
-			if_then_else->condition_satisfied = 1;
-	} else if (cur->output.len && !is_empty(cur->output.buf))
-		if_then_else->condition_satisfied = 1;
-	strbuf_reset(&cur->output);
+	switch (error_code) {
+	case READ_GITFILE_ERR_STAT_FAILED:
+	case READ_GITFILE_ERR_NOT_A_FILE:
+		/* non-fatal; follow return path */
+		break;
+	case READ_GITFILE_ERR_OPEN_FAILED:
+		die_errno("Error opening '%s'", path);
+	case READ_GITFILE_ERR_TOO_LARGE:
+		die("Too large to be a .git file: '%s'", path);
+	case READ_GITFILE_ERR_READ_FAILED:
+		die("Error reading %s", path);
+	case READ_GITFILE_ERR_INVALID_FORMAT:
+		die("Invalid gitfile format: %s", path);
+	case READ_GITFILE_ERR_NO_PATH:
+		die("No path in gitfile: %s", path);
+	case READ_GITFILE_ERR_NOT_A_REPO:
+		die("Not a git repository: %s", dir);
+	default:
+		die("BUG: unknown error code");
+	}
 }

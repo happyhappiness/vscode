@@ -1,1 +1,1 @@
-warning("CRLF will be replaced by LF in %s.\nThe file will have its original line endings in your working directory.", path);
+die(_("unable to add cache entry for %s"), patch->new_name);

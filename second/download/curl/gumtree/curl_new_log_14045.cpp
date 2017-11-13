@@ -1,10 +1,11 @@
 fputs(
-"       -p, --proxytunnel\n"
-"              When an HTTP proxy is used -x, --proxy, this option  will  cause\n"
-"              non-HTTP  protocols  to  attempt  to  tunnel  through  the proxy\n"
-"              instead of merely using it to do HTTP-like operations. The  tun-\n"
-"              nel  approach  is  made  with the HTTP proxy CONNECT request and\n"
-"              requires that the proxy allows direct connect to the remote port\n"
-"              number curl wants to tunnel through to.\n"
+"              header sent to the proxy to what is sent to  the  actual  remote\n"
+"              host.\n"
 "\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
+"\n"
+"              Headers specified with this  option  will  not  be  included  in\n"
 , stdout);

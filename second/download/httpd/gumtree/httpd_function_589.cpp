@@ -1,223 +1,537 @@
-static int cgid_server(void *data) 
-{ 
-    struct sockaddr_un unix_addr;
-    int sd, sd2, rc;
-    mode_t omask;
-    apr_socklen_t len;
-    apr_pool_t *ptrans;
-    server_rec *main_server = data;
-    cgid_server_conf *sconf = ap_get_module_config(main_server->module_config,
-                                                   &cgid_module); 
-    apr_hash_t *script_hash = apr_hash_make(pcgi);
+int APR_THREAD_FUNC ServerSupportFunction(isapi_cid    *cid,
+                                          apr_uint32_t  HSE_code,
+                                          void         *buf_ptr,
+                                          apr_uint32_t *buf_size,
+                                          apr_uint32_t *data_type)
+{
+    request_rec *r = cid->r;
+    conn_rec *c = r->connection;
+    char *buf_data = (char*)buf_ptr;
+    request_rec *subreq;
+    apr_status_t rv;
 
-    apr_pool_create(&ptrans, pcgi); 
+    switch (HSE_code) {
+    case HSE_REQ_SEND_URL_REDIRECT_RESP:
+        /* Set the status to be returned when the HttpExtensionProc()
+         * is done.
+         * WARNING: Microsoft now advertises HSE_REQ_SEND_URL_REDIRECT_RESP
+         *          and HSE_REQ_SEND_URL as equivalant per the Jan 2000 SDK.
+         *          They most definately are not, even in their own samples.
+         */
+        apr_table_set (r->headers_out, "Location", buf_data);
+        cid->r->status = cid->ecb->dwHttpStatusCode = HTTP_MOVED_TEMPORARILY;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+        cid->headers_set = 1;
+        return 1;
 
-    apr_signal(SIGCHLD, SIG_IGN); 
-    apr_signal(SIGHUP, daemon_signal_handler);
+    case HSE_REQ_SEND_URL:
+        /* Soak up remaining input */
+        if (r->remaining > 0) {
+            char argsbuffer[HUGE_STRING_LEN];
+            while (ap_get_client_block(r, argsbuffer, HUGE_STRING_LEN));
+        }
 
-    if (unlink(sconf->sockname) < 0 && errno != ENOENT) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                     "Couldn't unlink unix domain socket %s",
-                     sconf->sockname);
-        /* just a warning; don't bail out */
+        /* Reset the method to GET */
+        r->method = apr_pstrdup(r->pool, "GET");
+        r->method_number = M_GET;
+
+        /* Don't let anyone think there's still data */
+        apr_table_unset(r->headers_in, "Content-Length");
+
+        /* AV fault per PR3598 - redirected path is lost! */
+        buf_data = apr_pstrdup(r->pool, (char*)buf_data);
+        ap_internal_redirect(buf_data, r);
+        return 1;
+
+    case HSE_REQ_SEND_RESPONSE_HEADER:
+    {
+        /* Parse them out, or die trying */
+        apr_size_t statlen = 0, headlen = 0;
+        apr_ssize_t ate;
+        if (buf_data)
+            statlen = strlen((char*) buf_data);
+        if (data_type)
+            headlen = strlen((char*) data_type);
+        ate = send_response_header(cid, (char*) buf_data,
+                                   (char*) data_type,
+                                   statlen, headlen);
+        if (ate < 0) {
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
+        else if ((apr_size_t)ate < headlen) {
+            apr_bucket_brigade *bb;
+            apr_bucket *b;
+            bb = apr_brigade_create(cid->r->pool, c->bucket_alloc);
+            b = apr_bucket_transient_create((char*) data_type + ate,
+                                           headlen - ate, c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            b = apr_bucket_flush_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            rv = ap_pass_brigade(cid->r->output_filters, bb);
+            cid->response_sent = 1;
+            if (rv != APR_SUCCESS)
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                              "ISAPI: ServerSupport function "
+                              "HSE_REQ_SEND_RESPONSE_HEADER "
+                              "ap_pass_brigade failed: %s", r->filename);
+            return (rv == APR_SUCCESS);
+        }
+        /* Deliberately hold off sending 'just the headers' to begin to
+         * accumulate the body and speed up the overall response, or at
+         * least wait for the end the session.
+         */
+        return 1;
     }
 
-    /* cgid should use its own suexec doer */
-    ap_hook_get_suexec_identity(cgid_suexec_id_doer, NULL, NULL,
-                                APR_HOOK_REALLY_FIRST);
-    apr_hook_sort_all();
-
-    if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't create unix domain socket");
-        return errno;
-    } 
-
-    memset(&unix_addr, 0, sizeof(unix_addr));
-    unix_addr.sun_family = AF_UNIX;
-    strcpy(unix_addr.sun_path, sconf->sockname);
-
-    omask = umask(0077); /* so that only Apache can use socket */
-    rc = bind(sd, (struct sockaddr *)&unix_addr, sizeof(unix_addr));
-    umask(omask); /* can't fail, so can't clobber errno */
-    if (rc < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't bind unix domain socket %s",
-                     sconf->sockname); 
-        return errno;
-    } 
-
-    if (listen(sd, DEFAULT_CGID_LISTENBACKLOG) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't listen on unix domain socket"); 
-        return errno;
-    } 
-
-    if (!geteuid()) {
-        if (chown(sconf->sockname, unixd_config.user_id, -1) < 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                         "Couldn't change owner of unix domain socket %s",
-                         sconf->sockname); 
-            return errno;
+    case HSE_REQ_DONE_WITH_SESSION:
+        /* Signal to resume the thread completing this request,
+         * leave it to the pool cleanup to dispose of our mutex.
+         */
+        if (cid->completed) {
+            (void)apr_thread_mutex_unlock(cid->completed);
+            return 1;
         }
+        else if (cid->dconf.log_unsupported) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
+                          r->filename);
+        }
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_MAP_URL_TO_PATH:
+    {
+        /* Map a URL to a filename */
+        char *file = (char *)buf_data;
+        apr_uint32_t len;
+        subreq = ap_sub_req_lookup_uri(
+                     apr_pstrndup(cid->r->pool, file, *buf_size), r, NULL);
+
+        if (!subreq->filename) {
+            ap_destroy_sub_req(subreq);
+            return 0;
+        }
+
+        len = (apr_uint32_t)strlen(r->filename);
+
+        if ((subreq->finfo.filetype == APR_DIR)
+              && (!subreq->path_info)
+              && (file[len - 1] != '/'))
+            file = apr_pstrcat(cid->r->pool, subreq->filename, "/", NULL);
+        else
+            file = apr_pstrcat(cid->r->pool, subreq->filename, 
+                                              subreq->path_info, NULL);
+
+        ap_destroy_sub_req(subreq);
+
+#ifdef WIN32
+        /* We need to make this a real Windows path name */
+        apr_filepath_merge(&file, "", file, APR_FILEPATH_NATIVE, r->pool);
+#endif
+
+        *buf_size = apr_cpystrn(buf_data, file, *buf_size) - buf_data;
+
+        return 1;
     }
-    
-    unixd_setup_child(); /* if running as root, switch to configured user/group */
 
-    while (!daemon_should_exit) {
-        int errfileno = STDERR_FILENO;
-        char *argv0; 
-        char **env; 
-        const char * const *argv; 
-        apr_int32_t in_pipe;
-        apr_int32_t out_pipe;
-        apr_int32_t err_pipe;
-        apr_cmdtype_e cmd_type;
-        request_rec *r;
-        apr_procattr_t *procattr = NULL;
-        apr_proc_t *procnew = NULL;
-        apr_file_t *inout;
-        cgid_req_t cgid_req;
-        apr_status_t stat;
+    case HSE_REQ_GET_SSPI_INFO:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
+                           "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-        apr_pool_clear(ptrans);
-
-        len = sizeof(unix_addr);
-        sd2 = accept(sd, (struct sockaddr *)&unix_addr, &len);
-        if (sd2 < 0) {
-            if (errno != EINTR) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, errno, 
-                             (server_rec *)data,
-                             "Error accepting on cgid socket");
-            }
-            continue;
+    case HSE_APPEND_LOG_PARAMETER:
+        /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field
+         */
+        apr_table_set(r->notes, "isapi-parameter", (char*) buf_data);
+        if (cid->dconf.log_to_query) {
+            if (r->args)
+                r->args = apr_pstrcat(r->pool, r->args, (char*) buf_data, NULL);
+            else
+                r->args = apr_pstrdup(r->pool, (char*) buf_data);
         }
-       
-        r = apr_pcalloc(ptrans, sizeof(request_rec)); 
-        procnew = apr_pcalloc(ptrans, sizeof(*procnew));
-        r->pool = ptrans; 
-        stat = get_req(sd2, r, &argv0, &env, &cgid_req); 
-        if (stat != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, stat,
-                         main_server,
-                         "Error reading request on cgid socket");
-            close(sd2);
-            continue;
+        if (cid->dconf.log_to_errlog)
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "ISAPI: %s: %s", cid->r->filename,
+                          (char*) buf_data);
+        return 1;
+
+    case HSE_REQ_IO_COMPLETION:
+        /* Emulates a completion port...  Record callback address and
+         * user defined arg, we will call this after any async request
+         * (e.g. transmitfile) as if the request executed async.
+         * Per MS docs... HSE_REQ_IO_COMPLETION replaces any prior call
+         * to HSE_REQ_IO_COMPLETION, and buf_data may be set to NULL.
+         */
+        if (cid->dconf.fake_async) {
+            cid->completion = (PFN_HSE_IO_COMPLETION) buf_data;
+            cid->completion_arg = (void *) data_type;
+            return 1;
         }
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "ISAPI: ServerSupportFunction HSE_REQ_IO_COMPLETION "
+                      "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-        if (cgid_req.req_type == GETPID_REQ) {
-            pid_t pid;
+    case HSE_REQ_TRANSMIT_FILE:
+    {
+        /* we do nothing with (tf->dwFlags & HSE_DISCONNECT_AFTER_SEND)
+         */
+        HSE_TF_INFO *tf = (HSE_TF_INFO*)buf_data;
+        apr_uint32_t sent = 0;
+        apr_ssize_t ate = 0;
+        apr_bucket_brigade *bb;
+        apr_bucket *b;
+        apr_file_t *fd;
+        apr_off_t fsize;
 
-            pid = (pid_t)apr_hash_get(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id));
-            if (write(sd2, &pid, sizeof(pid)) != sizeof(pid)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             main_server,
-                             "Error writing pid %" APR_PID_T_FMT " to handler", pid);
-            }
-            close(sd2);
-            continue;
-        }
-
-        apr_os_file_put(&r->server->error_log, &errfileno, 0, r->pool);
-        apr_os_file_put(&inout, &sd2, 0, r->pool);
-
-        if (cgid_req.req_type == SSI_REQ) {
-            in_pipe  = APR_NO_PIPE;
-            out_pipe = APR_FULL_BLOCK;
-            err_pipe = APR_NO_PIPE;
-            cmd_type = APR_SHELLCMD;
-        }
-        else {
-            in_pipe  = APR_CHILD_BLOCK;
-            out_pipe = APR_CHILD_BLOCK;
-            err_pipe = APR_CHILD_BLOCK;
-            cmd_type = APR_PROGRAM;
+        if (!cid->dconf.fake_async && (tf->dwFlags & HSE_IO_ASYNC)) {
+            if (cid->dconf.log_unsupported)
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                         "ISAPI: ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
+                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
         }
 
-        if (((rc = apr_procattr_create(&procattr, ptrans)) != APR_SUCCESS) ||
-            ((cgid_req.req_type == CGI_REQ) && 
-             (((rc = apr_procattr_io_set(procattr,
-                                        in_pipe,
-                                        out_pipe,
-                                        err_pipe)) != APR_SUCCESS) ||
-              /* XXX apr_procattr_child_*_set() is creating an unnecessary 
-               * pipe between this process and the child being created...
-               * It is cleaned up with the temporary pool for this request.
-               */
-              ((rc = apr_procattr_child_err_set(procattr, r->server->error_log, NULL)) != APR_SUCCESS) ||
-              ((rc = apr_procattr_child_in_set(procattr, inout, NULL)) != APR_SUCCESS))) ||
-            ((rc = apr_procattr_child_out_set(procattr, inout, NULL)) != APR_SUCCESS) ||
-            ((rc = apr_procattr_dir_set(procattr,
-                                  ap_make_dirstr_parent(r->pool, r->filename))) != APR_SUCCESS) ||
-            ((rc = apr_procattr_cmdtype_set(procattr, cmd_type)) != APR_SUCCESS) ||
-            ((rc = apr_procattr_child_errfn_set(procattr, cgid_child_errfn)) != APR_SUCCESS)) {
-            /* Something bad happened, tell the world.
-             * ap_log_rerror() won't work because the header table used by
-             * ap_log_rerror() hasn't been replicated in the phony r
-             */
-            ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                         "couldn't set child process attributes: %s", r->filename);
+        /* Presume the handle was opened with the CORRECT semantics
+         * for TransmitFile
+         */
+        if ((rv = apr_os_file_put(&fd, &tf->hFile,
+                                  APR_READ | APR_XTHREAD, r->pool))
+                != APR_SUCCESS) {
+            return 0;
+        }
+        if (tf->BytesToWrite) {
+            fsize = tf->BytesToWrite;
         }
         else {
-            apr_pool_userdata_set(r, ERRFN_USERDATA_KEY, apr_pool_cleanup_null, ptrans);
-
-            argv = (const char * const *)create_argv(r->pool, NULL, NULL, NULL, argv0, r->args);
-
-           /* We want to close sd2 for the new CGI process too.
-            * If it is left open it'll make ap_pass_brigade() block
-            * waiting for EOF if CGI forked something running long.
-            * close(sd2) here should be okay, as CGI channel
-            * is already dup()ed by apr_procattr_child_{in,out}_set()
-            * above.
-            */
-            close(sd2);
-
-            if (memcmp(&empty_ugid, &cgid_req.ugid, sizeof(empty_ugid))) {
-                /* We have a valid identity, and can be sure that 
-                 * cgid_suexec_id_doer will return a valid ugid 
-                 */
-                rc = ap_os_create_privileged_process(r, procnew, argv0, argv,
-                                                     (const char * const *)env,
-                                                     procattr, ptrans);
-            } else {
-                rc = apr_proc_create(procnew, argv0, argv, 
-                                     (const char * const *)env, 
-                                     procattr, ptrans);
+            apr_finfo_t fi;
+            if (apr_file_info_get(&fi, APR_FINFO_SIZE, fd) != APR_SUCCESS) {
+                apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+                return 0;
             }
-                
-            if (rc != APR_SUCCESS) {
-                /* Bad things happened. Everyone should have cleaned up.
-                 * ap_log_rerror() won't work because the header table used by
-                 * ap_log_rerror() hasn't been replicated in the phony r
-                 */
-                ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                             "couldn't create child process: %d: %s", rc, 
-                             apr_filename_of_pathname(r->filename));
-            }
-            else {
-                /* We don't want to leak storage for the key, so only allocate
-                 * a key if the key doesn't exist yet in the hash; there are
-                 * only a limited number of possible keys (one for each
-                 * possible thread in the server), so we can allocate a copy
-                 * of the key the first time a thread has a cgid request.
-                 * Note that apr_hash_set() only uses the storage passed in
-                 * for the key if it is adding the key to the hash for the
-                 * first time; new key storage isn't needed for replacing the
-                 * existing value of a key.
-                 */
-                void *key;
+            fsize = fi.size - tf->Offset;
+        }
 
-                if (apr_hash_get(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id))) {
-                    key = &cgid_req.conn_id;
+        /* apr_dupfile_oshandle (&fd, tf->hFile, r->pool); */
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+
+        /* According to MS: if calling HSE_REQ_TRANSMIT_FILE with the
+         * HSE_IO_SEND_HEADERS flag, then you can't otherwise call any
+         * HSE_SEND_RESPONSE_HEADERS* fn, but if you don't use the flag,
+         * you must have done so.  They document that the pHead headers
+         * option is valid only for HSE_IO_SEND_HEADERS - we are a bit
+         * more flexible and assume with the flag, pHead are the
+         * response headers, and without, pHead simply contains text
+         * (handled after this case).
+         */
+        if ((tf->dwFlags & HSE_IO_SEND_HEADERS) && tf->pszStatusCode) {
+            ate = send_response_header(cid, tf->pszStatusCode,
+                                            (char*)tf->pHead,
+                                            strlen(tf->pszStatusCode),
+                                            tf->HeadLength);
+        }
+        else if (!cid->headers_set && tf->pHead && tf->HeadLength
+                                   && *(char*)tf->pHead) {
+            ate = send_response_header(cid, NULL, (char*)tf->pHead,
+                                            0, tf->HeadLength);
+            if (ate < 0)
+            {
+                apr_brigade_destroy(bb);
+                apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+                return 0;
+            }
+        }
+
+        if (tf->pHead && (apr_size_t)ate < tf->HeadLength) {
+            b = apr_bucket_transient_create((char*)tf->pHead + ate,
+                                            tf->HeadLength - ate,
+                                            c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            sent = tf->HeadLength;
+        }
+
+        sent += (apr_uint32_t)fsize;
+        brigade_insert_file(bb, fd, tf->Offset, fsize, r->pool);
+
+        if (tf->pTail && tf->TailLength) {
+            sent += tf->TailLength;
+            b = apr_bucket_transient_create((char*)tf->pTail,
+                                            tf->TailLength, c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+        }
+
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+        if (rv != APR_SUCCESS)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "ISAPI: ServerSupport function "
+                          "HSE_REQ_TRANSMIT_FILE "
+                          "ap_pass_brigade failed: %s", r->filename);
+
+        /* Use tf->pfnHseIO + tf->pContext, or if NULL, then use cid->fnIOComplete
+         * pass pContect to the HseIO callback.
+         */
+        if (tf->dwFlags & HSE_IO_ASYNC) {
+            if (tf->pfnHseIO) {
+                if (rv == APR_SUCCESS) {
+                    tf->pfnHseIO(cid->ecb, tf->pContext,
+                                 ERROR_SUCCESS, sent);
                 }
                 else {
-                    key = apr_pcalloc(pcgi, sizeof(cgid_req.conn_id));
-                    memcpy(key, &cgid_req.conn_id, sizeof(cgid_req.conn_id));
+                    tf->pfnHseIO(cid->ecb, tf->pContext,
+                                 ERROR_WRITE_FAULT, sent);
                 }
-                apr_hash_set(script_hash, key, sizeof(cgid_req.conn_id),
-                             (void *)procnew->pid);
+            }
+            else if (cid->completion) {
+                if (rv == APR_SUCCESS) {
+                    cid->completion(cid->ecb, cid->completion_arg,
+                                    sent, ERROR_SUCCESS);
+                }
+                else {
+                    cid->completion(cid->ecb, cid->completion_arg,
+                                    sent, ERROR_WRITE_FAULT);
+                }
             }
         }
-    } 
-    return -1; 
+        return (rv == APR_SUCCESS);
+    }
+
+    case HSE_REQ_REFRESH_ISAPI_ACL:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_REFRESH_ISAPI_ACL "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_IS_KEEP_CONN:
+        *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
+        return 1;
+
+    case HSE_REQ_ASYNC_READ_CLIENT:
+    {
+        apr_uint32_t read = 0;
+        int res;
+        if (!cid->dconf.fake_async) {
+            if (cid->dconf.log_unsupported)
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                            "ISAPI: asynchronous I/O not supported: %s",
+                            r->filename);
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
+
+        if (r->remaining < *buf_size) {
+            *buf_size = (apr_size_t)r->remaining;
+        }
+
+        while (read < *buf_size &&
+            ((res = ap_get_client_block(r, (char*)buf_data + read,
+                                        *buf_size - read)) > 0)) {
+            read += res;
+        }
+
+        if ((*data_type & HSE_IO_ASYNC) && cid->completion) {
+            /* XXX: Many authors issue their next HSE_REQ_ASYNC_READ_CLIENT
+             * within the completion logic.  An example is MS's own PSDK
+             * sample web/iis/extensions/io/ASyncRead.  This potentially
+             * leads to stack exhaustion.  To refactor, the notification 
+             * logic needs to move to isapi_handler() - differentiating
+             * the cid->completed event with a new flag to indicate 
+             * an async-notice versus the async request completed.
+             */
+            if (res >= 0) {
+                cid->completion(cid->ecb, cid->completion_arg,
+                                read, ERROR_SUCCESS);
+            }
+            else {
+                cid->completion(cid->ecb, cid->completion_arg,
+                                read, ERROR_READ_FAULT);
+            }
+        }
+        return (res >= 0);
+    }
+
+    case HSE_REQ_GET_IMPERSONATION_TOKEN:  /* Added in ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_GET_IMPERSONATION_TOKEN "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_MAP_URL_TO_PATH_EX:
+    {
+        /* Map a URL to a filename */
+        HSE_URL_MAPEX_INFO *info = (HSE_URL_MAPEX_INFO*)data_type;
+        char* test_uri = apr_pstrndup(r->pool, (char *)buf_data, *buf_size);
+
+        subreq = ap_sub_req_lookup_uri(test_uri, r, NULL);
+        info->cchMatchingURL = strlen(test_uri);
+        info->cchMatchingPath = apr_cpystrn(info->lpszPath, subreq->filename,
+                                      sizeof(info->lpszPath)) - info->lpszPath;
+
+        /* Mapping started with assuming both strings matched.
+         * Now roll on the path_info as a mismatch and handle
+         * terminating slashes for directory matches.
+         */
+        if (subreq->path_info && *subreq->path_info) {
+            apr_cpystrn(info->lpszPath + info->cchMatchingPath,
+                        subreq->path_info,
+                        sizeof(info->lpszPath) - info->cchMatchingPath);
+            info->cchMatchingURL -= strlen(subreq->path_info);
+            if (subreq->finfo.filetype == APR_DIR
+                 && info->cchMatchingPath < sizeof(info->lpszPath) - 1) {
+                /* roll forward over path_info's first slash */
+                ++info->cchMatchingPath;
+                ++info->cchMatchingURL;
+            }
+        }
+        else if (subreq->finfo.filetype == APR_DIR
+                 && info->cchMatchingPath < sizeof(info->lpszPath) - 1) {
+            /* Add a trailing slash for directory */
+            info->lpszPath[info->cchMatchingPath++] = '/';
+            info->lpszPath[info->cchMatchingPath] = '\0';
+        }
+
+        /* If the matched isn't a file, roll match back to the prior slash */
+        if (subreq->finfo.filetype == APR_NOFILE) {
+            while (info->cchMatchingPath && info->cchMatchingURL) {
+                if (info->lpszPath[info->cchMatchingPath - 1] == '/')
+                    break;
+                --info->cchMatchingPath;
+                --info->cchMatchingURL;
+            }
+        }
+
+        /* Paths returned with back slashes */
+        for (test_uri = info->lpszPath; *test_uri; ++test_uri)
+            if (*test_uri == '/')
+                *test_uri = '\\';
+
+        /* is a combination of:
+         * HSE_URL_FLAGS_READ         0x001 Allow read
+         * HSE_URL_FLAGS_WRITE        0x002 Allow write
+         * HSE_URL_FLAGS_EXECUTE      0x004 Allow execute
+         * HSE_URL_FLAGS_SSL          0x008 Require SSL
+         * HSE_URL_FLAGS_DONT_CACHE   0x010 Don't cache (VRoot only)
+         * HSE_URL_FLAGS_NEGO_CERT    0x020 Allow client SSL cert
+         * HSE_URL_FLAGS_REQUIRE_CERT 0x040 Require client SSL cert
+         * HSE_URL_FLAGS_MAP_CERT     0x080 Map client SSL cert to account
+         * HSE_URL_FLAGS_SSL128       0x100 Require 128-bit SSL cert
+         * HSE_URL_FLAGS_SCRIPT       0x200 Allow script execution
+         *
+         * XxX: As everywhere, EXEC flags could use some work...
+         *      and this could go further with more flags, as desired.
+         */
+        info->dwFlags = (subreq->finfo.protection & APR_UREAD    ? 0x001 : 0)
+                      | (subreq->finfo.protection & APR_UWRITE   ? 0x002 : 0)
+                      | (subreq->finfo.protection & APR_UEXECUTE ? 0x204 : 0);
+        return 1;
+    }
+
+    case HSE_REQ_ABORTIVE_CLOSE:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
+                          " is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_GET_CERT_INFO_EX:  /* Added in ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_GET_CERT_INFO_EX "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_SEND_RESPONSE_HEADER_EX:  /* Added in ISAPI 4.0 */
+    {
+        HSE_SEND_HEADER_EX_INFO *shi = (HSE_SEND_HEADER_EX_INFO*)buf_data;
+
+        /*  Ignore shi->fKeepConn - we don't want the advise
+         */
+        apr_ssize_t ate = send_response_header(cid, shi->pszStatus,
+                                               shi->pszHeader,
+                                               shi->cchStatus,
+                                               shi->cchHeader);
+        if (ate < 0) {
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
+        else if ((apr_size_t)ate < shi->cchHeader) {
+            apr_bucket_brigade *bb;
+            apr_bucket *b;
+            bb = apr_brigade_create(cid->r->pool, c->bucket_alloc);
+            b = apr_bucket_transient_create(shi->pszHeader + ate,
+                                            shi->cchHeader - ate,
+                                            c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            b = apr_bucket_flush_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            rv = ap_pass_brigade(cid->r->output_filters, bb);
+            cid->response_sent = 1;
+            if (rv != APR_SUCCESS)
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                              "ISAPI: ServerSupport function "
+                              "HSE_REQ_SEND_RESPONSE_HEADER_EX "
+                              "ap_pass_brigade failed: %s", r->filename);
+            return (rv == APR_SUCCESS);
+        }
+        /* Deliberately hold off sending 'just the headers' to begin to
+         * accumulate the body and speed up the overall response, or at
+         * least wait for the end the session.
+         */
+        return 1;
+    }
+
+    case HSE_REQ_CLOSE_CONNECTION:  /* Added after ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_CLOSE_CONNECTION "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_IS_CONNECTED:  /* Added after ISAPI 4.0 */
+        /* Returns True if client is connected c.f. MSKB Q188346
+         * assuming the identical return mechanism as HSE_REQ_IS_KEEP_CONN
+         */
+        *((int *)buf_data) = (r->connection->aborted == 0);
+        return 1;
+
+    case HSE_REQ_EXTENSION_TRIGGER:  /* Added after ISAPI 4.0 */
+        /*  Undocumented - defined by the Microsoft Jan '00 Platform SDK
+         */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_EXTENSION_TRIGGER "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    default:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction (%d) not supported: "
+                          "%s", HSE_code, r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+    }
 }

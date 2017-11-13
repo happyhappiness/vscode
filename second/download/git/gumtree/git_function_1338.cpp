@@ -1,27 +1,49 @@
-int ref_transaction_delete(struct ref_transaction *transaction,
-			   const char *refname,
-			   const unsigned char *old_sha1,
-			   int flags, int have_old, const char *msg,
-			   struct strbuf *err)
+static void load_tree(struct tree_entry *root)
 {
-	struct ref_update *update;
+	unsigned char *sha1 = root->versions[1].sha1;
+	struct object_entry *myoe;
+	struct tree_content *t;
+	unsigned long size;
+	char *buf;
+	const char *c;
 
-	assert(err);
+	root->tree = t = new_tree_content(8);
+	if (is_null_sha1(sha1))
+		return;
 
-	if (transaction->state != REF_TRANSACTION_OPEN)
-		die("BUG: delete called for transaction that is not open");
-
-	if (have_old && !old_sha1)
-		die("BUG: have_old is true but old_sha1 is NULL");
-
-	update = add_update(transaction, refname);
-	update->flags = flags;
-	update->have_old = have_old;
-	if (have_old) {
-		assert(!is_null_sha1(old_sha1));
-		hashcpy(update->old_sha1, old_sha1);
+	myoe = find_object(sha1);
+	if (myoe && myoe->pack_id != MAX_PACK_ID) {
+		if (myoe->type != OBJ_TREE)
+			die("Not a tree: %s", sha1_to_hex(sha1));
+		t->delta_depth = myoe->depth;
+		buf = gfi_unpack_entry(myoe, &size);
+		if (!buf)
+			die("Can't load tree %s", sha1_to_hex(sha1));
+	} else {
+		enum object_type type;
+		buf = read_sha1_file(sha1, &type, &size);
+		if (!buf || type != OBJ_TREE)
+			die("Can't load tree %s", sha1_to_hex(sha1));
 	}
-	if (msg)
-		update->msg = xstrdup(msg);
-	return 0;
+
+	c = buf;
+	while (c != (buf + size)) {
+		struct tree_entry *e = new_tree_entry();
+
+		if (t->entry_count == t->entry_capacity)
+			root->tree = t = grow_tree_content(t, t->entry_count);
+		t->entries[t->entry_count++] = e;
+
+		e->tree = NULL;
+		c = get_mode(c, &e->versions[1].mode);
+		if (!c)
+			die("Corrupt mode in %s", sha1_to_hex(sha1));
+		e->versions[0].mode = e->versions[1].mode;
+		e->name = to_atom(c, strlen(c));
+		c += e->name->str_len + 1;
+		hashcpy(e->versions[0].sha1, (unsigned char *)c);
+		hashcpy(e->versions[1].sha1, (unsigned char *)c);
+		c += 20;
+	}
+	free(buf);
 }

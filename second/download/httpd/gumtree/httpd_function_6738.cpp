@@ -1,45 +1,71 @@
-static authz_status host_check_authorization(request_rec *r,
-                                             const char *require_line,
-                                             const void *parsed_require_line)
+static void fix_hostname(request_rec *r)
 {
-    const char *t, *w;
-    const char *remotehost = NULL;
-    int remotehost_is_ip;
+    char *host, *scope_id;
+    char *dst;
+    apr_port_t port;
+    apr_status_t rv;
+    const char *c;
 
-    remotehost = ap_get_remote_host(r->connection,
-                                    r->per_dir_config,
-                                    REMOTE_DOUBLE_REV,
-                                    &remotehost_is_ip);
-
-    if ((remotehost == NULL) || remotehost_is_ip) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01753)
-                      "access check of '%s' to %s failed, reason: unable to get the "
-                      "remote host name", require_line, r->uri);
+    /* According to RFC 2616, Host header field CAN be blank. */
+    if (!*r->hostname) {
+        return;
     }
-    else {
-        const char *err = NULL;
-        const ap_expr_info_t *expr = parsed_require_line;
-        const char *require;
 
-        require = ap_expr_str_exec(r, expr, &err);
-        if (err) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02593)
-                          "authz_host authorize: require host: Can't "
-                          "evaluate require expression: %s", err);
-            return AUTHZ_DENIED;
-        }
+    /* apr_parse_addr_port will interpret a bare integer as a port
+     * which is incorrect in this context.  So treat it separately.
+     */
+    for (c = r->hostname; apr_isdigit(*c); ++c);
+    if (!*c) {  /* pure integer */
+        return;
+    }
 
-        /* The 'host' provider will allow the configuration to specify a list of
-            host names to check rather than a single name.  This is different
-            from the previous host based syntax. */
-        t = require;
-        while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
-            if (in_domain(w, remotehost)) {
-                return AUTHZ_GRANTED;
+    rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
+    if (rv != APR_SUCCESS || scope_id) {
+        goto bad;
+    }
+
+    if (port) {
+        /* Don't throw the Host: header's port number away:
+           save it in parsed_uri -- ap_get_server_port() needs it! */
+        /* @@@ XXX there should be a better way to pass the port.
+         *         Like r->hostname, there should be a r->portno
+         */
+        r->parsed_uri.port = port;
+        r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
+    }
+
+    /* if the hostname is an IPv6 numeric address string, it was validated
+     * already; otherwise, further validation is needed
+     */
+    if (r->hostname[0] != '[') {
+        for (dst = host; *dst; dst++) {
+            if (apr_islower(*dst)) {
+                /* leave char unchanged */
+            }
+            else if (*dst == '.') {
+                if (*(dst + 1) == '.') {
+                    goto bad;
+                }
+            }
+            else if (apr_isupper(*dst)) {
+                *dst = apr_tolower(*dst);
+            }
+            else if (*dst == '/' || *dst == '\\') {
+                goto bad;
             }
         }
+        /* strip trailing gubbins */
+        if (dst > host && dst[-1] == '.') {
+            dst[-1] = '\0';
+        }
     }
+    r->hostname = host;
+    return;
 
-    /* authz_core will log the require line and the result at DEBUG */
-    return AUTHZ_DENIED;
+bad:
+    r->status = HTTP_BAD_REQUEST;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00550)
+                  "Client sent malformed Host header: %s",
+                  r->hostname);
+    return;
 }

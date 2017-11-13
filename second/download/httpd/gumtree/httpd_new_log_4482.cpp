@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(00102)
-                 "[%s] file %s, line %d, assertion \"%s\" failed",
-                 time_str, szFile, nLine, szExp);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00861)
+                          "Found %s: %s - preparing subrequest.",
+                          conf->sendfile, location);

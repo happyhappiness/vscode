@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                     "DBD: failed to prepare SQL statements: %s",
-                     (errmsg ? errmsg : "[???]"));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "No Authn provider configured");

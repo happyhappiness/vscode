@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, level, status, r->server,
-                     "dialog with client %pI failed",
-                     r->connection->remote_addr);
+ap_rputs("<tr valign='top'><td nowrap colspan=7>Cache has not been enabled/initialised.</td></tr>", r);

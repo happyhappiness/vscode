@@ -1,2 +1,2 @@
-ap_rvputs(r, "<dt>Balancer changes will ", conf->bal_persist ? "" : "NOT ",
-                  "be persisted on restart.</dt>", NULL);
+ap_rvputs(r, "<dt>Balancers are ", conf->inherit ? "" : "NOT ",
+                  "inherited from main server.</dt>", NULL);

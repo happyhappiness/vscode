@@ -1,1 +1,1 @@
-error(_("unsupported sort specification '%s'"), arg);
+die(_("malformed mergetag in commit '%s'"), ref);

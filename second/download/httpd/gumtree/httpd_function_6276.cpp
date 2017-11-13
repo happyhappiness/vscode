@@ -1,25 +1,43 @@
-void h2_stream_dispatch(h2_stream *stream, h2_stream_event_t ev)
+static int mpmt_os2_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                 apr_pool_t *ptemp, server_rec *s)
 {
-    int new_state;
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
-                  H2_STRM_MSG(stream, "dispatch event %d"), ev);
-    new_state = on_event(stream, ev);
-    if (new_state < 0) {
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c, 
-                      H2_STRM_LOG(APLOGNO(10002), stream, "invalid event %d"), ev);
-        on_state_invalid(stream);
-        AP_DEBUG_ASSERT(new_state > S_XXX);
-        return;
+    static int restart_num = 0;
+    int startup = 0;
+
+    /* we want this only the first time around */
+    if (restart_num++ == 0) {
+        startup = 1;
     }
-    else if (new_state == stream->state) {
-        /* nop */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
-                      H2_STRM_MSG(stream, "non-state event %d"), ev);
-        return;
+
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00213)
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00214)
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
     }
-    else {
-        on_state_event(stream, ev);
-        transit(stream, new_state);
+
+    if (ap_min_spare_threads < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00215)
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", ap_min_spare_threads);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00216)
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         ap_min_spare_threads);
+        }
+        ap_min_spare_threads = 1;
     }
+
+    return OK;
 }

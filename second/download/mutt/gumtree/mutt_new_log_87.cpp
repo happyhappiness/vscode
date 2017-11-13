@@ -1,1 +1,1 @@
-fprintf (f, "Resent-Message-ID: %s\n", msgid_str);
+fprintf (fp, "User-Agent: Mutt/%s (%s)\n", MUTT_VERSION, ReleaseDate);

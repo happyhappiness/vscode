@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02230)
-                         "mod_proxy must be loaded for mod_proxy_balancer");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01364) "unknown value "
+                                      "\"%s\" to parameter \"decoding\" of tag set in "
+                                      "%s", token, r->filename);

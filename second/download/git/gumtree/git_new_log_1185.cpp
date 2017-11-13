@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+fprintf(stdout, "%s\n", ce->name);

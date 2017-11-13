@@ -1,1 +1,0 @@
-die("BUG: unsupported object type in the tree");

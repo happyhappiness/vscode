@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: HTTP: pre_connection setup failed (%d)",
-                         rc);
+ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+                         "LDAP cache: error while creating a shared memory segment: %s", buf);

@@ -1,10 +1,11 @@
 fputs(
-"              --cacert if the --cacert file contains many CA certificates.\n"
+"              100-continue  response  when curl emits an Expects: 100-continue\n"
+"              header in its request. By default curl  will  wait  one  second.\n"
+"              This  option accepts decimal values! When curl stops waiting, it\n"
+"              will continue as if the response has been received.\n"
 "\n"
-"              If this option is set, the default capath value will be ignored,\n"
-"              and if it is used several times, the last one will be used.\n"
+"              (Added in 7.47.0)\n"
 "\n"
-"       --pinnedpubkey <pinned public key (hashes)>\n"
-"              (SSL) Tells curl to  use  the  specified  public  key  file  (or\n"
-"              hashes)  to  verify the peer. This can be a path to a file which\n"
+"       --cert-type <type>\n"
+"              (SSL) Tells curl what certificate type the provided  certificate\n"
 , stdout);

@@ -1,1 +1,1 @@
-fprintf(s->fp, "# branch.ab +%d -%d%c", nr_ahead, nr_behind, eol);
+die(_("fetch-pack: unable to fork off sideband demultiplexer"));

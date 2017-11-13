@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                     "mod_rewrite: could not init map cache in child");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                         "Heartmonitor: Unable to read file: %s", ctx->storage_path);

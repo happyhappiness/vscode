@@ -1,1 +1,1 @@
-error_errno("cannot stat '%s'", ce->name);
+printf_ln("%s", url[i]);

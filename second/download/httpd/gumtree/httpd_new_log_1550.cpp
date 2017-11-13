@@ -1,2 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                    "Inflated content length of %" APR_OFF_T_FMT
+                                    " is larger than the configured limit"
+                                    " of %" APR_OFF_T_FMT, 
+                                    ctx->inflate_total, inflate_limit);

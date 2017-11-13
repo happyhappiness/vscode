@@ -1,23 +1,30 @@
-static struct object_entry *parse_treeish_dataref(const char **p)
+static const char *parse_cmd_update(struct strbuf *input, const char *next)
 {
-	unsigned char sha1[20];
-	struct object_entry *e;
+	char *refname;
+	unsigned char new_sha1[20];
+	unsigned char old_sha1[20];
+	int have_old;
 
-	if (**p == ':') {	/* <mark> */
-		e = find_mark(parse_mark_ref_space(p));
-		if (!e)
-			die("Unknown mark: %s", command_buf.buf);
-		hashcpy(sha1, e->idx.sha1);
-	} else {	/* <sha1> */
-		if (get_sha1_hex(*p, sha1))
-			die("Invalid dataref: %s", command_buf.buf);
-		e = find_object(sha1);
-		*p += 40;
-		if (*(*p)++ != ' ')
-			die("Missing space after tree-ish: %s", command_buf.buf);
-	}
+	refname = parse_refname(input, &next);
+	if (!refname)
+		die("update: missing <ref>");
 
-	while (!e || e->type != OBJ_TREE)
-		e = dereference(e, sha1);
-	return e;
+	if (parse_next_sha1(input, &next, new_sha1, "update", refname,
+			    PARSE_SHA1_ALLOW_EMPTY))
+		die("update %s: missing <newvalue>", refname);
+
+	have_old = !parse_next_sha1(input, &next, old_sha1, "update", refname,
+				    PARSE_SHA1_OLD);
+
+	if (*next != line_termination)
+		die("update %s: extra input: %s", refname, next);
+
+	if (ref_transaction_update(transaction, refname, new_sha1, old_sha1,
+				   update_flags, have_old, &err))
+		die("%s", err.buf);
+
+	update_flags = 0;
+	free(refname);
+
+	return next;
 }

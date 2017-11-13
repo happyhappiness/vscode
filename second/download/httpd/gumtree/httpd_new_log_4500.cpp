@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL,
-                         APLOGNO(00019) "Unable to open logs, exiting");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00910)
+                             "3)IP-Match: %s[%s] <-> ", host, inet_ntoa(*ip));

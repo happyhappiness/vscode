@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+error("remote-curl: usage: git remote-curl <remote> [<url>]");

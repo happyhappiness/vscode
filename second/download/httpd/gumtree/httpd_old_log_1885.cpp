@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %*s [-k install|config|uninstall] [-n service_name]",
-                 pad_len, " ");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap cache: Setting operation cache size to %ld "
+                 "entries.", getpid(), st->compare_cache_size);

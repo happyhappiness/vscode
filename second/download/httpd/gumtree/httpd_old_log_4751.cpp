@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "master_main: create child process failed. Exiting.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation request failed");

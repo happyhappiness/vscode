@@ -1,22 +1,43 @@
-static void pp_cleanup(struct parallel_processes *pp)
+static int write_pseudoref(const char *pseudoref, const unsigned char *sha1,
+			   const unsigned char *old_sha1, struct strbuf *err)
 {
-	int i;
+	const char *filename;
+	int fd;
+	static struct lock_file lock;
+	struct strbuf buf = STRBUF_INIT;
+	int ret = -1;
 
-	trace_printf("run_processes_parallel: done");
-	for (i = 0; i < pp->max_processes; i++) {
-		strbuf_release(&pp->children[i].err);
-		child_process_clear(&pp->children[i].process);
+	strbuf_addf(&buf, "%s\n", sha1_to_hex(sha1));
+
+	filename = git_path("%s", pseudoref);
+	fd = hold_lock_file_for_update(&lock, filename, LOCK_DIE_ON_ERROR);
+	if (fd < 0) {
+		strbuf_addf(err, "Could not open '%s' for writing: %s",
+			    filename, strerror(errno));
+		return -1;
 	}
 
-	free(pp->children);
-	free(pp->pfd);
+	if (old_sha1) {
+		unsigned char actual_old_sha1[20];
 
-	/*
-	 * When get_next_task added messages to the buffer in its last
-	 * iteration, the buffered output is non empty.
-	 */
-	fputs(pp->buffered_output.buf, stderr);
-	strbuf_release(&pp->buffered_output);
+		if (read_ref(pseudoref, actual_old_sha1))
+			die("could not read ref '%s'", pseudoref);
+		if (hashcmp(actual_old_sha1, old_sha1)) {
+			strbuf_addf(err, "Unexpected sha1 when writing %s", pseudoref);
+			rollback_lock_file(&lock);
+			goto done;
+		}
+	}
 
-	sigchain_pop_common();
+	if (write_in_full(fd, buf.buf, buf.len) != buf.len) {
+		strbuf_addf(err, "Could not write to '%s'", filename);
+		rollback_lock_file(&lock);
+		goto done;
+	}
+
+	commit_lock_file(&lock);
+	ret = 0;
+done:
+	strbuf_release(&buf);
+	return ret;
 }

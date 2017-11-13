@@ -1,1 +1,1 @@
-error(_("invalid mode on line %d: %s"), linenr, line);
+die("strange hostname '%s' blocked", ssh_host);

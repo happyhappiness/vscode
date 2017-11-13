@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-		      "[%d] auth_ldap authenticate: no user specified", getpid());
+ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);

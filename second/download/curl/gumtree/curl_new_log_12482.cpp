@@ -1,10 +1,10 @@
 fputs(
-"              Set  TLS  authentication  type.  Currently,  the  only supported\n"
-"              option is \"SRP\",  for  TLS-SRP  (RFC  5054).  If  --tlsuser  and\n"
-"              --tlspassword  are specified but --tlsauthtype is not, then this\n"
-"              option defaults to \"SRP\".  (Added in 7.21.4)\n"
+"              bandwidth. To make it slower than it otherwise would be.\n"
 "\n"
-"       --tlspassword <password>\n"
-"              Set password for use with the TLS authentication  method  speci-\n"
-"              fied  with  --tlsauthtype.  Requires that --tlsuser also be set.\n"
+"              The  given speed is measured in bytes/second, unless a suffix is\n"
+"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
+"              bytes,  'm'  or M' makes it megabytes, while 'g' or 'G' makes it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"\n"
+"              The given rate is the average speed counted  during  the  entire\n"
 , stdout);

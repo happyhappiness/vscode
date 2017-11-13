@@ -1,49 +1,26 @@
-static void print_ref_list(struct ref_filter *filter, struct ref_sorting *sorting, struct ref_format *format)
+static int check_submodule_move_head(const struct cache_entry *ce,
+				     const char *old_id,
+				     const char *new_id,
+				     struct unpack_trees_options *o)
 {
-	int i;
-	struct ref_array array;
-	int maxwidth = 0;
-	const char *remote_prefix = "";
-	struct strbuf out = STRBUF_INIT;
-	char *to_free = NULL;
+	const struct submodule *sub = submodule_from_ce(ce);
+	if (!sub)
+		return 0;
 
-	/*
-	 * If we are listing more than just remote branches,
-	 * then remote branches will have a "remotes/" prefix.
-	 * We need to account for this in the width.
-	 */
-	if (filter->kind != FILTER_REFS_REMOTES)
-		remote_prefix = "remotes/";
-
-	memset(&array, 0, sizeof(array));
-
-	filter_refs(&array, filter, filter->kind | FILTER_REFS_INCLUDE_BROKEN);
-
-	if (filter->verbose)
-		maxwidth = calc_maxwidth(&array, strlen(remote_prefix));
-
-	if (!format->format)
-		format->format = to_free = build_format(filter, maxwidth, remote_prefix);
-	format->use_color = branch_use_color;
-
-	if (verify_ref_format(format))
-		die(_("unable to parse format string"));
-
-	ref_array_sort(sorting, &array);
-
-	for (i = 0; i < array.nr; i++) {
-		format_ref_array_item(array.items[i], format, &out);
-		if (column_active(colopts)) {
-			assert(!filter->verbose && "--column and --verbose are incompatible");
-			 /* format to a string_list to let print_columns() do its job */
-			string_list_append(&output, out.buf);
-		} else {
-			fwrite(out.buf, 1, out.len, stdout);
-			putchar('\n');
-		}
-		strbuf_release(&out);
+	switch (sub->update_strategy.type) {
+	case SM_UPDATE_UNSPECIFIED:
+	case SM_UPDATE_CHECKOUT:
+		if (submodule_move_head(ce->name, old_id, new_id, SUBMODULE_MOVE_HEAD_DRY_RUN))
+			return o->gently ? -1 :
+				add_rejected_path(o, ERROR_WOULD_LOSE_SUBMODULE, ce->name);
+		return 0;
+	case SM_UPDATE_NONE:
+		return 0;
+	case SM_UPDATE_REBASE:
+	case SM_UPDATE_MERGE:
+	case SM_UPDATE_COMMAND:
+	default:
+		warning(_("submodule update strategy not supported for submodule '%s'"), ce->name);
+		return -1;
 	}
-
-	ref_array_clear(&array);
-	free(to_free);
 }

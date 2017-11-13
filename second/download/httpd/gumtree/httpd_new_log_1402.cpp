@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "GetModuleFileName failed");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "proxy: error processing body.%s",
+                                      r->connection->aborted ?
+                                      " Client aborted connection." : "");

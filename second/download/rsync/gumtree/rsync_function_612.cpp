@@ -1,10 +1,13 @@
-void add_include_line(char *p)
+void
+see_deflate_token(char *buf, int len)
 {
-	char *tok;
-	if (!p || !*p) return;
-	p = strdup(p);
-	if (!p) out_of_memory("add_include_line");
-	for (tok=strtok(p," "); tok; tok=strtok(NULL," "))
-		add_exclude(tok, 1);
-	free(p);
+    int r;
+
+    rx_strm.next_in = (Bytef *)buf;
+    rx_strm.avail_in = len;
+    r = inflateIncomp(&rx_strm);
+    if (r != Z_OK) {
+	fprintf(FERROR, "inflateIncomp returned %d\n", r);
+	exit_cleanup(1);
+    }
 }

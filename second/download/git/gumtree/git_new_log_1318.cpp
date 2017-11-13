@@ -1,1 +1,1 @@
-add_recent_object(sha1, st.st_mtime, data);
+die(_("unknown error occurred while reading the configuration files"));

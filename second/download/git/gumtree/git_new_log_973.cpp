@@ -1,1 +1,2 @@
-printf("committer-time %"PRItime"\n", ci.committer_time);
+error("%s: not a valid attribute name",
+					     argv[i]);

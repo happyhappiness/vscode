@@ -1,96 +1,82 @@
-static int proxy_ajp_handler(request_rec *r, proxy_worker *worker,
-                             proxy_server_conf *conf,
-                             char *url, const char *proxyname,
-                             apr_port_t proxyport)
+static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    int status;
-    char server_portstr[32];
-    conn_rec *origin = NULL;
-    proxy_conn_rec *backend = NULL;
-    const char *scheme = "AJP";
-    proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
-                                                 &proxy_module);
+    static int restart_num = 0;
+    int startup = 0;
 
-    /*
-     * Note: Memory pool allocation.
-     * A downstream keepalive connection is always connected to the existence
-     * (or not) of an upstream keepalive connection. If this is not done then
-     * load balancing against multiple backend servers breaks (one backend
-     * server ends up taking 100% of the load), and the risk is run of
-     * downstream keepalive connections being kept open unnecessarily. This
-     * keeps webservers busy and ties up resources.
-     *
-     * As a result, we allocate all sockets out of the upstream connection
-     * pool, and when we want to reuse a socket, we check first whether the
-     * connection ID of the current upstream connection is the same as that
-     * of the connection when the socket was opened.
+    /* we want this only the first time around */
+    if (restart_num++ == 0) {
+        startup = 1;
+    }
+
+    if (ap_threads_limit > HARD_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxThreads of %d exceeds compile-time "
+                         "limit of", ap_threads_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the HARD_THREAD_LIMIT"
+                         "define in");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxThreads of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         ap_threads_limit, HARD_THREAD_LIMIT);
+        }
+        ap_threads_limit = HARD_THREAD_LIMIT;
+    }
+    else if (ap_threads_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxThreads of %d not allowed, "
+                         "increasing to 1.", ap_threads_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxThreads of %d not allowed, increasing to 1",
+                         ap_threads_limit);
+        }
+        ap_threads_limit = 1;
+    }
+
+    /* ap_threads_to_start > ap_threads_limit effectively checked in
+     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
      */
-    apr_pool_t *p = r->connection->pool;
-    apr_uri_t *uri = apr_palloc(r->connection->pool, sizeof(*uri));
-
-
-    if (strncasecmp(url, "ajp:", 4) != 0) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: AJP: declining URL %s", url);
-        return DECLINED;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: AJP: serving URL %s", url);
-
-    /* create space for state information */
-    if (!backend) {
-        status = ap_proxy_acquire_connection(scheme, &backend, worker,
-                                             r->server);
-        if (status != OK) {
-            if (backend) {
-                backend->close_on_recycle = 1;
-                ap_proxy_release_connection(scheme, backend, r->server);
-            }
-            return status;
+    if (ap_threads_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartThreads of %d not allowed, "
+                         "increasing to 1.", ap_threads_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartThreads of %d not allowed, increasing to 1",
+                         ap_threads_to_start);
         }
+        ap_threads_to_start = 1;
     }
 
-    backend->is_ssl = 0;
-    backend->close_on_recycle = 0;
-
-    /* Step One: Determine Who To Connect To */
-    status = ap_proxy_determine_connection(p, r, conf, worker, backend,
-                                           uri, &url, proxyname, proxyport,
-                                           server_portstr,
-                                           sizeof(server_portstr));
-
-    if (status != OK)
-        goto cleanup;
-
-    /* Step Two: Make the Connection */
-    if (ap_proxy_connect_backend(scheme, backend, worker, r->server)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "proxy: AJP: failed to make connection to backend: %s",
-                     backend->hostname);
-        status = HTTP_SERVICE_UNAVAILABLE;
-        goto cleanup;
-    }
-
-    /* Handle CPING/CPONG */
-    if (worker->ping_timeout_set) {
-        status = ajp_handle_cping_cpong(backend->sock, r,
-                                        worker->ping_timeout);
-        if (status != APR_SUCCESS) {
-            backend->close++;
-            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: AJP: cping/cpong failed to %pI (%s)",
-                         worker->cp->addr,
-                         worker->hostname);
-            status = HTTP_SERVICE_UNAVAILABLE;
-            goto cleanup;
+    if (ap_threads_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", ap_threads_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         ap_threads_min_free);
         }
+        ap_threads_min_free = 1;
     }
-    /* Step Three: Process the Request */
-    status = ap_proxy_ajp_request(p, r, backend, origin, dconf, uri, url,
-                                  server_portstr);
 
-cleanup:
-    /* Do not close the socket */
-    ap_proxy_release_connection(scheme, backend, r->server);
-    return status;
+    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
+
+    return OK;
 }

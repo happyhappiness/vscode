@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                         "proxy: header only");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "nothing for %s", name);

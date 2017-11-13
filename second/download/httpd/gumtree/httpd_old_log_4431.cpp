@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Attempt to serve directory: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
+                         "proxy: FTP: Content-Length set to %s", size);

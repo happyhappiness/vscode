@@ -1,55 +1,41 @@
-static int notes_copy_from_stdin(int force, const char *rewrite_cmd)
+static int apply_binary_fragment(struct apply_state *state,
+				 struct image *img,
+				 struct patch *patch)
 {
-	struct strbuf buf = STRBUF_INIT;
-	struct notes_rewrite_cfg *c = NULL;
-	struct notes_tree *t = NULL;
-	int ret = 0;
-	const char *msg = "Notes added by 'git notes copy'";
+	struct fragment *fragment = patch->fragments;
+	unsigned long len;
+	void *dst;
 
-	if (rewrite_cmd) {
-		c = init_copy_notes_for_rewrite(rewrite_cmd);
-		if (!c)
-			return 0;
-	} else {
-		init_notes(NULL, NULL, NULL, NOTES_INIT_WRITABLE);
-		t = &default_notes_tree;
+	if (!fragment)
+		return error(_("missing binary patch data for '%s'"),
+			     patch->new_name ?
+			     patch->new_name :
+			     patch->old_name);
+
+	/* Binary patch is irreversible without the optional second hunk */
+	if (state->apply_in_reverse) {
+		if (!fragment->next)
+			return error("cannot reverse-apply a binary patch "
+				     "without the reverse hunk to '%s'",
+				     patch->new_name
+				     ? patch->new_name : patch->old_name);
+		fragment = fragment->next;
 	}
-
-	while (strbuf_getline_lf(&buf, stdin) != EOF) {
-		unsigned char from_obj[20], to_obj[20];
-		struct strbuf **split;
-		int err;
-
-		split = strbuf_split(&buf, ' ');
-		if (!split[0] || !split[1])
-			die(_("Malformed input line: '%s'."), buf.buf);
-		strbuf_rtrim(split[0]);
-		strbuf_rtrim(split[1]);
-		if (get_sha1(split[0]->buf, from_obj))
-			die(_("Failed to resolve '%s' as a valid ref."), split[0]->buf);
-		if (get_sha1(split[1]->buf, to_obj))
-			die(_("Failed to resolve '%s' as a valid ref."), split[1]->buf);
-
-		if (rewrite_cmd)
-			err = copy_note_for_rewrite(c, from_obj, to_obj);
-		else
-			err = copy_note(t, from_obj, to_obj, force,
-					combine_notes_overwrite);
-
-		if (err) {
-			error(_("Failed to copy notes from '%s' to '%s'"),
-			      split[0]->buf, split[1]->buf);
-			ret = 1;
-		}
-
-		strbuf_list_free(split);
+	switch (fragment->binary_patch_method) {
+	case BINARY_DELTA_DEFLATED:
+		dst = patch_delta(img->buf, img->len, fragment->patch,
+				  fragment->size, &len);
+		if (!dst)
+			return -1;
+		clear_image(img);
+		img->buf = dst;
+		img->len = len;
+		return 0;
+	case BINARY_LITERAL_DEFLATED:
+		clear_image(img);
+		img->len = fragment->size;
+		img->buf = xmemdupz(fragment->patch, img->len);
+		return 0;
 	}
-
-	if (!rewrite_cmd) {
-		commit_notes(t, msg);
-		free_notes(t);
-	} else {
-		finish_copy_notes_for_rewrite(c, msg);
-	}
-	return ret;
+	return -1;
 }

@@ -1,1 +1,1 @@
-(mutt_yesorno (msg, M_YES);
+printf ("%s\n", alias_queries->data);

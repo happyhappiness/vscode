@@ -1,12 +1,9 @@
 fputs(
-"              curl  to select the user name and password from your environment\n"
-"              by specifying a single colon with this option: \"-u :\".\n"
+"              This  option  is similar to --netrc, except that you provide the\n"
+"              path (absolute or relative) to the netrc file that  Curl  should\n"
+"              use.   You  can  only  specify one netrc file per invocation. If\n"
+"              several --netrc-file options are provided,  only  the  last  one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -U, --proxy-user <user:password>\n"
-"              Specify the user name and password to use for proxy  authentica-\n"
-"              tion.\n"
-"\n"
-"              If  you  use  a  Windows  SSPI-enabled curl binary and do either\n"
+"              This  option  overrides  any use of --netrc as they are mutually\n"
 , stdout);

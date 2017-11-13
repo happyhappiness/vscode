@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                  "Headers received from backend:");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Replacing CACHE with CACHE_SAVE "
+                            "filter for %s", r->uri);

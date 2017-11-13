@@ -1,11 +1,11 @@
 fputs(
-"              necessarily  exactly  when  the data arrives.  Using this option\n"
-"              will disable that buffering.\n"
+"              set  to 50 redirections. Set this option to -1 to make it limit-\n"
+"              less.\n"
 "\n"
-"              Note that this is the negated option name  documented.  You  can\n"
-"              thus use --buffer to enforce the buffering.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --netrc-file\n"
-"              This  option  is similar to --netrc, except that you provide the\n"
-"              path (absolute or relative) to the netrc file that  Curl  should\n"
+"       --metalink\n"
+"              This option can tell curl to parse and process a  given  URI  as\n"
+"              Metalink  file  (both  version 3 and 4 (RFC 5854) are supported)\n"
+"              and make use of the mirrors listed within for failover if  there\n"
 , stdout);

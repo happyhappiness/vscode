@@ -1,11 +1,11 @@
 fputs(
-"              (SSL)  Private key file type. Specify which type your --key pro-\n"
-"              vided private key is. DER, PEM, and ENG are  supported.  If  not\n"
-"              specified, PEM is assumed.\n"
+"              Note that to be able to specify a URL in the  config  file,  you\n"
+"              need  to  specify  it  using the --url option, and not by simply\n"
+"              writing the URL on its own line. So, it could  look  similar  to\n"
+"              this:\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              url = \"http://curl.haxx.se/docs/\"\n"
 "\n"
-"       --krb <level>\n"
-"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default config file and uses it if  found.  The  default  config\n"
 , stdout);

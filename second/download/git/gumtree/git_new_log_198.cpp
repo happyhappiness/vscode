@@ -1,1 +1,1 @@
-packet_write_fmt(fd[1], "argument --format=%s\n", format);
+status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");

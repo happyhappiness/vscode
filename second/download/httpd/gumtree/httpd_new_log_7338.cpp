@@ -1,1 +1,1 @@
-fprintf(stderr, "Cannot use -n with %% in filename\n");
+fprintf(stderr, "Invalid -n argument\n");

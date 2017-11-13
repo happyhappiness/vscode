@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                         "Cannot get media parameter.");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while trying to return %s "
+                         "cached data",
+                         cache->provider_name);

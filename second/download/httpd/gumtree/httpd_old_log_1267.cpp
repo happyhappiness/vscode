@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                         "Parent: Unable to write duplicated socket %d to the child.", lr->sd );
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: Host: %s", getpid(), urld->lud_host);

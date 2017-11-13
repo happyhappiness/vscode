@@ -1,1 +1,1 @@
-ap_log_rerror(APLOG_MARK, level, 0, r, "%s", buf);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01387) "Zlib: Invalid header");

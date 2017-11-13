@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_output(%s): opened and passed brigade", 
-                      output->task->id);
+ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
+                     "macro '%s' (%s): empty contents!",
+                     macro->name, macro->location);

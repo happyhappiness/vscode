@@ -1,1 +1,1 @@
-die("a %s revision is needed", term_bad);
+error("Unknown object type for %s", sha1_to_hex(obj->sha1));

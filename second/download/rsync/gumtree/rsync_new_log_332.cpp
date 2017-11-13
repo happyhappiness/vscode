@@ -1,1 +1,1 @@
-fprintf(FINFO,"skipping non-regular file %s\n",fname);
+fprintf(FINFO,"receiver read %ld\n",(long)read_total());

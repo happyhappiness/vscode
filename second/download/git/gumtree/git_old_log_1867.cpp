@@ -1,1 +1,0 @@
-die(_("no tag exactly matches '%s'"), sha1_to_hex(cmit->object.sha1));

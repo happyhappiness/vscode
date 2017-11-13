@@ -1,97 +1,77 @@
-static int initialize_tables(server_rec *s, apr_pool_t *ctx)
+void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
+                             apr_proc_mutex_t **child_start_mutex,
+                             apr_shm_t **scoreboard_shm)
 {
-    unsigned long idx;
-    apr_status_t   sts;
-    const char *tempdir; 
+    HANDLE hScore;
+    HANDLE ready_event;
+    HANDLE os_start;
+    DWORD BytesRead;
+    void *sb_shared;
+    apr_status_t rv;
 
-    /* set up client list */
-
-    sts = apr_temp_dir_get(&tempdir, ctx);
-    if (APR_SUCCESS != sts) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
-                     "Failed to find temporary directory");
-        log_error_and_cleanup("failed to find temp dir", sts, s);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    /* Create the shared memory segment */
-
-    /* 
-     * Create a unique filename using our pid. This information is 
-     * stashed in the global variable so the children inherit it.
+    /* *** We now do this was back in winnt_rewrite_args
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
      */
-    client_shm_filename = apr_psprintf(ctx, "%s/authdigest_shm.%"APR_PID_T_FMT, tempdir, 
-                                       getpid());
-
-    /* Now create that segment */
-    sts = apr_shm_create(&client_shm, shmem_size,
-                        client_shm_filename, ctx);
-    if (APR_SUCCESS != sts) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
-                     "Failed to create shared memory segment on file %s", 
-                     client_shm_filename);
-        log_error_and_cleanup("failed to initialize shm", sts, s);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
 
-    sts = apr_rmm_init(&client_rmm,
-                       NULL, /* no lock, we'll do the locking ourselves */
-                       apr_shm_baseaddr_get(client_shm),
-                       shmem_size, ctx);
-    if (sts != APR_SUCCESS) {
-        log_error_and_cleanup("failed to initialize rmm", sts, s);
-        return !OK;
+    SetEvent(ready_event);
+    CloseHandle(ready_event);
+
+    if (!ReadFile(pipe, child_exit_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the exit event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
 
-    client_list = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*client_list) +
-                                                          sizeof(client_entry*)*num_buckets));
-    if (!client_list) {
-        log_error_and_cleanup("failed to allocate shared memory", -1, s);
-        return !OK;
+    if (!ReadFile(pipe, &os_start, sizeof(os_start),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(os_start))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
-    client_list->table = (client_entry**) (client_list + 1);
-    for (idx = 0; idx < num_buckets; idx++) {
-        client_list->table[idx] = NULL;
-    }
-    client_list->tbl_len     = num_buckets;
-    client_list->num_entries = 0;
-
-    sts = ap_global_mutex_create(&client_lock, NULL, client_mutex_type, NULL,
-                                 s, ctx, 0);
-    if (sts != APR_SUCCESS) {
-        log_error_and_cleanup("failed to create lock (client_lock)", sts, s);
-        return !OK;
+    *child_start_mutex = NULL;
+    if ((rv = apr_os_proc_mutex_put(child_start_mutex, &os_start, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %d: Unable to access the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
 
-
-    /* setup opaque */
-
-    opaque_cntr = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*opaque_cntr)));
-    if (opaque_cntr == NULL) {
-        log_error_and_cleanup("failed to allocate shared memory", -1, s);
-        return !OK;
+    if (!ReadFile(pipe, &hScore, sizeof(hScore),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(hScore))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
-    *opaque_cntr = 1UL;
-
-    sts = ap_global_mutex_create(&opaque_lock, NULL, opaque_mutex_type, NULL,
-                                 s, ctx, 0);
-    if (sts != APR_SUCCESS) {
-        log_error_and_cleanup("failed to create lock (opaque_lock)", sts, s);
-        return !OK;
+    *scoreboard_shm = NULL;
+    if ((rv = apr_os_shm_put(scoreboard_shm, &hScore, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
 
-
-    /* setup one-time-nonce counter */
-
-    otn_counter = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*otn_counter)));
-    if (otn_counter == NULL) {
-        log_error_and_cleanup("failed to allocate shared memory", -1, s);
-        return !OK;
+    rv = ap_reopen_scoreboard(s->process->pool, scoreboard_shm, 1);
+    if (rv || !(sb_shared = apr_shm_baseaddr_get(*scoreboard_shm))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
-    *otn_counter = 0;
-    /* no lock here */
+    /* We must 'initialize' the scoreboard to relink all the
+     * process-local pointer arrays into the shared memory block.
+     */
+    ap_init_scoreboard(sb_shared);
 
-
-    /* success */
-    return OK;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
 }

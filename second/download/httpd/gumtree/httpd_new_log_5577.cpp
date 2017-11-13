@@ -1,7 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, output->task->c, APLOGNO(03204)
-                          "h2_task_output(%s): write without response by %s "
-                          "for %s %s %s",
-                          output->task->id, caller, 
-                          output->task->request->method, 
-                          output->task->request->authority, 
-                          output->task->request->path);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02802)
+                     "macro '%s' multiply defined: "
+                     "%s, redefined on line %d of \"%s\"",
+                     macro->name, macro->location,
+                     cmd->config_file->line_number, cmd->config_file->name);

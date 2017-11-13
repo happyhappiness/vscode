@@ -1,1 +1,1 @@
-die(_("could not parse %s"), am_path(state, "abort-safety"));
+warning(_("no common commits"));

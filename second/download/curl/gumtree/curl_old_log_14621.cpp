@@ -1,11 +1,11 @@
 fputs(
-"              FTP(S)  server. The method argument should be one of the follow-\n"
-"              ing alternatives:\n"
+"              acters,  and  the  ';type='  string in the value have no special\n"
+"              meaning. Use this in preference to -F,  --form  if  there's  any\n"
+"              possibility  that  the string value may accidentally trigger the\n"
+"              '@' or '<' features of -F, --form.\n"
 "\n"
-"              multicwd\n"
-"                     curl does a single CWD operation for each  path  part  in\n"
-"                     the  given URL. For deep hierarchies this means very many\n"
-"                     commands. This is how RFC 1738 says it  should  be  done.\n"
-"                     This is the default but the slowest behavior.\n"
+"              See also -F, --form.\n"
 "\n"
+"       -F, --form <name=content>\n"
+"              (HTTP) This lets curl emulate a filled-in form in which  a  user\n"
 , stdout);

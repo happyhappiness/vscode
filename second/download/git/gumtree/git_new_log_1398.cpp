@@ -1,1 +1,1 @@
-fprintf(stderr, "failed to open store\n");
+die("BUG: packed-refs not locked");

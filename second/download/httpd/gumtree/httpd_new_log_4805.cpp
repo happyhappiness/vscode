@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL, APLOGNO(00380)
-                     "Failed to open the %s Service", mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02242)
+                             "Init: Multiple %s server certificates not "
+                             "allowed", an);

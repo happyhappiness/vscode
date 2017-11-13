@@ -1,94 +1,107 @@
-int cache_invalidate(cache_request_rec *cache, request_rec *r)
+apr_status_t h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
 {
-    cache_provider_list *list;
-    apr_status_t rv, status = DECLINED;
-    cache_handle_t *h;
-    apr_uri_t location_uri;
-    apr_uri_t content_location_uri;
+    apr_status_t status;
+    int acquired;
 
-    const char *location, *location_key = NULL;
-    const char *content_location, *content_location_key = NULL;
+    h2_workers_unregister(m->workers, m);
+    
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        int i, wait_secs = 5;
 
-    if (!cache) {
-        /* This should never happen */
-        ap_log_rerror(
-                APLOG_MARK, APLOG_ERR, APR_EGENERAL, r, APLOGNO(00697) "cache: No cache request information available for key"
-                " generation");
-        return DECLINED;
-    }
-
-    if (!cache->key) {
-        rv = cache_generate_key(r, r->pool, &cache->key);
-        if (rv != APR_SUCCESS) {
-            return DECLINED;
+        if (!h2_ihash_empty(m->streams) && APLOGctrace1(m->c)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                          "h2_mplx(%ld): release_join with %d streams open, "
+                          "%d streams resume, %d streams ready, %d tasks", 
+                          m->id, (int)h2_ihash_count(m->streams),
+                          (int)h2_ihash_count(m->sresume), 
+                          (int)h2_ihash_count(m->sready), 
+                          (int)h2_ihash_count(m->tasks));
+            h2_ihash_iter(m->streams, report_stream_iter, m);
         }
-    }
-
-    location = apr_table_get(r->headers_out, "Location");
-    if (location) {
-        if (APR_SUCCESS != apr_uri_parse(r->pool, location, &location_uri)
-                || APR_SUCCESS
-                        != cache_canonicalise_key(r, r->pool, location,
-                                &location_uri, &location_key)
-                || strcmp(r->parsed_uri.hostname, location_uri.hostname)) {
-            location_key = NULL;
+        
+        /* disable WINDOW_UPDATE callbacks */
+        h2_mplx_set_consumed_cb(m, NULL, NULL);
+        
+        if (!h2_ihash_empty(m->shold)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): start release_join with %d streams in hold", 
+                          m->id, (int)h2_ihash_count(m->shold));
         }
-    }
-
-    content_location = apr_table_get(r->headers_out, "Content-Location");
-    if (content_location) {
-        if (APR_SUCCESS
-                != apr_uri_parse(r->pool, content_location,
-                        &content_location_uri)
-                || APR_SUCCESS
-                        != cache_canonicalise_key(r, r->pool, content_location,
-                                &content_location_uri, &content_location_key)
-                || strcmp(r->parsed_uri.hostname,
-                        content_location_uri.hostname)) {
-            content_location_key = NULL;
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): start release_join with %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
         }
-    }
-
-    /* go through the cache types */
-    h = apr_palloc(r->pool, sizeof(cache_handle_t));
-
-    list = cache->providers;
-
-    while (list) {
-
-        /* invalidate the request uri */
-        rv = list->provider->open_entity(h, r, cache->key);
-        if (OK == rv) {
-            rv = list->provider->invalidate_entity(h, r);
-            status = OK;
+        
+        h2_iq_clear(m->q);
+        apr_thread_cond_broadcast(m->task_thawed);
+        while (!h2_ihash_iter(m->streams, stream_done_iter, m)) {
+            /* iterate until all streams have been removed */
         }
-        ap_log_rerror(
-                APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02468) "cache: Attempted to invalidate cached entity with key: %s", cache->key);
-
-        /* invalidate the Location */
-        if (location_key) {
-            rv = list->provider->open_entity(h, r, location_key);
-            if (OK == rv) {
-                rv = list->provider->invalidate_entity(h, r);
-                status = OK;
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->streams));
+    
+        if (!h2_ihash_empty(m->shold)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 2. release_join with %d streams in hold", 
+                          m->id, (int)h2_ihash_count(m->shold));
+        }
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 2. release_join with %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
+        }
+        
+        /* If we still have busy workers, we cannot release our memory
+         * pool yet, as tasks have references to us.
+         * Any operation on the task slave connection will from now on
+         * be errored ECONNRESET/ABORTED, so processing them should fail 
+         * and workers *should* return in a timely fashion.
+         */
+        for (i = 0; m->workers_busy > 0; ++i) {
+            h2_ihash_iter(m->tasks, task_abort_connection, m);
+            
+            m->join_wait = wait;
+            status = apr_thread_cond_timedwait(wait, m->lock, apr_time_from_sec(wait_secs));
+            
+            if (APR_STATUS_IS_TIMEUP(status)) {
+                if (i > 0) {
+                    /* Oh, oh. Still we wait for assigned  workers to report that 
+                     * they are done. Unless we have a bug, a worker seems to be hanging. 
+                     * If we exit now, all will be deallocated and the worker, once 
+                     * it does return, will walk all over freed memory...
+                     */
+                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03198)
+                                  "h2_mplx(%ld): release, waiting for %d seconds now for "
+                                  "%d h2_workers to return, have still %d tasks outstanding", 
+                                  m->id, i*wait_secs, m->workers_busy,
+                                  (int)h2_ihash_count(m->tasks));
+                    if (i == 1) {
+                        h2_ihash_iter(m->tasks, task_print, m);
+                    }
+                }
+                h2_mplx_abort(m);
+                apr_thread_cond_broadcast(m->task_thawed);
             }
-            ap_log_rerror(
-                    APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02469) "cache: Attempted to invalidate cached entity with key: %s", location_key);
         }
-
-        /* invalidate the Content-Location */
-        if (content_location_key) {
-            rv = list->provider->open_entity(h, r, content_location_key);
-            if (OK == rv) {
-                rv = list->provider->invalidate_entity(h, r);
-                status = OK;
-            }
-            ap_log_rerror(
-                    APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02470) "cache: Attempted to invalidate cached entity with key: %s", content_location_key);
+        
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->shold));
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 3. release_join %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
+            purge_streams(m);
         }
-
-        list = list->next;
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->spurge));
+        
+        if (!h2_ihash_empty(m->tasks)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03056)
+                          "h2_mplx(%ld): release_join -> destroy, "
+                          "%d tasks still present", 
+                          m->id, (int)h2_ihash_count(m->tasks));
+        }
+        leave_mutex(m, acquired);
+        h2_mplx_destroy(m);
+        /* all gone */
     }
-
     return status;
 }

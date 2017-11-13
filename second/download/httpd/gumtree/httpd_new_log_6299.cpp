@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                          H2_STRM_MSG(stream, "prepare, no data"));
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(03139)
+                             "ap_queue_pop failed");

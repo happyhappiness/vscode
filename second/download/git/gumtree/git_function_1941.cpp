@@ -1,117 +1,54 @@
-static void show_commit(struct commit *commit, void *data)
+static void read_packed_refs(FILE *f, struct ref_dir *dir)
 {
-	struct rev_list_info *info = data;
-	struct rev_info *revs = info->revs;
+	struct ref_entry *last = NULL;
+	struct strbuf line = STRBUF_INIT;
+	enum { PEELED_NONE, PEELED_TAGS, PEELED_FULLY } peeled = PEELED_NONE;
 
-	if (info->flags & REV_LIST_QUIET) {
-		finish_commit(commit, data);
-		return;
-	}
+	while (strbuf_getwholeline(&line, f, '\n') != EOF) {
+		unsigned char sha1[20];
+		const char *refname;
+		const char *traits;
 
-	graph_show_commit(revs->graph);
-
-	if (revs->count) {
-		if (commit->object.flags & PATCHSAME)
-			revs->count_same++;
-		else if (commit->object.flags & SYMMETRIC_LEFT)
-			revs->count_left++;
-		else
-			revs->count_right++;
-		finish_commit(commit, data);
-		return;
-	}
-
-	if (info->show_timestamp)
-		printf("%lu ", commit->date);
-	if (info->header_prefix)
-		fputs(info->header_prefix, stdout);
-
-	if (!revs->graph)
-		fputs(get_revision_mark(revs, commit), stdout);
-	if (revs->abbrev_commit && revs->abbrev)
-		fputs(find_unique_abbrev(commit->object.sha1, revs->abbrev),
-		      stdout);
-	else
-		fputs(sha1_to_hex(commit->object.sha1), stdout);
-	if (revs->print_parents) {
-		struct commit_list *parents = commit->parents;
-		while (parents) {
-			printf(" %s", sha1_to_hex(parents->item->object.sha1));
-			parents = parents->next;
+		if (skip_prefix(line.buf, "# pack-refs with:", &traits)) {
+			if (strstr(traits, " fully-peeled "))
+				peeled = PEELED_FULLY;
+			else if (strstr(traits, " peeled "))
+				peeled = PEELED_TAGS;
+			/* perhaps other traits later as well */
+			continue;
 		}
-	}
-	if (revs->children.name) {
-		struct commit_list *children;
 
-		children = lookup_decoration(&revs->children, &commit->object);
-		while (children) {
-			printf(" %s", sha1_to_hex(children->item->object.sha1));
-			children = children->next;
-		}
-	}
-	show_decorations(revs, commit);
-	if (revs->commit_format == CMIT_FMT_ONELINE)
-		putchar(' ');
-	else
-		putchar('\n');
+		refname = parse_ref_line(&line, sha1);
+		if (refname) {
+			int flag = REF_ISPACKED;
 
-	if (revs->verbose_header && get_cached_commit_buffer(commit, NULL)) {
-		struct strbuf buf = STRBUF_INIT;
-		struct pretty_print_context ctx = {0};
-		ctx.abbrev = revs->abbrev;
-		ctx.date_mode = revs->date_mode;
-		ctx.date_mode_explicit = revs->date_mode_explicit;
-		ctx.fmt = revs->commit_format;
-		ctx.output_encoding = get_log_output_encoding();
-		pretty_print_commit(&ctx, commit, &buf);
-		if (revs->graph) {
-			if (buf.len) {
-				if (revs->commit_format != CMIT_FMT_ONELINE)
-					graph_show_oneline(revs->graph);
-
-				graph_show_commit_msg(revs->graph, &buf);
-
-				/*
-				 * Add a newline after the commit message.
-				 *
-				 * Usually, this newline produces a blank
-				 * padding line between entries, in which case
-				 * we need to add graph padding on this line.
-				 *
-				 * However, the commit message may not end in a
-				 * newline.  In this case the newline simply
-				 * ends the last line of the commit message,
-				 * and we don't need any graph output.  (This
-				 * always happens with CMIT_FMT_ONELINE, and it
-				 * happens with CMIT_FMT_USERFORMAT when the
-				 * format doesn't explicitly end in a newline.)
-				 */
-				if (buf.len && buf.buf[buf.len - 1] == '\n')
-					graph_show_padding(revs->graph);
-				putchar('\n');
-			} else {
-				/*
-				 * If the message buffer is empty, just show
-				 * the rest of the graph output for this
-				 * commit.
-				 */
-				if (graph_show_remainder(revs->graph))
-					putchar('\n');
-				if (revs->commit_format == CMIT_FMT_ONELINE)
-					putchar('\n');
+			if (check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
+				if (!refname_is_safe(refname))
+					die("packed refname is dangerous: %s", refname);
+				hashclr(sha1);
+				flag |= REF_BAD_NAME | REF_ISBROKEN;
 			}
-		} else {
-			if (revs->commit_format != CMIT_FMT_USERFORMAT ||
-			    buf.len) {
-				fwrite(buf.buf, 1, buf.len, stdout);
-				putchar(info->hdr_termination);
-			}
+			last = create_ref_entry(refname, sha1, flag, 0);
+			if (peeled == PEELED_FULLY ||
+			    (peeled == PEELED_TAGS && starts_with(refname, "refs/tags/")))
+				last->flag |= REF_KNOWS_PEELED;
+			add_ref(dir, last);
+			continue;
 		}
-		strbuf_release(&buf);
-	} else {
-		if (graph_show_remainder(revs->graph))
-			putchar('\n');
+		if (last &&
+		    line.buf[0] == '^' &&
+		    line.len == PEELED_LINE_LENGTH &&
+		    line.buf[PEELED_LINE_LENGTH - 1] == '\n' &&
+		    !get_sha1_hex(line.buf + 1, sha1)) {
+			hashcpy(last->u.value.peeled.hash, sha1);
+			/*
+			 * Regardless of what the file header said,
+			 * we definitely know the value of *this*
+			 * reference:
+			 */
+			last->flag |= REF_KNOWS_PEELED;
+		}
 	}
-	maybe_flush_or_die(stdout, "stdout");
-	finish_commit(commit, data);
+
+	strbuf_release(&line);
 }

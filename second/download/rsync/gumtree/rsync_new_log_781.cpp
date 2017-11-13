@@ -1,1 +1,1 @@
-fprintf(f, "\\#%03o", CVAL(inbuf.buf, inbuf.pos++));
+out_of_memory("add_rule");

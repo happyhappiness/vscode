@@ -1,22 +1,11 @@
-static int chop_last_dir(char **remoteurl, int is_relative)
+struct passwd *xgetpwuid_self(void)
 {
-	char *rfind = find_last_dir_sep(*remoteurl);
-	if (rfind) {
-		*rfind = '\0';
-		return 0;
-	}
+	struct passwd *pw;
 
-	rfind = strrchr(*remoteurl, ':');
-	if (rfind) {
-		*rfind = '\0';
-		return 1;
-	}
-
-	if (is_relative || !strcmp(".", *remoteurl))
-		die(_("cannot strip one component off url '%s'"),
-			*remoteurl);
-
-	free(*remoteurl);
-	*remoteurl = xstrdup(".");
-	return 0;
+	errno = 0;
+	pw = getpwuid(getuid());
+	if (!pw)
+		die(_("unable to look up current user in the passwd file: %s"),
+		    errno ? strerror(errno) : _("no such user"));
+	return pw;
 }

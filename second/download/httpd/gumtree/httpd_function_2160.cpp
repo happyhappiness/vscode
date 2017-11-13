@@ -1,90 +1,138 @@
-static apr_status_t store_body(cache_handle_t *h, request_rec *r,
-                               apr_bucket_brigade *bb)
+static char master_main()
 {
-    apr_bucket *e;
-    apr_status_t rv;
-    disk_cache_object_t *dobj = (disk_cache_object_t *) h->cache_obj->vobj;
-    disk_cache_conf *conf = ap_get_module_config(r->server->module_config,
-                                                 &disk_cache_module);
+    server_rec *s = ap_server_conf;
+    ap_listen_rec *lr;
+    parent_info_t *parent_info;
+    char *listener_shm_name;
+    int listener_num, num_listeners, slot;
+    ULONG rc;
 
-    /* We write to a temp file and then atomically rename the file over
-     * in file_cache_el_final().
+    printf("%s \n", ap_get_server_description());
+    set_signals();
+
+    if (ap_setup_listeners(ap_server_conf) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
+                     "no listening sockets available, shutting down");
+        return FALSE;
+    }
+
+    /* Allocate a shared memory block for the array of listeners */
+    for (num_listeners = 0, lr = ap_listeners; lr; lr = lr->next) {
+        num_listeners++;
+    }
+
+    listener_shm_name = apr_psprintf(pconf, "/sharemem/httpd/parent_info.%d", getpid());
+    rc = DosAllocSharedMem((PPVOID)&parent_info, listener_shm_name,
+                           sizeof(parent_info_t) + num_listeners * sizeof(listen_socket_t),
+                           PAG_READ|PAG_WRITE|PAG_COMMIT);
+
+    if (rc) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s,
+                     "failure allocating shared memory, shutting down");
+        return FALSE;
+    }
+
+    /* Store the listener sockets in the shared memory area for our children to see */
+    for (listener_num = 0, lr = ap_listeners; lr; lr = lr->next, listener_num++) {
+        apr_os_sock_get(&parent_info->listeners[listener_num].listen_fd, lr->sd);
+    }
+
+    /* Create mutex to prevent multiple child processes from detecting
+     * a connection with apr_poll()
      */
-    if (!dobj->tfd) {
-        rv = apr_file_mktemp(&dobj->tfd, dobj->tempfile,
-                             APR_CREATE | APR_WRITE | APR_BINARY |
-                             APR_BUFFERED | APR_EXCL, r->pool);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-        dobj->file_size = 0;
+
+    rc = DosCreateMutexSem(NULL, &ap_mpm_accept_mutex, DC_SEM_SHARED, FALSE);
+
+    if (rc) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s,
+                     "failure creating accept mutex, shutting down");
+        return FALSE;
     }
 
-    for (e = APR_BRIGADE_FIRST(bb);
-         e != APR_BRIGADE_SENTINEL(bb);
-         e = APR_BUCKET_NEXT(e))
-    {
-        const char *str;
-        apr_size_t length, written;
-        rv = apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "cache_disk: Error when reading bucket for URL %s",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return rv;
+    parent_info->accept_mutex = ap_mpm_accept_mutex;
+
+    /* Allocate shared memory for scoreboard */
+    if (ap_scoreboard_image == NULL) {
+        void *sb_mem;
+        rc = DosAllocSharedMem(&sb_mem, ap_scoreboard_fname,
+                               ap_calc_scoreboard_size(),
+                               PAG_COMMIT|PAG_READ|PAG_WRITE);
+
+        if (rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf,
+                         "unable to allocate shared memory for scoreboard , exiting");
+            return FALSE;
         }
-        rv = apr_file_write_full(dobj->tfd, str, length, &written);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "cache_disk: Error when writing cache file for URL %s",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return rv;
+
+        ap_init_scoreboard(sb_mem);
+    }
+
+    ap_scoreboard_image->global->restart_time = apr_time_now();
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());
+#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                "AcceptMutex: %s (default: %s)",
+                apr_proc_mutex_name(accept_mutex),
+                apr_proc_mutex_defname());
+#endif
+    if (one_process) {
+        ap_scoreboard_image->parent[0].pid = getpid();
+        ap_mpm_child_main(pconf);
+        return FALSE;
+    }
+
+    while (!restart_pending && !shutdown_pending) {
+        RESULTCODES proc_rc;
+        PID child_pid;
+        int active_children = 0;
+
+        /* Count number of active children */
+        for (slot=0; slot < HARD_SERVER_LIMIT; slot++) {
+            active_children += ap_scoreboard_image->parent[slot].pid != 0 &&
+                !ap_scoreboard_image->parent[slot].quiescing;
         }
-        dobj->file_size += written;
-        if (dobj->file_size > conf->maxfs) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache_disk: URL %s failed the size check "
-                         "(%" APR_OFF_T_FMT ">%" APR_SIZE_T_FMT ")",
-                         h->cache_obj->key, dobj->file_size, conf->maxfs);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
+
+        /* Spawn children if needed */
+        for (slot=0; slot < HARD_SERVER_LIMIT && active_children < ap_daemons_to_start; slot++) {
+            if (ap_scoreboard_image->parent[slot].pid == 0) {
+                spawn_child(slot);
+                active_children++;
+            }
+        }
+
+        rc = DosWaitChild(DCWA_PROCESSTREE, DCWW_NOWAIT, &proc_rc, &child_pid, 0);
+
+        if (rc == 0) {
+            /* A child has terminated, remove its scoreboard entry & terminate if necessary */
+            for (slot=0; ap_scoreboard_image->parent[slot].pid != child_pid && slot < HARD_SERVER_LIMIT; slot++);
+
+            if (slot < HARD_SERVER_LIMIT) {
+                ap_scoreboard_image->parent[slot].pid = 0;
+                ap_scoreboard_image->parent[slot].quiescing = 0;
+
+                if (proc_rc.codeTerminate == TC_EXIT) {
+                    /* Child terminated normally, check its exit code and
+                     * terminate server if child indicates a fatal error
+                     */
+                    if (proc_rc.codeResult == APEXIT_CHILDFATAL)
+                        break;
+                }
+            }
+        } else if (rc == ERROR_CHILD_NOT_COMPLETE) {
+            /* No child exited, lets sleep for a while.... */
+            apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
         }
     }
 
-    /* Was this the final bucket? If yes, close the temp file and perform
-     * sanity checks.
-     */
-    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
-        if (r->connection->aborted || r->no_cache) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "disk_cache: Discarding body for URL %s "
-                         "because connection has been aborted.",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
-        }
-        if (dobj->file_size < conf->minfs) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache_disk: URL %s failed the size check "
-                         "(%" APR_OFF_T_FMT "<%" APR_SIZE_T_FMT ")",
-                         h->cache_obj->key, dobj->file_size, conf->minfs);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
-        }
-
-        /* All checks were fine. Move tempfile to final destination */
-        /* Link to the perm file, and close the descriptor */
-        file_cache_el_final(dobj, r);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "disk_cache: Body for URL %s cached.",  dobj->name);
+    /* Signal children to shut down, either gracefully or immediately */
+    for (slot=0; slot<HARD_SERVER_LIMIT; slot++) {
+      kill(ap_scoreboard_image->parent[slot].pid, is_graceful ? SIGHUP : SIGTERM);
     }
 
-    return APR_SUCCESS;
+    DosFreeMem(parent_info);
+    return restart_pending;
 }

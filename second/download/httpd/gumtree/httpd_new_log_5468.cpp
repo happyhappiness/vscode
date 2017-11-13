@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, diary->entries->pool,
-                  "push_diary_append: %"APR_UINT64_T_HEX_FMT, ne->hash);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(00554)
+                     "Access to file %s denied by server: not a regular file",
+                     name);

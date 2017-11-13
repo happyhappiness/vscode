@@ -1,2 +1,1 @@
-fprintf(stderr, _("warning: command update mode suggested for submodule '%s'\n"),
-				sub->name);
+die(_("Failed to register update mode for submodule path '%s'"), displaypath);

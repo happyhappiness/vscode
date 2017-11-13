@@ -1,25 +1,31 @@
-static void check_merge_bases(int no_checkout)
+static void check_good_are_ancestors_of_bad(const char *prefix, int no_checkout)
 {
-	struct commit_list *result;
-	int rev_nr;
-	struct commit **rev = get_bad_and_good_commits(&rev_nr);
+	char *filename = git_pathdup("BISECT_ANCESTORS_OK");
+	struct stat st;
+	int fd;
 
-	result = get_merge_bases_many(rev[0], rev_nr - 1, rev + 1);
+	if (!current_bad_oid)
+		die("a %s revision is needed", term_bad);
 
-	for (; result; result = result->next) {
-		const unsigned char *mb = result->item->object.oid.hash;
-		if (!hashcmp(mb, current_bad_oid->hash)) {
-			handle_bad_merge_base();
-		} else if (0 <= sha1_array_lookup(&good_revs, mb)) {
-			continue;
-		} else if (0 <= sha1_array_lookup(&skipped_revs, mb)) {
-			handle_skipped_merge_base(mb);
-		} else {
-			printf("Bisecting: a merge base must be tested\n");
-			exit(bisect_checkout(mb, no_checkout));
-		}
-	}
+	/* Check if file BISECT_ANCESTORS_OK exists. */
+	if (!stat(filename, &st) && S_ISREG(st.st_mode))
+		goto done;
 
-	free(rev);
-	free_commit_list(result);
+	/* Bisecting with no good rev is ok. */
+	if (good_revs.nr == 0)
+		goto done;
+
+	/* Check if all good revs are ancestor of the bad rev. */
+	if (check_ancestors(prefix))
+		check_merge_bases(no_checkout);
+
+	/* Create file BISECT_ANCESTORS_OK. */
+	fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+	if (fd < 0)
+		warning_errno("could not create file '%s'",
+			      filename);
+	else
+		close(fd);
+ done:
+	free(filename);
 }

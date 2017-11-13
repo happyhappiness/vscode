@@ -1,236 +1,294 @@
-request_rec *ap_read_request(conn_rec *conn)
+int main(int argc, const char * const argv[])
 {
-    request_rec *r;
-    apr_pool_t *p;
-    const char *expect;
-    int access_status;
-    apr_bucket_brigade *tmp_bb;
-    apr_socket_t *csd;
-    apr_interval_time_t cur_timeout;
+    int r, l;
+    char tmp[1024];
+    apr_status_t status;
+    apr_getopt_t *opt;
+    const char *optarg;
+    char c;
+#ifdef USE_SSL
+    AB_SSL_METHOD_CONST SSL_METHOD *meth = SSLv23_client_method();
+#endif
 
-    apr_pool_create(&p, conn->pool);
-    apr_pool_tag(p, "request");
-    r = apr_pcalloc(p, sizeof(request_rec));
-    r->pool            = p;
-    r->connection      = conn;
-    r->server          = conn->base_server;
+    /* table defaults  */
+    tablestring = "";
+    trstring = "";
+    tdstring = "bgcolor=white";
+    cookie = "";
+    auth = "";
+    proxyhost[0] = '\0';
+    hdrs = "";
 
-    r->user            = NULL;
-    r->ap_auth_type    = NULL;
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(apr_terminate);
+    apr_pool_create(&cntxt, NULL);
 
-    r->allowed_methods = ap_make_method_list(p, 2);
-
-    r->headers_in      = apr_table_make(r->pool, 25);
-    r->subprocess_env  = apr_table_make(r->pool, 25);
-    r->headers_out     = apr_table_make(r->pool, 12);
-    r->err_headers_out = apr_table_make(r->pool, 5);
-    r->notes           = apr_table_make(r->pool, 5);
-
-    r->request_config  = ap_create_request_config(r->pool);
-    /* Must be set before we run create request hook */
-
-    r->proto_output_filters = conn->output_filters;
-    r->output_filters  = r->proto_output_filters;
-    r->proto_input_filters = conn->input_filters;
-    r->input_filters   = r->proto_input_filters;
-    ap_run_create_request(r);
-    r->per_dir_config  = r->server->lookup_defaults;
-
-    r->sent_bodyct     = 0;                      /* bytect isn't for body */
-
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
-
-    r->status          = HTTP_OK;  /* Until further notice */
-    r->the_request     = NULL;
-
-    /* Begin by presuming any module can make its own path_info assumptions,
-     * until some module interjects and changes the value.
-     */
-    r->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
-
-    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-
-    /* Get the request... */
-    if (!read_request_line(r, tmp_bb)) {
-        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: URI too long (longer than %d)", r->server->limit_req_line);
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
-        else if (r->status == HTTP_REQUEST_TIME_OUT) {
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            if (!r->connection->keepalives) {
-                ap_run_log_transaction(r);
-            }
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
-
-        apr_brigade_destroy(tmp_bb);
-        return NULL;
+#ifdef NOT_ASCII
+    status = apr_xlate_open(&to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, cntxt);
+    if (status) {
+        fprintf(stderr, "apr_xlate_open(to ASCII)->%d\n", status);
+        exit(1);
     }
-
-    /* We may have been in keep_alive_timeout mode, so toggle back
-     * to the normal timeout mode as we fetch the header lines,
-     * as necessary.
-     */
-    csd = ap_get_module_config(conn->conn_config, &core_module);
-    apr_socket_timeout_get(csd, &cur_timeout);
-    if (cur_timeout != conn->base_server->timeout) {
-        apr_socket_timeout_set(csd, conn->base_server->timeout);
-        cur_timeout = conn->base_server->timeout;
+    status = apr_xlate_open(&from_ascii, APR_DEFAULT_CHARSET, "ISO-8859-1", cntxt);
+    if (status) {
+        fprintf(stderr, "apr_xlate_open(from ASCII)->%d\n", status);
+        exit(1);
     }
-
-    if (!r->assbackwards) {
-        const char *tenc;
-
-        ap_get_mime_headers_core(r, tmp_bb);
-        if (r->status != HTTP_OK) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
-
-        tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
-        if (tenc) {
-            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
-             * Section 3.3.3.3: "If a Transfer-Encoding header field is
-             * present in a request and the chunked transfer coding is not
-             * the final encoding ...; the server MUST respond with the 400
-             * (Bad Request) status code and then close the connection".
-             */
-            if (!(strcasecmp(tenc, "chunked") == 0 /* fast path */
-                    || ap_find_last_token(r->pool, tenc, "chunked"))) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "client sent unknown Transfer-Encoding "
-                              "(%s): %s", tenc, r->uri);
-                r->status = HTTP_BAD_REQUEST;
-                conn->keepalive = AP_CONN_CLOSE;
-                ap_send_error_response(r, 0);
-                ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-                ap_run_log_transaction(r);
-                apr_brigade_destroy(tmp_bb);
-                return r;
-            }
-
-            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
-             * Section 3.3.3.3: "If a message is received with both a
-             * Transfer-Encoding and a Content-Length header field, the
-             * Transfer-Encoding overrides the Content-Length. ... A sender
-             * MUST remove the received Content-Length field".
-             */
-            apr_table_unset(r->headers_in, "Content-Length");
-        }
+    status = apr_base64init_ebcdic(to_ascii, from_ascii);
+    if (status) {
+        fprintf(stderr, "apr_base64init_ebcdic()->%d\n", status);
+        exit(1);
     }
-    else {
-        if (r->header_only) {
-            /*
-             * Client asked for headers only with HTTP/0.9, which doesn't send
-             * headers! Have to dink things just to make sure the error message
-             * comes through...
-             */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "client sent invalid HTTP/0.9 request: HEAD %s",
-                          r->uri);
-            r->header_only = 0;
-            r->status = HTTP_BAD_REQUEST;
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
-    }
+#endif
 
-    apr_brigade_destroy(tmp_bb);
+    apr_getopt_init(&opt, cntxt, argc, argv);
+    while ((status = apr_getopt(opt, "n:c:t:b:T:p:u:v:rkVhwix:y:z:C:H:P:A:g:X:de:Sq"
+#ifdef USE_SSL
+            "Z:f:"
+#endif
+            ,&c, &optarg)) == APR_SUCCESS) {
+        switch (c) {
+            case 'n':
+                requests = atoi(optarg);
+                if (requests <= 0) {
+                    err("Invalid number of requests\n");
+                }
+                break;
+            case 'k':
+                keepalive = 1;
+                break;
+            case 'q':
+                heartbeatres = 0;
+                break;
+            case 'c':
+                concurrency = atoi(optarg);
+                break;
+            case 'b':
+                windowsize = atoi(optarg);
+                break;
+            case 'i':
+                if (posting > 0)
+                err("Cannot mix POST/PUT and HEAD\n");
+                posting = -1;
+                break;
+            case 'g':
+                gnuplot = strdup(optarg);
+                break;
+            case 'd':
+                percentile = 0;
+                break;
+            case 'e':
+                csvperc = strdup(optarg);
+                break;
+            case 'S':
+                confidence = 0;
+                break;
+            case 'p':
+                if (posting != 0)
+                    err("Cannot mix POST and HEAD\n");
+                if (0 == (r = open_postfile(optarg))) {
+                    posting = 1;
+                }
+                else if (postdata) {
+                    exit(r);
+                }
+                break;
+            case 'u':
+                if (posting != 0)
+                    err("Cannot mix PUT and HEAD\n");
+                if (0 == (r = open_postfile(optarg))) {
+                    posting = 2;
+                }
+                else if (postdata) {
+                    exit(r);
+                }
+                break;
+            case 'r':
+                recverrok = 1;
+                break;
+            case 'v':
+                verbosity = atoi(optarg);
+                break;
+            case 't':
+                tlimit = atoi(optarg);
+                requests = MAX_REQUESTS;    /* need to size data array on
+                                             * something */
+                break;
+            case 'T':
+                strcpy(content_type, optarg);
+                break;
+            case 'C':
+                cookie = apr_pstrcat(cntxt, "Cookie: ", optarg, "\r\n", NULL);
+                break;
+            case 'A':
+                /*
+                 * assume username passwd already to be in colon separated form.
+                 * Ready to be uu-encoded.
+                 */
+                while (apr_isspace(*optarg))
+                    optarg++;
+                if (apr_base64_encode_len(strlen(optarg)) > sizeof(tmp)) {
+                    err("Authentication credentials too long\n");
+                }
+                l = apr_base64_encode(tmp, optarg, strlen(optarg));
+                tmp[l] = '\0';
 
-    /* update what we think the virtual host is based on the headers we've
-     * now read. may update status.
-     */
-    ap_update_vhost_from_headers(r);
+                auth = apr_pstrcat(cntxt, auth, "Authorization: Basic ", tmp,
+                                       "\r\n", NULL);
+                break;
+            case 'P':
+                /*
+                 * assume username passwd already to be in colon separated form.
+                 */
+                while (apr_isspace(*optarg))
+                optarg++;
+                if (apr_base64_encode_len(strlen(optarg)) > sizeof(tmp)) {
+                    err("Proxy credentials too long\n");
+                }
+                l = apr_base64_encode(tmp, optarg, strlen(optarg));
+                tmp[l] = '\0';
 
-    /* Toggle to the Host:-based vhost's timeout mode to fetch the
-     * request body and send the response body, if needed.
-     */
-    if (cur_timeout != r->server->timeout) {
-        apr_socket_timeout_set(csd, r->server->timeout);
-        cur_timeout = r->server->timeout;
-    }
-
-    /* we may have switched to another server */
-    r->per_dir_config = r->server->lookup_defaults;
-
-    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
-        || ((r->proto_num == HTTP_VERSION(1, 1))
-            && !apr_table_get(r->headers_in, "Host"))) {
-        /*
-         * Client sent us an HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-         * a Host: header, and the server MUST respond with 400 if it doesn't.
-         */
-        r->status = HTTP_BAD_REQUEST;
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "client sent HTTP/1.1 request without hostname "
-                      "(see RFC2616 section 14.23): %s", r->uri);
-    }
-
-    /*
-     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
-     * called by ap_die and by ap_send_error_response works correctly on
-     * status codes that do not cause the connection to be dropped and
-     * in situations where the connection should be kept alive.
-     */
-
-    ap_add_input_filter_handle(ap_http_input_filter_handle,
-                               NULL, r, r->connection);
-
-    if (r->status != HTTP_OK) {
-        ap_send_error_response(r, 0);
-        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-        ap_run_log_transaction(r);
-        return r;
-    }
-
-    if ((access_status = ap_run_post_read_request(r))) {
-        ap_die(access_status, r);
-        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-        ap_run_log_transaction(r);
-        return NULL;
-    }
-
-    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
-        && (expect[0] != '\0')) {
-        /*
-         * The Expect header field was added to HTTP/1.1 after RFC 2068
-         * as a means to signal when a 100 response is desired and,
-         * unfortunately, to signal a poor man's mandatory extension that
-         * the server must understand or return 417 Expectation Failed.
-         */
-        if (strcasecmp(expect, "100-continue") == 0) {
-            r->expecting_100 = 1;
-        }
-        else {
-            r->status = HTTP_EXPECTATION_FAILED;
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "client sent an unrecognized expectation value of "
-                          "Expect: %s", expect);
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            return r;
+                auth = apr_pstrcat(cntxt, auth, "Proxy-Authorization: Basic ",
+                                       tmp, "\r\n", NULL);
+                break;
+            case 'H':
+                hdrs = apr_pstrcat(cntxt, hdrs, optarg, "\r\n", NULL);
+                /*
+                 * allow override of some of the common headers that ab adds
+                 */
+                if (strncasecmp(optarg, "Host:", 5) == 0) {
+                    opt_host = 1;
+                } else if (strncasecmp(optarg, "Accept:", 7) == 0) {
+                    opt_accept = 1;
+                } else if (strncasecmp(optarg, "User-Agent:", 11) == 0) {
+                    opt_useragent = 1;
+                }
+                break;
+            case 'w':
+                use_html = 1;
+                break;
+                /*
+                 * if any of the following three are used, turn on html output
+                 * automatically
+                 */
+            case 'x':
+                use_html = 1;
+                tablestring = optarg;
+                break;
+            case 'X':
+                {
+                    char *p;
+                    /*
+                     * assume proxy-name[:port]
+                     */
+                    if ((p = strchr(optarg, ':'))) {
+                        *p = '\0';
+                        p++;
+                        proxyport = atoi(p);
+                    }
+                    strcpy(proxyhost, optarg);
+                    isproxy = 1;
+                }
+                break;
+            case 'y':
+                use_html = 1;
+                trstring = optarg;
+                break;
+            case 'z':
+                use_html = 1;
+                tdstring = optarg;
+                break;
+            case 'h':
+                usage(argv[0]);
+                break;
+            case 'V':
+                copyright();
+                return 0;
+#ifdef USE_SSL
+            case 'Z':
+                ssl_cipher = strdup(optarg);
+                break;
+            case 'f':
+                if (strncasecmp(optarg, "ALL", 3) == 0) {
+                    meth = SSLv23_client_method();
+                } else if (strncasecmp(optarg, "SSL2", 4) == 0) {
+                    meth = SSLv2_client_method();
+                } else if (strncasecmp(optarg, "SSL3", 4) == 0) {
+                    meth = SSLv3_client_method();
+                } else if (strncasecmp(optarg, "TLS1", 4) == 0) {
+                    meth = TLSv1_client_method();
+                }
+                break;
+#endif
         }
     }
 
-    return r;
+    if (opt->ind != argc - 1) {
+        fprintf(stderr, "%s: wrong number of arguments\n", argv[0]);
+        usage(argv[0]);
+    }
+
+    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
+        fprintf(stderr, "%s: invalid URL\n", argv[0]);
+        usage(argv[0]);
+    }
+
+    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {
+        fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
+                argv[0], MAX_CONCURRENCY);
+        usage(argv[0]);
+    }
+
+    if (concurrency > requests) {
+        fprintf(stderr, "%s: Cannot use concurrency level greater than "
+                "total number of requests\n", argv[0]);
+        usage(argv[0]);
+    }
+
+    if ((heartbeatres) && (requests > 150)) {
+        heartbeatres = requests / 10;   /* Print line every 10% of requests */
+        if (heartbeatres < 100)
+            heartbeatres = 100; /* but never more often than once every 100
+                                 * connections. */
+    }
+    else
+        heartbeatres = 0;
+
+#ifdef USE_SSL
+#ifdef RSAREF
+    R_malloc_init();
+#else
+    CRYPTO_malloc_init();
+#endif
+    SSL_load_error_strings();
+    SSL_library_init();
+    bio_out=BIO_new_fp(stdout,BIO_NOCLOSE);
+    bio_err=BIO_new_fp(stderr,BIO_NOCLOSE);
+
+    if (!(ssl_ctx = SSL_CTX_new(meth))) {
+        BIO_printf(bio_err, "Could not initialize SSL Context.\n");
+        ERR_print_errors(bio_err);
+        exit(1);
+    }
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_ALL);
+    if (ssl_cipher != NULL) {
+        if (!SSL_CTX_set_cipher_list(ssl_ctx, ssl_cipher)) {
+            fprintf(stderr, "error setting cipher list [%s]\n", ssl_cipher);
+        ERR_print_errors_fp(stderr);
+        exit(1);
+    }
+    }
+    if (verbosity >= 3) {
+        SSL_CTX_set_info_callback(ssl_ctx, ssl_state_cb);
+    }
+#endif
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);       /* Ignore writes to connections that
+                                         * have been closed at the other end. */
+#endif
+    copyright();
+    test();
+    apr_pool_destroy(cntxt);
+
+    return 0;
 }

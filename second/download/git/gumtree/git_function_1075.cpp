@@ -1,36 +1,42 @@
-static void compile_pcre1_regexp(struct grep_pat *p, const struct grep_opt *opt)
+static void add_recent_object(const unsigned char *sha1,
+			      unsigned long mtime,
+			      struct recent_data *data)
 {
-	const char *error;
-	int erroffset;
-	int options = PCRE_MULTILINE;
+	struct object *obj;
+	enum object_type type;
 
-	if (opt->ignore_case) {
-		if (has_non_ascii(p->pattern))
-			p->pcre1_tables = pcre_maketables();
-		options |= PCRE_CASELESS;
+	if (mtime <= data->timestamp)
+		return;
+
+	/*
+	 * We do not want to call parse_object here, because
+	 * inflating blobs and trees could be very expensive.
+	 * However, we do need to know the correct type for
+	 * later processing, and the revision machinery expects
+	 * commits and tags to have been parsed.
+	 */
+	type = sha1_object_info(sha1, NULL);
+	if (type < 0)
+		die("unable to get object info for %s", sha1_to_hex(sha1));
+
+	switch (type) {
+	case OBJ_TAG:
+	case OBJ_COMMIT:
+		obj = parse_object_or_die(sha1, NULL);
+		break;
+	case OBJ_TREE:
+		obj = (struct object *)lookup_tree(sha1);
+		break;
+	case OBJ_BLOB:
+		obj = (struct object *)lookup_blob(sha1);
+		break;
+	default:
+		die("unknown object type for %s: %s",
+		    sha1_to_hex(sha1), typename(type));
 	}
-	if (is_utf8_locale() && has_non_ascii(p->pattern))
-		options |= PCRE_UTF8;
 
-	p->pcre1_regexp = pcre_compile(p->pattern, options, &error, &erroffset,
-				      p->pcre1_tables);
-	if (!p->pcre1_regexp)
-		compile_regexp_failed(p, error);
+	if (!obj)
+		die("unable to lookup %s", sha1_to_hex(sha1));
 
-	p->pcre1_extra_info = pcre_study(p->pcre1_regexp, PCRE_STUDY_JIT_COMPILE, &error);
-	if (!p->pcre1_extra_info && error)
-		die("%s", error);
-
-#ifdef GIT_PCRE1_USE_JIT
-	pcre_config(PCRE_CONFIG_JIT, &p->pcre1_jit_on);
-	if (p->pcre1_jit_on == 1) {
-		p->pcre1_jit_stack = pcre_jit_stack_alloc(1, 1024 * 1024);
-		if (!p->pcre1_jit_stack)
-			die("Couldn't allocate PCRE JIT stack");
-		pcre_assign_jit_stack(p->pcre1_extra_info, NULL, p->pcre1_jit_stack);
-	} else if (p->pcre1_jit_on != 0) {
-		die("BUG: The pcre1_jit_on variable should be 0 or 1, not %d",
-		    p->pcre1_jit_on);
-	}
-#endif
+	add_pending_object(data->revs, obj, "");
 }

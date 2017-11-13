@@ -1,11 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              The file will be saved in the current working directory. If  you\n"
+"              want  the  file  saved  in  a different directory, make sure you\n"
+"              change the current working directory before invoking  curl  with\n"
+"              this option.\n"
 "\n"
-"              Added in 7.12.3.\n"
-"\n"
-"       --retry-max-time <seconds>\n"
-"              The retry timer is reset  before  the  first  transfer  attempt.\n"
-"              Retries will be done as usual (see --retry) as long as the timer\n"
-"              hasn't reached this given limit. Notice that if the timer hasn't\n"
-"              reached  the  limit, the request will be made and while perform-\n"
+"              The  remote  file  name  to use for saving is extracted from the\n"
+"              given URL, nothing else, and if it already  exists  it  will  be\n"
 , stdout);

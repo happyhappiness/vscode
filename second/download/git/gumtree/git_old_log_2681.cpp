@@ -1,3 +1,1 @@
-die("ambiguous argument '%s': both revision and filename\n"
-	    "Use '--' to separate paths from revisions, like this:\n"
-	    "'git <command> [<revision>...] -- [<file>...]'", arg);
+die(_("bad config file line %d in %s"), cf->linenr, cf->name);

@@ -1,1 +1,1 @@
-die("Out of memory, getdelim failed");
+error("%s", err.buf);

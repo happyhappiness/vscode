@@ -1,157 +1,115 @@
-request_rec *ap_read_request(conn_rec *conn)
+static void set_signals(void)
 {
-    request_rec *r;
-    apr_pool_t *p;
-    const char *expect;
-    int access_status;
-    apr_bucket_brigade *tmp_bb;
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
 
-    apr_pool_create(&p, conn->pool);
-    r = apr_pcalloc(p, sizeof(request_rec));
-    r->pool            = p;
-    r->connection      = conn;
-    r->server          = conn->base_server;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
 
-    r->user            = NULL;
-    r->ap_auth_type    = NULL;
+    if (!one_process) {
+        sa.sa_handler = sig_coredump;
+#if defined(SA_ONESHOT)
+        sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+        sa.sa_flags = SA_RESETHAND;
+#endif
+        if (sigaction(SIGSEGV, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+        if (sigaction(SIGBUS, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+        if (sigaction(SIGABORT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+        if (sigaction(SIGABRT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+        if (sigaction(SIGILL, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGILL)");
+#endif
+        sa.sa_flags = 0;
+    }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGTERM)");
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGINT)");
+#endif
+#ifdef SIGXCPU
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXCPU, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGXCPU)");
+#endif
+#ifdef SIGXFSZ
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGXFSZ)");
+#endif
+#ifdef SIGPIPE
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGPIPE)");
+#endif
 
-    r->allowed_methods = ap_make_method_list(p, 2);
-
-    r->headers_in      = apr_table_make(r->pool, 25);
-    r->subprocess_env  = apr_table_make(r->pool, 25);
-    r->headers_out     = apr_table_make(r->pool, 12);
-    r->err_headers_out = apr_table_make(r->pool, 5);
-    r->notes           = apr_table_make(r->pool, 5);
-
-    r->request_config  = ap_create_request_config(r->pool);
-    /* Must be set before we run create request hook */
-
-    r->proto_output_filters = conn->output_filters;
-    r->output_filters  = r->proto_output_filters;
-    r->proto_input_filters = conn->input_filters;
-    r->input_filters   = r->proto_input_filters;
-    ap_run_create_request(r);
-    r->per_dir_config  = r->server->lookup_defaults;
-
-    r->sent_bodyct     = 0;                      /* bytect isn't for body */
-
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
-
-    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
-    r->the_request     = NULL;
-
-    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-
-    /* Get the request... */
-    if (!read_request_line(r, tmp_bb)) {
-        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: URI too long");
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
-
-        apr_brigade_destroy(tmp_bb);
-        return NULL;
+    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy 
+     * processing one */
+    sigaddset(&sa.sa_mask, SIGHUP);
+    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+    sa.sa_handler = restart;
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+#else
+    if (!one_process) {
+        apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+        apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+        apr_signal(SIGABORT, sig_coredump);
+#endif /* SIGABORT */
+#ifdef SIGABRT
+        apr_signal(SIGABRT, sig_coredump);
+#endif /* SIGABRT */
+#ifdef SIGILL
+        apr_signal(SIGILL, sig_coredump);
+#endif /* SIGILL */
+#ifdef SIGXCPU
+        apr_signal(SIGXCPU, SIG_DFL);
+#endif /* SIGXCPU */
+#ifdef SIGXFSZ
+        apr_signal(SIGXFSZ, SIG_DFL);
+#endif /* SIGXFSZ */
     }
 
-    if (!r->assbackwards) {
-        ap_get_mime_headers_core(r, tmp_bb);
-        if (r->status != HTTP_REQUEST_TIME_OUT) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
-    }
-    else {
-        if (r->header_only) {
-            /*
-             * Client asked for headers only with HTTP/0.9, which doesn't send
-             * headers! Have to dink things just to make sure the error message
-             * comes through...
-             */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "client sent invalid HTTP/0.9 request: HEAD %s",
-                          r->uri);
-            r->header_only = 0;
-            r->status = HTTP_BAD_REQUEST;
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
-    }
+    apr_signal(SIGTERM, sig_term);
+#ifdef SIGHUP
+    apr_signal(SIGHUP, restart);
+#endif /* SIGHUP */
+#ifdef AP_SIG_GRACEFUL
+    apr_signal(AP_SIG_GRACEFUL, restart);
+#endif /* AP_SIG_GRACEFUL */
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);
+#endif /* SIGPIPE */
 
-    apr_brigade_destroy(tmp_bb);
-
-    r->status = HTTP_OK;                         /* Until further notice. */
-
-    /* update what we think the virtual host is based on the headers we've
-     * now read. may update status.
-     */
-    ap_update_vhost_from_headers(r);
-
-    /* we may have switched to another server */
-    r->per_dir_config = r->server->lookup_defaults;
-
-    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
-        || ((r->proto_num == HTTP_VERSION(1, 1))
-            && !apr_table_get(r->headers_in, "Host"))) {
-        /*
-         * Client sent us an HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-         * a Host: header, and the server MUST respond with 400 if it doesn't.
-         */
-        r->status = HTTP_BAD_REQUEST;
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "client sent HTTP/1.1 request without hostname "
-                      "(see RFC2616 section 14.23): %s", r->uri);
-    }
-
-    if (r->status != HTTP_OK) {
-        ap_send_error_response(r, 0);
-        ap_run_log_transaction(r);
-        return r;
-    }
-
-    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
-        && (expect[0] != '\0')) {
-        /*
-         * The Expect header field was added to HTTP/1.1 after RFC 2068
-         * as a means to signal when a 100 response is desired and,
-         * unfortunately, to signal a poor man's mandatory extension that
-         * the server must understand or return 417 Expectation Failed.
-         */
-        if (strcasecmp(expect, "100-continue") == 0) {
-            r->expecting_100 = 1;
-        }
-        else {
-            r->status = HTTP_EXPECTATION_FAILED;
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "client sent an unrecognized expectation value of "
-                          "Expect: %s", expect);
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            return r;
-        }
-    }
-
-    ap_add_input_filter_handle(ap_http_input_filter_handle,
-                               NULL, r, r->connection);
-
-    if ((access_status = ap_run_post_read_request(r))) {
-        ap_die(access_status, r);
-        ap_run_log_transaction(r);
-        return NULL;
-    }
-
-    return r;
+#endif
 }

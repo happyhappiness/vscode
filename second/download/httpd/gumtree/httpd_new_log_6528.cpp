@@ -1,1 +1,2 @@
-fprintf(stderr, "    -T content-type Content-type header to use for POST/PUT data, eg.\n");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00717)
+                          "Premature end of cache headers.");

@@ -1,1 +1,1 @@
-die(_("invalid path '%s'"), new_name);
+error("Version %d not supported", *chosen_version);

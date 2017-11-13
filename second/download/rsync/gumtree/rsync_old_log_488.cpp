@@ -1,2 +1,1 @@
-fprintf(FINFO, "false_alarms=%d tag_hits=%d matches=%d\n",
-			false_alarms, tag_hits, matches);
+fprintf(f,"-W, --whole-file         copy whole files, no incremental checks\n");

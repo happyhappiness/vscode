@@ -1,96 +1,195 @@
-static int stapling_check_response(server_rec *s, modssl_ctx_t *mctx,
-                                   certinfo *cinf, OCSP_RESPONSE *rsp,
-                                   BOOL *pok)
+static int worker_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s)
 {
-    int status = V_OCSP_CERTSTATUS_UNKNOWN;
-    int reason = OCSP_REVOKED_STATUS_NOSTATUS;
-    OCSP_BASICRESP *bs = NULL;
-    ASN1_GENERALIZEDTIME *rev, *thisupd, *nextupd;
-    int response_status = OCSP_response_status(rsp);
-    int rv = SSL_TLSEXT_ERR_OK;
+    int remaining_children_to_start;
+    apr_status_t rv;
 
-    if (pok)
-        *pok = FALSE;
-    /* Check to see if response is an error. If so we automatically accept
-     * it because it would have expired from the cache if it was time to
-     * retry.
+    ap_log_pid(pconf, ap_pid_fname);
+
+    /* Initialize cross-process accept lock */
+    rv = ap_proc_mutex_create(&accept_mutex, NULL, AP_ACCEPT_MUTEX_TYPE, NULL,
+                              s, _pconf, 0);
+    if (rv != APR_SUCCESS) {
+        mpm_state = AP_MPMQ_STOPPING;
+        return DONE;
+    }
+
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
+            mpm_state = AP_MPMQ_STOPPING;
+            return DONE;
+        }
+        /* fix the generation number in the global score; we just got a new,
+         * cleared scoreboard
+         */
+        ap_scoreboard_image->global->running_generation = my_generation;
+    }
+
+    set_signals();
+    /* Don't thrash... */
+    if (max_spare_threads < min_spare_threads + threads_per_child)
+        max_spare_threads = min_spare_threads + threads_per_child;
+
+    /* If we're doing a graceful_restart then we're going to see a lot
+     * of children exiting immediately when we get into the main loop
+     * below (because we just sent them AP_SIG_GRACEFUL).  This happens pretty
+     * rapidly... and for each one that exits we may start a new one, until
+     * there are at least min_spare_threads idle threads, counting across
+     * all children.  But we may be permitted to start more children than
+     * that, so we'll just keep track of how many we're
+     * supposed to start up without the 1 second penalty between each fork.
      */
-    if (response_status != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
-        if (mctx->stapling_return_errors)
-            return SSL_TLSEXT_ERR_OK;
-        else
-            return SSL_TLSEXT_ERR_NOACK;
+    remaining_children_to_start = ap_daemons_to_start;
+    if (remaining_children_to_start > ap_daemons_limit) {
+        remaining_children_to_start = ap_daemons_limit;
     }
-
-    bs = OCSP_response_get1_basic(rsp);
-    if (bs == NULL) {
-        /* If we can't parse response just pass it to client */
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01934)
-                     "stapling_check_response: Error Parsing Response!");
-        return SSL_TLSEXT_ERR_OK;
-    }
-
-    if (!OCSP_resp_find_status(bs, cinf->cid, &status, &reason, &rev,
-                               &thisupd, &nextupd)) {
-        /* If ID not present pass back to client (if configured so) */
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01935)
-                     "stapling_check_response: certificate ID not present in response!");
-        if (mctx->stapling_return_errors == FALSE)
-            rv = SSL_TLSEXT_ERR_NOACK;
+    if (!is_graceful) {
+        startup_children(remaining_children_to_start);
+        remaining_children_to_start = 0;
     }
     else {
-        if (OCSP_check_validity(thisupd, nextupd,
-                                mctx->stapling_resptime_skew,
-                                mctx->stapling_resp_maxage)) {
-            if (pok)
-                *pok = TRUE;
-        }
-        else {
-            /* If pok is not NULL response was direct from a responder and
-             * the times should be valide. If pok is NULL the response was
-             * retrieved from cache and it is expected to subsequently expire
-             */
-            if (pok) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01936)
-                             "stapling_check_response: response times invalid");
-            }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01937)
-                             "stapling_check_response: cached response expired");
-            }
-
-            rv = SSL_TLSEXT_ERR_NOACK;
-        }
-
-        if (status != V_OCSP_CERTSTATUS_GOOD) {
-            char snum[MAX_STRING_LEN] = { '\0' };
-            BIO *bio = BIO_new(BIO_s_mem());
-
-            if (bio) {
-                int n;
-                if ((i2a_ASN1_INTEGER(bio, cinf->cid->serialNumber) != -1) &&
-                    ((n = BIO_read(bio, snum, sizeof snum - 1)) > 0))
-                    snum[n] = '\0';
-                BIO_free(bio);
-            }
-
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02969)
-                         "stapling_check_response: response has certificate "
-                         "status %s (reason: %s) for serial number %s",
-                         OCSP_cert_status_str(status),
-                         (reason != OCSP_REVOKED_STATUS_NOSTATUS) ?
-                         OCSP_crl_reason_str(reason) : "n/a",
-                         snum[0] ? snum : "[n/a]");
-
-            if (mctx->stapling_return_errors == FALSE) {
-                if (pok)
-                    *pok = FALSE;
-                rv = SSL_TLSEXT_ERR_NOACK;
-            }
-        }
+        /* give the system some time to recover before kicking into
+            * exponential mode */
+        hold_off_on_exponential_spawning = 10;
     }
 
-    OCSP_BASICRESP_free(bs);
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());
+    ap_log_command_line(plog, s);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                "Accept mutex: %s (default: %s)",
+                apr_proc_mutex_name(accept_mutex),
+                apr_proc_mutex_defname());
+    restart_pending = shutdown_pending = 0;
+    mpm_state = AP_MPMQ_RUNNING;
 
-    return rv;
+    server_main_loop(remaining_children_to_start);
+    mpm_state = AP_MPMQ_STOPPING;
+
+    if (shutdown_pending && !is_graceful) {
+        /* Time to shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         */
+        ap_worker_pod_killpg(pod, ap_daemons_limit, FALSE);
+        ap_reclaim_child_processes(1);                /* Start with SIGTERM */
+
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            const char *pidfile = NULL;
+            pidfile = ap_server_root_relative (pconf, ap_pid_fname);
+            if ( pidfile != NULL && unlink(pidfile) == 0)
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%" APR_PID_T_FMT ")",
+                             pidfile, getpid());
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");
+        }
+        return DONE;
+    } else if (shutdown_pending) {
+        /* Time to gracefully shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         */
+        int active_children;
+        int index;
+        apr_time_t cutoff = 0;
+
+        /* Close our listeners, and then ask our children to do same */
+        ap_close_listeners();
+        ap_worker_pod_killpg(pod, ap_daemons_limit, TRUE);
+        ap_relieve_child_processes();
+
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            const char *pidfile = NULL;
+            pidfile = ap_server_root_relative (pconf, ap_pid_fname);
+            if ( pidfile != NULL && unlink(pidfile) == 0)
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%" APR_PID_T_FMT ")",
+                             pidfile, getpid());
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "caught " AP_SIG_GRACEFUL_STOP_STRING
+                         ", shutting down gracefully");
+        }
+
+        if (ap_graceful_shutdown_timeout) {
+            cutoff = apr_time_now() +
+                     apr_time_from_sec(ap_graceful_shutdown_timeout);
+        }
+
+        /* Don't really exit until each child has finished */
+        shutdown_pending = 0;
+        do {
+            /* Pause for a second */
+            apr_sleep(apr_time_from_sec(1));
+
+            /* Relieve any children which have now exited */
+            ap_relieve_child_processes();
+
+            active_children = 0;
+            for (index = 0; index < ap_daemons_limit; ++index) {
+                if (ap_mpm_safe_kill(MPM_CHILD_PID(index), 0) == APR_SUCCESS) {
+                    active_children = 1;
+                    /* Having just one child is enough to stay around */
+                    break;
+                }
+            }
+        } while (!shutdown_pending && active_children &&
+                 (!ap_graceful_shutdown_timeout || apr_time_now() < cutoff));
+
+        /* We might be here because we received SIGTERM, either
+         * way, try and make sure that all of our processes are
+         * really dead.
+         */
+        ap_worker_pod_killpg(pod, ap_daemons_limit, FALSE);
+        ap_reclaim_child_processes(1);
+
+        return DONE;
+    }
+
+    /* we've been told to restart */
+    apr_signal(SIGHUP, SIG_IGN);
+
+    if (one_process) {
+        /* not worth thinking about */
+        return DONE;
+    }
+
+    /* advance to the next generation */
+    /* XXX: we really need to make sure this new generation number isn't in
+     * use by any of the children.
+     */
+    ++my_generation;
+    ap_scoreboard_image->global->running_generation = my_generation;
+
+    if (is_graceful) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
+        /* wake up the children...time to die.  But we'll have more soon */
+        ap_worker_pod_killpg(pod, ap_daemons_limit, TRUE);
+
+
+        /* This is mostly for debugging... so that we know what is still
+         * gracefully dealing with existing request.
+         */
+
+    }
+    else {
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+        ap_worker_pod_killpg(pod, ap_daemons_limit, FALSE);
+
+        ap_reclaim_child_processes(1);                /* Start with SIGTERM */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                    "SIGHUP received.  Attempting to restart");
+    }
+
+    return OK;
 }

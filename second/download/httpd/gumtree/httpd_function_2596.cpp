@@ -1,104 +1,96 @@
-static void ssl_filter_io_shutdown(ssl_filter_ctx_t *filter_ctx,
-                                   conn_rec *c, int abortive)
+static int proxy_ajp_handler(request_rec *r, proxy_worker *worker,
+                             proxy_server_conf *conf,
+                             char *url, const char *proxyname,
+                             apr_port_t proxyport)
 {
-    SSL *ssl = filter_ctx->pssl;
-    const char *type = "";
-    SSLConnRec *sslconn = myConnConfig(c);
-    int shutdown_type;
-    int loglevel = APLOG_DEBUG;
-
-    if (!ssl) {
-        return;
-    }
+    int status;
+    char server_portstr[32];
+    conn_rec *origin = NULL;
+    proxy_conn_rec *backend = NULL;
+    const char *scheme = "AJP";
+    proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+                                                 &proxy_module);
 
     /*
-     * Now close the SSL layer of the connection. We've to take
-     * the TLSv1 standard into account here:
+     * Note: Memory pool allocation.
+     * A downstream keepalive connection is always connected to the existence
+     * (or not) of an upstream keepalive connection. If this is not done then
+     * load balancing against multiple backend servers breaks (one backend
+     * server ends up taking 100% of the load), and the risk is run of
+     * downstream keepalive connections being kept open unnecessarily. This
+     * keeps webservers busy and ties up resources.
      *
-     * | 7.2.1. Closure alerts
-     * |
-     * | The client and the server must share knowledge that the connection is
-     * | ending in order to avoid a truncation attack. Either party may
-     * | initiate the exchange of closing messages.
-     * |
-     * | close_notify
-     * |     This message notifies the recipient that the sender will not send
-     * |     any more messages on this connection. The session becomes
-     * |     unresumable if any connection is terminated without proper
-     * |     close_notify messages with level equal to warning.
-     * |
-     * | Either party may initiate a close by sending a close_notify alert.
-     * | Any data received after a closure alert is ignored.
-     * |
-     * | Each party is required to send a close_notify alert before closing
-     * | the write side of the connection. It is required that the other party
-     * | respond with a close_notify alert of its own and close down the
-     * | connection immediately, discarding any pending writes. It is not
-     * | required for the initiator of the close to wait for the responding
-     * | close_notify alert before closing the read side of the connection.
-     *
-     * This means we've to send a close notify message, but haven't to wait
-     * for the close notify of the client. Actually we cannot wait for the
-     * close notify of the client because some clients (including Netscape
-     * 4.x) don't send one, so we would hang.
+     * As a result, we allocate all sockets out of the upstream connection
+     * pool, and when we want to reuse a socket, we check first whether the
+     * connection ID of the current upstream connection is the same as that
+     * of the connection when the socket was opened.
      */
+    apr_pool_t *p = r->connection->pool;
+    apr_uri_t *uri = apr_palloc(r->connection->pool, sizeof(*uri));
 
-    /*
-     * exchange close notify messages, but allow the user
-     * to force the type of handshake via SetEnvIf directive
-     */
-    if (abortive) {
-        shutdown_type = SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN;
-        type = "abortive";
-        loglevel = APLOG_INFO;
+
+    if (strncasecmp(url, "ajp:", 4) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: AJP: declining URL %s", url);
+        return DECLINED;
     }
-    else switch (sslconn->shutdown_type) {
-      case SSL_SHUTDOWN_TYPE_UNCLEAN:
-        /* perform no close notify handshake at all
-           (violates the SSL/TLS standard!) */
-        shutdown_type = SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN;
-        type = "unclean";
-        break;
-      case SSL_SHUTDOWN_TYPE_ACCURATE:
-        /* send close notify and wait for clients close notify
-           (standard compliant, but usually causes connection hangs) */
-        shutdown_type = 0;
-        type = "accurate";
-        break;
-      default:
-        /*
-         * case SSL_SHUTDOWN_TYPE_UNSET:
-         * case SSL_SHUTDOWN_TYPE_STANDARD:
-         */
-        /* send close notify, but don't wait for clients close notify
-           (standard compliant and safe, so it's the DEFAULT!) */
-        shutdown_type = SSL_RECEIVED_SHUTDOWN;
-        type = "standard";
-        break;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: AJP: serving URL %s", url);
+
+    /* create space for state information */
+    if (!backend) {
+        status = ap_proxy_acquire_connection(scheme, &backend, worker,
+                                             r->server);
+        if (status != OK) {
+            if (backend) {
+                backend->close_on_recycle = 1;
+                ap_proxy_release_connection(scheme, backend, r->server);
+            }
+            return status;
+        }
     }
 
-    SSL_set_shutdown(ssl, shutdown_type);
-    SSL_smart_shutdown(ssl);
+    backend->is_ssl = 0;
+    backend->close_on_recycle = 0;
 
-    /* and finally log the fact that we've closed the connection */
-    if (APLOG_C_IS_LEVEL(c, loglevel)) {
-        ap_log_cerror(APLOG_MARK, loglevel, 0, c,
-                      "Connection closed to child %ld with %s shutdown "
-                      "(server %s)",
-                      c->id, type, ssl_util_vhostid(c->pool, mySrvFromConn(c)));
+    /* Step One: Determine Who To Connect To */
+    status = ap_proxy_determine_connection(p, r, conf, worker, backend,
+                                           uri, &url, proxyname, proxyport,
+                                           server_portstr,
+                                           sizeof(server_portstr));
+
+    if (status != OK)
+        goto cleanup;
+
+    /* Step Two: Make the Connection */
+    if (ap_proxy_connect_backend(scheme, backend, worker, r->server)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "proxy: AJP: failed to make connection to backend: %s",
+                     backend->hostname);
+        status = HTTP_SERVICE_UNAVAILABLE;
+        goto cleanup;
     }
 
-    /* deallocate the SSL connection */
-    if (sslconn->client_cert) {
-        X509_free(sslconn->client_cert);
-        sslconn->client_cert = NULL;
+    /* Handle CPING/CPONG */
+    if (worker->ping_timeout_set) {
+        status = ajp_handle_cping_cpong(backend->sock, r,
+                                        worker->ping_timeout);
+        if (status != APR_SUCCESS) {
+            backend->close++;
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: AJP: cping/cpong failed to %pI (%s)",
+                         worker->cp->addr,
+                         worker->hostname);
+            status = HTTP_SERVICE_UNAVAILABLE;
+            goto cleanup;
+        }
     }
-    SSL_free(ssl);
-    sslconn->ssl = NULL;
-    filter_ctx->pssl = NULL; /* so filters know we've been shutdown */
+    /* Step Three: Process the Request */
+    status = ap_proxy_ajp_request(p, r, backend, origin, dconf, uri, url,
+                                  server_portstr);
 
-    if (abortive) {
-        /* prevent any further I/O */
-        c->aborted = 1;
-    }
+cleanup:
+    /* Do not close the socket */
+    ap_proxy_release_connection(scheme, backend, r->server);
+    return status;
 }

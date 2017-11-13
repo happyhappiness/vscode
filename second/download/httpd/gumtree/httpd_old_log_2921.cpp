@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "%s is not executable; ensure interpreted scripts have "
-                      "\"#!\" first line", *cmd);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving now with %u bytes in the cache and %u indexes",
+                 shmcb_get_safe_uint(cache->pos_count),
+                 shmcb_get_safe_uint(queue->pos_count));

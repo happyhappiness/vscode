@@ -1,82 +1,118 @@
-static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static apr_status_t send_environment(proxy_conn_rec *conn, request_rec *r,
+                                     apr_pool_t *temp_pool,
+                                     apr_uint16_t request_id)
 {
-    static int restart_num = 0;
-    int startup = 0;
+    const apr_array_header_t *envarr;
+    const apr_table_entry_t *elts;
+    struct iovec vec[2];
+    ap_fcgi_header header;
+    unsigned char farray[AP_FCGI_HEADER_LEN];
+    char *body;
+    apr_status_t rv;
+    apr_size_t avail_len, len, required_len;
+    int next_elem, starting_elem;
+    char *proxyfilename = r->filename;
+    fcgi_req_config_t *rconf = ap_get_module_config(r->request_config, &proxy_fcgi_module);
 
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
+    if (rconf) { 
+       if (rconf->need_dirwalk) { 
+          ap_directory_walk(r);
+       }
     }
 
-    if (ap_threads_limit > HARD_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00228)
-                         "WARNING: MaxThreads of %d exceeds compile-time "
-                         "limit of", ap_threads_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the HARD_THREAD_LIMIT"
-                         "define in");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00229)
-                         "MaxThreads of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         ap_threads_limit, HARD_THREAD_LIMIT);
+    /* Strip balancer prefix */
+    if (r->filename && !strncmp(r->filename, "proxy:balancer://", 17)) { 
+        char *newfname = apr_pstrdup(r->pool, r->filename+17);
+        newfname = ap_strchr(newfname, '/');
+        r->filename = newfname;
+    }
+
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+ 
+    r->filename = proxyfilename;
+
+    /* XXX are there any FastCGI specific env vars we need to send? */
+
+    /* XXX mod_cgi/mod_cgid use ap_create_environment here, which fills in
+     *     the TZ value specially.  We could use that, but it would mean
+     *     parsing the key/value pairs back OUT of the allocated env array,
+     *     not to mention allocating a totally useless array in the first
+     *     place, which would suck. */
+
+    envarr = apr_table_elts(r->subprocess_env);
+    elts = (const apr_table_entry_t *) envarr->elts;
+
+#ifdef FCGI_DUMP_ENV_VARS
+    {
+        int i;
+        
+        for (i = 0; i < envarr->nelts; ++i) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01062)
+                          "sending env var '%s' value '%s'",
+                          elts[i].key, elts[i].val);
         }
-        ap_threads_limit = HARD_THREAD_LIMIT;
     }
-    else if (ap_threads_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         APLOGNO(00230) "WARNING: MaxThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(02661)
-                         "MaxThreads of %d not allowed, increasing to 1",
-                         ap_threads_limit);
+#endif
+
+    /* Send envvars over in as many FastCGI records as it takes, */
+    next_elem = 0; /* starting with the first one */
+
+    avail_len = 16 * 1024; /* our limit per record, which could have been up
+                            * to AP_FCGI_MAX_CONTENT_LEN
+                            */
+
+    while (next_elem < envarr->nelts) {
+        starting_elem = next_elem;
+        required_len = ap_fcgi_encoded_env_len(r->subprocess_env,
+                                               avail_len,
+                                               &next_elem);
+
+        if (!required_len) {
+            if (next_elem < envarr->nelts) {
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              APLOGNO(02536) "couldn't encode envvar '%s' in %"
+                              APR_SIZE_T_FMT " bytes",
+                              elts[next_elem].key, avail_len);
+                /* skip this envvar and continue */
+                ++next_elem;
+                continue;
+            }
+            /* only an unused element at the end of the array */
+            break;
         }
-        ap_threads_limit = 1;
-    }
 
-    /* ap_threads_to_start > ap_threads_limit effectively checked in
-     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
-     */
-    if (ap_threads_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00231)
-                         "WARNING: StartThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00232)
-                         "StartThreads of %d not allowed, increasing to 1",
-                         ap_threads_to_start);
+        body = apr_palloc(temp_pool, required_len);
+        rv = ap_fcgi_encode_env(r, r->subprocess_env, body, required_len,
+                                &starting_elem);
+        /* we pre-compute, so we can't run out of space */
+        ap_assert(rv == APR_SUCCESS);
+        /* compute and encode must be in sync */
+        ap_assert(starting_elem == next_elem);
+
+        ap_fcgi_fill_in_header(&header, AP_FCGI_PARAMS, request_id,
+                               (apr_uint16_t)required_len, 0);
+        ap_fcgi_header_to_array(&header, farray);
+
+        vec[0].iov_base = (void *)farray;
+        vec[0].iov_len = sizeof(farray);
+        vec[1].iov_base = body;
+        vec[1].iov_len = required_len;
+
+        rv = send_data(conn, vec, 2, &len);
+        apr_pool_clear(temp_pool);
+
+        if (rv) {
+            return rv;
         }
-        ap_threads_to_start = 1;
     }
 
-    if (ap_threads_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00233)
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_threads_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00234)
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_threads_min_free);
-        }
-        ap_threads_min_free = 1;
-    }
+    /* Envvars sent, so say we're done */
+    ap_fcgi_fill_in_header(&header, AP_FCGI_PARAMS, request_id, 0, 0);
+    ap_fcgi_header_to_array(&header, farray);
 
-    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
+    vec[0].iov_base = (void *)farray;
+    vec[0].iov_len = sizeof(farray);
 
-    return OK;
+    return send_data(conn, vec, 1, &len);
 }

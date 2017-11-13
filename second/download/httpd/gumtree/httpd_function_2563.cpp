@@ -1,93 +1,105 @@
-static void basic_http_header(request_rec *r, apr_bucket_brigade *bb,
-                              const char *protocol)
+static void doRotate(rotate_config_t *config, rotate_status_t *status)
 {
-    char *date;
-    const char *proxy_date = NULL;
-    const char *server = NULL;
-    const char *us = ap_get_server_banner();
-    header_struct h;
-    struct iovec vec[4];
 
-    if (r->assbackwards) {
-        /* there are no headers to send */
-        return;
-    }
+    int now = get_now(config);
+    int tLogStart;
+    apr_status_t rv;
 
-    /* Output the HTTP/1.x Status-Line and the Date and Server fields */
+    status->rotateReason = ROTATE_NONE;
+    status->nLogFDprev = status->nLogFD;
+    status->nLogFD = NULL;
+    status->pfile_prev = status->pfile;
 
-    vec[0].iov_base = (void *)protocol;
-    vec[0].iov_len  = strlen(protocol);
-    vec[1].iov_base = (void *)" ";
-    vec[1].iov_len  = sizeof(" ") - 1;
-    vec[2].iov_base = (void *)(r->status_line);
-    vec[2].iov_len  = strlen(r->status_line);
-    vec[3].iov_base = (void *)CRLF;
-    vec[3].iov_len  = sizeof(CRLF) - 1;
-#if APR_CHARSET_EBCDIC
-    {
-        char *tmp;
-        apr_size_t len;
-        tmp = apr_pstrcatv(r->pool, vec, 4, &len);
-        ap_xlate_proto_to_ascii(tmp, len);
-        apr_brigade_write(bb, NULL, NULL, tmp, len);
-    }
-#else
-    apr_brigade_writev(bb, NULL, NULL, vec, 4);
-#endif
-
-    h.pool = r->pool;
-    h.bb = bb;
-
-    /*
-     * keep the set-by-proxy server and date headers, otherwise
-     * generate a new server header / date header
-     */
-    if (r->proxyreq != PROXYREQ_NONE) {
-        proxy_date = apr_table_get(r->headers_out, "Date");
-        if (!proxy_date) {
-            /*
-             * proxy_date needs to be const. So use date for the creation of
-             * our own Date header and pass it over to proxy_date later to
-             * avoid a compiler warning.
-             */
-            date = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
-            ap_recent_rfc822_date(date, r->request_time);
+    if (config->tRotation) {
+        int tLogEnd;
+        tLogStart = (now / config->tRotation) * config->tRotation;
+        tLogEnd = tLogStart + config->tRotation;
+        /*
+         * Check if rotation was forced and the last rotation
+         * interval is not yet over. Use the value of now instead
+         * of the time interval boundary for the file name then.
+         */
+        if (tLogStart < status->tLogEnd) {
+            tLogStart = now;
         }
-        server = apr_table_get(r->headers_out, "Server");
+        status->tLogEnd = tLogEnd;
     }
     else {
-        date = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
-        ap_recent_rfc822_date(date, r->request_time);
+        tLogStart = now;
     }
 
-    form_header_field(&h, "Date", proxy_date ? proxy_date : date );
+    if (config->use_strftime) {
+        apr_time_t tNow = apr_time_from_sec(tLogStart);
+        apr_time_exp_t e;
+        apr_size_t rs;
 
-    if (!server && *us)
-        server = us;
-    if (server)
-        form_header_field(&h, "Server", server);
-
-    if (APLOGrtrace3(r)) {
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "Response sent with status %d%s",
-		      r->status,
-		      APLOGrtrace4(r) ? ", headers:" : "");
-
-        /*
-         * Date and Server are less interesting, use TRACE5 for them while
-         * using TRACE4 for the other headers.
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  %s: %s", "Date",
-                      proxy_date ? proxy_date : date );
-        if (server)
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  %s: %s", "Server",
-                          server);
+        apr_time_exp_gmt(&e, tNow);
+        apr_strftime(status->filename, &rs, sizeof(status->filename), config->szLogRoot, &e);
     }
+    else {
+        if (config->truncate) {
+            apr_snprintf(status->filename, sizeof(status->filename), "%s", config->szLogRoot);
+        }
+        else {
+            apr_snprintf(status->filename, sizeof(status->filename), "%s.%010d", config->szLogRoot,
+                    tLogStart);
+        }
+    }
+    apr_pool_create(&status->pfile, status->pool);
+    if (config->verbose) {
+        fprintf(stderr, "Opening file %s\n", status->filename);
+    }
+    rv = apr_file_open(&status->nLogFD, status->filename, APR_WRITE | APR_CREATE | APR_APPEND
+                       | (config->truncate ? APR_TRUNCATE : 0), APR_OS_DEFAULT, status->pfile);
+    if (rv != APR_SUCCESS) {
+        char error[120];
 
+        apr_strerror(rv, error, sizeof error);
 
-    /* unset so we don't send them again */
-    apr_table_unset(r->headers_out, "Date");        /* Avoid bogosity */
-    if (server) {
-        apr_table_unset(r->headers_out, "Server");
+        /* Uh-oh. Failed to open the new log file. Try to clear
+         * the previous log file, note the lost log entries,
+         * and keep on truckin'. */
+        if (status->nLogFDprev == NULL) {
+            fprintf(stderr, "Could not open log file '%s' (%s)\n", status->filename, error);
+            exit(2);
+        }
+        else {
+            apr_size_t nWrite;
+            status->nLogFD = status->nLogFDprev;
+            apr_pool_destroy(status->pfile);
+            status->pfile = status->pfile_prev;
+            /* Try to keep this error message constant length
+             * in case it occurs several times. */
+            apr_snprintf(status->errbuf, sizeof status->errbuf,
+                         "Resetting log file due to error opening "
+                         "new log file, %10d messages lost: %-25.25s\n",
+                         status->nMessCount, error);
+            nWrite = strlen(status->errbuf);
+            apr_file_trunc(status->nLogFD, 0);
+            if (apr_file_write(status->nLogFD, status->errbuf, &nWrite) != APR_SUCCESS) {
+                fprintf(stderr, "Error writing to the file %s\n", status->filename);
+                exit(2);
+            }
+        }
+    }
+    else {
+        closeFile(config, status->pfile_prev, status->nLogFDprev);
+        status->nLogFDprev = NULL;
+        status->pfile_prev = NULL;
+    }
+    status->nMessCount = 0;
+    if (config->linkfile) {
+        apr_file_remove(config->linkfile, status->pfile);
+        if (config->verbose) {
+            fprintf(stderr,"Linking %s to %s\n", status->filename, config->linkfile);
+        }
+        rv = apr_file_link(status->filename, config->linkfile);
+        if (rv != APR_SUCCESS) {
+            char error[120];
+            apr_strerror(rv, error, sizeof error);
+            fprintf(stderr, "Error linking file %s to %s (%s)\n",
+                    status->filename, config->linkfile, error);
+            exit(2);
+        }
     }
 }

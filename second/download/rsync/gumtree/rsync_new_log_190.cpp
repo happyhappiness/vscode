@@ -1,1 +1,1 @@
-fprintf(FERROR,"fstat failed : %s\n",strerror(errno));
+fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));

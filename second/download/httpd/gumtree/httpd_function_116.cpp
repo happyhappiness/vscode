@@ -1,37 +1,64 @@
-long ssl_io_data_cb(BIO *bio, int cmd,
-                    MODSSL_BIO_CB_ARG_TYPE *argp,
-                    int argi, long argl, long rc)
+static apr_status_t ssl_filter_write(ap_filter_t *f,
+                                     const char *data,
+                                     apr_size_t len)
 {
-    SSL *ssl;
-    conn_rec *c;
-    server_rec *s;
+    ssl_filter_ctx_t *filter_ctx = f->ctx;
+    bio_filter_out_ctx_t *outctx = 
+           (bio_filter_out_ctx_t *)(filter_ctx->pbioWrite->ptr);
+    int res;
 
-    if ((ssl = (SSL *)BIO_get_callback_arg(bio)) == NULL)
-        return rc;
-    if ((c = (conn_rec *)SSL_get_app_data(ssl)) == NULL)
-        return rc;
-    s = c->base_server;
+    /* write SSL */
+    if (filter_ctx->pssl == NULL) {
+        return APR_EGENERAL;
+    }
 
-    if (   cmd == (BIO_CB_WRITE|BIO_CB_RETURN)
-        || cmd == (BIO_CB_READ |BIO_CB_RETURN) ) {
-        if (rc >= 0) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "%s: %s %ld/%d bytes %s BIO#%p [mem: %p] %s",
-                    SSL_LIBRARY_NAME,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    rc, argi, (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "to" : "from"),
-                    bio, argp,
-                    (argp != NULL ? "(BIO dump follows)" : "(Oops, no memory buffer?)"));
-            if (argp != NULL)
-                ssl_io_data_dump(s, argp, rc);
+    res = SSL_write(filter_ctx->pssl, (unsigned char *)data, len);
+
+    if (res < 0) {
+        int ssl_err = SSL_get_error(filter_ctx->pssl, res);
+        conn_rec *c = (conn_rec*)SSL_get_app_data(outctx->filter_ctx->pssl);
+
+        if (ssl_err == SSL_ERROR_WANT_WRITE) {
+            /*
+             * If OpenSSL wants to write more, and we were nonblocking,
+             * report as an EAGAIN.  Otherwise loop, pushing more
+             * data at the network filter.
+             *
+             * (This is usually the case when the client forces an SSL
+             * renegotation which is handled implicitly by OpenSSL.)
+             */
+            outctx->rc = APR_EAGAIN;
         }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "%s: I/O error, %d bytes expected to %s on BIO#%p [mem: %p]",
-                    SSL_LIBRARY_NAME, argi,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    bio, argp);
+        else if (ssl_err == SSL_ERROR_SYSCALL) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                        "SSL output filter write failed.");
+        }
+        else /* if (ssl_err == SSL_ERROR_SSL) */ {
+            /*
+             * Log SSL errors
+             */
+            ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                         "SSL library error %d writing data", ssl_err);
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
+        }
+        if (outctx->rc == APR_SUCCESS) {
+            outctx->rc = APR_EGENERAL;
         }
     }
-    return rc;
+    else if ((apr_size_t)res != len) {
+        conn_rec *c = f->c;
+        char *reason = "reason unknown";
+
+        /* XXX: probably a better way to determine this */
+        if (SSL_total_renegotiations(filter_ctx->pssl)) {
+            reason = "likely due to failed renegotiation";
+        }
+
+        ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                     "failed to write %d of %d bytes (%s)",
+                     len - (apr_size_t)res, len, reason);
+
+        outctx->rc = APR_EGENERAL;
+    }
+    return outctx->rc;
 }

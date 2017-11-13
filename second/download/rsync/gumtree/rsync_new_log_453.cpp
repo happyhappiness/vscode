@@ -1,1 +1,1 @@
-setlinebuf(stderr);
+rprintf(FINFO,"%s ",args[i]);

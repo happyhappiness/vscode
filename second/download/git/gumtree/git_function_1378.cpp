@@ -1,56 +1,49 @@
-static void print_highlight_menu_stuff(struct menu_stuff *stuff, int **chosen)
+struct object *parse_object_buffer(const unsigned char *sha1, enum object_type type, unsigned long size, void *buffer, int *eaten_p)
 {
-	struct string_list menu_list = STRING_LIST_INIT_DUP;
-	struct strbuf menu = STRBUF_INIT;
-	struct strbuf buf = STRBUF_INIT;
-	struct menu_item *menu_item;
-	struct string_list_item *string_list_item;
-	int i;
+	struct object *obj;
+	*eaten_p = 0;
 
-	switch (stuff->type) {
-	default:
-		die("Bad type of menu_staff when print menu");
-	case MENU_STUFF_TYPE_MENU_ITEM:
-		menu_item = (struct menu_item *)stuff->stuff;
-		for (i = 0; i < stuff->nr; i++, menu_item++) {
-			const char *p;
-			int highlighted = 0;
-
-			p = menu_item->title;
-			if ((*chosen)[i] < 0)
-				(*chosen)[i] = menu_item->selected ? 1 : 0;
-			strbuf_addf(&menu, "%s%2d: ", (*chosen)[i] ? "*" : " ", i+1);
-			for (; *p; p++) {
-				if (!highlighted && *p == menu_item->hotkey) {
-					strbuf_addstr(&menu, clean_get_color(CLEAN_COLOR_PROMPT));
-					strbuf_addch(&menu, *p);
-					strbuf_addstr(&menu, clean_get_color(CLEAN_COLOR_RESET));
-					highlighted = 1;
-				} else {
-					strbuf_addch(&menu, *p);
-				}
+	obj = NULL;
+	if (type == OBJ_BLOB) {
+		struct blob *blob = lookup_blob(sha1);
+		if (blob) {
+			if (parse_blob_buffer(blob, buffer, size))
+				return NULL;
+			obj = &blob->object;
+		}
+	} else if (type == OBJ_TREE) {
+		struct tree *tree = lookup_tree(sha1);
+		if (tree) {
+			obj = &tree->object;
+			if (!tree->buffer)
+				tree->object.parsed = 0;
+			if (!tree->object.parsed) {
+				if (parse_tree_buffer(tree, buffer, size))
+					return NULL;
+				*eaten_p = 1;
 			}
-			string_list_append(&menu_list, menu.buf);
-			strbuf_reset(&menu);
 		}
-		break;
-	case MENU_STUFF_TYPE_STRING_LIST:
-		i = 0;
-		for_each_string_list_item(string_list_item, (struct string_list *)stuff->stuff) {
-			if ((*chosen)[i] < 0)
-				(*chosen)[i] = 0;
-			strbuf_addf(&menu, "%s%2d: %s",
-				    (*chosen)[i] ? "*" : " ", i+1, string_list_item->string);
-			string_list_append(&menu_list, menu.buf);
-			strbuf_reset(&menu);
-			i++;
+	} else if (type == OBJ_COMMIT) {
+		struct commit *commit = lookup_commit(sha1);
+		if (commit) {
+			if (parse_commit_buffer(commit, buffer, size))
+				return NULL;
+			if (!get_cached_commit_buffer(commit, NULL)) {
+				set_commit_buffer(commit, buffer, size);
+				*eaten_p = 1;
+			}
+			obj = &commit->object;
 		}
-		break;
+	} else if (type == OBJ_TAG) {
+		struct tag *tag = lookup_tag(sha1);
+		if (tag) {
+			if (parse_tag_buffer(tag, buffer, size))
+			       return NULL;
+			obj = &tag->object;
+		}
+	} else {
+		warning("object %s has unknown type id %d", sha1_to_hex(sha1), type);
+		obj = NULL;
 	}
-
-	pretty_print_menus(&menu_list);
-
-	strbuf_release(&menu);
-	strbuf_release(&buf);
-	string_list_clear(&menu_list, 0);
+	return obj;
 }

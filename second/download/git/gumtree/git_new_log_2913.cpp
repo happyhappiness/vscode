@@ -1,1 +1,1 @@
-error_errno("could not lock config file %s", config_filename);
+error_errno("opening %s", config_filename);

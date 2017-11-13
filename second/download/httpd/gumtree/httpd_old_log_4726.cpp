@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the start mutex for the child");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "could not read bucket for SSL buffer");

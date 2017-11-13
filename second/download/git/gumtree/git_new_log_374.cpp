@@ -1,1 +1,1 @@
-print_verbose(args, "have %s", sha1_to_hex(sha1));
+die("missing path for '%s'", oid_to_hex(oid));

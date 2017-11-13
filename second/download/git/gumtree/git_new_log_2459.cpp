@@ -1,1 +1,1 @@
-die(_("a %s revision is needed"), term_bad);
+error("Unknown object type for %s", oid_to_hex(&obj->oid));

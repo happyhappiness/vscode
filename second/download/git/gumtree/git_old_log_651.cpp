@@ -1,1 +1,1 @@
-error(_("no commits parsed."));
+die("BUG: expected exactly one commit from walk");

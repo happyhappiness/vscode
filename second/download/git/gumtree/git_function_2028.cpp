@@ -1,18 +1,54 @@
-int parse_opt_merge_filter(const struct option *opt, const char *arg, int unset)
+static int check_updates(struct unpack_trees_options *o)
 {
-	struct ref_filter *rf = opt->value;
-	unsigned char sha1[20];
+	unsigned cnt = 0, total = 0;
+	struct progress *progress = NULL;
+	struct index_state *index = &o->result;
+	int i;
+	int errs = 0;
 
-	rf->merge = starts_with(opt->long_name, "no")
-		? REF_FILTER_MERGED_OMIT
-		: REF_FILTER_MERGED_INCLUDE;
+	if (o->update && o->verbose_update) {
+		for (total = cnt = 0; cnt < index->cache_nr; cnt++) {
+			const struct cache_entry *ce = index->cache[cnt];
+			if (ce->ce_flags & (CE_UPDATE | CE_WT_REMOVE))
+				total++;
+		}
 
-	if (get_sha1(arg, sha1))
-		die(_("malformed object name %s"), arg);
+		progress = start_progress_delay(_("Checking out files"),
+						total, 50, 1);
+		cnt = 0;
+	}
 
-	rf->merge_commit = lookup_commit_reference_gently(sha1, 0);
-	if (!rf->merge_commit)
-		return opterror(opt, "must point to a commit", 0);
+	if (o->update)
+		git_attr_set_direction(GIT_ATTR_CHECKOUT, &o->result);
+	for (i = 0; i < index->cache_nr; i++) {
+		const struct cache_entry *ce = index->cache[i];
 
-	return 0;
+		if (ce->ce_flags & CE_WT_REMOVE) {
+			display_progress(progress, ++cnt);
+			if (o->update && !o->dry_run)
+				unlink_entry(ce);
+			continue;
+		}
+	}
+	remove_marked_cache_entries(&o->result);
+	remove_scheduled_dirs();
+
+	for (i = 0; i < index->cache_nr; i++) {
+		struct cache_entry *ce = index->cache[i];
+
+		if (ce->ce_flags & CE_UPDATE) {
+			if (ce->ce_flags & CE_WT_REMOVE)
+				die("BUG: both update and delete flags are set on %s",
+				    ce->name);
+			display_progress(progress, ++cnt);
+			ce->ce_flags &= ~CE_UPDATE;
+			if (o->update && !o->dry_run) {
+				errs |= checkout_entry(ce, &state, NULL);
+			}
+		}
+	}
+	stop_progress(&progress);
+	if (o->update)
+		git_attr_set_direction(GIT_ATTR_CHECKIN, NULL);
+	return errs != 0;
 }

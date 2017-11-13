@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, ap_server_conf,
-                     "no record of generation %d", gen);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01936)
+                             "stapling_check_response: response times invalid");

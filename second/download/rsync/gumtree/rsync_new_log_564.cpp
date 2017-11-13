@@ -1,1 +1,1 @@
-rprintf(FINFO,"sender finished %s\n",fname);
+rprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));

@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "Symbolic link not allowed "
-                                      "or link target not accessible: %s",
-                                      r->filename);
+ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, p,
+                     "Syntax error on line %d of %s:",
+                     parms.err_directive->line_num,
+                     parms.err_directive->filename);

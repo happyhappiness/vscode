@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_parse_data: wrong type 0x%02x expecting 0x%02x",
-               result, CMD_AJP13_SEND_BODY_CHUNK);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: checking dn match %s",
+                                  getpid(), dn);

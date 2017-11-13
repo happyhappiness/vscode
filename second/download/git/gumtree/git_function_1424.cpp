@@ -1,30 +1,33 @@
-static void execute_commands_non_atomic(struct command *commands,
-					struct shallow_info *si)
+static int got_sha1(const char *hex, unsigned char *sha1)
 {
-	struct command *cmd;
-	struct strbuf err = STRBUF_INIT;
+	struct object *o;
+	int we_knew_they_have = 0;
 
-	for (cmd = commands; cmd; cmd = cmd->next) {
-		if (!should_process_cmd(cmd))
-			continue;
+	if (get_sha1_hex(hex, sha1))
+		die("git upload-pack: expected SHA1 object, got '%s'", hex);
+	if (!has_sha1_file(sha1))
+		return -1;
 
-		transaction = ref_transaction_begin(&err);
-		if (!transaction) {
-			rp_error("%s", err.buf);
-			strbuf_reset(&err);
-			cmd->error_string = "transaction failed to start";
-			continue;
-		}
-
-		cmd->error_string = update(cmd, si);
-
-		if (!cmd->error_string
-		    && ref_transaction_commit(transaction, &err)) {
-			rp_error("%s", err.buf);
-			strbuf_reset(&err);
-			cmd->error_string = "failed to update ref";
-		}
-		ref_transaction_free(transaction);
+	o = parse_object(sha1);
+	if (!o)
+		die("oops (%s)", sha1_to_hex(sha1));
+	if (o->type == OBJ_COMMIT) {
+		struct commit_list *parents;
+		struct commit *commit = (struct commit *)o;
+		if (o->flags & THEY_HAVE)
+			we_knew_they_have = 1;
+		else
+			o->flags |= THEY_HAVE;
+		if (!oldest_have || (commit->date < oldest_have))
+			oldest_have = commit->date;
+		for (parents = commit->parents;
+		     parents;
+		     parents = parents->next)
+			parents->item->object.flags |= THEY_HAVE;
 	}
-	strbuf_release(&err);
+	if (!we_knew_they_have) {
+		add_object_array(o, NULL, &have_obj);
+		return 1;
+	}
+	return 0;
 }

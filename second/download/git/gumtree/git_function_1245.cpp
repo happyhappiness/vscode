@@ -1,34 +1,16 @@
-static const char *parse_cmd_delete(struct ref_transaction *transaction,
-				    struct strbuf *input, const char *next)
+static int fsck_obj_buffer(const unsigned char *sha1, enum object_type type,
+			   unsigned long size, void *buffer, int *eaten)
 {
-	struct strbuf err = STRBUF_INIT;
-	char *refname;
-	unsigned char old_sha1[20];
-	int have_old;
-
-	refname = parse_refname(input, &next);
-	if (!refname)
-		die("delete: missing <ref>");
-
-	if (parse_next_sha1(input, &next, old_sha1, "delete", refname,
-			    PARSE_SHA1_OLD)) {
-		have_old = 0;
-	} else {
-		if (is_null_sha1(old_sha1))
-			die("delete %s: zero <oldvalue>", refname);
-		have_old = 1;
+	/*
+	 * Note, buffer may be NULL if type is OBJ_BLOB. See
+	 * verify_packfile(), data_valid variable for details.
+	 */
+	struct object *obj;
+	obj = parse_object_buffer(sha1, type, size, buffer, eaten);
+	if (!obj) {
+		errors_found |= ERROR_OBJECT;
+		return error("%s: object corrupt or missing", sha1_to_hex(sha1));
 	}
-
-	if (*next != line_termination)
-		die("delete %s: extra input: %s", refname, next);
-
-	if (ref_transaction_delete(transaction, refname, old_sha1,
-				   update_flags, have_old, msg, &err))
-		die("%s", err.buf);
-
-	update_flags = 0;
-	free(refname);
-	strbuf_release(&err);
-
-	return next;
+	obj->flags = HAS_OBJ;
+	return fsck_obj(obj);
 }

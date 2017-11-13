@@ -1,20 +1,79 @@
-static int on_invalid_frame_recv_cb(nghttp2_session *ngh2,
-                                    const nghttp2_frame *frame,
-                                    int error, void *userp)
+static ap_filter_t *add_any_filter_handle(ap_filter_rec_t *frec, void *ctx,
+                                          request_rec *r, conn_rec *c,
+                                          ap_filter_t **r_filters,
+                                          ap_filter_t **p_filters,
+                                          ap_filter_t **c_filters)
 {
-    h2_session *session = (h2_session *)userp;
-    (void)ngh2;
-    
-    if (session->aborted) {
-        return NGHTTP2_ERR_CALLBACK_FAILURE;
+    apr_pool_t *p = frec->ftype < AP_FTYPE_CONNECTION && r ? r->pool : c->pool;
+    ap_filter_t *f = apr_palloc(p, sizeof(*f));
+    ap_filter_t **outf;
+
+    if (frec->ftype < AP_FTYPE_PROTOCOL) {
+        if (r) {
+            outf = r_filters;
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "a content filter was added without a request: %s", frec->name);
+            return NULL;
+        }
     }
-    if (APLOGctrace2(session->c)) {
-        char buffer[256];
-        
-        frame_print(frame, buffer, sizeof(buffer)/sizeof(buffer[0]));
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                      "h2_session: callback on_invalid_frame_recv error=%d %s",
-                      error, buffer);
+    else if (frec->ftype < AP_FTYPE_CONNECTION) {
+        if (r) {
+            outf = p_filters;
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                         "a protocol filter was added without a request: %s", frec->name);
+            return NULL;
+        }
     }
-    return 0;
+    else {
+        outf = c_filters;
+    }
+
+    f->frec = frec;
+    f->ctx = ctx;
+    /* f->r must always be NULL for connection filters */
+    f->r = frec->ftype < AP_FTYPE_CONNECTION ? r : NULL;
+    f->c = c;
+    f->next = NULL;
+
+    if (INSERT_BEFORE(f, *outf)) {
+        f->next = *outf;
+
+        if (*outf) {
+            ap_filter_t *first = NULL;
+
+            if (r) {
+                /* If we are adding our first non-connection filter,
+                 * Then don't try to find the right location, it is
+                 * automatically first.
+                 */
+                if (*r_filters != *c_filters) {
+                    first = *r_filters;
+                    while (first && (first->next != (*outf))) {
+                        first = first->next;
+                    }
+                }
+            }
+            if (first && first != (*outf)) {
+                first->next = f;
+            }
+        }
+        *outf = f;
+    }
+    else {
+        ap_filter_t *fscan = *outf;
+        while (!INSERT_BEFORE(f, fscan->next))
+            fscan = fscan->next;
+
+        f->next = fscan->next;
+        fscan->next = f;
+    }
+
+    if (frec->ftype < AP_FTYPE_CONNECTION && (*r_filters == *c_filters)) {
+        *r_filters = *p_filters;
+    }
+    return f;
 }

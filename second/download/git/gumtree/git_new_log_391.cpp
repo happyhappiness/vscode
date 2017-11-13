@@ -1,1 +1,1 @@
-print_verbose(args, _("Server supports multi_ack"));
+printf("%s\n", oid_to_hex(&commit_oid));

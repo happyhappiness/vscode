@@ -1,54 +1,63 @@
-static int check_repository_format_gently(const char *gitdir, int *nongit_ok)
+static struct line_log_data *
+parse_lines(struct commit *commit, const char *prefix, struct string_list *args)
 {
-	struct strbuf sb = STRBUF_INIT;
-	const char *repo_config;
-	config_fn_t fn;
-	int ret = 0;
+	long lines = 0;
+	unsigned long *ends = NULL;
+	struct nth_line_cb cb_data;
+	struct string_list_item *item;
+	struct line_log_data *ranges = NULL;
+	struct line_log_data *p;
 
-	string_list_clear(&unknown_extensions, 0);
+	for_each_string_list_item(item, args) {
+		const char *name_part, *range_part;
+		char *full_name;
+		struct diff_filespec *spec;
+		long begin = 0, end = 0;
+		long anchor;
 
-	if (get_common_dir(&sb, gitdir))
-		fn = check_repo_format;
-	else
-		fn = check_repository_format_version;
-	strbuf_addstr(&sb, "/config");
-	repo_config = sb.buf;
+		name_part = skip_range_arg(item->string);
+		if (!name_part || *name_part != ':' || !name_part[1])
+			die("-L argument '%s' not of the form start,end:file",
+			    item->string);
+		range_part = xstrndup(item->string, name_part - item->string);
+		name_part++;
 
-	/*
-	 * git_config() can't be used here because it calls git_pathdup()
-	 * to get $GIT_CONFIG/config. That call will make setup_git_env()
-	 * set git_dir to ".git".
-	 *
-	 * We are in gitdir setup, no git dir has been found useable yet.
-	 * Use a gentler version of git_config() to check if this repo
-	 * is a good one.
-	 */
-	git_config_early(fn, NULL, repo_config);
-	if (GIT_REPO_VERSION_READ < repository_format_version) {
-		if (!nongit_ok)
-			die ("Expected git repo version <= %d, found %d",
-			     GIT_REPO_VERSION_READ, repository_format_version);
-		warning("Expected git repo version <= %d, found %d",
-			GIT_REPO_VERSION_READ, repository_format_version);
-		warning("Please upgrade Git");
-		*nongit_ok = -1;
-		ret = -1;
+		full_name = prefix_path(prefix, prefix ? strlen(prefix) : 0,
+					name_part);
+
+		spec = alloc_filespec(full_name);
+		fill_blob_sha1(commit, spec);
+		fill_line_ends(spec, &lines, &ends);
+		cb_data.spec = spec;
+		cb_data.lines = lines;
+		cb_data.line_ends = ends;
+
+		p = search_line_log_data(ranges, full_name, NULL);
+		if (p && p->ranges.nr)
+			anchor = p->ranges.ranges[p->ranges.nr - 1].end + 1;
+		else
+			anchor = 1;
+
+		if (parse_range_arg(range_part, nth_line, &cb_data,
+				    lines, anchor, &begin, &end,
+				    full_name))
+			die("malformed -L argument '%s'", range_part);
+		if (lines < end || ((lines || begin) && lines < begin))
+			die("file %s has only %lu lines", name_part, lines);
+		if (begin < 1)
+			begin = 1;
+		if (end < 1)
+			end = lines;
+		begin--;
+		line_log_data_insert(&ranges, full_name, begin, end);
+
+		free_filespec(spec);
+		free(ends);
+		ends = NULL;
 	}
 
-	if (repository_format_version >= 1 && unknown_extensions.nr) {
-		int i;
+	for (p = ranges; p; p = p->next)
+		sort_and_merge_range_set(&p->ranges);
 
-		if (!nongit_ok)
-			die("unknown repository extension: %s",
-			    unknown_extensions.items[0].string);
-
-		for (i = 0; i < unknown_extensions.nr; i++)
-			warning("unknown repository extension: %s",
-				unknown_extensions.items[i].string);
-		*nongit_ok = -1;
-		ret = -1;
-	}
-
-	strbuf_release(&sb);
-	return ret;
+	return ranges;
 }

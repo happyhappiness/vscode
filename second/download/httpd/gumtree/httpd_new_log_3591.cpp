@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01540)
-                    MODNAME ": invalid type %d in mcheck().", m->type);
+ap_log_error(APLOG_MARK, APLOG_WARNING, err->aprerr, ap_server_conf,
+                         APLOGNO(00577) "Error writing propdb: %s", err->desc);

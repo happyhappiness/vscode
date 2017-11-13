@@ -1,7 +1,10 @@
-ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
-                 "mod_http2 (v%s, feats=%s%s%s, nghttp2 %s), initializing...",
-                 MOD_HTTP2_VERSION, 
-                 myfeats.change_prio? "CHPRIO"  : "", 
-                 myfeats.sha256?      "+SHA256" : "",
-                 myfeats.inv_headers? "+INVHD"  : "",
-                 ngh2?                ngh2->version_str : "unknown");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03200)
+                          "h2_session(%ld) created, max_streams=%d, "
+                          "stream_mem=%d, workers_limit=%d, workers_max=%d, "
+                          "push_diary(type=%d,N=%d)",
+                          session->id, (int)session->max_stream_count, 
+                          (int)session->max_stream_mem,
+                          session->mplx->workers_limit, 
+                          session->mplx->workers_max, 
+                          session->push_diary->dtype, 
+                          (int)session->push_diary->N);

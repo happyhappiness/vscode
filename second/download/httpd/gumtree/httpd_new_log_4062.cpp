@@ -1,6 +1,2 @@
-ap_log_error(APLOG_MARK, loglevel, rv, s, APLOGNO(00958)
-                                 "%s: attempt to connect to %s:%d "
-                                 "via http CONNECT through %pI (%s) failed",
-                                 proxy_function,
-                                 forward->target_host, forward->target_port,
-                                 backend_addr, worker->s->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01528)
+                      MODNAME ": invalid file type %d.", r->finfo.filetype);

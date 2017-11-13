@@ -1,1 +1,2 @@
-die("%s can only be used once.", opt->long_name);
+error("unable to generate patch-id diff for %s",
+				     p->one->path);

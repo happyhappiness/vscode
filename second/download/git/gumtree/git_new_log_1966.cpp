@@ -1,1 +1,0 @@
-die("BUG: color parsing ran out of space");

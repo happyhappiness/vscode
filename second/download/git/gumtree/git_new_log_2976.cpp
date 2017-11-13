@@ -1,1 +1,1 @@
-strbuf_write(&pp->buffered_output, stderr);
+error_errno(_("cannot open %s"), git_path_head_file());

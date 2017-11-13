@@ -1,2 +1,1 @@
-die(_("bad numeric config value '%s' for '%s' in %s %s: %s"),
-		    value, name, cf->origin_type, cf->name, reason);
+die("BUG: initial ref transaction with old_sha1 set");

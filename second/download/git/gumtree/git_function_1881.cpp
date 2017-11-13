@@ -1,126 +1,118 @@
-static void handle_tag(const char *name, struct tag *tag)
+static void merge_name(const char *remote, struct strbuf *msg)
 {
-	unsigned long size;
-	enum object_type type;
-	char *buf;
-	const char *tagger, *tagger_end, *message;
-	size_t message_size = 0;
-	struct object *tagged;
-	int tagged_mark;
-	struct commit *p;
+	struct commit *remote_head;
+	unsigned char branch_head[20];
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf bname = STRBUF_INIT;
+	const char *ptr;
+	char *found_ref;
+	int len, early;
 
-	/* Trees have no identifier in fast-export output, thus we have no way
-	 * to output tags of trees, tags of tags of trees, etc.  Simply omit
-	 * such tags.
-	 */
-	tagged = tag->tagged;
-	while (tagged->type == OBJ_TAG) {
-		tagged = ((struct tag *)tagged)->tagged;
-	}
-	if (tagged->type == OBJ_TREE) {
-		warning("Omitting tag %s,\nsince tags of trees (or tags of tags of trees, etc.) are not supported.",
-			sha1_to_hex(tag->object.sha1));
-		return;
-	}
+	strbuf_branchname(&bname, remote);
+	remote = bname.buf;
 
-	buf = read_sha1_file(tag->object.sha1, &type, &size);
-	if (!buf)
-		die ("Could not read tag %s", sha1_to_hex(tag->object.sha1));
-	message = memmem(buf, size, "\n\n", 2);
-	if (message) {
-		message += 2;
-		message_size = strlen(message);
-	}
-	tagger = memmem(buf, message ? message - buf : size, "\ntagger ", 8);
-	if (!tagger) {
-		if (fake_missing_tagger)
-			tagger = "tagger Unspecified Tagger "
-				"<unspecified-tagger> 0 +0000";
-		else
-			tagger = "";
-		tagger_end = tagger + strlen(tagger);
-	} else {
-		tagger++;
-		tagger_end = strchrnul(tagger, '\n');
-		if (anonymize)
-			anonymize_ident_line(&tagger, &tagger_end);
-	}
+	memset(branch_head, 0, sizeof(branch_head));
+	remote_head = get_merge_parent(remote);
+	if (!remote_head)
+		die(_("'%s' does not point to a commit"), remote);
 
-	if (anonymize) {
-		name = anonymize_refname(name);
-		if (message) {
-			static struct hashmap tags;
-			message = anonymize_mem(&tags, anonymize_tag,
-						message, &message_size);
+	if (dwim_ref(remote, strlen(remote), branch_head, &found_ref) > 0) {
+		if (starts_with(found_ref, "refs/heads/")) {
+			strbuf_addf(msg, "%s\t\tbranch '%s' of .\n",
+				    sha1_to_hex(branch_head), remote);
+			goto cleanup;
+		}
+		if (starts_with(found_ref, "refs/tags/")) {
+			strbuf_addf(msg, "%s\t\ttag '%s' of .\n",
+				    sha1_to_hex(branch_head), remote);
+			goto cleanup;
+		}
+		if (starts_with(found_ref, "refs/remotes/")) {
+			strbuf_addf(msg, "%s\t\tremote-tracking branch '%s' of .\n",
+				    sha1_to_hex(branch_head), remote);
+			goto cleanup;
 		}
 	}
 
-	/* handle signed tags */
-	if (message) {
-		const char *signature = strstr(message,
-					       "\n-----BEGIN PGP SIGNATURE-----\n");
-		if (signature)
-			switch(signed_tag_mode) {
-			case ABORT:
-				die ("Encountered signed tag %s; use "
-				     "--signed-tags=<mode> to handle it.",
-				     sha1_to_hex(tag->object.sha1));
-			case WARN:
-				warning ("Exporting signed tag %s",
-					 sha1_to_hex(tag->object.sha1));
-				/* fallthru */
-			case VERBATIM:
-				break;
-			case WARN_STRIP:
-				warning ("Stripping signature from tag %s",
-					 sha1_to_hex(tag->object.sha1));
-				/* fallthru */
-			case STRIP:
-				message_size = signature + 1 - message;
-				break;
-			}
-	}
+	/* See if remote matches <name>^^^.. or <name>~<number> */
+	for (len = 0, ptr = remote + strlen(remote);
+	     remote < ptr && ptr[-1] == '^';
+	     ptr--)
+		len++;
+	if (len)
+		early = 1;
+	else {
+		early = 0;
+		ptr = strrchr(remote, '~');
+		if (ptr) {
+			int seen_nonzero = 0;
 
-	/* handle tag->tagged having been filtered out due to paths specified */
-	tagged = tag->tagged;
-	tagged_mark = get_object_mark(tagged);
-	if (!tagged_mark) {
-		switch(tag_of_filtered_mode) {
-		case ABORT:
-			die ("Tag %s tags unexported object; use "
-			     "--tag-of-filtered-object=<mode> to handle it.",
-			     sha1_to_hex(tag->object.sha1));
-		case DROP:
-			/* Ignore this tag altogether */
-			return;
-		case REWRITE:
-			if (tagged->type != OBJ_COMMIT) {
-				die ("Tag %s tags unexported %s!",
-				     sha1_to_hex(tag->object.sha1),
-				     typename(tagged->type));
+			len++; /* count ~ */
+			while (*++ptr && isdigit(*ptr)) {
+				seen_nonzero |= (*ptr != '0');
+				len++;
 			}
-			p = (struct commit *)tagged;
-			for (;;) {
-				if (p->parents && p->parents->next)
-					break;
-				if (p->object.flags & UNINTERESTING)
-					break;
-				if (!(p->object.flags & TREESAME))
-					break;
-				if (!p->parents)
-					die ("Can't find replacement commit for tag %s\n",
-					     sha1_to_hex(tag->object.sha1));
-				p = p->parents->item;
-			}
-			tagged_mark = get_object_mark(&p->object);
+			if (*ptr)
+				len = 0; /* not ...~<number> */
+			else if (seen_nonzero)
+				early = 1;
+			else if (len == 1)
+				early = 1; /* "name~" is "name~1"! */
+		}
+	}
+	if (len) {
+		struct strbuf truname = STRBUF_INIT;
+		strbuf_addstr(&truname, "refs/heads/");
+		strbuf_addstr(&truname, remote);
+		strbuf_setlen(&truname, truname.len - len);
+		if (ref_exists(truname.buf)) {
+			strbuf_addf(msg,
+				    "%s\t\tbranch '%s'%s of .\n",
+				    sha1_to_hex(remote_head->object.sha1),
+				    truname.buf + 11,
+				    (early ? " (early part)" : ""));
+			strbuf_release(&truname);
+			goto cleanup;
 		}
 	}
 
-	if (starts_with(name, "refs/tags/"))
-		name += 10;
-	printf("tag %s\nfrom :%d\n%.*s%sdata %d\n%.*s\n",
-	       name, tagged_mark,
-	       (int)(tagger_end - tagger), tagger,
-	       tagger == tagger_end ? "" : "\n",
-	       (int)message_size, (int)message_size, message ? message : "");
+	if (!strcmp(remote, "FETCH_HEAD") &&
+			!access(git_path("FETCH_HEAD"), R_OK)) {
+		const char *filename;
+		FILE *fp;
+		struct strbuf line = STRBUF_INIT;
+		char *ptr;
+
+		filename = git_path("FETCH_HEAD");
+		fp = fopen(filename, "r");
+		if (!fp)
+			die_errno(_("could not open '%s' for reading"),
+				  filename);
+		strbuf_getline(&line, fp, '\n');
+		fclose(fp);
+		ptr = strstr(line.buf, "\tnot-for-merge\t");
+		if (ptr)
+			strbuf_remove(&line, ptr-line.buf+1, 13);
+		strbuf_addbuf(msg, &line);
+		strbuf_release(&line);
+		goto cleanup;
+	}
+
+	if (remote_head->util) {
+		struct merge_remote_desc *desc;
+		desc = merge_remote_util(remote_head);
+		if (desc && desc->obj && desc->obj->type == OBJ_TAG) {
+			strbuf_addf(msg, "%s\t\t%s '%s'\n",
+				    sha1_to_hex(desc->obj->sha1),
+				    typename(desc->obj->type),
+				    remote);
+			goto cleanup;
+		}
+	}
+
+	strbuf_addf(msg, "%s\t\tcommit '%s'\n",
+		sha1_to_hex(remote_head->object.sha1), remote);
+cleanup:
+	strbuf_release(&buf);
+	strbuf_release(&bname);
 }

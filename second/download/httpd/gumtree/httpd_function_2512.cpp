@@ -1,209 +1,382 @@
-static authz_status ldapgroup_check_authorization(request_rec *r,
-                                             const char *require_args)
+int main(int argc, const char * const argv[])
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    apr_off_t max;
+    apr_time_t current, repeat, delay, previous;
+    apr_status_t status;
+    apr_pool_t *pool, *instance;
+    apr_getopt_t *o;
+    apr_finfo_t info;
+    apr_file_t *pidfile;
+    int retries, isdaemon, limit_found, intelligent, dowork;
+    char opt;
+    const char *arg;
+    char *proxypath, *path, *pidfilename;
+    char errmsg[1024];
 
-    util_ldap_connection_t *ldc = NULL;
+    interrupted = 0;
+    repeat = 0;
+    isdaemon = 0;
+    dryrun = 0;
+    limit_found = 0;
+    max = 0;
+    verbose = 0;
+    realclean = 0;
+    benice = 0;
+    deldirs = 0;
+    intelligent = 0;
+    previous = 0; /* avoid compiler warning */
+    proxypath = NULL;
+    pidfilename = NULL;
 
-    const char *t;
+    if (apr_app_initialize(&argc, &argv, NULL) != APR_SUCCESS) {
+        return 1;
+    }
+    atexit(apr_terminate);
 
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
-    struct mod_auth_ldap_groupattr_entry_t *ent;
-    int i;
-
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
+    if (argc) {
+        shortname = apr_filepath_name_get(argv[0]);
     }
 
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_COMPARE); /* for the top-level group only */
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
+    if (apr_pool_create(&pool, NULL) != APR_SUCCESS) {
+        return 1;
     }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
-        return AUTHZ_DENIED;
-    }
+    apr_pool_abort_set(oom, pool);
+    apr_file_open_stderr(&errfile, pool);
+    apr_signal(SIGINT, setterm);
+    apr_signal(SIGTERM, setterm);
 
-    /*
-     * If there are no elements in the group attribute array, the default should be
-     * member and uniquemember; populate the array now.
-     */
-    if (sec->groupattr->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "member";
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "uniqueMember";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
+    apr_getopt_init(&o, pool, argc, argv);
 
-    /*
-     * If there are no elements in the sub group classes array, the default
-     * should be groupOfNames and groupOfUniqueNames; populate the array now.
-     */
-    if (sec->subgroupclasses->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfNames";
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfUniqueNames";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
-
-    /*
-     * If we have been authenticated by some other module than mod_auth_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
-     */
-
-    /* Check that we have a userid to start with */
-    if (!r->user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
-    }
-
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
-
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
-
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
+    while (1) {
+        status = apr_getopt(o, "iDnvrtd:l:L:p:P:", &opt, &arg);
+        if (status == APR_EOF) {
+            break;
         }
-
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-    }
-
-    ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
-
-    if (sec->group_attrib_is_dn) {
-        if (req->dn == NULL || strlen(req->dn) == 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
-                          "user's DN has not been defined; failing authorization for user %s",
-                          getpid(), r->user);
-            return AUTHZ_DENIED;
+        else if (status != APR_SUCCESS) {
+            usage(NULL);
         }
-    }
-    else {
-        if (req->user == NULL || strlen(req->user) == 0) {
-            /* We weren't called in the authentication phase, so we didn't have a
-             * chance to set the user field. Do so now. */
-            req->user = r->user;
-        }
-    }
-
-    t = require_args;
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
-                  "testing for group membership in \"%s\"",
-                  getpid(), t);
-
-    for (i = 0; i < sec->groupattr->nelts; i++) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
-                      "testing for %s: %s (%s)", getpid(),
-                      ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
-
-        result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
-                             sec->group_attrib_is_dn ? req->dn : req->user);
-        switch(result) {
-            case LDAP_COMPARE_TRUE: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
-                              "authorization successful (attribute %s) [%s][%d - %s]",
-                              getpid(), ent[i].name, ldc->reason, result, ldap_err2string(result));
-                set_request_vars(r, LDAP_AUTHZ);
-                return AUTHZ_GRANTED;
-            }
-            case LDAP_NO_SUCH_ATTRIBUTE: 
-            case LDAP_COMPARE_FALSE: {
-                /* nested groups need searches and compares, so grab a new handle */
-                authnz_ldap_cleanup_connection_close(ldc);
-                apr_pool_cleanup_kill(r->pool, ldc,authnz_ldap_cleanup_connection_close);
-
-                ldc = get_connection_for_authz(r, LDAP_COMPARE_AND_SEARCH);
-                apr_pool_cleanup_register(r->pool, ldc,
-                                          authnz_ldap_cleanup_connection_close,
-                                          apr_pool_cleanup_null);
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                               "[%" APR_PID_T_FMT "] auth_ldap authorise: require group \"%s\": "
-                               "failed [%s][%d - %s], checking sub-groups",
-                               getpid(), t, ldc->reason, result, ldap_err2string(result));
-
-                result = util_ldap_cache_check_subgroups(r, ldc, sec->url, t, ent[i].name,
-                                                         sec->group_attrib_is_dn ? req->dn : req->user,
-                                                         sec->sgAttributes[0] ? sec->sgAttributes : default_attributes,
-                                                         sec->subgroupclasses,
-                                                         0, sec->maxNestingDepth);
-                if(result == LDAP_COMPARE_TRUE) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                   "[%" APR_PID_T_FMT "] auth_ldap authorise: require group (sub-group): "
-                                   "authorisation successful (attribute %s) [%s][%d - %s]",
-                                   getpid(), ent[i].name, ldc->reason, result, ldap_err2string(result));
-                    set_request_vars(r, LDAP_AUTHZ);
-                    return AUTHZ_GRANTED;
+        else {
+            switch (opt) {
+            case 'i':
+                if (intelligent) {
+                    usage_repeated_arg(pool, opt);
                 }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                   "[%" APR_PID_T_FMT "] auth_ldap authorise: require group (sub-group) \"%s\": "
-                                   "authorisation failed [%s][%d - %s]",
-                                   getpid(), t, ldc->reason, result, ldap_err2string(result));
+                intelligent = 1;
+                break;
+
+            case 'D':
+                if (dryrun) {
+                    usage_repeated_arg(pool, opt);
+                }
+                dryrun = 1;
+                break;
+
+            case 'n':
+                if (benice) {
+                    usage_repeated_arg(pool, opt);
+                }
+                benice = 1;
+                break;
+
+            case 't':
+                if (deldirs) {
+                    usage_repeated_arg(pool, opt);
+                }
+                deldirs = 1;
+                break;
+
+            case 'v':
+                if (verbose) {
+                    usage_repeated_arg(pool, opt);
+                }
+                verbose = 1;
+                break;
+
+            case 'r':
+                if (realclean) {
+                    usage_repeated_arg(pool, opt);
+                }
+                realclean = 1;
+                deldirs = 1;
+                break;
+
+            case 'd':
+                if (isdaemon) {
+                    usage_repeated_arg(pool, opt);
+                }
+                isdaemon = 1;
+                repeat = apr_atoi64(arg);
+                repeat *= SECS_PER_MIN;
+                repeat *= APR_USEC_PER_SEC;
+                break;
+
+            case 'l':
+                if (limit_found) {
+                    usage_repeated_arg(pool, opt);
+                }
+                limit_found = 1;
+
+                do {
+                    apr_status_t rv;
+                    char *end;
+
+                    rv = apr_strtoff(&max, arg, &end, 10);
+                    if (rv == APR_SUCCESS) {
+                        if ((*end == 'K' || *end == 'k') && !end[1]) {
+                            max *= KBYTE;
+                        }
+                        else if ((*end == 'M' || *end == 'm') && !end[1]) {
+                            max *= MBYTE;
+                        }
+                        else if ((*end == 'G' || *end == 'g') && !end[1]) {
+                            max *= GBYTE;
+                        }
+                        else if (*end &&        /* neither empty nor [Bb] */
+                                 ((*end != 'B' && *end != 'b') || end[1])) {
+                            rv = APR_EGENERAL;
+                        }
+                    }
+                    if (rv != APR_SUCCESS) {
+                        usage(apr_psprintf(pool, "Invalid limit: %s"
+                                                 APR_EOL_STR APR_EOL_STR, arg));
+                    }
+                } while(0);
+                break;
+
+            case 'p':
+                if (proxypath) {
+                    usage_repeated_arg(pool, opt);
+                }
+                proxypath = apr_pstrdup(pool, arg);
+                if ((status = apr_filepath_set(proxypath, pool)) != APR_SUCCESS) {
+                    usage(apr_psprintf(pool, "Could not set filepath to '%s': %s",
+                                       proxypath, apr_strerror(status, errmsg, sizeof errmsg)));
                 }
                 break;
-            }
-            default: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "[%" APR_PID_T_FMT "] auth_ldap authorize: require group \"%s\": "
-                              "authorization failed [%s][%d - %s]",
-                              getpid(), t, ldc->reason, result, ldap_err2string(result));
-            }
-        }
+
+            case 'P':
+                if (pidfilename) {
+                    usage_repeated_arg(pool, opt);
+                }
+                pidfilename = apr_pstrdup(pool, arg);
+                break;
+
+            } /* switch */
+        } /* else */
+    } /* while */
+
+    if (argc <= 1) {
+        usage(NULL);
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorize group: authorization denied for user %s to %s",
-                  getpid(), r->user, r->uri);
+    if (o->ind < argc) {
+        int deleted = 0;
+        int error = 0;
+        if (isdaemon) {
+            usage("Option -d cannot be used with URL arguments, aborting");
+        }
+        if (intelligent) {
+            usage("Option -i cannot be used with URL arguments, aborting");
+        }
+        if (limit_found) {
+            usage("Option -l cannot be used with URL arguments, aborting");
+        }
+        while (o->ind < argc) {
+            status = delete_url(pool, proxypath, argv[o->ind]);
+            if (APR_SUCCESS == status) {
+                if (verbose) {
+                    apr_file_printf(errfile, "Removed: %s" APR_EOL_STR,
+                            argv[o->ind]);
+                }
+                deleted = 1;
+            }
+            else if (APR_ENOENT == status) {
+                if (verbose) {
+                    apr_file_printf(errfile, "Not cached: %s" APR_EOL_STR,
+                            argv[o->ind]);
+                }
+            }
+            else {
+                if (verbose) {
+                    apr_file_printf(errfile, "Error while removed: %s" APR_EOL_STR,
+                            argv[o->ind]);
+                }
+                error = 1;
+            }
+            o->ind++;
+        }
+        return error ? 1 : deleted ? 0 : 2;
+    }
 
-    return AUTHZ_DENIED;
+    if (isdaemon && repeat <= 0) {
+         usage("Option -d must be greater than zero");
+    }
+
+    if (isdaemon && (verbose || realclean || dryrun)) {
+         usage("Option -d cannot be used with -v, -r or -D");
+    }
+
+    if (!isdaemon && intelligent) {
+         usage("Option -i cannot be used without -d");
+    }
+
+    if (!proxypath) {
+         usage("Option -p must be specified");
+    }
+
+    if (max <= 0) {
+         usage("Option -l must be greater than zero");
+    }
+
+    if (apr_filepath_get(&path, 0, pool) != APR_SUCCESS) {
+        usage(apr_psprintf(pool, "Could not get the filepath: %s",
+                           apr_strerror(status, errmsg, sizeof errmsg)));
+    }
+    baselen = strlen(path);
+
+    if (pidfilename) {
+        log_pid(pool, pidfilename, &pidfile); /* before daemonizing, so we
+                                               * can report errors
+                                               */
+    }
+
+#ifndef DEBUG
+    if (isdaemon) {
+        apr_file_close(errfile);
+        errfile = NULL;
+        if (pidfilename) {
+            apr_file_close(pidfile); /* delete original pidfile only in parent */
+        }
+        apr_proc_detach(APR_PROC_DETACH_DAEMONIZE);
+        if (pidfilename) {
+            log_pid(pool, pidfilename, &pidfile);
+        }
+    }
+#endif
+
+    do {
+        apr_pool_create(&instance, pool);
+
+        now = apr_time_now();
+        APR_RING_INIT(&root, _entry, link);
+        delcount = 0;
+        unsolicited = 0;
+        dowork = 0;
+
+        switch (intelligent) {
+        case 0:
+            dowork = 1;
+            break;
+
+        case 1:
+            retries = STAT_ATTEMPTS;
+            status = APR_SUCCESS;
+
+            do {
+                if (status != APR_SUCCESS) {
+                    apr_sleep(STAT_DELAY);
+                }
+                status = apr_stat(&info, path, APR_FINFO_MTIME, instance);
+            } while (status != APR_SUCCESS && !interrupted && --retries);
+
+            if (status == APR_SUCCESS) {
+                previous = info.mtime;
+                intelligent = 2;
+            }
+            dowork = 1;
+            break;
+
+        case 2:
+            retries = STAT_ATTEMPTS;
+            status = APR_SUCCESS;
+
+            do {
+                if (status != APR_SUCCESS) {
+                    apr_sleep(STAT_DELAY);
+                }
+                status = apr_stat(&info, path, APR_FINFO_MTIME, instance);
+            } while (status != APR_SUCCESS && !interrupted && --retries);
+
+            if (status == APR_SUCCESS) {
+                if (previous != info.mtime) {
+                    dowork = 1;
+                }
+                previous = info.mtime;
+                break;
+            }
+            intelligent = 1;
+            dowork = 1;
+            break;
+        }
+
+        if (dowork && !interrupted) {
+            if (!process_dir(path, instance) && !interrupted) {
+                purge(path, instance, max);
+            }
+            else if (!isdaemon && !interrupted) {
+                apr_file_printf(errfile, "An error occurred, cache cleaning "
+                                         "aborted." APR_EOL_STR);
+                return 1;
+            }
+
+            if (intelligent && !interrupted) {
+                retries = STAT_ATTEMPTS;
+                status = APR_SUCCESS;
+                do {
+                    if (status != APR_SUCCESS) {
+                        apr_sleep(STAT_DELAY);
+                    }
+                    status = apr_stat(&info, path, APR_FINFO_MTIME, instance);
+                } while (status != APR_SUCCESS && !interrupted && --retries);
+
+                if (status == APR_SUCCESS) {
+                    previous = info.mtime;
+                    intelligent = 2;
+                }
+                else {
+                    intelligent = 1;
+                }
+            }
+        }
+
+        apr_pool_destroy(instance);
+
+        current = apr_time_now();
+        if (current < now) {
+            delay = repeat;
+        }
+        else if (current - now >= repeat) {
+            delay = repeat;
+        }
+        else {
+            delay = now + repeat - current;
+        }
+
+        /* we can't sleep the whole delay time here apiece as this is racy
+         * with respect to interrupt delivery - think about what happens
+         * if we have tested for an interrupt, then get scheduled
+         * before the apr_sleep() call and while waiting for the cpu
+         * we do get an interrupt
+         */
+        if (isdaemon) {
+            while (delay && !interrupted) {
+                if (delay > APR_USEC_PER_SEC) {
+                    apr_sleep(APR_USEC_PER_SEC);
+                    delay -= APR_USEC_PER_SEC;
+                }
+                else {
+                    apr_sleep(delay);
+                    delay = 0;
+                }
+            }
+        }
+    } while (isdaemon && !interrupted);
+
+    if (!isdaemon && interrupted) {
+        apr_file_printf(errfile, "Cache cleaning aborted due to user "
+                                 "request." APR_EOL_STR);
+        return 1;
+    }
+
+    return 0;
 }

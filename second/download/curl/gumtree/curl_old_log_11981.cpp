@@ -1,10 +1,11 @@
 fputs(
-"              local file name. NOTE that you must use a trailing / on the last\n"
-"              directory to really prove to Curl that there is no file name  or\n"
-"              curl will think that your last directory name is the remote file\n"
-"              name to use. That will most likely cause the upload operation to\n"
-"              fail. If this is used on an HTTP(S) server, the PUT command will\n"
-"              be used.\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (This  option  was  previously  wrongly  documented  and used as\n"
+"              --socks without the number appended.)\n"
 "\n"
-"              Use the file name \"-\" (a single dash) to use stdin instead of  a\n"
+"       --socks5 <host[:port]>\n"
+"              Use the specified SOCKS5 proxy  -  but  resolve  the  host  name\n"
+"              locally.  If  the port number is not specified, it is assumed at\n"
+"              port 1080.\n"
+"\n"
 , stdout);

@@ -1,1 +1,2 @@
-err(o, _("cannot read object %s '%s'"), oid_to_hex(oid), path);
+die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

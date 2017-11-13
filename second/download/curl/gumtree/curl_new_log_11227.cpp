@@ -1,11 +1,11 @@
 fputs(
-"  systems) from the user's home dir on startup.\n"
+"  The progress meter exists to show a user that something actually is\n"
+"  happening. The different fields in the output have the following meaning:\n"
 "\n"
-"  The config file could be made up with normal command line switches, but you\n"
-"  can also specify the long options without the dashes to make it more\n"
-"  readable. You can separate the options and the parameter with spaces, or\n"
-"  with = or :. Comments can be used within the file. If the first letter on a\n"
-"  line is a '#'-symbol the rest of the line is treated as a comment.\n"
+"  % Total    % Received % Xferd  Average Speed          Time             Curr.\n"
+"                                 Dload  Upload Total    Current  Left    Speed\n"
+"  0  151M    0 38608    0     0   9406      0  4:41:43  0:00:04  4:41:39  9287\n"
 "\n"
-"  If you want the parameter to contain spaces, you must enclose the entire\n"
+"  From left-to-right:\n"
+"   %             - percentage completed of the whole transfer\n"
 , stdout);

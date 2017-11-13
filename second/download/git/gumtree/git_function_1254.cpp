@@ -1,65 +1,88 @@
-static int git_parse_source(config_fn_t fn, void *data)
+static void sha1_object(const void *data, struct object_entry *obj_entry,
+			unsigned long size, enum object_type type,
+			const unsigned char *sha1)
 {
-	int comment = 0;
-	int baselen = 0;
-	struct strbuf *var = &cf->var;
+	void *new_data = NULL;
+	int collision_test_needed = 0;
 
-	/* U+FEFF Byte Order Mark in UTF8 */
-	static const unsigned char *utf8_bom = (unsigned char *) "\xef\xbb\xbf";
-	const unsigned char *bomptr = utf8_bom;
+	assert(data || obj_entry);
 
-	for (;;) {
-		int c = get_next_char();
-		if (bomptr && *bomptr) {
-			/* We are at the file beginning; skip UTF8-encoded BOM
-			 * if present. Sane editors won't put this in on their
-			 * own, but e.g. Windows Notepad will do it happily. */
-			if ((unsigned char) c == *bomptr) {
-				bomptr++;
-				continue;
-			} else {
-				/* Do not tolerate partial BOM. */
-				if (bomptr != utf8_bom)
-					break;
-				/* No BOM at file beginning. Cool. */
-				bomptr = NULL;
-			}
-		}
-		if (c == '\n') {
-			if (cf->eof)
-				return 0;
-			comment = 0;
-			continue;
-		}
-		if (comment || isspace(c))
-			continue;
-		if (c == '#' || c == ';') {
-			comment = 1;
-			continue;
-		}
-		if (c == '[') {
-			/* Reset prior to determining a new stem */
-			strbuf_reset(var);
-			if (get_base_var(var) < 0 || var->len < 1)
-				break;
-			strbuf_addch(var, '.');
-			baselen = var->len;
-			continue;
-		}
-		if (!isalpha(c))
-			break;
-		/*
-		 * Truncate the var name back to the section header
-		 * stem prior to grabbing the suffix part of the name
-		 * and the value.
-		 */
-		strbuf_setlen(var, baselen);
-		strbuf_addch(var, tolower(c));
-		if (get_value(fn, data, var) < 0)
-			break;
+	if (startup_info->have_repository) {
+		read_lock();
+		collision_test_needed = has_sha1_file_with_flags(sha1, HAS_SHA1_QUICK);
+		read_unlock();
 	}
-	if (cf->die_on_error)
-		die("bad config file line %d in %s", cf->linenr, cf->name);
-	else
-		return error("bad config file line %d in %s", cf->linenr, cf->name);
+
+	if (collision_test_needed && !data) {
+		read_lock();
+		if (!check_collison(obj_entry))
+			collision_test_needed = 0;
+		read_unlock();
+	}
+	if (collision_test_needed) {
+		void *has_data;
+		enum object_type has_type;
+		unsigned long has_size;
+		read_lock();
+		has_type = sha1_object_info(sha1, &has_size);
+		if (has_type < 0)
+			die(_("cannot read existing object info %s"), sha1_to_hex(sha1));
+		if (has_type != type || has_size != size)
+			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+		has_data = read_sha1_file(sha1, &has_type, &has_size);
+		read_unlock();
+		if (!data)
+			data = new_data = get_data_from_pack(obj_entry);
+		if (!has_data)
+			die(_("cannot read existing object %s"), sha1_to_hex(sha1));
+		if (size != has_size || type != has_type ||
+		    memcmp(data, has_data, size) != 0)
+			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+		free(has_data);
+	}
+
+	if (strict) {
+		read_lock();
+		if (type == OBJ_BLOB) {
+			struct blob *blob = lookup_blob(sha1);
+			if (blob)
+				blob->object.flags |= FLAG_CHECKED;
+			else
+				die(_("invalid blob object %s"), sha1_to_hex(sha1));
+		} else {
+			struct object *obj;
+			int eaten;
+			void *buf = (void *) data;
+
+			assert(data && "data can only be NULL for large _blobs_");
+
+			/*
+			 * we do not need to free the memory here, as the
+			 * buf is deleted by the caller.
+			 */
+			obj = parse_object_buffer(sha1, type, size, buf, &eaten);
+			if (!obj)
+				die(_("invalid %s"), typename(type));
+			if (do_fsck_object &&
+			    fsck_object(obj, buf, size, &fsck_options))
+				die(_("Error in object"));
+			if (fsck_walk(obj, NULL, &fsck_options))
+				die(_("Not all child objects of %s are reachable"), oid_to_hex(&obj->oid));
+
+			if (obj->type == OBJ_TREE) {
+				struct tree *item = (struct tree *) obj;
+				item->buffer = NULL;
+				obj->parsed = 0;
+			}
+			if (obj->type == OBJ_COMMIT) {
+				struct commit *commit = (struct commit *) obj;
+				if (detach_commit_buffer(commit, NULL) != data)
+					die("BUG: parse_object_buffer transmogrified our buffer");
+			}
+			obj->flags |= FLAG_CHECKED;
+		}
+		read_unlock();
+	}
+
+	free(new_data);
 }

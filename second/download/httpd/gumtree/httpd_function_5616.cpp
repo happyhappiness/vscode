@@ -1,50 +1,64 @@
-static int lua_websocket_ping(lua_State *L) 
+static void ssl_io_data_dump(server_rec *srvr,
+                             const char *s,
+                             long len)
 {
-    apr_socket_t *sock;
-    apr_size_t plen;
-    char prelude[2];
-    apr_status_t rv;
-    request_rec *r = ap_lua_check_request_rec(L, 1);
-    sock = ap_get_conn_socket(r->connection);
-    
-    /* Send a header that says: PING. */
-    prelude[0] = 0x89; /* ping  opcode */
-    prelude[1] = 0;
-    plen = 2;
-    apr_socket_send(sock, prelude, &plen);
-    
-    
-    /* Get opcode and FIN bit from pong */
-    plen = 2;
-    rv = apr_socket_recv(sock, prelude, &plen);
-    if (rv == APR_SUCCESS) {
-        unsigned char opcode = prelude[0];
-        unsigned char len = prelude[1];
-        unsigned char mask = len >> 7;
-        if (mask) len -= 128;
-        plen = len;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Got PONG opcode: %x", opcode);
-        if (opcode == 0x8A) {
-            lua_pushboolean(L, 1);
+    char buf[256];
+    char tmp[64];
+    int i, j, rows, trunc;
+    unsigned char ch;
+
+    trunc = 0;
+    for(; (len > 0) && ((s[len-1] == ' ') || (s[len-1] == '\0')); len--)
+        trunc++;
+    rows = (len / DUMP_WIDTH);
+    if ((rows * DUMP_WIDTH) < len)
+        rows++;
+    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+            "+-------------------------------------------------------------------------+");
+    for(i = 0 ; i< rows; i++) {
+#if APR_CHARSET_EBCDIC
+        char ebcdic_text[DUMP_WIDTH];
+        j = DUMP_WIDTH;
+        if ((i * DUMP_WIDTH + j) > len)
+            j = len % DUMP_WIDTH;
+        if (j == 0)
+            j = DUMP_WIDTH;
+        memcpy(ebcdic_text,(char *)(s) + i * DUMP_WIDTH, j);
+        ap_xlate_proto_from_ascii(ebcdic_text, j);
+#endif /* APR_CHARSET_EBCDIC */
+        apr_snprintf(tmp, sizeof(tmp), "| %04x: ", i * DUMP_WIDTH);
+        apr_cpystrn(buf, tmp, sizeof(buf));
+        for (j = 0; j < DUMP_WIDTH; j++) {
+            if (((i * DUMP_WIDTH) + j) >= len)
+                apr_cpystrn(buf+strlen(buf), "   ", sizeof(buf)-strlen(buf));
+            else {
+                ch = ((unsigned char)*((char *)(s) + i * DUMP_WIDTH + j)) & 0xff;
+                apr_snprintf(tmp, sizeof(tmp), "%02x%c", ch , j==7 ? '-' : ' ');
+                apr_cpystrn(buf+strlen(buf), tmp, sizeof(buf)-strlen(buf));
+            }
         }
-        else {
-            lua_pushboolean(L, 0);
+        apr_cpystrn(buf+strlen(buf), " ", sizeof(buf)-strlen(buf));
+        for (j = 0; j < DUMP_WIDTH; j++) {
+            if (((i * DUMP_WIDTH) + j) >= len)
+                apr_cpystrn(buf+strlen(buf), " ", sizeof(buf)-strlen(buf));
+            else {
+                ch = ((unsigned char)*((char *)(s) + i * DUMP_WIDTH + j)) & 0xff;
+#if APR_CHARSET_EBCDIC
+                apr_snprintf(tmp, sizeof(tmp), "%c", (ch >= 0x20 && ch <= 0x7F) ? ebcdic_text[j] : '.');
+#else /* APR_CHARSET_EBCDIC */
+                apr_snprintf(tmp, sizeof(tmp), "%c", ((ch >= ' ') && (ch <= '~')) ? ch : '.');
+#endif /* APR_CHARSET_EBCDIC */
+                apr_cpystrn(buf+strlen(buf), tmp, sizeof(buf)-strlen(buf));
+            }
         }
-        if (plen > 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                        "Websocket: Reading %" APR_SIZE_T_FMT " bytes of PONG", plen);
-            return 1;
-        }
-        if (mask) {
-            plen = 2;
-            apr_socket_recv(sock, prelude, &plen);
-            plen = 2;
-            apr_socket_recv(sock, prelude, &plen);
-        }
+        apr_cpystrn(buf+strlen(buf), " |", sizeof(buf)-strlen(buf));
+        ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+                     "%s", buf);
     }
-    else {
-        lua_pushboolean(L, 0);
-    }
-    return 1;
+    if (trunc > 0)
+        ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+                "| %04ld - <SPACES/NULS>", len + trunc);
+    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+            "+-------------------------------------------------------------------------+");
+    return;
 }

@@ -1,1 +1,1 @@
-error(_("empty mbox: '%s'"), file);
+error("pack-objects died of signal %d", rc - 128);

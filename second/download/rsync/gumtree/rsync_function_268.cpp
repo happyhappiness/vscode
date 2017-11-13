@@ -1,49 +1,61 @@
-int copy_file(char *source, char *dest, mode_t mode)
+struct file_list *recv_file_list(int f)
 {
-	int ifd;
-	int ofd;
-	char buf[1024 * 8];
-	int len;   /* Number of bytes read into `buf'. */
+  struct file_list *flist;
+  unsigned char flags;
 
-	ifd = open(source, O_RDONLY);
-	if (ifd == -1) {
-		fprintf(FERROR,"open %s: %s\n",
-			source,strerror(errno));
-		return -1;
-	}
+  if (verbose && recurse && !am_server) {
+    fprintf(FINFO,"receiving file list ... ");
+    fflush(FINFO);
+  }
 
-	if (unlink(dest) && errno != ENOENT) {
-		fprintf(FERROR,"unlink %s: %s\n",
-			dest,strerror(errno));
-		return -1;
-	}
+  flist = (struct file_list *)malloc(sizeof(flist[0]));
+  if (!flist)
+    goto oom;
 
-	ofd = open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode);
-	if (ofd < 0) {
-		fprintf(FERROR,"open %s: %s\n",
-			dest,strerror(errno));
-		close(ifd);
-		return -1;
-	}
+  flist->count=0;
+  flist->malloced=100;
+  flist->files = (struct file_struct *)malloc(sizeof(flist->files[0])*
+					      flist->malloced);
+  if (!flist->files)
+    goto oom;
 
-	while ((len = safe_read(ifd, buf, sizeof(buf))) > 0) {
-		if (full_write(ofd, buf, len) < 0) {
-			fprintf(FERROR,"write %s: %s\n",
-				dest,strerror(errno));
-			close(ifd);
-			close(ofd);
-			return -1;
-		}
-	}
 
-	close(ifd);
-	close(ofd);
+  for (flags=read_byte(f); flags; flags=read_byte(f)) {
+    int i = flist->count;
 
-	if (len < 0) {
-		fprintf(FERROR,"read %s: %s\n",
-			source,strerror(errno));
-		return -1;
-	}
+    if (i >= flist->malloced) {
+      flist->malloced += 100;
+      flist->files =(struct file_struct *)realloc(flist->files,
+						  sizeof(flist->files[0])*
+						  flist->malloced);
+      if (!flist->files)
+	goto oom;
+    }
 
-	return 0;
+    receive_file_entry(&flist->files[i],flags,f);
+
+    if (S_ISREG(flist->files[i].mode))
+      total_size += flist->files[i].length;
+
+    flist->count++;
+
+    if (verbose > 2)
+      fprintf(FERROR,"recv_file_name(%s)\n",flist->files[i].name);
+  }
+
+
+  if (verbose > 2)
+    fprintf(FERROR,"received %d names\n",flist->count);
+
+  clean_flist(flist);
+
+  if (verbose && recurse && !am_server) {
+    fprintf(FINFO,"done\n");
+  }
+
+  return flist;
+
+oom:
+    out_of_memory("recv_file_list");
+    return NULL; /* not reached */
 }

@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+die_errno(_("could not open '%s' for writing"), path);

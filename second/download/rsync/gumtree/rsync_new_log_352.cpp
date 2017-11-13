@@ -1,1 +1,1 @@
-fprintf(FINFO,"recv_files finished\n");
+fprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);

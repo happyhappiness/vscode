@@ -1,1 +1,1 @@
-printw ("%s", SmimeDefaultKey ? SmimeDefaultKey : _("<default>"));
+state_puts (buf, s);

@@ -1,363 +1,341 @@
-static void winnt_rewrite_args(process_rec *process)
+void child_main(apr_pool_t *pconf)
 {
-    /* Handle the following SCM aspects in this phase:
-     *
-     *   -k runservice [transition in service context only]
-     *   -k install
-     *   -k config
-     *   -k uninstall
-     *   -k stop
-     *   -k shutdown (same as -k stop). Maintained for backward compatability.
-     *
-     * We can't leave this phase until we know our identity
-     * and modify the command arguments appropriately.
-     *
-     * We do not care if the .conf file exists or is parsable when
-     * attempting to stop or uninstall a service.
+    apr_status_t status;
+    apr_hash_t *ht;
+    ap_listen_rec *lr;
+    HANDLE child_events[2];
+    HANDLE *child_handles;
+    int listener_started = 0;
+    int threads_created = 0;
+    int watch_thread;
+    int time_remains;
+    int cld;
+    int tid;
+    int rv;
+    int i;
+
+    apr_pool_create(&pchild, pconf);
+    apr_pool_tag(pchild, "pchild");
+
+    ap_run_child_init(pchild, ap_server_conf);
+    ht = apr_hash_make(pchild);
+
+    /* Initialize the child_events */
+    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!max_requests_per_child_event) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Failed to create a max_requests event.", 
+                     my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    child_events[0] = exit_event;
+    child_events[1] = max_requests_per_child_event;
+
+    /*
+     * Wait until we have permission to start accepting connections.
+     * start_mutex is used to ensure that only one child ever
+     * goes into the listen/accept loop at once.
      */
-    apr_status_t rv;
-    char *def_server_root;
-    char *binpath;
-    char optbuf[3];
-    const char *opt_arg;
-    int fixed_args;
-    char *pid;
-    apr_getopt_t *opt;
-    int running_as_service = 1;
-    int errout = 0;
-    apr_file_t *nullfile;
+    status = apr_proc_mutex_lock(start_mutex);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
+                     "Child %d: Failed to acquire the start_mutex. "
+                     "Process will exit.", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Acquired the start mutex.", my_pid);
 
-    pconf = process->pconf;
-
-    osver.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&osver);
-
-    /* We wish this was *always* a reservation, but sadly it wasn't so and
-     * we couldn't break a hard limit prior to NT Kernel 5.1
+    /*
+     * Create the worker thread dispatch IOCompletionPort
      */
-    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT
-        && ((osver.dwMajorVersion > 5)
-         || ((osver.dwMajorVersion == 5) && (osver.dwMinorVersion > 0)))) {
-        stack_res_flag = STACK_SIZE_PARAM_IS_A_RESERVATION;
+    /* Create the worker thread dispatch IOCP */
+    ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
+                                                NULL, 0, 0); 
+    apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
+    qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!qwait_event) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), 
+                     ap_server_conf,
+                     "Child %d: Failed to create a qwait event.", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
 
-    /* AP_PARENT_PID is only valid in the child */
-    pid = getenv("AP_PARENT_PID");
-    if (pid)
-    {
-        HANDLE filehand;
-        HANDLE hproc = GetCurrentProcess();
-        DWORD BytesRead;
-
-        /* This is the child */
-        my_pid = GetCurrentProcessId();
-        parent_pid = (DWORD) atol(pid);
-
-        /* Prevent holding open the (nonexistant) console */
-        ap_real_exit_code = 0;
-
-        /* The parent gave us stdin, we need to remember this
-         * handle, and no longer inherit it at our children
-         * (we can't slurp it up now, we just aren't ready yet).
-         * The original handle is closed below, at apr_file_dup2()
-         */
-        pipe = GetStdHandle(STD_INPUT_HANDLE);
-        if (DuplicateHandle(hproc, pipe,
-                            hproc, &filehand, 0, FALSE,
-                            DUPLICATE_SAME_ACCESS)) {
-            pipe = filehand;
-        }
-
-        /* The parent gave us stdout of the NUL device,
-         * and expects us to suck up stdin of all of our
-         * shared handles and data from the parent.
-         * Don't infect child processes with our stdin
-         * handle, use another handle to NUL!
-         */
-        {
-            apr_file_t *infile, *outfile;
-            if ((apr_file_open_stdout(&outfile, process->pool) == APR_SUCCESS)
-             && (apr_file_open_stdin(&infile, process->pool) == APR_SUCCESS))
-                apr_file_dup2(infile, outfile, process->pool);
-        }
-
-        /* This child needs the existing stderr opened for logging,
-         * already
-         */
-
-        /* Read this child's generation number as soon as now,
-         * so that further hooks can query it.
-         */
-        if (!ReadFile(pipe, &my_generation, sizeof(my_generation),
-                      &BytesRead, (LPOVERLAPPED) NULL)
-                || (BytesRead != sizeof(my_generation))) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), NULL, APLOGNO(02965)
-                         "Child: Unable to retrieve my generation from the parent");
-            exit(APEXIT_CHILDINIT);
-        }
-
-        /* The parent is responsible for providing the
-         * COMPLETE ARGUMENTS REQUIRED to the child.
-         *
-         * No further argument parsing is needed, but
-         * for good measure we will provide a simple
-         * signal string for later testing.
-         */
-        signal_arg = "runchild";
-        return;
-    }
-
-    /* This is the parent, we have a long way to go :-) */
-    parent_pid = my_pid = GetCurrentProcessId();
-
-    /* This behavior is voided by setting real_exit_code to 0 */
-    atexit(hold_console_open_on_error);
-
-    /* Rewrite process->argv[];
-     *
-     * strip out -k signal into signal_arg
-     * strip out -n servicename and set the names
-     * add default -d serverroot from the path of this executable
-     *
-     * The end result will look like:
-     *
-     * The invocation command (%0)
-     *     The -d serverroot default from the running executable
-     *         The requested service's (-n) registry ConfigArgs
-     *             The WinNT SCM's StartService() args
+    /*
+     * Create the pool of worker threads
      */
-    if ((rv = ap_os_proc_filepath(&binpath, process->pconf))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK,APLOG_CRIT, rv, NULL, APLOGNO(00432)
-                     "Failed to get the full path of %s", process->argv[0]);
-        exit(APEXIT_INIT);
-    }
-    /* WARNING: There is an implict assumption here that the
-     * executable resides in ServerRoot or ServerRoot\bin
-     */
-    def_server_root = (char *) apr_filepath_name_get(binpath);
-    if (def_server_root > binpath) {
-        *(def_server_root - 1) = '\0';
-        def_server_root = (char *) apr_filepath_name_get(binpath);
-        if (!strcasecmp(def_server_root, "bin"))
-            *(def_server_root - 1) = '\0';
-    }
-    apr_filepath_merge(&def_server_root, NULL, binpath,
-                       APR_FILEPATH_TRUENAME, process->pool);
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Starting %d worker threads.",
+                 my_pid, ap_threads_per_child);
+    child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child
+                                                  * sizeof(HANDLE));
+    apr_thread_mutex_create(&child_lock, APR_THREAD_MUTEX_DEFAULT, pchild);
 
-    /* Use process->pool so that the rewritten argv
-     * lasts for the lifetime of the server process,
-     * because pconf will be destroyed after the
-     * initial pre-flight of the config parser.
-     */
-    mpm_new_argv = apr_array_make(process->pool, process->argc + 2,
-                                  sizeof(const char *));
-    *(const char **)apr_array_push(mpm_new_argv) = process->argv[0];
-    *(const char **)apr_array_push(mpm_new_argv) = "-d";
-    *(const char **)apr_array_push(mpm_new_argv) = def_server_root;
-
-    fixed_args = mpm_new_argv->nelts;
-
-    optbuf[0] = '-';
-    optbuf[2] = '\0';
-    apr_getopt_init(&opt, process->pool, process->argc, process->argv);
-    opt->errfn = NULL;
-    while ((rv = apr_getopt(opt, "wn:k:" AP_SERVER_BASEARGS,
-                            optbuf + 1, &opt_arg)) == APR_SUCCESS) {
-        switch (optbuf[1]) {
-
-        /* Shortcuts; include the -w option to hold the window open on error.
-         * This must not be toggled once we reset ap_real_exit_code to 0!
-         */
-        case 'w':
-            if (ap_real_exit_code)
-                ap_real_exit_code = 2;
-            break;
-
-        case 'n':
-            service_set = mpm_service_set_name(process->pool, &service_name,
-                                               opt_arg);
-            break;
-
-        case 'k':
-            signal_arg = opt_arg;
-            break;
-
-        case 'E':
-            errout = 1;
-            /* Fall through so the Apache main() handles the 'E' arg */
-        default:
-            *(const char **)apr_array_push(mpm_new_argv) =
-                apr_pstrdup(process->pool, optbuf);
-
-            if (opt_arg) {
-                *(const char **)apr_array_push(mpm_new_argv) = opt_arg;
+    while (1) {
+        for (i = 0; i < ap_threads_per_child; i++) {
+            int *score_idx;
+            int status = ap_scoreboard_image->servers[0][i].status;
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
             }
-            break;
-        }
-    }
-
-    /* back up to capture the bad argument */
-    if (rv == APR_BADCH || rv == APR_BADARG) {
-        opt->ind--;
-    }
-
-    while (opt->ind < opt->argc) {
-        *(const char **)apr_array_push(mpm_new_argv) =
-            apr_pstrdup(process->pool, opt->argv[opt->ind++]);
-    }
-
-    /* Track the number of args actually entered by the user */
-    inst_argc = mpm_new_argv->nelts - fixed_args;
-
-    /* Provide a default 'run' -k arg to simplify signal_arg tests */
-    if (!signal_arg)
-    {
-        signal_arg = "run";
-        running_as_service = 0;
-    }
-
-    if (!strcasecmp(signal_arg, "runservice"))
-    {
-        /* Start the NT Service _NOW_ because the WinNT SCM is
-         * expecting us to rapidly assume control of our own
-         * process, the SCM will tell us our service name, and
-         * may have extra StartService() command arguments to
-         * add for us.
-         *
-         * The SCM will generally invoke the executable with
-         * the c:\win\system32 default directory.  This is very
-         * lethal if folks use ServerRoot /foopath on windows
-         * without a drive letter.  Change to the default root
-         * (path to apache root, above /bin) for safety.
-         */
-        apr_filepath_set(def_server_root, process->pool);
-
-        /* Any other process has a console, so we don't to begin
-         * a Win9x service until the configuration is parsed and
-         * any command line errors are reported.
-         *
-         * We hold the return value so that we can die in pre_config
-         * after logging begins, and the failure can land in the log.
-         */
-        if (!errout) {
-            mpm_nt_eventlog_stderr_open(service_name, process->pool);
-        }
-        service_to_start_success = mpm_service_to_start(&service_name,
-                                                        process->pool);
-        if (service_to_start_success == APR_SUCCESS) {
-            service_set = APR_SUCCESS;
-        }
-
-        /* Open a null handle to soak stdout in this process.
-         * Windows service processes are missing any file handle
-         * usable for stdin/out/err.  This was the cause of later
-         * trouble with invocations of apr_file_open_stdout()
-         */
-        if ((rv = apr_file_open(&nullfile, "NUL",
-                                APR_READ | APR_WRITE, APR_OS_DEFAULT,
-                                process->pool)) == APR_SUCCESS) {
-            apr_file_t *nullstdout;
-            if (apr_file_open_stdout(&nullstdout, process->pool)
-                    == APR_SUCCESS)
-                apr_file_dup2(nullstdout, nullfile, process->pool);
-            apr_file_close(nullfile);
-        }
-    }
-
-    /* Get the default for any -k option, except run */
-    if (service_set == SERVICE_UNSET && strcasecmp(signal_arg, "run")) {
-        service_set = mpm_service_set_name(process->pool, &service_name,
-                                           AP_DEFAULT_SERVICE_NAME);
-    }
-
-    if (!strcasecmp(signal_arg, "install")) /* -k install */
-    {
-        if (service_set == APR_SUCCESS)
-        {
-            ap_log_error(APLOG_MARK,APLOG_ERR, 0, NULL, APLOGNO(00433)
-                 "%s: Service is already installed.", service_name);
-            exit(APEXIT_INIT);
-        }
-    }
-    else if (running_as_service)
-    {
-        if (service_set == APR_SUCCESS)
-        {
-            /* Attempt to Uninstall, or stop, before
-             * we can read the arguments or .conf files
+            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
+        
+            child_handles[i] = CreateThread(NULL, ap_thread_stacksize,
+                                            worker_main, (void *) i,
+                                            stack_res_flag, &tid);
+            if (child_handles[i] == 0) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                             ap_server_conf,
+                             "Child %d: CreateThread failed. Unable to "
+                             "create all worker threads. Created %d of the %d "
+                             "threads requested with the ThreadsPerChild "
+                             "configuration directive.",
+                             my_pid, threads_created, ap_threads_per_child);
+                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
+                goto shutdown;
+            }
+            threads_created++;
+            /* Save the score board index in ht keyed to the thread handle. 
+             * We need this when cleaning up threads down below...
              */
-            if (!strcasecmp(signal_arg, "uninstall")) {
-                rv = mpm_service_uninstall();
-                exit(rv);
-            }
+            apr_thread_mutex_lock(child_lock);
+            score_idx = apr_pcalloc(pchild, sizeof(int));
+            *score_idx = i;
+            apr_hash_set(ht, &child_handles[i], sizeof(HANDLE), score_idx);
+            apr_thread_mutex_unlock(child_lock);
+        }
+        /* Start the listener only when workers are available */
+        if (!listener_started && threads_created) {
+            create_listener_thread();
+            listener_started = 1;
+            winnt_mpm_state = AP_MPMQ_RUNNING;
+        }
+        if (threads_created == ap_threads_per_child) {
+            break;
+        }
+        /* Check to see if the child has been told to exit */
+        if (WaitForSingleObject(exit_event, 0) != WAIT_TIMEOUT) {
+            break;
+        }
+        /* wait for previous generation to clean up an entry in the scoreboard
+         */
+        apr_sleep(1 * APR_USEC_PER_SEC);
+    }
 
-            if ((!strcasecmp(signal_arg, "stop")) ||
-                (!strcasecmp(signal_arg, "shutdown"))) {
-                mpm_signal_service(process->pool, 0);
-                exit(0);
-            }
-
-            rv = mpm_merge_service_args(process->pool, mpm_new_argv,
-                                        fixed_args);
-            if (rv == APR_SUCCESS) {
-                ap_log_error(APLOG_MARK,APLOG_INFO, 0, NULL, APLOGNO(00434)
-                             "Using ConfigArgs of the installed service "
-                             "\"%s\".", service_name);
-            }
-            else  {
-                ap_log_error(APLOG_MARK,APLOG_WARNING, rv, NULL, APLOGNO(00435)
-                             "No installed ConfigArgs for the service "
-                             "\"%s\", using Apache defaults.", service_name);
-            }
+    /* Wait for one of three events:
+     * exit_event:
+     *    The exit_event is signaled by the parent process to notify
+     *    the child that it is time to exit.
+     *
+     * max_requests_per_child_event:
+     *    This event is signaled by the worker threads to indicate that
+     *    the process has handled MaxRequestsPerChild connections.
+     *
+     * TIMEOUT:
+     *    To do periodic maintenance on the server (check for thread exits,
+     *    number of completion contexts, etc.)
+     *
+     * XXX: thread exits *aren't* being checked.
+     *
+     * XXX: other_child - we need the process handles to the other children
+     *      in order to map them to apr_proc_other_child_read (which is not
+     *      named well, it's more like a_p_o_c_died.)
+     *
+     * XXX: however - if we get a_p_o_c handle inheritance working, and
+     *      the parent process creates other children and passes the pipes
+     *      to our worker processes, then we have no business doing such
+     *      things in the child_main loop, but should happen in master_main.
+     */
+    while (1) {
+#if !APR_HAS_OTHER_CHILD
+        rv = WaitForMultipleObjects(2, (HANDLE *)child_events, FALSE, INFINITE);
+        cld = rv - WAIT_OBJECT_0;
+#else
+        rv = WaitForMultipleObjects(2, (HANDLE *)child_events, FALSE, 1000);
+        cld = rv - WAIT_OBJECT_0;
+        if (rv == WAIT_TIMEOUT) {
+            apr_proc_other_child_refresh_all(APR_OC_REASON_RUNNING);
         }
         else
-        {
-            ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL, APLOGNO(00436)
-                 "No installed service named \"%s\".", service_name);
-            exit(APEXIT_INIT);
+#endif
+            if (rv == WAIT_FAILED) {
+            /* Something serious is wrong */
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                         ap_server_conf,
+                         "Child %d: WAIT_FAILED -- shutting down server", 
+                         my_pid);
+            break;
+        }
+        else if (cld == 0) {
+            /* Exit event was signaled */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %d: Exit event signaled. Child process is "
+                         "ending.", my_pid);
+            break;
+        }
+        else {
+            /* MaxRequestsPerChild event set by the worker threads.
+             * Signal the parent to restart
+             */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %d: Process exiting because it reached "
+                         "MaxRequestsPerChild. Signaling the parent to "
+                         "restart a new child process.", my_pid);
+            ap_signal_parent(SIGNAL_PARENT_RESTART);
+            break;
         }
     }
-    if (strcasecmp(signal_arg, "install") && service_set && service_set != SERVICE_UNSET)
+
+    /*
+     * Time to shutdown the child process
+     */
+
+ shutdown:
+
+    winnt_mpm_state = AP_MPMQ_STOPPING;
+
+    /* Close the listening sockets. Note, we must close the listeners
+     * before closing any accept sockets pending in AcceptEx to prevent
+     * memory leaks in the kernel.
+     */
+    for (lr = ap_listeners; lr ; lr = lr->next) {
+        apr_socket_close(lr->sd);
+    }
+
+    /* Shutdown listener threads and pending AcceptEx socksts
+     * but allow the worker threads to continue consuming from
+     * the queue of accepted connections.
+     */
+    shutdown_in_progress = 1;
+
+    Sleep(1000);
+
+    /* Tell the worker threads to exit */
+    workers_may_exit = 1;
+
+    /* Release the start_mutex to let the new process (in the restart
+     * scenario) a chance to begin accepting and servicing requests
+     */
+    rv = apr_proc_mutex_unlock(start_mutex);
+    if (rv == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
+                     "Child %d: Released the start mutex", my_pid);
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Child %d: Failure releasing the start mutex", my_pid);
+    }
+
+    /* Shutdown the worker threads
+     * Post worker threads blocked on the ThreadDispatch IOCompletion port
+     */
+    while (g_blocked_threads > 0) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                     "Child %d: %d threads blocked on the completion port",
+                     my_pid, g_blocked_threads);
+        for (i=g_blocked_threads; i > 0; i--) {
+            PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, 
+                                       IOCP_SHUTDOWN, NULL);
+        }
+        Sleep(1000);
+    }
+    /* Empty the accept queue of completion contexts */
+    apr_thread_mutex_lock(qlock);
+    while (qhead) {
+        CloseHandle(qhead->overlapped.hEvent);
+        closesocket(qhead->accept_socket);
+        qhead = qhead->next;
+    }
+    apr_thread_mutex_unlock(qlock);
+
+    /* Give busy threads a chance to service their connections,
+     * (no more than the global server timeout period which 
+     * we track in msec remaining).
+     */
+    watch_thread = 0;
+    time_remains = (int)(ap_server_conf->timeout / APR_TIME_C(1000));
+
+    while (threads_created)
     {
-        ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL, APLOGNO(00437)
-             "No installed service named \"%s\".", service_name);
-        exit(APEXIT_INIT);
-    }
+        int nFailsafe = MAXIMUM_WAIT_OBJECTS;
+        DWORD dwRet;
 
-    /* Track the args actually entered by the user.
-     * These will be used for the -k install parameters, as well as
-     * for the -k start service override arguments.
-     */
-    inst_argv = (const char * const *)mpm_new_argv->elts
-        + mpm_new_argv->nelts - inst_argc;
+        /* Every time we roll over to wait on the first group
+         * of MAXIMUM_WAIT_OBJECTS threads, take a breather,
+         * and infrequently update the error log.
+         */
+        if (watch_thread >= threads_created) {
+            if ((time_remains -= 100) < 0)
+                break;
 
-    /* Now, do service install or reconfigure then proceed to
-     * post_config to test the installed configuration.
-     */
-    if (!strcasecmp(signal_arg, "config")) { /* -k config */
-        /* Reconfigure the service */
-        rv = mpm_service_install(process->pool, inst_argc, inst_argv, 1);
-        if (rv != APR_SUCCESS) {
-            exit(rv);
+            /* Every 30 seconds give an update */
+            if ((time_remains % 30000) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
+                             ap_server_conf,
+                             "Child %d: Waiting %d more seconds "
+                             "for %d worker threads to finish.", 
+                             my_pid, time_remains / 1000, threads_created);
+            }
+            /* We'll poll from the top, 10 times per second */
+            Sleep(100);
+            watch_thread = 0;
         }
 
-        fprintf(stderr,"Testing httpd.conf....\n");
-        fprintf(stderr,"Errors reported here must be corrected before the "
-                "service can be started.\n");
-    }
-    else if (!strcasecmp(signal_arg, "install")) { /* -k install */
-        /* Install the service */
-        rv = mpm_service_install(process->pool, inst_argc, inst_argv, 0);
-        if (rv != APR_SUCCESS) {
-            exit(rv);
+        /* Fairness, on each iteration we will pick up with the thread
+         * after the one we just removed, even if it's a single thread.
+         * We don't block here.
+         */
+        dwRet = WaitForMultipleObjects(min(threads_created - watch_thread,
+                                           MAXIMUM_WAIT_OBJECTS),
+                                       child_handles + watch_thread, 0, 0);
+
+        if (dwRet == WAIT_FAILED) {
+            break;
         }
-
-        fprintf(stderr,"Testing httpd.conf....\n");
-        fprintf(stderr,"Errors reported here must be corrected before the "
-                "service can be started.\n");
+        if (dwRet == WAIT_TIMEOUT) {
+            /* none ready */
+            watch_thread += MAXIMUM_WAIT_OBJECTS;
+            continue;
+        }
+        else if (dwRet >= WAIT_ABANDONED_0) {
+            /* We just got the ownership of the object, which
+             * should happen at most MAXIMUM_WAIT_OBJECTS times.
+             * It does NOT mean that the object is signaled.
+             */
+            if ((nFailsafe--) < 1)
+                break;
+        }
+        else {
+            watch_thread += (dwRet - WAIT_OBJECT_0);
+            if (watch_thread >= threads_created)
+                break;
+            cleanup_thread(child_handles, &threads_created, watch_thread);
+        }
     }
 
-    process->argc = mpm_new_argv->nelts;
-    process->argv = (const char * const *) mpm_new_argv->elts;
+    /* Kill remaining threads off the hard way */
+    if (threads_created) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Terminating %d threads that failed to exit.",
+                     my_pid, threads_created);
+    }
+    for (i = 0; i < threads_created; i++) {
+        int *score_idx;
+        TerminateThread(child_handles[i], 1);
+        CloseHandle(child_handles[i]);
+        /* Reset the scoreboard entry for the thread we just whacked */
+        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
+        if (score_idx) {
+            ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);
+        }
+    }
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: All worker threads have exited.", my_pid);
+
+    apr_thread_mutex_destroy(child_lock);
+    apr_thread_mutex_destroy(qlock);
+    CloseHandle(qwait_event);
+
+    apr_pool_destroy(pchild);
+    CloseHandle(exit_event);
 }

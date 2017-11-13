@@ -1,11 +1,10 @@
 fputs(
-"              will be used. (Added in 7.16.1)\n"
+"              the  email's  unique  identifier  rather than it's message id to\n"
+"              make the request. (Added in 7.21.5)\n"
 "\n"
-"       --limit-rate <speed>\n"
-"              Specify the maximum transfer rate you want curl  to  use  -  for\n"
-"              both downloads and uploads. This feature is useful if you have a\n"
-"              limited pipe and you'd like your transfer not to use your entire\n"
-"              bandwidth. To make it slower than it otherwise would be.\n"
-"\n"
-"              The  given speed is measured in bytes/second, unless a suffix is\n"
+"       -L, --location\n"
+"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
+"              moved to a different location (indicated with a Location: header\n"
+"              and a 3XX response code), this option will make  curl  redo  the\n"
+"              request on the new place. If used together with -i, --include or\n"
 , stdout);

@@ -1,1 +1,1 @@
-die(_("Error wrapping up %s."), git_path_todo_file());
+error("file/directory conflict: %s, %s", name1, name2);

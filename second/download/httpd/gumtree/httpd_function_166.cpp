@@ -1,199 +1,246 @@
-static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
-                                 apr_pool_t *ptemp, server_rec *s)
+int mod_auth_ldap_auth_checker(request_rec *r)
 {
-    int rc = LDAP_SUCCESS;
-    apr_status_t result;
-    char buf[MAX_STRING_LEN];
+    int result = 0;
+    mod_auth_ldap_request_t *req =
+        (mod_auth_ldap_request_t *)ap_get_module_config(r->request_config,
+        &auth_ldap_module);
+    mod_auth_ldap_config_t *sec =
+        (mod_auth_ldap_config_t *)ap_get_module_config(r->per_dir_config, 
+        &auth_ldap_module);
 
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
+    util_ldap_connection_t *ldc = NULL;
+    int m = r->method_number;
 
-#if APR_HAS_SHARED_MEMORY
-    server_rec *s_vhost;
-    util_ldap_state_t *st_vhost;
-    
-    /* initializing cache if file is here and we already don't have shm addr*/
-    if (st->cache_file && !st->cache_shm) {
-#endif
-        result = util_ldap_cache_init(p, st);
-        apr_strerror(result, buf, sizeof(buf));
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
-                     "LDAP cache init: %s", buf);
+    const apr_array_header_t *reqs_arr = ap_requires(r);
+    require_line *reqs = reqs_arr ? (require_line *)reqs_arr->elts : NULL;
 
-#if APR_HAS_SHARED_MEMORY
-        /* merge config in all vhost */
-        s_vhost = s->next;
-        while (s_vhost) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
-                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
+    register int x;
+    const char *t;
+    char *w;
+    int method_restricted = 0;
 
-            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
-            st_vhost->cache_shm = st->cache_shm;
-            st_vhost->cache_rmm = st->cache_rmm;
-            st_vhost->cache_file = st->cache_file;
-            s_vhost = s_vhost->next;
-        }
+    if (!sec->enabled) {
+        return DECLINED;
+    }
+
+    if (!sec->have_ldap_url) {
+        return DECLINED;
+    }
+
+    if (sec->host) {
+        ldc = util_ldap_connection_find(r, sec->host, sec->port,
+                                       sec->binddn, sec->bindpw, sec->deref,
+                                       sec->netscapessl, sec->starttls);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  mod_auth_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
     }
     else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: no sec->host - weird...?", getpid());
+        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
     }
-#endif
-    
-    /* log the LDAP SDK used 
+
+    /* 
+     * If there are no elements in the group attribute array, the default should be
+     * member and uniquemember; populate the array now.
      */
-    #if APR_HAS_NETSCAPE_LDAPSDK 
+    if (sec->groupattr->nelts == 0) {
+        struct mod_auth_ldap_groupattr_entry_t *grp;
+#if APR_HAS_THREADS
+        apr_thread_mutex_lock(sec->lock);
+#endif
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "member";
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "uniquemember";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
+    }
+
+    if (!reqs_arr) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+		      "[%d] auth_ldap authorise: no requirements array", getpid());
+        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+    }
+
+    /* Loop through the requirements array until there's no elements
+     * left, or something causes a return from inside the loop */
+    for(x=0; x < reqs_arr->nelts; x++) {
+        if (! (reqs[x].method_mask & (1 << m))) {
+            continue;
+        }
+        method_restricted = 1;
+	
+        t = reqs[x].requirement;
+        w = ap_getword(r->pool, &t, ' ');
     
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Netscape LDAP SDK" );
-
-    #elif APR_HAS_NOVELL_LDAPSDK
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Novell LDAP SDK" );
-
-    #elif APR_HAS_OPENLDAP_LDAPSDK
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with OpenLDAP LDAP SDK" );
-
-    #elif APR_HAS_MICROSOFT_LDAPSDK
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Microsoft LDAP SDK" );
-    #else
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with unknown LDAP SDK" );
-
-    #endif /* APR_HAS_NETSCAPE_LDAPSDK */
-
-
-
-    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
-                              util_ldap_cleanup_module); 
-
-    /* initialize SSL support if requested
-    */
-    if (st->cert_auth_file)
-    {
-        #if APR_HAS_LDAP_SSL /* compiled with ssl support */
-
-        #if APR_HAS_NETSCAPE_LDAPSDK 
-
-            /* Netscape sdk only supports a cert7.db file 
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_CERT7_DB)
-            {
-                rc = ldapssl_client_init(st->cert_auth_file, NULL);
+        if (strcmp(w, "valid-user") == 0) {
+            /*
+             * Valid user will always be true if we authenticated with ldap,
+             * but when using front page, valid user should only be true if
+             * he exists in the frontpage password file. This hack will get
+             * auth_ldap to look up the user in the the pw file to really be
+             * sure that he's valid. Naturally, it requires mod_auth to be
+             * compiled in, but if mod_auth wasn't in there, then the need
+             * for this hack wouldn't exist anyway.
+             */
+            if (sec->frontpage_hack) {
+	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+			      "[%d] auth_ldap authorise: "
+			      "deferring authorisation to mod_auth (FP Hack)", 
+			      getpid());
+                return OK;
             }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                         "LDAP: Invalid LDAPTrustedCAType directive - "
-                          "CERT7_DB_PATH type required");
-                rc = -1;
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                              "[%d] auth_ldap authorise: "
+                              "successful authorisation because user "
+                              "is valid-user", getpid());
+                return OK;
             }
-
-        #elif APR_HAS_NOVELL_LDAPSDK
-        
-            /* Novell SDK supports DER or BASE64 files
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_DER  ||
-                st->cert_file_type == LDAP_CA_TYPE_BASE64 )
-            {
-                rc = ldapssl_client_init(NULL, NULL);
-                if (LDAP_SUCCESS == rc)
-                {
-                    if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
-                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
-                                                  LDAPSSL_CERT_FILETYPE_B64);
-                    else
-                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
-                                                  LDAPSSL_CERT_FILETYPE_DER);
-
-                    if (LDAP_SUCCESS != rc)
-                        ldapssl_client_deinit();
+        }
+        else if (strcmp(w, "user") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                              "[%d] auth_ldap authorise: "
+                              "require user: user's DN has not been defined; failing authorisation", 
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+            /* 
+             * First do a whole-line compare, in case it's something like
+             *   require user Babs Jensen
+             */
+            result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, t);
+            switch(result) {
+                case LDAP_COMPARE_TRUE: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                  "[%d] auth_ldap authorise: "
+                                  "require user: authorisation successful", getpid());
+                    return OK;
+                }
+                default: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                  "[%d] auth_ldap authorise: require user: "
+                                  "authorisation failed [%s][%s]", getpid(),
+                                  ldc->reason, ldap_err2string(result));
                 }
             }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "DER_FILE or BASE64_FILE type required");
-                rc = -1;
+            /* 
+             * Now break apart the line and compare each word on it 
+             */
+            while (t[0]) {
+	        w = ap_getword_conf(r->pool, &t);
+                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, w);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: "
+                                      "require user: authorisation successful", getpid());
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: "
+                                      "require user: authorisation failed [%s][%s]",
+                                      getpid(), ldc->reason, ldap_err2string(result));
+                    }
+                }
             }
-
-        #elif APR_HAS_OPENLDAP_LDAPSDK
-
-            /* OpenLDAP SDK supports BASE64 files
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
-            {
-                rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, st->cert_auth_file);
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "BASE64_FILE type required");
-                rc = -1;
-            }
-
-
-        #elif APR_HAS_MICROSOFT_LDAPSDK
-            
-            /* Microsoft SDK use the registry certificate store - always
-             * assume support is always available
-            */
-            rc = LDAP_SUCCESS;
-
-        #else
-            rc = -1;
-        #endif /* APR_HAS_NETSCAPE_LDAPSDK */
-
-        #else  /* not compiled with SSL Support */
-
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                     "LDAP: Not built with SSL support." );
-            rc = -1;
-
-        #endif /* APR_HAS_LDAP_SSL */
-
-        if (LDAP_SUCCESS == rc)
-        {
-            st->ssl_support = 1;
         }
-        else
-        {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
-                         "LDAP: SSL initialization failed");
-            st->ssl_support = 0;
+        else if (strcmp(w, "dn") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                              "[%d] auth_ldap authorise: "
+                              "require dn: user's DN has not been defined; failing authorisation", 
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+
+            result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, t, sec->compare_dn_on_server);
+            switch(result) {
+                case LDAP_COMPARE_TRUE: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                  "[%d] auth_ldap authorise: "
+                                  "require dn: authorisation successful", getpid());
+                    return OK;
+                }
+                default: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                  "[%d] auth_ldap authorise: "
+                                  "require dn: LDAP error [%s][%s]",
+                                  getpid(), ldc->reason, ldap_err2string(result));
+                }
+            }
+        }
+        else if (strcmp(w, "group") == 0) {
+            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+            int i;
+
+            if (sec->group_attrib_is_dn) {
+                if (req->dn == NULL || strlen(req->dn) == 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                                  "[%d] auth_ldap authorise: require group: user's DN has not been defined; failing authorisation", 
+                                  getpid());
+                    return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+                }
+            }
+            else {
+                if (req->user == NULL || strlen(req->user) == 0) {
+	            /* We weren't called in the authentication phase, so we didn't have a 
+                     * chance to set the user field. Do so now. */
+                    req->user = r->user;
+                }
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                          "[%d] auth_ldap authorise: require group: testing for group membership in `%s'", 
+		          getpid(), t);
+
+            for (i = 0; i < sec->groupattr->nelts; i++) {
+	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                              "[%d] auth_ldap authorise: require group: testing for %s: %s (%s)", getpid(),
+                              ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
+
+                result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name, 
+                                     sec->group_attrib_is_dn ? req->dn : req->user);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: require group: "
+                                      "authorisation successful (attribute %s) [%s][%s]",
+                                      getpid(), ent[i].name, ldc->reason, ldap_err2string(result));
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: require group: "
+                                      "authorisation failed [%s][%s]",
+                                      getpid(), ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
         }
     }
-      
-        /* The Microsoft SDK uses the registry certificate store -
-         * always assume support is available
-        */
-    #if APR_HAS_MICROSOFT_LDAPSDK
-        st->ssl_support = 1;
-    #endif
-    
 
-        /* log SSL status - If SSL isn't available it isn't necessarily
-         * an error because the modules asking for LDAP connections 
-         * may not ask for SSL support
-        */
-    if (st->ssl_support)
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support available" );
+    if (!method_restricted) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: agreeing because non-restricted", 
+                      getpid());
+        return OK;
     }
-    else
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support unavailable" );
+
+    if (!sec->auth_authoritative) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: declining to authorise", getpid());
+        return DECLINED;
     }
-    
-    return(OK);
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                  "[%d] auth_ldap authorise: authorisation denied", getpid());
+    ap_note_basic_auth_failure (r);
+
+    return HTTP_UNAUTHORIZED;
 }

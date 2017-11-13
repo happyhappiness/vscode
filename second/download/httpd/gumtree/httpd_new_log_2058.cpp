@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d would require %d "
-                         "servers and ", max_clients, ap_daemons_limit);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
+                  "read from buffered SSL brigade, mode %d, "
+                  "%" APR_OFF_T_FMT " bytes",
+                  mode, bytes);

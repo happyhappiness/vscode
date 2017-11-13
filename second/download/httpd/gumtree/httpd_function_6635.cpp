@@ -1,112 +1,115 @@
-static BOOL stapling_renew_response(server_rec *s, modssl_ctx_t *mctx, SSL *ssl,
-                                    certinfo *cinf, OCSP_RESPONSE **prsp,
-                                    apr_pool_t *pool)
+static apr_status_t on_stream_response(void *ctx, int stream_id)
 {
-    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
-    apr_pool_t *vpool;
-    OCSP_REQUEST *req = NULL;
-    OCSP_CERTID *id = NULL;
-    STACK_OF(X509_EXTENSION) *exts;
-    int i;
-    BOOL ok = FALSE;
-    BOOL rv = TRUE;
-    const char *ocspuri;
-    apr_uri_t uri;
+    h2_session *session = ctx;
+    h2_stream *stream = get_stream(session, stream_id);
+    apr_status_t status = APR_SUCCESS;
+    h2_response *response;
+    int rv = 0;
 
-    *prsp = NULL;
-    /* Build up OCSP query from server certificate info */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01938)
-                 "stapling_renew_response: querying responder");
-
-    req = OCSP_REQUEST_new();
-    if (!req)
-        goto err;
-    id = OCSP_CERTID_dup(cinf->cid);
-    if (!id)
-        goto err;
-    if (!OCSP_request_add0_id(req, id))
-        goto err;
-    id = NULL;
-    /* Add any extensions to the request */
-    SSL_get_tlsext_status_exts(ssl, &exts);
-    for (i = 0; i < sk_X509_EXTENSION_num(exts); i++) {
-        X509_EXTENSION *ext = sk_X509_EXTENSION_value(exts, i);
-        if (!OCSP_REQUEST_add_ext(req, ext, -1))
-            goto err;
+    AP_DEBUG_ASSERT(session);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_response", session->id, stream_id);
+    if (!stream) {
+        return APR_NOTFOUND;
     }
-
-    if (mctx->stapling_force_url)
-        ocspuri = mctx->stapling_force_url;
-    else
-        ocspuri = cinf->uri;
-
-    /* Create a temporary pool to constrain memory use */
-    apr_pool_create(&vpool, conn->pool);
-
-    ok = apr_uri_parse(vpool, ocspuri, &uri);
-    if (ok != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01939)
-                     "stapling_renew_response: Error parsing uri %s",
-                      ocspuri);
-        rv = FALSE;
-        goto done;
+    
+    response = h2_stream_get_response(stream);
+    AP_DEBUG_ASSERT(response || stream->rst_error);
+    
+    if (stream->submitted) {
+        rv = NGHTTP2_PROTOCOL_ERROR;
     }
-    else if (strcmp(uri.scheme, "http")) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01940)
-                     "stapling_renew_response: Unsupported uri %s", ocspuri);
-        rv = FALSE;
-        goto done;
-    }
-
-    if (!uri.port) {
-        uri.port = apr_uri_port_of_scheme(uri.scheme);
-    }
-
-    *prsp = modssl_dispatch_ocsp_request(&uri, mctx->stapling_responder_timeout,
-                                         req, conn, vpool);
-
-    apr_pool_destroy(vpool);
-
-    if (!*prsp) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01941)
-                     "stapling_renew_response: responder error");
-        if (mctx->stapling_fake_trylater) {
-            *prsp = OCSP_response_create(OCSP_RESPONSE_STATUS_TRYLATER, NULL);
+    else if (response && response->headers) {
+        nghttp2_data_provider provider, *pprovider = NULL;
+        h2_ngheader *ngh;
+        const h2_priority *prio;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03073)
+                      "h2_stream(%ld-%d): submit response %d, REMOTE_WINDOW_SIZE=%u",
+                      session->id, stream->id, response->http_status,
+                      (unsigned int)nghttp2_session_get_stream_remote_window_size(session->ngh2, stream->id));
+        
+        if (response->content_length != 0) {
+            memset(&provider, 0, sizeof(provider));
+            provider.source.fd = stream->id;
+            provider.read_callback = stream_data_cb;
+            pprovider = &provider;
         }
-        else {
-            goto done;
+        
+        /* If this stream is not a pushed one itself,
+         * and HTTP/2 server push is enabled here,
+         * and the response is in the range 200-299 *),
+         * and the remote side has pushing enabled,
+         * -> find and perform any pushes on this stream
+         *    *before* we submit the stream response itself.
+         *    This helps clients avoid opening new streams on Link
+         *    headers that get pushed right afterwards.
+         * 
+         * *) the response code is relevant, as we do not want to 
+         *    make pushes on 401 or 403 codes, neiterh on 301/302
+         *    and friends. And if we see a 304, we do not push either
+         *    as the client, having this resource in its cache, might
+         *    also have the pushed ones as well.
+         */
+        if (stream->request && !stream->request->initiated_on
+            && H2_HTTP_2XX(response->http_status)
+            && h2_session_push_enabled(session)) {
+            
+            h2_stream_submit_pushes(stream);
         }
+        
+        prio = h2_stream_get_priority(stream);
+        if (prio) {
+            h2_session_set_prio(session, stream, prio);
+            /* no showstopper if that fails for some reason */
+        }
+        
+        ngh = h2_util_ngheader_make_res(stream->pool, response->http_status, 
+                                        response->headers);
+        rv = nghttp2_submit_response(session->ngh2, response->stream_id,
+                                     ngh->nv, ngh->nvlen, pprovider);
     }
     else {
-        int response_status = OCSP_response_status(*prsp);
+        int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03074)
+                      "h2_stream(%ld-%d): RST_STREAM, err=%d",
+                      session->id, stream->id, err);
 
-        if (response_status == OCSP_RESPONSE_STATUS_SUCCESSFUL) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01942)
-                        "stapling_renew_response: query response received");
-            stapling_check_response(s, mctx, cinf, *prsp, &ok);
-            if (ok == FALSE) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
-                             "stapling_renew_response: error in retreived response!");
-            }
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01944)
-                         "stapling_renew_response: responder error %s",
-                         OCSP_response_status_str(response_status));
-        }
+        rv = nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                       stream->id, err);
     }
-    if (stapling_cache_response(s, mctx, *prsp, cinf, ok, pool) == FALSE) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01945)
-                     "stapling_renew_response: error caching response!");
+    
+    stream->submitted = 1;
+    session->have_written = 1;
+    
+    if (stream->request && stream->request->initiated_on) {
+        ++session->pushes_submitted;
     }
-
-done:
-    if (id)
-        OCSP_CERTID_free(id);
-    if (req)
-        OCSP_REQUEST_free(req);
-    return rv;
-err:
-    rv = FALSE;
-    goto done;
+    else {
+        ++session->responses_submitted;
+    }
+    
+    if (nghttp2_is_fatal(rv)) {
+        status = APR_EGENERAL;
+        dispatch_event(session, H2_SESSION_EV_PROTO_ERROR, rv, nghttp2_strerror(rv));
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      APLOGNO(02940) "submit_response: %s", 
+                      nghttp2_strerror(rv));
+    }
+    
+    ++session->unsent_submits;
+    
+    /* Unsent push promises are written immediately, as nghttp2
+     * 1.5.0 realizes internal stream data structures only on 
+     * send and we might need them for other submits. 
+     * Also, to conserve memory, we send at least every 10 submits
+     * so that nghttp2 does not buffer all outbound items too 
+     * long.
+     */
+    if (status == APR_SUCCESS 
+        && (session->unsent_promises || session->unsent_submits > 10)) {
+        status = h2_session_send(session);
+    }
+    return status;
 }

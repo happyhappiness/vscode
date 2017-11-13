@@ -1,1 +1,1 @@
-state_attach_puts (msg, s);
+state_attach_puts (_("Available CRL is too old\n"), s);

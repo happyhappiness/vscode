@@ -1,1 +1,1 @@
-die(_("bad numeric config value '%s' for '%s': %s"), value, name, reason);
+printf("would prune %s", message);

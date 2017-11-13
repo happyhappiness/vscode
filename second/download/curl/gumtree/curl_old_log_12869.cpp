@@ -1,12 +1,9 @@
 fputs(
-"              tion checks.  WARNING: this option loosens the SSL security, and\n"
-"              by using this flag you ask for exactly that.  (Added in 7.44.0)\n"
-"\n"
-"       --socks4 <host[:port]>\n"
-"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
-"              fied, it is assumed at port 1080. (Added in 7.15.2)\n"
-"\n"
-"              This  option  overrides any previous use of -x, --proxy, as they\n"
-"              are mutually exclusive.\n"
+"              Retries will be done as usual (see --retry) as long as the timer\n"
+"              hasn't reached this given limit. Notice that if the timer hasn't\n"
+"              reached  the  limit, the request will be made and while perform-\n"
+"              ing, it may take longer than this given time period. To limit  a\n"
+"              single  request's  maximum  time,  use -m, --max-time.  Set this\n"
+"              option to zero to not timeout retries. (Added in 7.12.3)\n"
 "\n"
 , stdout);

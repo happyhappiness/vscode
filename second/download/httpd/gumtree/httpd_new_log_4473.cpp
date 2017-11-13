@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main, APLOGNO(00093)
-                     "unable to replace stderr with /dev/null");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01112)
+                          "HTTPS: declining URL %s (mod_ssl not configured?)",
+                          url);

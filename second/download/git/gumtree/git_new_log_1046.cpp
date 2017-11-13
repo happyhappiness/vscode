@@ -1,1 +1,1 @@
-die("Timestamp before Unix epoch: %"PRItime" %04d", time, tz);
+die(_("could not create directories for %s"), cfg_sb.buf);

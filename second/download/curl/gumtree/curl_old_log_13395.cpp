@@ -1,9 +1,12 @@
 fputs(
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
-"              written which then will be used as if they were written  on  the\n"
-"              actual command line.\n"
+"              includes  things  like  server-name, date of the document, HTTP-\n"
+"              version and more...\n"
 "\n"
-"              Options  and their parameters must be specified on the same con-\n"
-"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
+"       -I, --head\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the  command  HEAD which this uses to get nothing but the header\n"
+"              of a document. When used on an FTP or FILE file,  curl  displays\n"
+"              the file size and last modification time only.\n"
+"\n"
+"       --interface <name>\n"
 , stdout);

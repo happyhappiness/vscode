@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGXCPU)");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     pServ, "Init: Private key not found");

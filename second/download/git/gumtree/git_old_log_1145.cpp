@@ -1,1 +1,1 @@
-error("Could not stat %s", filename);
+die(_("could not create directory '%s'"), new_git_dir);

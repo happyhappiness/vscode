@@ -1,140 +1,37 @@
-static int filter_lookup(ap_filter_t *f, ap_filter_rec_t *filter)
+apr_status_t h2_mplx_out_close(h2_mplx *m, int stream_id)
 {
-    ap_filter_provider_t *provider;
-    int match = 0;
-    const char *err = NULL;
-    request_rec *r = f->r;
-    harness_ctx *ctx = f->ctx;
-    provider_ctx *pctx;
-#ifndef NO_PROTOCOL
-    unsigned int proto_flags;
-    mod_filter_ctx *rctx = ap_get_module_config(r->request_config,
-                                                &filter_module);
-#endif
-
-    /* Check registered providers in order */
-    for (provider = filter->providers; provider; provider = provider->next) {
-        if (provider->expr) {
-            match = ap_expr_exec(r, provider->expr, &err);
-            if (err) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01379)
-                              "Error evaluating filter dispatch condition: %s",
-                              err);
-                match = 0;
+    apr_status_t status;
+    int acquired;
+    
+    AP_DEBUG_ASSERT(m);
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
+        if (io && !io->orphaned) {
+            if (!io->response && !io->rst_error) {
+                /* In case a close comes before a response was created,
+                 * insert an error one so that our streams can properly
+                 * reset.
+                 */
+                h2_response *r = h2_response_die(stream_id, APR_EGENERAL, 
+                                                 io->request, m->pool);
+                status = out_open(m, stream_id, r, NULL, NULL, NULL);
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
+                              "h2_mplx(%ld-%d): close, no response, no rst", 
+                              m->id, io->id);
             }
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Expression condition for '%s' %s",
-                          provider->frec->name,
-                          match ? "matched" : "did not match");
-        }
-        else if (r->content_type) {
-            const char **type = provider->types;
-            size_t len = strcspn(r->content_type, "; \t");
-            AP_DEBUG_ASSERT(type != NULL);
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                          "Content-Type '%s' ...", r->content_type);
-            while (*type) {
-                /* Handle 'content-type;charset=...' correctly */
-                if (strncmp(*type, r->content_type, len) == 0
-                    && (*type)[len] == '\0') {
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                                  "... matched '%s'", *type);
-                    match = 1;
-                    break;
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                                  "... did not match '%s'", *type);
-                }
-                type++;
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Content-Type condition for '%s' %s",
-                          provider->frec->name,
-                          match ? "matched" : "did not match");
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, m->c,
+                          "h2_mplx(%ld-%d): close with eor=%s", 
+                          m->id, io->id, io->eor? "yes" : "no");
+            status = h2_io_out_close(io);
+            H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_out_close");
+            io_out_consumed_signal(m, io);
+            
+            have_out_data_for(m, stream_id);
         }
         else {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Content-Type condition for '%s' did not match: "
-                          "no Content-Type", provider->frec->name);
+            status = APR_ECONNABORTED;
         }
-
-        if (match) {
-            /* condition matches this provider */
-#ifndef NO_PROTOCOL
-            /* check protocol
-             *
-             * FIXME:
-             * This is a quick hack and almost certainly buggy.
-             * The idea is that by putting this in mod_filter, we relieve
-             * filter implementations of the burden of fixing up HTTP headers
-             * for cases that are routinely affected by filters.
-             *
-             * Default is ALWAYS to do nothing, so as not to tread on the
-             * toes of filters which want to do it themselves.
-             *
-             */
-            proto_flags = provider->frec->proto_flags;
-
-            /* some specific things can't happen in a proxy */
-            if (r->proxyreq) {
-                if (proto_flags & AP_FILTER_PROTO_NO_PROXY) {
-                    /* can't use this provider; try next */
-                    continue;
-                }
-
-                if (proto_flags & AP_FILTER_PROTO_TRANSFORM) {
-                    const char *str = apr_table_get(r->headers_out,
-                                                    "Cache-Control");
-                    if (str) {
-                        char *str1 = apr_pstrdup(r->pool, str);
-                        ap_str_tolower(str1);
-                        if (strstr(str1, "no-transform")) {
-                            /* can't use this provider; try next */
-                            continue;
-                        }
-                    }
-                    apr_table_addn(r->headers_out, "Warning",
-                                   apr_psprintf(r->pool,
-                                                "214 %s Transformation applied",
-                                                r->hostname));
-                }
-            }
-
-            /* things that are invalidated if the filter transforms content */
-            if (proto_flags & AP_FILTER_PROTO_CHANGE) {
-                apr_table_unset(r->headers_out, "Content-MD5");
-                apr_table_unset(r->headers_out, "ETag");
-                if (proto_flags & AP_FILTER_PROTO_CHANGE_LENGTH) {
-                    apr_table_unset(r->headers_out, "Content-Length");
-                }
-            }
-
-            /* no-cache is for a filter that has different effect per-hit */
-            if (proto_flags & AP_FILTER_PROTO_NO_CACHE) {
-                apr_table_unset(r->headers_out, "Last-Modified");
-                apr_table_addn(r->headers_out, "Cache-Control", "no-cache");
-            }
-
-            if (proto_flags & AP_FILTER_PROTO_NO_BYTERANGE) {
-                apr_table_setn(r->headers_out, "Accept-Ranges", "none");
-            }
-            else if (rctx && rctx->range) {
-                /* restore range header we saved earlier */
-                apr_table_setn(r->headers_in, "Range", rctx->range);
-                rctx->range = NULL;
-            }
-#endif
-            for (pctx = ctx->init_ctx; pctx; pctx = pctx->next) {
-                if (pctx->provider == provider) {
-                    ctx->fctx = pctx->ctx ;
-                }
-            }
-            ctx->func = provider->frec->filter_func.out_func;
-            return 1;
-        }
+        leave_mutex(m, acquired);
     }
-
-    /* No provider matched */
-    return 0;
+    return status;
 }

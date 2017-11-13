@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, APR_SUCCESS, ap_server_conf,
-                     "WARNING: Attempt to change ThreadLimit ignored "
-                     "during restart");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "proxy: %s: found worker %s for %s",
+                           (*worker)->scheme, (*worker)->name, *url);

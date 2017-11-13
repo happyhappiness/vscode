@@ -1,158 +1,91 @@
-int mutt_write_fcc (const char *path, HEADER *hdr, const char *msgid, int post, char *fcc)
+static int fold_one_header (FILE *fp, const char *tag, const char *value,
+			      const char *pfx, int wraplen, int flags)
 {
-  CONTEXT f;
-  MESSAGE *msg;
-  char tempfile[_POSIX_PATH_MAX];
-  FILE *tempfp = NULL;
-  int r;
+  const char *p = value, *next, *sp;
+  char buf[HUGE_STRING] = "";
+  int first = 1, enc, col = 0, w, l = 0, fold;
 
-  if (post)
-    set_noconv_flags (hdr->content, 1);
-  
-  if (mx_open_mailbox (path, M_APPEND | M_QUIET, &f) == NULL)
-  {
-    dprint (1, (debugfile, "mutt_write_fcc(): unable to open mailbox %s in append-mode, aborting.\n",
-		path));
-    return (-1);
-  }
+  dprint(4,(debugfile,"mwoh: pfx=[%s], tag=[%s], flags=%d value=[%s]\n",
+	    pfx, tag, flags, value));
 
-  /* We need to add a Content-Length field to avoid problems where a line in
-   * the message body begins with "From "   
-   */
-  if (f.magic == M_MMDF || f.magic == M_MBOX || f.magic == M_KENDRA)
+  if (tag && *tag && fprintf (fp, "%s%s: ", NONULL (pfx), tag) < 0)
+    return -1;
+  col = mutt_strlen (tag) + (tag && *tag ? 2 : 0) + mutt_strlen (pfx);
+
+  while (p && *p)
   {
-    mutt_mktemp (tempfile);
-    if ((tempfp = safe_fopen (tempfile, "w+")) == NULL)
+    fold = 0;
+
+    /* find the next word and place it in `buf'. it may start with
+     * whitespace we can fold before */
+    next = find_word (p);
+    l = MIN(sizeof (buf) - 1, next - p);
+    memcpy (buf, p, l);
+    buf[l] = 0;
+
+    /* determine width: character cells for display, bytes for sending
+     * (we get pure ascii only) */
+    w = my_width (buf, col, flags);
+    enc = mutt_strncmp (buf, "=?", 2) == 0;
+
+    dprint(5,(debugfile,"mwoh: word=[%s], col=%d, w=%d, next=[0x0%x]\n",
+	      buf, col, w, *next));
+
+    /* insert a folding \n before the current word's lwsp except for
+     * header name, first word on a line (word longer than wrap width)
+     * and encoded words */
+    if (!first && !enc && col && col + w >= wraplen)
     {
-      mutt_perror (tempfile);
-      mx_close_mailbox (&f, NULL);
-      return (-1);
-    }
-  }
-
-  hdr->read = !post; /* make sure to put it in the `cur' directory (maildir) */
-  if ((msg = mx_open_new_message (&f, hdr, M_ADD_FROM)) == NULL)
-  {
-    mx_close_mailbox (&f, NULL);
-    return (-1);
-  }
-
-  /* post == 1 => postpone message. Set mode = -1 in mutt_write_rfc822_header()
-   * post == 0 => Normal mode. Set mode = 0 in mutt_write_rfc822_header() 
-   * */
-  mutt_write_rfc822_header (msg->fp, hdr->env, hdr->content, post ? -post : 0, 0);
-
-  /* (postponment) if this was a reply of some sort, <msgid> contians the
-   * Message-ID: of message replied to.  Save it using a special X-Mutt-
-   * header so it can be picked up if the message is recalled at a later
-   * point in time.  This will allow the message to be marked as replied if
-   * the same mailbox is still open.
-   */
-  if (post && msgid)
-    fprintf (msg->fp, "X-Mutt-References: %s\n", msgid);
-  
-  /* (postponment) save the Fcc: using a special X-Mutt- header so that
-   * it can be picked up when the message is recalled 
-   */
-  if (post && fcc)
-    fprintf (msg->fp, "X-Mutt-Fcc: %s\n", fcc);
-  fprintf (msg->fp, "Status: RO\n");
-
-
-
-#ifdef HAVE_PGP
-  /* (postponment) if the mail is to be signed or encrypted, save this info */
-  if (post && (hdr->pgp & (PGPENCRYPT | PGPSIGN)))
-  {
-    fputs ("X-Mutt-PGP: ", msg->fp);
-    if (hdr->pgp & PGPENCRYPT) 
-      fputc ('E', msg->fp);
-    if (hdr->pgp & PGPSIGN)
-    {
-      fputc ('S', msg->fp);
-      if (PgpSignAs && *PgpSignAs)
-        fprintf (msg->fp, "<%s>", PgpSignAs);
-    }
-    fputc ('\n', msg->fp);
-  }
-#endif /* HAVE_PGP */
-
-#ifdef MIXMASTER
-  /* (postponement) if the mail is to be sent through a mixmaster 
-   * chain, save that information
-   */
-  
-  if (post && hdr->chain && hdr->chain)
-  {
-    LIST *p;
-
-    fputs ("X-Mutt-Mix:", msg->fp);
-    for (p = hdr->chain; p; p = p->next)
-      fprintf (msg->fp, " %s", (char *) p->data);
-    
-    fputc ('\n', msg->fp);
-  }
-#endif    
-
-  if (tempfp)
-  {
-    char sasha[LONG_STRING];
-    int lines = 0;
-
-    mutt_write_mime_body (hdr->content, tempfp);
-
-    /* make sure the last line ends with a newline.  Emacs doesn't ensure
-     * this will happen, and it can cause problems parsing the mailbox   
-     * later.
-     */
-    fseek (tempfp, -1, 2);
-    if (fgetc (tempfp) != '\n')
-    {
-      fseek (tempfp, 0, 2);
-      fputc ('\n', tempfp);
+      col = mutt_strlen (pfx);
+      fold = 1;
+      if (fprintf (fp, "\n%s", NONULL(pfx)) <= 0)
+	return -1;
     }
 
-    fflush (tempfp);
-    if (ferror (tempfp))
+    /* print the actual word; for display, ignore leading ws for word
+     * and fold with tab for readability */
+    if ((flags & CH_DISPLAY) && fold)
     {
-      dprint (1, (debugfile, "mutt_write_fcc(): %s: write failed.\n", tempfile));
-      fclose (tempfp);
-      unlink (tempfile);
-      mx_commit_message (msg, &f);	/* XXX - really? */
-      mx_close_message (&msg);
-      mx_close_mailbox (&f, NULL);
+      char *p = buf;
+      while (*p && (*p == ' ' || *p == '\t'))
+      {
+	p++;
+	col--;
+      }
+      if (fputc ('\t', fp) == EOF)
+	return -1;
+      if (print_val (fp, pfx, p, flags, col) < 0)
+	return -1;
+      col += 8;
+    }
+    else if (print_val (fp, pfx, buf, flags, col) < 0)
       return -1;
+    col += w;
+
+    /* if the current word ends in \n, ignore all its trailing spaces
+     * and reset column; this prevents us from putting only spaces (or
+     * even none) on a line if the trailing spaces are located at our
+     * current line width
+     * XXX this covers ASCII space only, for display we probably
+     * XXX want something like iswspace() here */
+    sp = next;
+    while (*sp && (*sp == ' ' || *sp == '\t'))
+      sp++;
+    if (*sp == '\n')
+    {
+      next = sp;
+      col = 0;
     }
 
-    /* count the number of lines */
-    rewind (tempfp);
-    while (fgets (sasha, sizeof (sasha), tempfp) != NULL)
-      lines++;
-    fprintf (msg->fp, "Content-Length: %ld\n", (long) ftell (tempfp));
-    fprintf (msg->fp, "Lines: %d\n\n", lines);
-
-    /* copy the body and clean up */
-    rewind (tempfp);
-    r = mutt_copy_stream (tempfp, msg->fp);
-    if (fclose (tempfp) != 0)
-      r = -1;
-    /* if there was an error, leave the temp version */
-    if (!r)
-      unlink (tempfile);
-  }
-  else
-  {
-    fputc ('\n', msg->fp); /* finish off the header */
-    r = mutt_write_mime_body (hdr->content, msg->fp);
+    p = next;
+    first = 0;
   }
 
-  if (mx_commit_message (msg, &f) != 0)
-    r = -1;
-  mx_close_message (&msg);
-  mx_close_mailbox (&f, NULL);
+  /* if we have printed something but didn't \n-terminate it, do it
+   * except the last word we printed ended in \n already */
+  if (col && buf[l - 1] != '\n')
+    if (putc ('\n', fp) == EOF)
+      return -1;
 
-  if (post)
-    set_noconv_flags (hdr->content, 0);
-  
-  return r;
+  return 0;
 }

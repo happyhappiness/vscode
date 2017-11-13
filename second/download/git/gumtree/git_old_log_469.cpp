@@ -1,1 +1,1 @@
-error(_("Invalid value for %s: %s"), key, value);
+die("cannot handle more than %d revs.", MAX_REVS);

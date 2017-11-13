@@ -1,16 +1,26 @@
-static void dos_time(timestamp_t *timestamp, int *dos_date, int *dos_time)
+static void output_attr(int cnt, struct git_attr_check *check,
+	const char *file)
 {
-	time_t time;
-	struct tm *t;
+	int j;
+	for (j = 0; j < cnt; j++) {
+		const char *value = check[j].value;
 
-	if (date_overflows(*timestamp))
-		die("timestamp too large for this system: %"PRItime,
-		    *timestamp);
-	time = (time_t)*timestamp;
-	t = localtime(&time);
-	*timestamp = time;
+		if (ATTR_TRUE(value))
+			value = "set";
+		else if (ATTR_FALSE(value))
+			value = "unset";
+		else if (ATTR_UNSET(value))
+			value = "unspecified";
 
-	*dos_date = t->tm_mday + (t->tm_mon + 1) * 32 +
-	            (t->tm_year + 1900 - 1980) * 512;
-	*dos_time = t->tm_sec / 2 + t->tm_min * 32 + t->tm_hour * 2048;
+		if (nul_term_line) {
+			printf("%s%c" /* path */
+			       "%s%c" /* attrname */
+			       "%s%c" /* attrvalue */,
+			       file, 0, git_attr_name(check[j].attr), 0, value, 0);
+		} else {
+			quote_c_style(file, NULL, stdout, 0);
+			printf(": %s: %s\n", git_attr_name(check[j].attr), value);
+		}
+
+	}
 }

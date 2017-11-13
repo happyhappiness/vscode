@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                      "Headers received from client:");
+fprintf(stderr,"Linking %s to %s\n", status->filename, config->linkfile);

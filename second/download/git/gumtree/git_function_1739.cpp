@@ -1,37 +1,24 @@
-int delete_refs(struct string_list *refnames)
+char *git_prompt(const char *prompt, int flags)
 {
-	struct strbuf err = STRBUF_INIT;
-	int i, result = 0;
+	char *r = NULL;
 
-	if (!refnames->nr)
-		return 0;
+	if (flags & PROMPT_ASKPASS) {
+		const char *askpass;
 
-	result = repack_without_refs(refnames, &err);
-	if (result) {
-		/*
-		 * If we failed to rewrite the packed-refs file, then
-		 * it is unsafe to try to remove loose refs, because
-		 * doing so might expose an obsolete packed value for
-		 * a reference that might even point at an object that
-		 * has been garbage collected.
-		 */
-		if (refnames->nr == 1)
-			error(_("could not delete reference %s: %s"),
-			      refnames->items[0].string, err.buf);
-		else
-			error(_("could not delete references: %s"), err.buf);
-
-		goto out;
+		askpass = getenv("GIT_ASKPASS");
+		if (!askpass)
+			askpass = askpass_program;
+		if (!askpass)
+			askpass = getenv("SSH_ASKPASS");
+		if (askpass && *askpass)
+			r = do_askpass(askpass, prompt);
 	}
 
-	for (i = 0; i < refnames->nr; i++) {
-		const char *refname = refnames->items[i].string;
-
-		if (delete_ref(refname, NULL, 0))
-			result |= error(_("could not remove reference %s"), refname);
+	if (!r)
+		r = git_terminal_prompt(prompt, flags & PROMPT_ECHO);
+	if (!r) {
+		/* prompts already contain ": " at the end */
+		die("could not read %s%s", prompt, strerror(errno));
 	}
-
-out:
-	strbuf_release(&err);
-	return result;
+	return r;
 }

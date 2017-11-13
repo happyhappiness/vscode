@@ -1,1 +1,1 @@
-fprintf(stderr,"fstat failed : %s\n",strerror(errno));
+fprintf(stderr,"failed to open %s : %s\n",fname,strerror(errno));

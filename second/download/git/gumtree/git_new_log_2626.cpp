@@ -1,1 +1,1 @@
-fprintf(opt->diffopt.file, "---");
+die_errno("Could not open '%s'", path);

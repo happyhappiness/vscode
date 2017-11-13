@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT,
-                     APR_EBADPATH, NULL, "Invalid -E error log file %s",
-                     fname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "proxy: Closing connection to client because"
+                              " reading from backend server %s:%d failed."
+                              " Number of keepalives %i", backend->hostname, 
+                              backend->port, c->keepalives);

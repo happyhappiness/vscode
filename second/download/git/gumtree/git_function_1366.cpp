@@ -1,85 +1,94 @@
-static int push_refs_with_export(struct transport *transport,
-		struct ref *remote_refs, int flags)
+static int delete_remote_branch(const char *pattern, int force)
 {
-	struct ref *ref;
-	struct child_process *helper, exporter;
-	struct helper_data *data = transport->data;
-	struct string_list revlist_args = STRING_LIST_INIT_DUP;
-	struct strbuf buf = STRBUF_INIT;
+	struct ref *refs = remote_refs;
+	struct ref *remote_ref = NULL;
+	unsigned char head_sha1[20];
+	char *symref = NULL;
+	int match;
+	int patlen = strlen(pattern);
+	int i;
+	struct active_request_slot *slot;
+	struct slot_results results;
+	char *url;
 
-	if (!data->refspecs)
-		die("remote-helper doesn't support push; refspec needed");
+	/* Find the remote branch(es) matching the specified branch name */
+	for (match = 0; refs; refs = refs->next) {
+		char *name = refs->name;
+		int namelen = strlen(name);
+		if (namelen < patlen ||
+		    memcmp(name + namelen - patlen, pattern, patlen))
+			continue;
+		if (namelen != patlen && name[namelen - patlen - 1] != '/')
+			continue;
+		match++;
+		remote_ref = refs;
+	}
+	if (match == 0)
+		return error("No remote branch matches %s", pattern);
+	if (match != 1)
+		return error("More than one remote branch matches %s",
+			     pattern);
 
-	if (flags & TRANSPORT_PUSH_DRY_RUN) {
-		if (set_helper_option(transport, "dry-run", "true") != 0)
-			die("helper %s does not support dry-run", data->name);
-	} else if (flags & TRANSPORT_PUSH_CERT) {
-		if (set_helper_option(transport, TRANS_OPT_PUSH_CERT, "true") != 0)
-			die("helper %s does not support dry-run", data->name);
+	/*
+	 * Remote HEAD must be a symref (not exactly foolproof; a remote
+	 * symlink to a symref will look like a symref)
+	 */
+	fetch_symref("HEAD", &symref, head_sha1);
+	if (!symref)
+		return error("Remote HEAD is not a symref");
+
+	/* Remote branch must not be the remote HEAD */
+	for (i = 0; symref && i < MAXDEPTH; i++) {
+		if (!strcmp(remote_ref->name, symref))
+			return error("Remote branch %s is the current HEAD",
+				     remote_ref->name);
+		fetch_symref(symref, &symref, head_sha1);
 	}
 
-	if (flags & TRANSPORT_PUSH_FORCE) {
-		if (set_helper_option(transport, "force", "true") != 0)
-			warning("helper %s does not support 'force'", data->name);
-	}
+	/* Run extra sanity checks if delete is not forced */
+	if (!force) {
+		/* Remote HEAD must resolve to a known object */
+		if (symref)
+			return error("Remote HEAD symrefs too deep");
+		if (is_null_sha1(head_sha1))
+			return error("Unable to resolve remote HEAD");
+		if (!has_sha1_file(head_sha1))
+			return error("Remote HEAD resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", sha1_to_hex(head_sha1));
 
-	helper = get_helper(transport);
+		/* Remote branch must resolve to a known object */
+		if (is_null_oid(&remote_ref->old_oid))
+			return error("Unable to resolve remote branch %s",
+				     remote_ref->name);
+		if (!has_object_file(&remote_ref->old_oid))
+			return error("Remote branch %s resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", remote_ref->name, oid_to_hex(&remote_ref->old_oid));
 
-	write_constant(helper->in, "export\n");
-
-	for (ref = remote_refs; ref; ref = ref->next) {
-		char *private;
-		unsigned char sha1[20];
-
-		private = apply_refspecs(data->refspecs, data->refspec_nr, ref->name);
-		if (private && !get_sha1(private, sha1)) {
-			strbuf_addf(&buf, "^%s", private);
-			string_list_append(&revlist_args, strbuf_detach(&buf, NULL));
-			hashcpy(ref->old_sha1, sha1);
+		/* Remote branch must be an ancestor of remote HEAD */
+		if (!verify_merge_base(head_sha1, remote_ref)) {
+			return error("The branch '%s' is not an ancestor "
+				     "of your current HEAD.\n"
+				     "If you are sure you want to delete it,"
+				     " run:\n\t'git http-push -D %s %s'",
+				     remote_ref->name, repo->url, pattern);
 		}
-		free(private);
-
-		if (ref->peer_ref) {
-			if (strcmp(ref->name, ref->peer_ref->name)) {
-				if (!ref->deletion) {
-					const char *name;
-					int flag;
-
-					/* Follow symbolic refs (mainly for HEAD). */
-					name = resolve_ref_unsafe(
-						 ref->peer_ref->name,
-						 RESOLVE_REF_READING,
-						 sha1, &flag);
-					if (!name || !(flag & REF_ISSYMREF))
-						name = ref->peer_ref->name;
-
-					strbuf_addf(&buf, "%s:%s", name, ref->name);
-				} else
-					strbuf_addf(&buf, ":%s", ref->name);
-
-				string_list_append(&revlist_args, "--refspec");
-				string_list_append(&revlist_args, buf.buf);
-				strbuf_release(&buf);
-			}
-			if (!ref->deletion)
-				string_list_append(&revlist_args, ref->peer_ref->name);
-		}
 	}
 
-	if (get_exporter(transport, &exporter, &revlist_args))
-		die("Couldn't run fast-export");
-
-	string_list_clear(&revlist_args, 1);
-
-	if (finish_command(&exporter))
-		die("Error while running fast-export");
-	if (push_update_refs_status(data, remote_refs, flags))
-		return 1;
-
-	if (data->export_marks) {
-		strbuf_addf(&buf, "%s.tmp", data->export_marks);
-		rename(buf.buf, data->export_marks);
-		strbuf_release(&buf);
+	/* Send delete request */
+	fprintf(stderr, "Removing remote branch '%s'\n", remote_ref->name);
+	if (dry_run)
+		return 0;
+	url = xstrfmt("%s%s", repo->url, remote_ref->name);
+	slot = get_active_slot();
+	slot->results = &results;
+	curl_setup_http_get(slot->curl, url, DAV_DELETE);
+	if (start_active_slot(slot)) {
+		run_active_slot(slot);
+		free(url);
+		if (results.curl_result != CURLE_OK)
+			return error("DELETE request failed (%d/%ld)",
+				     results.curl_result, results.http_code);
+	} else {
+		free(url);
+		return error("Unable to start DELETE request");
 	}
 
 	return 0;

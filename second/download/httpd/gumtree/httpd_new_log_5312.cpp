@@ -1,2 +1,3 @@
-ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                                          "h2_session: send: %s", nghttp2_strerror(rv));
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00455)
+                     "%s configured -- resuming normal operations",
+                     ap_get_server_description());

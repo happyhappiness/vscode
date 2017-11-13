@@ -1,1 +1,1 @@
-fprintf(FINFO,"got file_sum\n");
+fprintf(FINFO,"waiting on %d\n",pid);

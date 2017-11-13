@@ -1,2 +1,2 @@
-error("cannot overwrite multiple values with a single value\n"
-			"       Use a regexp, --add or --replace-all to change %s.", argv[0]);
+warning(_("regexec returned %d for input: %s"),
+				status, timestamp);

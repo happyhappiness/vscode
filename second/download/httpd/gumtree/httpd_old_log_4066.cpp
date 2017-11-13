@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "proxy: %s: connection complete to %pI (%s)",
-                 proxy_function, backend_addr, conn->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                        MODNAME ": line=%d mc=%x mc->next=%x cont=%d desc=%s",
+                            m_cont->lineno, m_cont,
+                            m_cont->next, m_cont->cont_level,
+                            m_cont->desc);

@@ -1,1 +1,1 @@
-fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
+fprintf(FERROR,"chdir %s : %s (2)\n",name,strerror(errno));

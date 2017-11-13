@@ -1,51 +1,102 @@
-void mutt_attach_bounce (FILE * fp, HEADER * hdr, 
-	   ATTACHPTR ** idx, short idxlen, BODY * cur)
+void pgp_signed_handler (BODY *a, STATE *s)
 {
-  short i;
-  short ntagged;
-  char prompt[STRING];
-  char buf[HUGE_STRING];
-  ADDRESS *adr = NULL;
-
-  if (check_all_msg (idx, idxlen, cur, 1) == -1)
-    return;
-
-  ntagged = count_tagged (idx, idxlen);
+  char tempfile[_POSIX_PATH_MAX];
+  char *protocol;
+  int protocol_major = TYPEOTHER;
+  char *protocol_minor = NULL;
   
-  if (cur || ntagged == 1)
-    strfcpy (prompt, _("Bounce message to: "), sizeof (prompt));
-  else
-    strfcpy (prompt, _("Bounce tagged messages to: "), sizeof (prompt));
+  BODY *b = a;
+  BODY **signatures = NULL;
+  int sigcnt = 0;
+  int i;
+  short goodsig = 1;
 
-  buf[0] = '\0';
-  if (mutt_get_field (prompt, buf, sizeof (buf), M_ALIAS) 
-      || buf[0] == '\0')
-    return;
+  protocol = mutt_get_parameter ("protocol", a->parameter);
+  a = a->parts;
 
-  adr = rfc822_parse_adrlist (adr, buf);
-  adr = mutt_expand_aliases (adr);
-  buf[0] = 0;
-  rfc822_write_address (buf, sizeof (buf), adr);
-
-  snprintf (prompt, sizeof (prompt), 
-	    cur ? _("Bounce message to %s...?") :  _("Bounce messages to %s...?"), buf);
-
-  if (mutt_yesorno (prompt, 1) != 1)
-    goto bail;
-
-  if (cur)
-    mutt_bounce_message (fp, cur->hdr, adr);
-  else
+  /* extract the protocol information */
+  
+  if (protocol)
   {
-    for (i = 0; i < idxlen; i++)
-    {
-      if (idx[i]->content->tagged)
-	mutt_bounce_message (fp, idx[i]->content->hdr, adr);
-    }
+    char major[STRING];
+    char *t;
+
+    if ((protocol_minor = strchr(protocol, '/'))) protocol_minor++;
+    
+    strfcpy(major, protocol, sizeof(major));
+    if((t = strchr(major, '/')))
+      *t = '\0';
+    
+    protocol_major = mutt_check_mime_type (major);
   }
 
-bail:
+  /* consistency check */
 
-  rfc822_free_address (&adr);
-  CLEARLINE (LINES - 1);
+  if (!(a && a->next && a->next->type == protocol_major && 
+      !ascii_strcasecmp(a->next->subtype, protocol_minor)))
+  {
+    state_attach_puts(_("[-- Error: Inconsistent multipart/signed structure! --]\n\n"), s);
+    mutt_body_handler (a, s);
+    return;
+  }
+
+  if(!(protocol_major == TYPEAPPLICATION && !ascii_strcasecmp(protocol_minor, "pgp-signature"))
+     && !(protocol_major == TYPEMULTIPART && !ascii_strcasecmp(protocol_minor, "mixed")))
+  {
+    state_mark_attach (s);
+    state_printf(s, _("[-- Error: Unknown multipart/signed protocol %s! --]\n\n"), protocol);
+    mutt_body_handler (a, s);
+    return;
+  }
+  
+  if (s->flags & M_DISPLAY)
+  {
+    
+    pgp_fetch_signatures(&signatures, a->next, &sigcnt);
+    
+    if (sigcnt)
+    {
+      mutt_mktemp (tempfile);
+      if (pgp_write_signed (a, s, tempfile) == 0)
+      {
+	for (i = 0; i < sigcnt; i++)
+	{
+	  if (signatures[i]->type == TYPEAPPLICATION 
+	      && !ascii_strcasecmp(signatures[i]->subtype, "pgp-signature"))
+	  {
+	    if (pgp_verify_one (signatures[i], s, tempfile) != 0)
+	      goodsig = 0;
+	  }
+	  else
+	  {
+	    state_mark_attach (s);
+	    state_printf (s, _("[-- Warning: We can't verify %s/%s signatures. --]\n\n"),
+			  TYPE(signatures[i]), signatures[i]->subtype);
+	  }
+	}
+      }
+      
+      mutt_unlink (tempfile);
+
+      b->goodsig = goodsig;
+      
+      dprint (2, (debugfile, "pgp_signed_handler: goodsig = %d\n", goodsig));
+      
+      /* Now display the signed body */
+      state_attach_puts (_("[-- The following data is signed --]\n\n"), s);
+
+
+      safe_free((void **) &signatures);
+    }
+    else
+      state_attach_puts (_("[-- Warning: Can't find any signatures. --]\n\n"), s);
+  }
+  
+  mutt_body_handler (a, s);
+  
+  if (s->flags & M_DISPLAY && sigcnt)
+  {
+    state_putc ('\n', s);
+    state_attach_puts (_("[-- End of signed data --]\n"), s);
+  }
 }

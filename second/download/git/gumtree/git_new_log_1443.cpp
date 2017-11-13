@@ -1,2 +1,1 @@
-error("couldn't write %s",
-					lock->lk->filename.buf);
+die("HEAD does not match the named branch in the superproject");

@@ -1,2 +1,3 @@
-error(_("%s: can't cherry-pick a %s"),
-					name, typename(type));
+warning(_("core.untrackedCache is set to true; "
+				  "remove or change it, if you really want to "
+				  "disable the untracked cache"));

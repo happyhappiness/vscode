@@ -1,1 +1,1 @@
-printf("%s%c %s\n", tok, separators[0], val);
+error("running trailer command '%s' failed", cmd.buf);

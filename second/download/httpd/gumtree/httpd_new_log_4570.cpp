@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00514)
-                         "MaxRequestWorkers of %d is not an integer multiple "
-                         "of ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d", max_workers, threads_per_child,
-                         tmp_max_workers);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00956)
+                    "%s: failed to bind socket to local address",
+                    proxy_function);

@@ -1,108 +1,315 @@
-static int get_pack(struct fetch_pack_args *args,
-		    int xd[2], char **pack_lockfile)
+int cmd_clone(int argc, const char **argv, const char *prefix)
 {
-	struct async demux;
-	int do_keep = args->keep_pack;
-	const char *cmd_name;
-	struct pack_header header;
-	int pass_header = 0;
-	struct child_process cmd = CHILD_PROCESS_INIT;
-	int ret;
+	int is_bundle = 0, is_local;
+	struct stat buf;
+	const char *repo_name, *repo, *work_tree, *git_dir;
+	char *path, *dir;
+	int dest_exists;
+	const struct ref *refs, *remote_head;
+	const struct ref *remote_head_points_at;
+	const struct ref *our_head_points_at;
+	struct ref *mapped_refs;
+	const struct ref *ref;
+	struct strbuf key = STRBUF_INIT, value = STRBUF_INIT;
+	struct strbuf branch_top = STRBUF_INIT, reflog_msg = STRBUF_INIT;
+	struct transport *transport = NULL;
+	const char *src_ref_prefix = "refs/heads/";
+	struct remote *remote;
+	int err = 0, complete_refs_before_fetch = 1;
+	int submodule_progress;
 
-	memset(&demux, 0, sizeof(demux));
-	if (use_sideband) {
-		/* xd[] is talking with upload-pack; subprocess reads from
-		 * xd[0], spits out band#2 to stderr, and feeds us band#1
-		 * through demux->out.
-		 */
-		demux.proc = sideband_demux;
-		demux.data = xd;
-		demux.out = -1;
-		demux.isolate_sigpipe = 1;
-		if (start_async(&demux))
-			die("fetch-pack: unable to fork off sideband"
-			    " demultiplexer");
+	struct refspec *refspec;
+	const char *fetch_pattern;
+
+	packet_trace_identity("clone");
+	argc = parse_options(argc, argv, prefix, builtin_clone_options,
+			     builtin_clone_usage, 0);
+
+	if (argc > 2)
+		usage_msg_opt(_("Too many arguments."),
+			builtin_clone_usage, builtin_clone_options);
+
+	if (argc == 0)
+		usage_msg_opt(_("You must specify a repository to clone."),
+			builtin_clone_usage, builtin_clone_options);
+
+	if (option_depth || option_since || option_not.nr)
+		deepen = 1;
+	if (option_single_branch == -1)
+		option_single_branch = deepen ? 1 : 0;
+
+	if (option_mirror)
+		option_bare = 1;
+
+	if (option_bare) {
+		if (option_origin)
+			die(_("--bare and --origin %s options are incompatible."),
+			    option_origin);
+		if (real_git_dir)
+			die(_("--bare and --separate-git-dir are incompatible."));
+		option_no_checkout = 1;
 	}
+
+	if (!option_origin)
+		option_origin = "origin";
+
+	repo_name = argv[0];
+
+	path = get_repo_path(repo_name, &is_bundle);
+	if (path)
+		repo = xstrdup(absolute_path(repo_name));
+	else if (!strchr(repo_name, ':'))
+		die(_("repository '%s' does not exist"), repo_name);
 	else
-		demux.out = xd[0];
+		repo = repo_name;
 
-	if (!args->keep_pack && unpack_limit) {
+	/* no need to be strict, transport_set_option() will validate it again */
+	if (option_depth && atoi(option_depth) < 1)
+		die(_("depth %s is not a positive number"), option_depth);
 
-		if (read_pack_header(demux.out, &header))
-			die("protocol error: bad pack header");
-		pass_header = 1;
-		if (ntohl(header.hdr_entries) < unpack_limit)
-			do_keep = 0;
+	if (argc == 2)
+		dir = xstrdup(argv[1]);
+	else
+		dir = guess_dir_name(repo_name, is_bundle, option_bare);
+	strip_trailing_slashes(dir);
+
+	dest_exists = !stat(dir, &buf);
+	if (dest_exists && !is_empty_dir(dir))
+		die(_("destination path '%s' already exists and is not "
+			"an empty directory."), dir);
+
+	strbuf_addf(&reflog_msg, "clone: from %s", repo);
+
+	if (option_bare)
+		work_tree = NULL;
+	else {
+		work_tree = getenv("GIT_WORK_TREE");
+		if (work_tree && !stat(work_tree, &buf))
+			die(_("working tree '%s' already exists."), work_tree);
+	}
+
+	if (option_bare || work_tree)
+		git_dir = xstrdup(dir);
+	else {
+		work_tree = dir;
+		git_dir = mkpathdup("%s/.git", dir);
+	}
+
+	atexit(remove_junk);
+	sigchain_push_common(remove_junk_on_signal);
+
+	if (!option_bare) {
+		if (safe_create_leading_directories_const(work_tree) < 0)
+			die_errno(_("could not create leading directories of '%s'"),
+				  work_tree);
+		if (!dest_exists && mkdir(work_tree, 0777))
+			die_errno(_("could not create work tree dir '%s'"),
+				  work_tree);
+		junk_work_tree = work_tree;
+		set_git_work_tree(work_tree);
+	}
+
+	junk_git_dir = real_git_dir ? real_git_dir : git_dir;
+	if (safe_create_leading_directories_const(git_dir) < 0)
+		die(_("could not create leading directories of '%s'"), git_dir);
+
+	if (0 <= option_verbosity) {
+		if (option_bare)
+			fprintf(stderr, _("Cloning into bare repository '%s'...\n"), dir);
 		else
-			do_keep = 1;
+			fprintf(stderr, _("Cloning into '%s'...\n"), dir);
 	}
 
-	if (alternate_shallow_file) {
-		argv_array_push(&cmd.args, "--shallow-file");
-		argv_array_push(&cmd.args, alternate_shallow_file);
-	}
-
-	if (do_keep) {
-		if (pack_lockfile)
-			cmd.out = -1;
-		cmd_name = "index-pack";
-		argv_array_push(&cmd.args, cmd_name);
-		argv_array_push(&cmd.args, "--stdin");
-		if (!args->quiet && !args->no_progress)
-			argv_array_push(&cmd.args, "-v");
-		if (args->use_thin_pack)
-			argv_array_push(&cmd.args, "--fix-thin");
-		if (args->lock_pack || unpack_limit) {
-			char hostname[256];
-			if (gethostname(hostname, sizeof(hostname)))
-				xsnprintf(hostname, sizeof(hostname), "localhost");
-			argv_array_pushf(&cmd.args,
-					"--keep=fetch-pack %"PRIuMAX " on %s",
-					(uintmax_t)getpid(), hostname);
+	if (option_recursive) {
+		if (option_required_reference.nr &&
+		    option_optional_reference.nr)
+			die(_("clone --recursive is not compatible with "
+			      "both --reference and --reference-if-able"));
+		else if (option_required_reference.nr) {
+			string_list_append(&option_config,
+				"submodule.alternateLocation=superproject");
+			string_list_append(&option_config,
+				"submodule.alternateErrorStrategy=die");
+		} else if (option_optional_reference.nr) {
+			string_list_append(&option_config,
+				"submodule.alternateLocation=superproject");
+			string_list_append(&option_config,
+				"submodule.alternateErrorStrategy=info");
 		}
-		if (args->check_self_contained_and_connected)
-			argv_array_push(&cmd.args, "--check-self-contained-and-connected");
+	}
+
+	init_db(git_dir, real_git_dir, option_template, INIT_DB_QUIET);
+
+	if (real_git_dir)
+		git_dir = real_git_dir;
+
+	write_config(&option_config);
+
+	git_config(git_default_config, NULL);
+
+	if (option_bare) {
+		if (option_mirror)
+			src_ref_prefix = "refs/";
+		strbuf_addstr(&branch_top, src_ref_prefix);
+
+		git_config_set("core.bare", "true");
+	} else {
+		strbuf_addf(&branch_top, "refs/remotes/%s/", option_origin);
+	}
+
+	strbuf_addf(&value, "+%s*:%s*", src_ref_prefix, branch_top.buf);
+	strbuf_addf(&key, "remote.%s.url", option_origin);
+	git_config_set(key.buf, repo);
+	strbuf_reset(&key);
+
+	if (option_required_reference.nr || option_optional_reference.nr)
+		setup_reference();
+
+	fetch_pattern = value.buf;
+	refspec = parse_fetch_refspec(1, &fetch_pattern);
+
+	strbuf_reset(&value);
+
+	remote = remote_get(option_origin);
+	transport = transport_get(remote, remote->url[0]);
+	transport_set_verbosity(transport, option_verbosity, option_progress);
+	transport->family = family;
+
+	path = get_repo_path(remote->url[0], &is_bundle);
+	is_local = option_local != 0 && path && !is_bundle;
+	if (is_local) {
+		if (option_depth)
+			warning(_("--depth is ignored in local clones; use file:// instead."));
+		if (option_since)
+			warning(_("--shallow-since is ignored in local clones; use file:// instead."));
+		if (option_not.nr)
+			warning(_("--shallow-exclude is ignored in local clones; use file:// instead."));
+		if (!access(mkpath("%s/shallow", path), F_OK)) {
+			if (option_local > 0)
+				warning(_("source repository is shallow, ignoring --local"));
+			is_local = 0;
+		}
+	}
+	if (option_local > 0 && !is_local)
+		warning(_("--local is ignored"));
+	transport->cloning = 1;
+
+	if (!transport->get_refs_list || (!is_local && !transport->fetch))
+		die(_("Don't know how to clone %s"), transport->url);
+
+	transport_set_option(transport, TRANS_OPT_KEEP, "yes");
+
+	if (option_depth)
+		transport_set_option(transport, TRANS_OPT_DEPTH,
+				     option_depth);
+	if (option_since)
+		transport_set_option(transport, TRANS_OPT_DEEPEN_SINCE,
+				     option_since);
+	if (option_not.nr)
+		transport_set_option(transport, TRANS_OPT_DEEPEN_NOT,
+				     (const char *)&option_not);
+	if (option_single_branch)
+		transport_set_option(transport, TRANS_OPT_FOLLOWTAGS, "1");
+
+	if (option_upload_pack)
+		transport_set_option(transport, TRANS_OPT_UPLOADPACK,
+				     option_upload_pack);
+
+	if (transport->smart_options && !deepen)
+		transport->smart_options->check_self_contained_and_connected = 1;
+
+	refs = transport_get_remote_refs(transport);
+
+	if (refs) {
+		mapped_refs = wanted_peer_refs(refs, refspec);
+		/*
+		 * transport_get_remote_refs() may return refs with null sha-1
+		 * in mapped_refs (see struct transport->get_refs_list
+		 * comment). In that case we need fetch it early because
+		 * remote_head code below relies on it.
+		 *
+		 * for normal clones, transport_get_remote_refs() should
+		 * return reliable ref set, we can delay cloning until after
+		 * remote HEAD check.
+		 */
+		for (ref = refs; ref; ref = ref->next)
+			if (is_null_oid(&ref->old_oid)) {
+				complete_refs_before_fetch = 0;
+				break;
+			}
+
+		if (!is_local && !complete_refs_before_fetch)
+			transport_fetch_refs(transport, mapped_refs);
+
+		remote_head = find_ref_by_name(refs, "HEAD");
+		remote_head_points_at =
+			guess_remote_head(remote_head, mapped_refs, 0);
+
+		if (option_branch) {
+			our_head_points_at =
+				find_remote_branch(mapped_refs, option_branch);
+
+			if (!our_head_points_at)
+				die(_("Remote branch %s not found in upstream %s"),
+				    option_branch, option_origin);
+		}
+		else
+			our_head_points_at = remote_head_points_at;
 	}
 	else {
-		cmd_name = "unpack-objects";
-		argv_array_push(&cmd.args, cmd_name);
-		if (args->quiet || args->no_progress)
-			argv_array_push(&cmd.args, "-q");
-		args->check_self_contained_and_connected = 0;
+		if (option_branch)
+			die(_("Remote branch %s not found in upstream %s"),
+					option_branch, option_origin);
+
+		warning(_("You appear to have cloned an empty repository."));
+		mapped_refs = NULL;
+		our_head_points_at = NULL;
+		remote_head_points_at = NULL;
+		remote_head = NULL;
+		option_no_checkout = 1;
+		if (!option_bare)
+			install_branch_config(0, "master", option_origin,
+					      "refs/heads/master");
 	}
 
-	if (pass_header)
-		argv_array_pushf(&cmd.args, "--pack_header=%"PRIu32",%"PRIu32,
-				 ntohl(header.hdr_version),
-				 ntohl(header.hdr_entries));
-	if (fetch_fsck_objects >= 0
-	    ? fetch_fsck_objects
-	    : transfer_fsck_objects >= 0
-	    ? transfer_fsck_objects
-	    : 0)
-		argv_array_push(&cmd.args, "--strict");
+	write_refspec_config(src_ref_prefix, our_head_points_at,
+			remote_head_points_at, &branch_top);
 
-	cmd.in = demux.out;
-	cmd.git_cmd = 1;
-	if (start_command(&cmd))
-		die("fetch-pack: unable to fork off %s", cmd_name);
-	if (do_keep && pack_lockfile) {
-		*pack_lockfile = index_pack_lockfile(cmd.out);
-		close(cmd.out);
+	if (is_local)
+		clone_local(path, git_dir);
+	else if (refs && complete_refs_before_fetch)
+		transport_fetch_refs(transport, mapped_refs);
+
+	update_remote_refs(refs, mapped_refs, remote_head_points_at,
+			   branch_top.buf, reflog_msg.buf, transport, !is_local);
+
+	update_head(our_head_points_at, remote_head, reflog_msg.buf);
+
+	/*
+	 * We want to show progress for recursive submodule clones iff
+	 * we did so for the main clone. But only the transport knows
+	 * the final decision for this flag, so we need to rescue the value
+	 * before we free the transport.
+	 */
+	submodule_progress = transport->progress;
+
+	transport_unlock_pack(transport);
+	transport_disconnect(transport);
+
+	if (option_dissociate) {
+		close_all_packs();
+		dissociate_from_references();
 	}
 
-	if (!use_sideband)
-		/* Closed by start_command() */
-		xd[0] = -1;
+	junk_mode = JUNK_LEAVE_REPO;
+	err = checkout(submodule_progress);
 
-	ret = finish_command(&cmd);
-	if (!ret || (args->check_self_contained_and_connected && ret == 1))
-		args->self_contained_and_connected =
-			args->check_self_contained_and_connected &&
-			ret == 0;
-	else
-		die("%s failed", cmd_name);
-	if (use_sideband && finish_async(&demux))
-		die("error in sideband demultiplexer");
-	return 0;
+	strbuf_release(&reflog_msg);
+	strbuf_release(&branch_top);
+	strbuf_release(&key);
+	strbuf_release(&value);
+	junk_mode = JUNK_LEAVE_ALL;
+
+	free(refspec);
+	return err;
 }

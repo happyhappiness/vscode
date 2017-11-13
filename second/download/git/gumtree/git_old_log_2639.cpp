@@ -1,1 +1,1 @@
-die(_("error building trees"));
+die("remote-ext command has too many arguments");

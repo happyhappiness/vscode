@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
-                  "h2_push_diary_digest_set: diary now with %d entries, mask_bits=%d", 
-                  (int)diary->entries->nelts, diary->mask_bits);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00009) LOG_PREFIX
+                  "user '%s' removed cookie: '%s'", r->user, rfc2109);

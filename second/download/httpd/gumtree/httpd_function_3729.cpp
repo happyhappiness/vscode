@@ -1,50 +1,76 @@
-static int proxy_balancer_canon(request_rec *r, char *url)
+static int find_file(request_rec *r, const char *directive, const char *tag,
+                     char *tag_val, apr_finfo_t *finfo)
 {
-    char *host, *path;
-    char *search = NULL;
-    const char *err;
-    apr_port_t port = 0;
+    char *to_send = tag_val;
+    request_rec *rr = NULL;
+    int ret=0;
+    char *error_fmt = NULL;
+    apr_status_t rv = APR_SUCCESS;
 
-    if (strncasecmp(url, "balancer:", 9) == 0) {
-        url += 9;
+    if (!strcmp(tag, "file")) {
+        char *newpath;
+
+        /* be safe; only files in this directory or below allowed */
+        rv = apr_filepath_merge(&newpath, NULL, tag_val,
+                                APR_FILEPATH_SECUREROOTTEST |
+                                APR_FILEPATH_NOTABSOLUTE, r->pool);
+
+        if (rv != APR_SUCCESS) {
+            error_fmt = "unable to access file \"%s\" "
+                        "in parsed file %s";
+        }
+        else {
+            /* note: it is okay to pass NULL for the "next filter" since
+               we never attempt to "run" this sub request. */
+            rr = ap_sub_req_lookup_file(newpath, r, NULL);
+
+            if (rr->status == HTTP_OK && rr->finfo.filetype != APR_NOFILE) {
+                to_send = rr->filename;
+                if ((rv = apr_stat(finfo, to_send,
+                    APR_FINFO_GPROT | APR_FINFO_MIN, rr->pool)) != APR_SUCCESS
+                    && rv != APR_INCOMPLETE) {
+                    error_fmt = "unable to get information about \"%s\" "
+                        "in parsed file %s";
+                }
+            }
+            else {
+                error_fmt = "unable to lookup information about \"%s\" "
+                            "in parsed file %s";
+            }
+        }
+
+        if (error_fmt) {
+            ret = -1;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                          rv, r, error_fmt, to_send, r->filename);
+        }
+
+        if (rr) ap_destroy_sub_req(rr);
+
+        return ret;
+    }
+    else if (!strcmp(tag, "virtual")) {
+        /* note: it is okay to pass NULL for the "next filter" since
+           we never attempt to "run" this sub request. */
+        rr = ap_sub_req_lookup_uri(tag_val, r, NULL);
+
+        if (rr->status == HTTP_OK && rr->finfo.filetype != APR_NOFILE) {
+            memcpy((char *) finfo, (const char *) &rr->finfo,
+                   sizeof(rr->finfo));
+            ap_destroy_sub_req(rr);
+            return 0;
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unable to get "
+                          "information about \"%s\" in parsed file %s",
+                          tag_val, r->filename);
+            ap_destroy_sub_req(rr);
+            return -1;
+        }
     }
     else {
-        return DECLINED;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter \"%s\" "
+                      "to tag %s in %s", tag, directive, r->filename);
+        return -1;
     }
-
-    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-             "proxy: BALANCER: canonicalising URL %s", url);
-
-    /* do syntatic check.
-     * We break the URL into host, port, path, search
-     */
-    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "error parsing URL %s: %s",
-                      url, err);
-        return HTTP_BAD_REQUEST;
-    }
-    /*
-     * now parse path/search args, according to rfc1738:
-     * process the path. With proxy-noncanon set (by
-     * mod_proxy) we use the raw, unparsed uri
-     */
-    if (apr_table_get(r->notes, "proxy-nocanon")) {
-        path = url;   /* this is the raw path */
-    }
-    else {
-        path = ap_proxy_canonenc(r->pool, url, strlen(url), enc_path, 0,
-                                 r->proxyreq);
-        search = r->args;
-    }
-    if (path == NULL)
-        return HTTP_BAD_REQUEST;
-
-    r->filename = apr_pstrcat(r->pool, "proxy:balancer://", host,
-            "/", path, (search) ? "?" : "", (search) ? search : "", NULL);
-
-    r->path_info = apr_pstrcat(r->pool, "/", path, NULL);
-
-    return OK;
 }

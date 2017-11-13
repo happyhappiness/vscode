@@ -1,1 +1,1 @@
-printf("detached\n");
+die("invalid object type");

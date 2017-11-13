@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", pair->one->path);
+ref_transaction_free(transaction);

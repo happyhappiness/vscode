@@ -1,1 +1,1 @@
-error("Could not write requested version");
+die(_("--local can only be used inside a git repository"));

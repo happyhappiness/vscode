@@ -1,10 +1,9 @@
 fputs(
-"              necting with FTP. This switch makes curl  use  active  mode.  In\n"
-"              practice,  curl  then  tells  the  server to connect back to the\n"
-"              client's specified address and port, while passive mode asks the\n"
-"              server  to  setup  an  IP address and port for it to connect to.\n"
-"              <address> should be one of:\n"
+"              The remote file name to use for saving  is  extracted  from  the\n"
+"              given  URL,  nothing  else,  and if it already exists it will be\n"
+"              overwritten. If you want the server to be  able  to  choose  the\n"
+"              file name refer to -J, --remote-header-name which can be used in\n"
+"              addition to this option. If the server chooses a file  name  and\n"
+"              that name already exists it will not be overwritten.\n"
 "\n"
-"              interface\n"
-"                     i.e \"eth0\" to specify which interface's  IP  address  you\n"
 , stdout);

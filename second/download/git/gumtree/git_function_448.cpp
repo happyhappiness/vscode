@@ -1,173 +1,115 @@
-static int do_pick_commit(struct commit *commit, struct replay_opts *opts)
+static int merge(int argc, const char **argv, const char *prefix)
 {
-	unsigned char head[20];
-	struct commit *base, *next, *parent;
-	const char *base_label, *next_label;
-	struct commit_message msg = { NULL, NULL, NULL, NULL };
-	struct strbuf msgbuf = STRBUF_INIT;
-	int res, unborn = 0, allow;
+	struct strbuf remote_ref = STRBUF_INIT, msg = STRBUF_INIT;
+	unsigned char result_sha1[20];
+	struct notes_tree *t;
+	struct notes_merge_options o;
+	int do_merge = 0, do_commit = 0, do_abort = 0;
+	int verbosity = 0, result;
+	const char *strategy = NULL;
+	struct option options[] = {
+		OPT_GROUP(N_("General options")),
+		OPT__VERBOSITY(&verbosity),
+		OPT_GROUP(N_("Merge options")),
+		OPT_STRING('s', "strategy", &strategy, N_("strategy"),
+			   N_("resolve notes conflicts using the given strategy "
+			      "(manual/ours/theirs/union/cat_sort_uniq)")),
+		OPT_GROUP(N_("Committing unmerged notes")),
+		{ OPTION_SET_INT, 0, "commit", &do_commit, NULL,
+			N_("finalize notes merge by committing unmerged notes"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, 1},
+		OPT_GROUP(N_("Aborting notes merge resolution")),
+		{ OPTION_SET_INT, 0, "abort", &do_abort, NULL,
+			N_("abort notes merge"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, 1},
+		OPT_END()
+	};
 
-	if (opts->no_commit) {
-		/*
-		 * We do not intend to commit immediately.  We just want to
-		 * merge the differences in, so let's compute the tree
-		 * that represents the "current" state for merge-recursive
-		 * to work on.
-		 */
-		if (write_cache_as_tree(head, 0, NULL))
-			die (_("Your index file is unmerged."));
-	} else {
-		unborn = get_sha1("HEAD", head);
-		if (unborn)
-			hashcpy(head, EMPTY_TREE_SHA1_BIN);
-		if (index_differs_from(unborn ? EMPTY_TREE_SHA1_HEX : "HEAD", 0))
-			return error_dirty_index(opts);
+	argc = parse_options(argc, argv, prefix, options,
+			     git_notes_merge_usage, 0);
+
+	if (strategy || do_commit + do_abort == 0)
+		do_merge = 1;
+	if (do_merge + do_commit + do_abort != 1) {
+		error(_("cannot mix --commit, --abort or -s/--strategy"));
+		usage_with_options(git_notes_merge_usage, options);
 	}
-	discard_cache();
 
-	if (!commit->parents) {
-		parent = NULL;
+	if (do_merge && argc != 1) {
+		error(_("Must specify a notes ref to merge"));
+		usage_with_options(git_notes_merge_usage, options);
+	} else if (!do_merge && argc) {
+		error(_("too many parameters"));
+		usage_with_options(git_notes_merge_usage, options);
 	}
-	else if (commit->parents->next) {
-		/* Reverting or cherry-picking a merge commit */
-		int cnt;
-		struct commit_list *p;
 
-		if (!opts->mainline)
-			return error(_("Commit %s is a merge but no -m option was given."),
-				oid_to_hex(&commit->object.oid));
+	init_notes_merge_options(&o);
+	o.verbosity = verbosity + NOTES_MERGE_VERBOSITY_DEFAULT;
 
-		for (cnt = 1, p = commit->parents;
-		     cnt != opts->mainline && p;
-		     cnt++)
-			p = p->next;
-		if (cnt != opts->mainline || !p)
-			return error(_("Commit %s does not have parent %d"),
-				oid_to_hex(&commit->object.oid), opts->mainline);
-		parent = p->item;
-	} else if (0 < opts->mainline)
-		return error(_("Mainline was specified but commit %s is not a merge."),
-			oid_to_hex(&commit->object.oid));
-	else
-		parent = commit->parents->item;
+	if (do_abort)
+		return merge_abort(&o);
+	if (do_commit)
+		return merge_commit(&o);
 
-	if (opts->allow_ff &&
-	    ((parent && !hashcmp(parent->object.oid.hash, head)) ||
-	     (!parent && unborn)))
-		return fast_forward_to(commit->object.oid.hash, head, unborn, opts);
+	o.local_ref = default_notes_ref();
+	strbuf_addstr(&remote_ref, argv[0]);
+	expand_loose_notes_ref(&remote_ref);
+	o.remote_ref = remote_ref.buf;
 
-	if (parent && parse_commit(parent) < 0)
-		/* TRANSLATORS: The first %s will be "revert" or
-		   "cherry-pick", the second %s a SHA1 */
-		return error(_("%s: cannot parse parent commit %s"),
-			action_name(opts), oid_to_hex(&parent->object.oid));
+	t = init_notes_check("merge", NOTES_INIT_WRITABLE);
 
-	if (get_message(commit, &msg) != 0)
-		return error(_("Cannot get commit message for %s"),
-			oid_to_hex(&commit->object.oid));
-
-	/*
-	 * "commit" is an existing commit.  We would want to apply
-	 * the difference it introduces since its first parent "prev"
-	 * on top of the current HEAD if we are cherry-pick.  Or the
-	 * reverse of it if we are revert.
-	 */
-
-	if (opts->action == REPLAY_REVERT) {
-		base = commit;
-		base_label = msg.label;
-		next = parent;
-		next_label = msg.parent_label;
-		strbuf_addstr(&msgbuf, "Revert \"");
-		strbuf_addstr(&msgbuf, msg.subject);
-		strbuf_addstr(&msgbuf, "\"\n\nThis reverts commit ");
-		strbuf_addstr(&msgbuf, oid_to_hex(&commit->object.oid));
-
-		if (commit->parents && commit->parents->next) {
-			strbuf_addstr(&msgbuf, ", reversing\nchanges made to ");
-			strbuf_addstr(&msgbuf, oid_to_hex(&parent->object.oid));
+	if (strategy) {
+		if (parse_notes_merge_strategy(strategy, &o.strategy)) {
+			error(_("Unknown -s/--strategy: %s"), strategy);
+			usage_with_options(git_notes_merge_usage, options);
 		}
-		strbuf_addstr(&msgbuf, ".\n");
 	} else {
-		const char *p;
+		struct strbuf merge_key = STRBUF_INIT;
+		const char *short_ref = NULL;
 
-		base = parent;
-		base_label = msg.parent_label;
-		next = commit;
-		next_label = msg.label;
+		if (!skip_prefix(o.local_ref, "refs/notes/", &short_ref))
+			die("BUG: local ref %s is outside of refs/notes/",
+			    o.local_ref);
 
-		/*
-		 * Append the commit log message to msgbuf; it starts
-		 * after the tree, parent, author, committer
-		 * information followed by "\n\n".
-		 */
-		p = strstr(msg.message, "\n\n");
-		if (p)
-			strbuf_addstr(&msgbuf, skip_blank_lines(p + 2));
+		strbuf_addf(&merge_key, "notes.%s.mergeStrategy", short_ref);
 
-		if (opts->record_origin) {
-			if (!has_conforming_footer(&msgbuf, NULL, 0))
-				strbuf_addch(&msgbuf, '\n');
-			strbuf_addstr(&msgbuf, cherry_picked_prefix);
-			strbuf_addstr(&msgbuf, oid_to_hex(&commit->object.oid));
-			strbuf_addstr(&msgbuf, ")\n");
-		}
+		if (git_config_get_notes_strategy(merge_key.buf, &o.strategy))
+			git_config_get_notes_strategy("notes.mergeStrategy", &o.strategy);
+
+		strbuf_release(&merge_key);
 	}
 
-	if (!opts->strategy || !strcmp(opts->strategy, "recursive") || opts->action == REPLAY_REVERT) {
-		res = do_recursive_merge(base, next, base_label, next_label,
-					 head, &msgbuf, opts);
-		if (res < 0)
-			return res;
-		write_message(&msgbuf, git_path_merge_msg());
-	} else {
-		struct commit_list *common = NULL;
-		struct commit_list *remotes = NULL;
+	strbuf_addf(&msg, "notes: Merged notes from %s into %s",
+		    remote_ref.buf, default_notes_ref());
+	strbuf_add(&(o.commit_msg), msg.buf + 7, msg.len - 7); /* skip "notes: " */
 
-		write_message(&msgbuf, git_path_merge_msg());
+	result = notes_merge(&o, t, result_sha1);
 
-		commit_list_insert(base, &common);
-		commit_list_insert(next, &remotes);
-		res = try_merge_command(opts->strategy, opts->xopts_nr, opts->xopts,
-					common, sha1_to_hex(head), remotes);
-		free_commit_list(common);
-		free_commit_list(remotes);
+	if (result >= 0) /* Merge resulted (trivially) in result_sha1 */
+		/* Update default notes ref with new commit */
+		update_ref(msg.buf, default_notes_ref(), result_sha1, NULL,
+			   0, UPDATE_REFS_DIE_ON_ERR);
+	else { /* Merge has unresolved conflicts */
+		const struct worktree *wt;
+		/* Update .git/NOTES_MERGE_PARTIAL with partial merge result */
+		update_ref(msg.buf, "NOTES_MERGE_PARTIAL", result_sha1, NULL,
+			   0, UPDATE_REFS_DIE_ON_ERR);
+		/* Store ref-to-be-updated into .git/NOTES_MERGE_REF */
+		wt = find_shared_symref("NOTES_MERGE_REF", default_notes_ref());
+		if (wt)
+			die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), wt->path);
+		if (create_symref("NOTES_MERGE_REF", default_notes_ref(), NULL))
+			die(_("Failed to store link to current notes ref (%s)"),
+			    default_notes_ref());
+		printf(_("Automatic notes merge failed. Fix conflicts in %s and "
+			 "commit the result with 'git notes merge --commit', or "
+			 "abort the merge with 'git notes merge --abort'.\n"),
+		       git_path(NOTES_MERGE_WORKTREE));
 	}
 
-	/*
-	 * If the merge was clean or if it failed due to conflict, we write
-	 * CHERRY_PICK_HEAD for the subsequent invocation of commit to use.
-	 * However, if the merge did not even start, then we don't want to
-	 * write it at all.
-	 */
-	if (opts->action == REPLAY_PICK && !opts->no_commit && (res == 0 || res == 1))
-		update_ref(NULL, "CHERRY_PICK_HEAD", commit->object.oid.hash, NULL,
-			   REF_NODEREF, UPDATE_REFS_DIE_ON_ERR);
-	if (opts->action == REPLAY_REVERT && ((opts->no_commit && res == 0) || res == 1))
-		update_ref(NULL, "REVERT_HEAD", commit->object.oid.hash, NULL,
-			   REF_NODEREF, UPDATE_REFS_DIE_ON_ERR);
-
-	if (res) {
-		error(opts->action == REPLAY_REVERT
-		      ? _("could not revert %s... %s")
-		      : _("could not apply %s... %s"),
-		      find_unique_abbrev(commit->object.oid.hash, DEFAULT_ABBREV),
-		      msg.subject);
-		print_advice(res == 1, opts);
-		rerere(opts->allow_rerere_auto);
-		goto leave;
-	}
-
-	allow = allow_empty(opts, commit);
-	if (allow < 0) {
-		res = allow;
-		goto leave;
-	}
-	if (!opts->no_commit)
-		res = run_git_commit(git_path_merge_msg(), opts, allow);
-
-leave:
-	free_message(commit, &msg);
-
-	return res;
+	free_notes(t);
+	strbuf_release(&remote_ref);
+	strbuf_release(&msg);
+	return result < 0; /* return non-zero on conflicts */
 }

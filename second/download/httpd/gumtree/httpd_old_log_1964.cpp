@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %lu: Exit event signaled. Child process is ending.", my_pid);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+         "proxy: CONNECT: connecting to remote proxy %s on port %d", connectname, connectport);

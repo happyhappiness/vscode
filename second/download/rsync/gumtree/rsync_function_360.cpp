@@ -1,58 +1,52 @@
-void generate_files(int f,struct file_list *flist,char *local_name,int f_recv)
+static struct sum_struct *generate_sums(struct map_struct *buf,off_t len,int n)
 {
   int i;
-  int phase=0;
+  struct sum_struct *s;
+  int count;
+  int block_len = n;
+  int remainder = (len%block_len);
+  off_t offset = 0;
 
-  if (verbose > 2)
-    fprintf(FERROR,"generator starting pid=%d count=%d\n",
-	    (int)getpid(),flist->count);
+  count = (len+(block_len-1))/block_len;
 
-  for (i = 0; i < flist->count; i++) {
-    struct file_struct *file = &flist->files[i];
-    mode_t saved_mode = file->mode;
-    if (!file->name) continue;
+  s = (struct sum_struct *)malloc(sizeof(*s));
+  if (!s) out_of_memory("generate_sums");
 
-    /* we need to ensure that any directories we create have writeable
-       permissions initially so that we can create the files within
-       them. This is then fixed after the files are transferred */
-    if (!am_root && S_ISDIR(file->mode)) {
-      file->mode |= S_IWUSR; /* user write */
-    }
+  s->count = count;
+  s->remainder = remainder;
+  s->n = n;
+  s->flength = len;
 
-    recv_generator(local_name?local_name:file->name,
-		   flist,i,f);
-
-    file->mode = saved_mode;
+  if (count==0) {
+    s->sums = NULL;
+    return s;
   }
 
-  phase++;
-  csum_length = SUM_LENGTH;
-  ignore_times=1;
+  if (verbose > 3)
+    fprintf(FERROR,"count=%d rem=%d n=%d flength=%d\n",
+	    s->count,s->remainder,s->n,(int)s->flength);
 
-  if (verbose > 2)
-    fprintf(FERROR,"generate_files phase=%d\n",phase);
+  s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
+  if (!s->sums) out_of_memory("generate_sums");
+  
+  for (i=0;i<count;i++) {
+    int n1 = MIN(len,n);
+    char *map = map_ptr(buf,offset,n1);
 
-  write_int(f,-1);
-  write_flush(f);
+    s->sums[i].sum1 = get_checksum1(map,n1);
+    get_checksum2(map,n1,s->sums[i].sum2);
 
-  if (remote_version >= 13) {
-    /* in newer versions of the protocol the files can cycle through
-       the system more than once to catch initial checksum errors */
-    for (i=read_int(f_recv); i != -1; i=read_int(f_recv)) {
-      struct file_struct *file = &flist->files[i];
-      recv_generator(local_name?local_name:file->name,
-		     flist,i,f);    
-    }
+    s->sums[i].offset = offset;
+    s->sums[i].len = n1;
+    s->sums[i].i = i;
 
-    phase++;
-    if (verbose > 2)
-      fprintf(FERROR,"generate_files phase=%d\n",phase);
+    if (verbose > 3)
+      fprintf(FERROR,"chunk[%d] offset=%d len=%d sum1=%08x\n",
+	      i,(int)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
 
-    write_int(f,-1);
-    write_flush(f);
+    len -= n1;
+    offset += n1;
   }
 
-
-  if (verbose > 2)
-    fprintf(FERROR,"generator wrote %d\n",write_total());
+  return s;
 }

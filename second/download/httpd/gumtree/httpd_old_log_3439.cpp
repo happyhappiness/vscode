@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "no cached SGL for %s, retrieving from LDAP", dn);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Removing CACHE_REMOVE_URL filter.");

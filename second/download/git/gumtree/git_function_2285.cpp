@@ -1,129 +1,227 @@
-static void write_pack_file(void)
+int git_config_set_multivar_in_file(const char *config_filename,
+				const char *key, const char *value,
+				const char *value_regex, int multi_replace)
 {
-	uint32_t i = 0, j;
-	struct sha1file *f;
-	off_t offset;
-	uint32_t nr_remaining = nr_result;
-	time_t last_mtime = 0;
-	struct object_entry **write_order;
+	int fd = -1, in_fd = -1;
+	int ret;
+	struct lock_file *lock = NULL;
+	char *filename_buf = NULL;
+	char *contents = NULL;
+	size_t contents_sz;
 
-	if (progress > pack_to_stdout)
-		progress_state = start_progress(_("Writing objects"), nr_result);
-	ALLOC_ARRAY(written_list, to_pack.nr_objects);
-	write_order = compute_write_order();
+	/* parse-key returns negative; flip the sign to feed exit(3) */
+	ret = 0 - git_config_parse_key(key, &store.key, &store.baselen);
+	if (ret)
+		goto out_free;
 
-	do {
-		unsigned char sha1[20];
-		char *pack_tmp_name = NULL;
+	store.multi_replace = multi_replace;
 
-		if (pack_to_stdout)
-			f = sha1fd_throughput(1, "<stdout>", progress_state);
-		else
-			f = create_tmp_packfile(&pack_tmp_name);
+	if (!config_filename)
+		config_filename = filename_buf = git_pathdup("config");
 
-		offset = write_pack_header(f, nr_remaining);
+	/*
+	 * The lock serves a purpose in addition to locking: the new
+	 * contents of .git/config will be written into it.
+	 */
+	lock = xcalloc(1, sizeof(struct lock_file));
+	fd = hold_lock_file_for_update(lock, config_filename, 0);
+	if (fd < 0) {
+		error("could not lock config file %s: %s", config_filename, strerror(errno));
+		free(store.key);
+		ret = CONFIG_NO_LOCK;
+		goto out_free;
+	}
 
-		if (reuse_packfile) {
-			off_t packfile_size;
-			assert(pack_to_stdout);
+	/*
+	 * If .git/config does not exist yet, write a minimal version.
+	 */
+	in_fd = open(config_filename, O_RDONLY);
+	if ( in_fd < 0 ) {
+		free(store.key);
 
-			packfile_size = write_reused_pack(f);
-			offset += packfile_size;
+		if ( ENOENT != errno ) {
+			error("opening %s: %s", config_filename,
+			      strerror(errno));
+			ret = CONFIG_INVALID_FILE; /* same as "invalid config file" */
+			goto out_free;
+		}
+		/* if nothing to unset, error out */
+		if (value == NULL) {
+			ret = CONFIG_NOTHING_SET;
+			goto out_free;
 		}
 
-		nr_written = 0;
-		for (; i < to_pack.nr_objects; i++) {
-			struct object_entry *e = write_order[i];
-			if (write_one(f, e, &offset) == WRITE_ONE_BREAK)
-				break;
-			display_progress(progress_state, written);
+		store.key = (char *)key;
+		if (!store_write_section(fd, key) ||
+		    !store_write_pair(fd, key, value))
+			goto write_err_out;
+	} else {
+		struct stat st;
+		size_t copy_begin, copy_end;
+		int i, new_line = 0;
+
+		if (value_regex == NULL)
+			store.value_regex = NULL;
+		else if (value_regex == CONFIG_REGEX_NONE)
+			store.value_regex = CONFIG_REGEX_NONE;
+		else {
+			if (value_regex[0] == '!') {
+				store.do_not_match = 1;
+				value_regex++;
+			} else
+				store.do_not_match = 0;
+
+			store.value_regex = (regex_t*)xmalloc(sizeof(regex_t));
+			if (regcomp(store.value_regex, value_regex,
+					REG_EXTENDED)) {
+				error("invalid pattern: %s", value_regex);
+				free(store.value_regex);
+				ret = CONFIG_INVALID_PATTERN;
+				goto out_free;
+			}
 		}
+
+		ALLOC_GROW(store.offset, 1, store.offset_alloc);
+		store.offset[0] = 0;
+		store.state = START;
+		store.seen = 0;
 
 		/*
-		 * Did we write the wrong # entries in the header?
-		 * If so, rewrite it like in fast-import
+		 * After this, store.offset will contain the *end* offset
+		 * of the last match, or remain at 0 if no match was found.
+		 * As a side effect, we make sure to transform only a valid
+		 * existing config file.
 		 */
-		if (pack_to_stdout) {
-			sha1close(f, sha1, CSUM_CLOSE);
-		} else if (nr_written == nr_remaining) {
-			sha1close(f, sha1, CSUM_FSYNC);
-		} else {
-			int fd = sha1close(f, sha1, 0);
-			fixup_pack_header_footer(fd, sha1, pack_tmp_name,
-						 nr_written, sha1, offset);
-			close(fd);
-			if (write_bitmap_index) {
-				warning(_(no_split_warning));
-				write_bitmap_index = 0;
+		if (git_config_from_file(store_aux, config_filename, NULL)) {
+			error("invalid config file %s", config_filename);
+			free(store.key);
+			if (store.value_regex != NULL &&
+			    store.value_regex != CONFIG_REGEX_NONE) {
+				regfree(store.value_regex);
+				free(store.value_regex);
 			}
+			ret = CONFIG_INVALID_FILE;
+			goto out_free;
 		}
 
-		if (!pack_to_stdout) {
-			struct stat st;
-			struct strbuf tmpname = STRBUF_INIT;
-
-			/*
-			 * Packs are runtime accessed in their mtime
-			 * order since newer packs are more likely to contain
-			 * younger objects.  So if we are creating multiple
-			 * packs then we should modify the mtime of later ones
-			 * to preserve this property.
-			 */
-			if (stat(pack_tmp_name, &st) < 0) {
-				warning("failed to stat %s: %s",
-					pack_tmp_name, strerror(errno));
-			} else if (!last_mtime) {
-				last_mtime = st.st_mtime;
-			} else {
-				struct utimbuf utb;
-				utb.actime = st.st_atime;
-				utb.modtime = --last_mtime;
-				if (utime(pack_tmp_name, &utb) < 0)
-					warning("failed utime() on %s: %s",
-						pack_tmp_name, strerror(errno));
-			}
-
-			strbuf_addf(&tmpname, "%s-", base_name);
-
-			if (write_bitmap_index) {
-				bitmap_writer_set_checksum(sha1);
-				bitmap_writer_build_type_index(written_list, nr_written);
-			}
-
-			finish_tmp_packfile(&tmpname, pack_tmp_name,
-					    written_list, nr_written,
-					    &pack_idx_opts, sha1);
-
-			if (write_bitmap_index) {
-				strbuf_addf(&tmpname, "%s.bitmap", sha1_to_hex(sha1));
-
-				stop_progress(&progress_state);
-
-				bitmap_writer_show_progress(progress);
-				bitmap_writer_reuse_bitmaps(&to_pack);
-				bitmap_writer_select_commits(indexed_commits, indexed_commits_nr, -1);
-				bitmap_writer_build(&to_pack);
-				bitmap_writer_finish(written_list, nr_written,
-						     tmpname.buf, write_bitmap_options);
-				write_bitmap_index = 0;
-			}
-
-			strbuf_release(&tmpname);
-			free(pack_tmp_name);
-			puts(sha1_to_hex(sha1));
+		free(store.key);
+		if (store.value_regex != NULL &&
+		    store.value_regex != CONFIG_REGEX_NONE) {
+			regfree(store.value_regex);
+			free(store.value_regex);
 		}
 
-		/* mark written objects as written to previous pack */
-		for (j = 0; j < nr_written; j++) {
-			written_list[j]->offset = (off_t)-1;
+		/* if nothing to unset, or too many matches, error out */
+		if ((store.seen == 0 && value == NULL) ||
+				(store.seen > 1 && multi_replace == 0)) {
+			ret = CONFIG_NOTHING_SET;
+			goto out_free;
 		}
-		nr_remaining -= nr_written;
-	} while (nr_remaining && i < to_pack.nr_objects);
 
-	free(written_list);
-	free(write_order);
-	stop_progress(&progress_state);
-	if (written != nr_result)
-		die("wrote %"PRIu32" objects while expecting %"PRIu32,
-			written, nr_result);
+		fstat(in_fd, &st);
+		contents_sz = xsize_t(st.st_size);
+		contents = xmmap_gently(NULL, contents_sz, PROT_READ,
+					MAP_PRIVATE, in_fd, 0);
+		if (contents == MAP_FAILED) {
+			if (errno == ENODEV && S_ISDIR(st.st_mode))
+				errno = EISDIR;
+			error("unable to mmap '%s': %s",
+			      config_filename, strerror(errno));
+			ret = CONFIG_INVALID_FILE;
+			contents = NULL;
+			goto out_free;
+		}
+		close(in_fd);
+		in_fd = -1;
+
+		if (chmod(get_lock_file_path(lock), st.st_mode & 07777) < 0) {
+			error("chmod on %s failed: %s",
+			      get_lock_file_path(lock), strerror(errno));
+			ret = CONFIG_NO_WRITE;
+			goto out_free;
+		}
+
+		if (store.seen == 0)
+			store.seen = 1;
+
+		for (i = 0, copy_begin = 0; i < store.seen; i++) {
+			if (store.offset[i] == 0) {
+				store.offset[i] = copy_end = contents_sz;
+			} else if (store.state != KEY_SEEN) {
+				copy_end = store.offset[i];
+			} else
+				copy_end = find_beginning_of_line(
+					contents, contents_sz,
+					store.offset[i]-2, &new_line);
+
+			if (copy_end > 0 && contents[copy_end-1] != '\n')
+				new_line = 1;
+
+			/* write the first part of the config */
+			if (copy_end > copy_begin) {
+				if (write_in_full(fd, contents + copy_begin,
+						  copy_end - copy_begin) <
+				    copy_end - copy_begin)
+					goto write_err_out;
+				if (new_line &&
+				    write_str_in_full(fd, "\n") != 1)
+					goto write_err_out;
+			}
+			copy_begin = store.offset[i];
+		}
+
+		/* write the pair (value == NULL means unset) */
+		if (value != NULL) {
+			if (store.state == START) {
+				if (!store_write_section(fd, key))
+					goto write_err_out;
+			}
+			if (!store_write_pair(fd, key, value))
+				goto write_err_out;
+		}
+
+		/* write the rest of the config */
+		if (copy_begin < contents_sz)
+			if (write_in_full(fd, contents + copy_begin,
+					  contents_sz - copy_begin) <
+			    contents_sz - copy_begin)
+				goto write_err_out;
+
+		munmap(contents, contents_sz);
+		contents = NULL;
+	}
+
+	if (commit_lock_file(lock) < 0) {
+		error("could not commit config file %s", config_filename);
+		ret = CONFIG_NO_WRITE;
+		lock = NULL;
+		goto out_free;
+	}
+
+	/*
+	 * lock is committed, so don't try to roll it back below.
+	 * NOTE: Since lockfile.c keeps a linked list of all created
+	 * lock_file structures, it isn't safe to free(lock).  It's
+	 * better to just leave it hanging around.
+	 */
+	lock = NULL;
+	ret = 0;
+
+	/* Invalidate the config cache */
+	git_config_clear();
+
+out_free:
+	if (lock)
+		rollback_lock_file(lock);
+	free(filename_buf);
+	if (contents)
+		munmap(contents, contents_sz);
+	if (in_fd >= 0)
+		close(in_fd);
+	return ret;
+
+write_err_out:
+	ret = write_error(get_lock_file_path(lock));
+	goto out_free;
+
 }

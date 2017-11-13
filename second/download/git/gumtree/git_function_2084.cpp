@@ -1,70 +1,50 @@
-int install_branch_config(int flag, const char *local, const char *origin, const char *remote)
+static int parse_atom(const char *atom, const char *ep)
 {
-	const char *shortname = NULL;
-	struct strbuf key = STRBUF_INIT;
-	int rebasing = should_setup_rebase(origin);
+	const char *sp;
+	int i, at;
 
-	if (skip_prefix(remote, "refs/heads/", &shortname)
-	    && !strcmp(local, shortname)
-	    && !origin) {
-		warning(_("Not setting branch %s as its own upstream."),
-			local);
-		return 0;
+	sp = atom;
+	if (*sp == '*' && sp < ep)
+		sp++; /* deref */
+	if (ep <= sp)
+		die("malformed field name: %.*s", (int)(ep-atom), atom);
+
+	/* Do we have the atom already used elsewhere? */
+	for (i = 0; i < used_atom_cnt; i++) {
+		int len = strlen(used_atom[i]);
+		if (len == ep - atom && !memcmp(used_atom[i], atom, len))
+			return i;
 	}
 
-	strbuf_addf(&key, "branch.%s.remote", local);
-	if (git_config_set_gently(key.buf, origin ? origin : ".") < 0)
-		goto out_err;
-
-	strbuf_reset(&key);
-	strbuf_addf(&key, "branch.%s.merge", local);
-	if (git_config_set_gently(key.buf, remote) < 0)
-		goto out_err;
-
-	if (rebasing) {
-		strbuf_reset(&key);
-		strbuf_addf(&key, "branch.%s.rebase", local);
-		if (git_config_set_gently(key.buf, "true") < 0)
-			goto out_err;
-	}
-	strbuf_release(&key);
-
-	if (flag & BRANCH_CONFIG_VERBOSE) {
-		if (shortname) {
-			if (origin)
-				printf_ln(rebasing ?
-					  _("Branch %s set up to track remote branch %s from %s by rebasing.") :
-					  _("Branch %s set up to track remote branch %s from %s."),
-					  local, shortname, origin);
-			else
-				printf_ln(rebasing ?
-					  _("Branch %s set up to track local branch %s by rebasing.") :
-					  _("Branch %s set up to track local branch %s."),
-					  local, shortname);
-		} else {
-			if (origin)
-				printf_ln(rebasing ?
-					  _("Branch %s set up to track remote ref %s by rebasing.") :
-					  _("Branch %s set up to track remote ref %s."),
-					  local, remote);
-			else
-				printf_ln(rebasing ?
-					  _("Branch %s set up to track local ref %s by rebasing.") :
-					  _("Branch %s set up to track local ref %s."),
-					  local, remote);
-		}
+	/* Is the atom a valid one? */
+	for (i = 0; i < ARRAY_SIZE(valid_atom); i++) {
+		int len = strlen(valid_atom[i].name);
+		/*
+		 * If the atom name has a colon, strip it and everything after
+		 * it off - it specifies the format for this entry, and
+		 * shouldn't be used for checking against the valid_atom
+		 * table.
+		 */
+		const char *formatp = strchr(sp, ':');
+		if (!formatp || ep < formatp)
+			formatp = ep;
+		if (len == formatp - sp && !memcmp(valid_atom[i].name, sp, len))
+			break;
 	}
 
-	return 0;
+	if (ARRAY_SIZE(valid_atom) <= i)
+		die("unknown field name: %.*s", (int)(ep-atom), atom);
 
-out_err:
-	strbuf_release(&key);
-	error(_("Unable to write upstream branch configuration"));
-
-	advise(_(tracking_advice),
-	       origin ? origin : "",
-	       origin ? "/" : "",
-	       shortname ? shortname : remote);
-
-	return -1;
+	/* Add it in, including the deref prefix */
+	at = used_atom_cnt;
+	used_atom_cnt++;
+	REALLOC_ARRAY(used_atom, used_atom_cnt);
+	REALLOC_ARRAY(used_atom_type, used_atom_cnt);
+	used_atom[at] = xmemdupz(atom, ep - atom);
+	used_atom_type[at] = valid_atom[i].cmp_type;
+	if (*atom == '*')
+		need_tagged = 1;
+	if (!strcmp(used_atom[at], "symref"))
+		need_symref = 1;
+	return at;
 }

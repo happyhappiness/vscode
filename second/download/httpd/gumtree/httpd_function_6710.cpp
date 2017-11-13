@@ -1,156 +1,214 @@
-static void *APR_THREAD_FUNC start_threads(apr_thread_t * thd, void *dummy)
+static int event_check_config(apr_pool_t *p, apr_pool_t *plog,
+                              apr_pool_t *ptemp, server_rec *s)
 {
-    thread_starter *ts = dummy;
-    apr_thread_t **threads = ts->threads;
-    apr_threadattr_t *thread_attr = ts->threadattr;
-    int child_num_arg = ts->child_num_arg;
-    int my_child_num = child_num_arg;
-    proc_info *my_info;
-    apr_status_t rv;
-    int i;
-    int threads_created = 0;
-    int listener_started = 0;
-    int loops;
-    int prev_threads_created;
-    int max_recycled_pools = -1;
-    int good_methods[] = {APR_POLLSET_KQUEUE, APR_POLLSET_PORT, APR_POLLSET_EPOLL};
+    int startup = 0;
 
-    /* We must create the fd queues before we start up the listener
-     * and worker threads. */
-    worker_queue = apr_pcalloc(pchild, sizeof(*worker_queue));
-    rv = ap_queue_init(worker_queue, threads_per_child, pchild);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                     "ap_queue_init() failed");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->module_loads == 1) {
+        startup = 1;
     }
 
-    if (ap_max_mem_free != APR_ALLOCATOR_MAX_FREE_UNLIMITED) {
-        /* If we want to conserve memory, let's not keep an unlimited number of
-         * pools & allocators.
-         * XXX: This should probably be a separate config directive
-         */
-        max_recycled_pools = threads_per_child * 3 / 4 ;
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00497)
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of %d servers, decreasing to %d.",
+                         server_limit, MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00498)
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
+        }
+        server_limit = MAX_SERVER_LIMIT;
     }
-    rv = ap_queue_info_create(&worker_queue_info, pchild,
-                              threads_per_child, max_recycled_pools);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                     "ap_queue_info_create() failed");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00499)
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00500)
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
+        }
+        server_limit = 1;
     }
 
-    /* Create the timeout mutex and main pollset before the listener
-     * thread starts.
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
      */
-    rv = apr_thread_mutex_create(&timeout_mutex, APR_THREAD_MUTEX_DEFAULT,
-                                 pchild);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "creation of the timeout mutex failed.");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00501)
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
     }
 
-    /* Create the main pollset */
-    for (i = 0; i < sizeof(good_methods) / sizeof(void*); i++) {
-        rv = apr_pollset_create_ex(&event_pollset,
-                            threads_per_child*2, /* XXX don't we need more, to handle
-                                                * connections in K-A or lingering
-                                                * close?
-                                                */
-                            pchild, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY | APR_POLLSET_NODEFAULT,
-                            good_methods[i]);
-        if (rv == APR_SUCCESS) {
-            break;
+    if (thread_limit > MAX_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00502)
+                         "WARNING: ThreadLimit of %d exceeds compile-time "
+                         "limit of %d threads, decreasing to %d.",
+                         thread_limit, MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00503)
+                         "ThreadLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         thread_limit, MAX_THREAD_LIMIT);
         }
+        thread_limit = MAX_THREAD_LIMIT;
     }
-    if (rv != APR_SUCCESS) {
-        rv = apr_pollset_create(&event_pollset,
-                               threads_per_child*2, /* XXX don't we need more, to handle
-                                                     * connections in K-A or lingering
-                                                     * close?
-                                                     */
-                               pchild, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
-    }
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "apr_pollset_create with Thread Safety failed.");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02471)
-                 "start_threads: Using %s", apr_pollset_method_name(event_pollset));
-    worker_sockets = apr_pcalloc(pchild, threads_per_child
-                                 * sizeof(apr_socket_t *));
-
-    loops = prev_threads_created = 0;
-    while (1) {
-        /* threads_per_child does not include the listener thread */
-        for (i = 0; i < threads_per_child; i++) {
-            int status =
-                ap_scoreboard_image->servers[child_num_arg][i].status;
-
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
-            }
-
-            my_info = (proc_info *) ap_malloc(sizeof(proc_info));
-            my_info->pid = my_child_num;
-            my_info->tid = i;
-            my_info->sd = 0;
-
-            /* We are creating threads right now */
-            ap_update_child_status_from_indexes(my_child_num, i,
-                                                SERVER_STARTING, NULL);
-            /* We let each thread update its own scoreboard entry.  This is
-             * done because it lets us deal with tid better.
-             */
-            rv = apr_thread_create(&threads[i], thread_attr,
-                                   worker_thread, my_info, pchild);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                             "apr_thread_create: unable to create worker thread");
-                /* let the parent decide how bad this really is */
-                clean_child_exit(APEXIT_CHILDSICK);
-            }
-            threads_created++;
+    else if (thread_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00504)
+                         "WARNING: ThreadLimit of %d not allowed, "
+                         "increasing to 1.", thread_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00505)
+                         "ThreadLimit of %d not allowed, increasing to 1",
+                         thread_limit);
         }
-
-        /* Start the listener only when there are workers available */
-        if (!listener_started && threads_created) {
-            create_listener_thread(ts);
-            listener_started = 1;
-        }
-
-
-        if (start_thread_may_exit || threads_created == threads_per_child) {
-            break;
-        }
-        /* wait for previous generation to clean up an entry */
-        apr_sleep(apr_time_from_sec(1));
-        ++loops;
-        if (loops % 120 == 0) { /* every couple of minutes */
-            if (prev_threads_created == threads_created) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                             "child %" APR_PID_T_FMT " isn't taking over "
-                             "slots very quickly (%d of %d)",
-                             ap_my_pid, threads_created,
-                             threads_per_child);
-            }
-            prev_threads_created = threads_created;
-        }
+        thread_limit = 1;
     }
 
-    /* What state should this child_main process be listed as in the
-     * scoreboard...?
-     *  ap_update_child_status_from_indexes(my_child_num, i, SERVER_STARTING,
-     *                                      (request_rec *) NULL);
-     *
-     *  This state should be listed separately in the scoreboard, in some kind
-     *  of process_status, not mixed in with the worker threads' status.
-     *  "life_status" is almost right, but it's in the worker's structure, and
-     *  the name could be clearer.   gla
+    /* you cannot change ThreadLimit across a restart; ignore
+     * any such attempts
      */
-    apr_thread_exit(thd, APR_SUCCESS);
-    return NULL;
+    if (!retained->first_thread_limit) {
+        retained->first_thread_limit = thread_limit;
+    }
+    else if (thread_limit != retained->first_thread_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00506)
+                     "changing ThreadLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     thread_limit, retained->first_thread_limit);
+        thread_limit = retained->first_thread_limit;
+    }
+
+    if (threads_per_child > thread_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00507)
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of %d threads, decreasing to %d. "
+                         "To increase, please see the ThreadLimit directive.",
+                         threads_per_child, thread_limit, thread_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00508)
+                         "ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of %d, decreasing to match",
+                         threads_per_child, thread_limit);
+        }
+        threads_per_child = thread_limit;
+    }
+    else if (threads_per_child < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00509)
+                         "WARNING: ThreadsPerChild of %d not allowed, "
+                         "increasing to 1.", threads_per_child);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00510)
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         threads_per_child);
+        }
+        threads_per_child = 1;
+    }
+
+    if (max_workers < threads_per_child) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00511)
+                         "WARNING: MaxRequestWorkers of %d is less than "
+                         "ThreadsPerChild of %d, increasing to %d. "
+                         "MaxRequestWorkers must be at least as large "
+                         "as the number of threads in a single server.",
+                         max_workers, threads_per_child, threads_per_child);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00512)
+                         "MaxRequestWorkers of %d is less than ThreadsPerChild "
+                         "of %d, increasing to match",
+                         max_workers, threads_per_child);
+        }
+        max_workers = threads_per_child;
+    }
+
+    ap_daemons_limit = max_workers / threads_per_child;
+
+    if (max_workers % threads_per_child) {
+        int tmp_max_workers = ap_daemons_limit * threads_per_child;
+
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00513)
+                         "WARNING: MaxRequestWorkers of %d is not an integer "
+                         "multiple of ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d, for a maximum of %d servers.",
+                         max_workers, threads_per_child, tmp_max_workers,
+                         ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00514)
+                         "MaxRequestWorkers of %d is not an integer multiple "
+                         "of ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d", max_workers, threads_per_child,
+                         tmp_max_workers);
+        }
+        max_workers = tmp_max_workers;
+    }
+
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00515)
+                         "WARNING: MaxRequestWorkers of %d would require %d servers "
+                         "and would exceed ServerLimit of %d, decreasing to %d. "
+                         "To increase, please see the ServerLimit directive.",
+                         max_workers, ap_daemons_limit, server_limit,
+                         server_limit * threads_per_child);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00516)
+                         "MaxRequestWorkers of %d would require %d servers and "
+                         "exceed ServerLimit of %d, decreasing to %d",
+                         max_workers, ap_daemons_limit, server_limit,
+                         server_limit * threads_per_child);
+        }
+        ap_daemons_limit = server_limit;
+    }
+
+    /* ap_daemons_to_start > ap_daemons_limit checked in ap_mpm_run() */
+    if (ap_daemons_to_start < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00517)
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00518)
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
+
+    if (min_spare_threads < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00519)
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1 to avoid almost certain server "
+                         "failure. Please read the documentation.",
+                         min_spare_threads);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00520)
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         min_spare_threads);
+        }
+        min_spare_threads = 1;
+    }
+
+    /* max_spare_threads < min_spare_threads + threads_per_child
+     * checked in ap_mpm_run()
+     */
+
+    return OK;
 }

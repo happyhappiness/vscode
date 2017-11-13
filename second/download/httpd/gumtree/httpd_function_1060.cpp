@@ -1,61 +1,48 @@
-static apr_status_t dbd_construct(void **db, void *params, apr_pool_t *pool)
+char *ap_get_local_host(apr_pool_t *a)
 {
-    svr_cfg *svr = (svr_cfg*) params;
-    ap_dbd_t *rec = apr_pcalloc(pool, sizeof(ap_dbd_t));
-    apr_status_t rv;
+#ifndef MAXHOSTNAMELEN
+#define MAXHOSTNAMELEN 256
+#endif
+    char str[MAXHOSTNAMELEN + 1];
+    char *server_hostname = NULL;
+    struct hostent *p;
 
-    /* this pool is mostly so dbd_close can destroy the prepared stmts */
-    rv = apr_pool_create(&rec->pool, pool);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
-                      "DBD: Failed to create memory pool");
+#ifdef BEOS_R5
+    if (gethostname(str, sizeof(str) - 1) == 0)
+#else
+    if (gethostname(str, sizeof(str) - 1) != 0)
+#endif
+    {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
+                     "%s: gethostname() failed to determine ServerName",
+                     ap_server_argv0);
     }
-
-/* The driver is loaded at config time now, so this just checks a hash.
- * If that changes, the driver DSO could be registered to unload against
- * our pool, which is probably not what we want.  Error checking isn't
- * necessary now, but in case that changes in the future ...
- */
-    rv = apr_dbd_get_driver(rec->pool, svr->name, &rec->driver);
-    switch (rv) {
-    case APR_ENOTIMPL:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: driver for %s not available", svr->name);
-        return rv;
-    case APR_EDSOOPEN:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: can't find driver for %s", svr->name);
-        return rv;
-    case APR_ESYMNOTFOUND:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: driver for %s is invalid or corrupted", svr->name);
-        return rv;
-    default:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: mod_dbd not compatible with apr in get_driver");
-        return rv;
-    case APR_SUCCESS:
-        break;
+    else 
+    {
+        str[sizeof(str) - 1] = '\0';
+        /* TODO: Screaming for APR-ization */
+        if ((!(p = gethostbyname(str))) 
+            || (!(server_hostname = find_fqdn(a, p)))) {
+            /* Recovery - return the default servername by IP: */
+            if (p && p->h_addr_list[0]) {
+                apr_snprintf(str, sizeof(str), "%pA", p->h_addr_list[0]);
+                server_hostname = apr_pstrdup(a, str);
+                /* We will drop through to report the IP-named server */
+            }
+        }
+        else {
+            /* Since we found a fdqn, return it with no logged message. */
+            return server_hostname;
+        }
     }
 
-    rv = apr_dbd_open(rec->driver, rec->pool, svr->params, &rec->handle);
-    switch (rv) {
-    case APR_EGENERAL:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: Can't connect to %s", svr->name);
-        return rv;
-    default:
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: mod_dbd not compatible with apr in open");
-        return rv;
-    case APR_SUCCESS:
-        break;
-    }
-    *db = rec;
-    rv = dbd_prepared_init(rec->pool, svr, rec);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: failed to initialise prepared SQL statements");
-    }
-    return rv;
+    if (!server_hostname) 
+        server_hostname = apr_pstrdup(a, "127.0.0.1");
+
+    ap_log_perror(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0, a,
+                 "%s: Could not determine the server's fully qualified "
+                 "domain name, using %s for ServerName",
+                 ap_server_argv0, server_hostname);
+             
+    return server_hostname;
 }

@@ -1,121 +1,162 @@
-static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static int proxy_balancer_pre_request(proxy_worker **worker,
+                                      proxy_balancer **balancer,
+                                      request_rec *r,
+                                      proxy_server_conf *conf, char **url)
 {
-    int startup = 0;
+    int access_status;
+    proxy_worker *runtime;
+    char *route = NULL;
+    const char *sticky = NULL;
+    apr_status_t rv;
 
-    /* the reverse of pre_config, we want this only the first time around */
-    if (retained->module_loads == 1) {
-        startup = 1;
-    }
-
-    if (server_limit > MAX_SERVER_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
-        }
-        server_limit = MAX_SERVER_LIMIT;
-    }
-    else if (server_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
-        }
-        server_limit = 1;
-    }
-
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
+    *worker = NULL;
+    /* Step 1: check if the url is for us
+     * The url we can handle starts with 'balancer://'
+     * If balancer is already provided skip the search
+     * for balancer, because this is failover attempt.
      */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
-    }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
+    if (!*balancer &&
+        !(*balancer = ap_proxy_get_balancer(r->pool, conf, *url)))
+        return DECLINED;
+
+    /* Step 2: Lock the LoadBalancer
+     * XXX: perhaps we need the process lock here
+     */
+    if ((rv = PROXY_THREAD_LOCK(*balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Lock failed for pre_request",
+                     (*balancer)->name);
+        return DECLINED;
     }
 
-    if (ap_daemons_limit > server_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d exceeds ServerLimit "
-                         "value of", ap_daemons_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing MaxClients to %d.",
-                         server_limit, server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ServerLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d exceeds ServerLimit value "
-                         "of %d, decreasing to match",
-                         ap_daemons_limit, server_limit);
+    /* Step 3: force recovery */
+    force_recovery(*balancer, r->server);
+
+    /* Step 4: find the session route */
+    runtime = find_session_route(*balancer, r, &route, &sticky, url);
+    if (runtime) {
+        if ((*balancer)->lbmethod && (*balancer)->lbmethod->updatelbstatus) {
+            /* Call the LB implementation */
+            (*balancer)->lbmethod->updatelbstatus(*balancer, runtime, r->server);
         }
-        ap_daemons_limit = server_limit;
-    }
-    else if (ap_daemons_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d not allowed, "
-                         "increasing to 1.", ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d not allowed, increasing to 1",
-                         ap_daemons_limit);
+        else { /* Use the default one */
+            int i, total_factor = 0;
+            proxy_worker **workers;
+            /* We have a sticky load balancer
+             * Update the workers status
+             * so that even session routes get
+             * into account.
+             */
+            workers = (proxy_worker **)(*balancer)->workers->elts;
+            for (i = 0; i < (*balancer)->workers->nelts; i++) {
+                /* Take into calculation only the workers that are
+                 * not in error state or not disabled.
+                 */
+                if (PROXY_WORKER_IS_USABLE(*workers)) {
+                    (*workers)->s->lbstatus += (*workers)->s->lbfactor;
+                    total_factor += (*workers)->s->lbfactor;
+                }
+                workers++;
+            }
+            runtime->s->lbstatus -= total_factor;
         }
-        ap_daemons_limit = 1;
-    }
+        runtime->s->elected++;
 
-    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
-    if (ap_daemons_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
+        *worker = runtime;
+    }
+    else if (route && (*balancer)->sticky_force) {
+        int i, member_of = 0;
+        proxy_worker **workers;
+        /*
+         * We have a route provided that doesn't match the
+         * balancer name. See if the provider route is the
+         * member of the same balancer in which case return 503
+         */
+        workers = (proxy_worker **)(*balancer)->workers->elts;
+        for (i = 0; i < (*balancer)->workers->nelts; i++) {
+            if (*((*workers)->s->route) && strcmp((*workers)->s->route, route) == 0) {
+                member_of = 1;
+                break;
+            }
+            workers++;
         }
-        ap_daemons_to_start = 1;
-    }
-
-    if (ap_daemons_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareServers of %d not allowed, "
-                         "increasing to 1", ap_daemons_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareServers of %d not allowed, increasing to 1",
-                         ap_daemons_min_free);
+        if (member_of) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "proxy: BALANCER: (%s). All workers are in error state for route (%s)",
+                         (*balancer)->name, route);
+            if ((rv = PROXY_THREAD_UNLOCK(*balancer)) != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "proxy: BALANCER: (%s). Unlock failed for pre_request",
+                             (*balancer)->name);
+            }
+            return HTTP_SERVICE_UNAVAILABLE;
         }
-        ap_daemons_min_free = 1;
     }
 
-    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
+    if ((rv = PROXY_THREAD_UNLOCK(*balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Unlock failed for pre_request",
+                     (*balancer)->name);
+    }
+    if (!*worker) {
+        runtime = find_best_worker(*balancer, r);
+        if (!runtime) {
+            if ((*balancer)->workers->nelts) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                            "proxy: BALANCER: (%s). All workers are in error state",
+                            (*balancer)->name);
+            } else {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                            "proxy: BALANCER: (%s). No workers in balancer",
+                            (*balancer)->name);
+            }
 
-    return OK;
+            return HTTP_SERVICE_UNAVAILABLE;
+        }
+        if ((*balancer)->sticky && runtime) {
+            /*
+             * This balancer has sticky sessions and the client either has not
+             * supplied any routing information or all workers for this route
+             * including possible redirect and hotstandby workers are in error
+             * state, but we have found another working worker for this
+             * balancer where we can send the request. Thus notice that we have
+             * changed the route to the backend.
+             */
+            apr_table_setn(r->subprocess_env, "BALANCER_ROUTE_CHANGED", "1");
+        }
+        *worker = runtime;
+    }
+
+    (*worker)->s->busy++;
+
+    /* Add balancer/worker info to env. */
+    apr_table_setn(r->subprocess_env,
+                   "BALANCER_NAME", (*balancer)->name);
+    apr_table_setn(r->subprocess_env,
+                   "BALANCER_WORKER_NAME", (*worker)->name);
+    apr_table_setn(r->subprocess_env,
+                   "BALANCER_WORKER_ROUTE", (*worker)->s->route);
+
+    /* Rewrite the url from 'balancer://url'
+     * to the 'worker_scheme://worker_hostname[:worker_port]/url'
+     * This replaces the balancers fictional name with the
+     * real hostname of the elected worker.
+     */
+    access_status = rewrite_url(r, *worker, url);
+    /* Add the session route to request notes if present */
+    if (route) {
+        apr_table_setn(r->notes, "session-sticky", sticky);
+        apr_table_setn(r->notes, "session-route", route);
+
+        /* Add session info to env. */
+        apr_table_setn(r->subprocess_env,
+                       "BALANCER_SESSION_STICKY", sticky);
+        apr_table_setn(r->subprocess_env,
+                       "BALANCER_SESSION_ROUTE", route);
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: BALANCER (%s) worker (%s) rewritten to %s",
+                 (*balancer)->name, (*worker)->name, *url);
+
+    return access_status;
 }

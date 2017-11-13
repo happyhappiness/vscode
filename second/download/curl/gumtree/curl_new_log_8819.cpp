@@ -1,10 +1,9 @@
 fputs(
-"              enforced by using an URL that ends with \";type=A\".  This  option\n"
-"              causes data sent to stdout to be in text mode for win32 systems.\n"
+"              (HTTP) Pass the data to the HTTP server as a cookie. It is  sup-\n"
+"              posedly  the data previously received from the server in a \"Set-\n"
+"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
+"              NAME2=VALUE2\".\n"
 "\n"
-"       --basic\n"
-"              (HTTP)  Tells curl to use HTTP Basic authentication. This is the\n"
-"              default and this option is usually pointless, unless you use  it\n"
-"              to  override  a  previously  set  option  that  sets a different\n"
-"              authentication method (such as --ntlm,  --digest,  or  --negoti-\n"
+"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
+"              name to use to read previously stored cookie lines  from,  which\n"
 , stdout);

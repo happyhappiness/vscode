@@ -1,46 +1,20 @@
-static const char *parse_long_magic(unsigned *magic, int *prefix_len,
-				    const char *elem)
+static int read_and_refresh_cache(struct replay_opts *opts)
 {
-	const char *pos;
-	const char *nextat;
-
-	for (pos = elem + 2; *pos && *pos != ')'; pos = nextat) {
-		size_t len = strcspn(pos, ",)");
-		int i;
-
-		if (pos[len] == ',')
-			nextat = pos + len + 1; /* handle ',' */
-		else
-			nextat = pos + len; /* handle ')' and '\0' */
-
-		if (!len)
-			continue;
-
-		if (starts_with(pos, "prefix:")) {
-			char *endptr;
-			*prefix_len = strtol(pos + 7, &endptr, 10);
-			if (endptr - pos != len)
-				die(_("invalid parameter for pathspec magic 'prefix'"));
-			continue;
-		}
-
-		for (i = 0; i < ARRAY_SIZE(pathspec_magic); i++) {
-			if (strlen(pathspec_magic[i].name) == len &&
-			    !strncmp(pathspec_magic[i].name, pos, len)) {
-				*magic |= pathspec_magic[i].bit;
-				break;
-			}
-		}
-
-		if (ARRAY_SIZE(pathspec_magic) <= i)
-			die(_("Invalid pathspec magic '%.*s' in '%s'"),
-			    (int) len, pos, elem);
+	static struct lock_file index_lock;
+	int index_fd = hold_locked_index(&index_lock, 0);
+	if (read_index_preload(&the_index, NULL) < 0) {
+		rollback_lock_file(&index_lock);
+		return error(_("git %s: failed to read the index"),
+			_(action_name(opts)));
 	}
-
-	if (*pos != ')')
-		die(_("Missing ')' at the end of pathspec magic in '%s'"),
-		    elem);
-	pos++;
-
-	return pos;
+	refresh_index(&the_index, REFRESH_QUIET|REFRESH_UNMERGED, NULL, NULL, NULL);
+	if (the_index.cache_changed && index_fd >= 0) {
+		if (write_locked_index(&the_index, &index_lock, COMMIT_LOCK)) {
+			rollback_lock_file(&index_lock);
+			return error(_("git %s: failed to refresh the index"),
+				_(action_name(opts)));
+		}
+	}
+	rollback_lock_file(&index_lock);
+	return 0;
 }

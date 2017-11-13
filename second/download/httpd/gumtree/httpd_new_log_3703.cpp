@@ -1,1 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00872) "APR_BUCKET_IS_EOS");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01467)
+                          "can't initialise output filter %s: %s",
+                          f->frec->name,
+                          (ctx->dc->onfail == 1) ? "removing" : "aborting");

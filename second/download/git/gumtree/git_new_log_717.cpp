@@ -1,1 +1,1 @@
-error(ERRORMSG(o, e), super_prefixed(path.buf));
+die("BUG: worktree status unknown???");

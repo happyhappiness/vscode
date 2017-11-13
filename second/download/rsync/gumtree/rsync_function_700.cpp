@@ -1,8 +1,11 @@
-void io_start_buffering_out(void)
+static void prtcon(const char *msg, poptContext con)
 {
-	if (iobuf_out)
-		return;
-	if (!(iobuf_out = new_array(char, IO_BUFFER_SIZE)))
-		out_of_memory("io_start_buffering_out");
-	iobuf_out_cnt = 0;
+    if (msg) fprintf(stderr, "%s", msg);
+    fprintf(stderr, "\tcon %p os %p nextCharArg \"%s\" nextArg \"%s\" argv[%d] \"%s\"\n",
+	con, con->os,
+	(con->os->nextCharArg ? con->os->nextCharArg : ""),
+	(con->os->nextArg ? con->os->nextArg : ""),
+	con->os->next,
+	(con->os->argv && con->os->argv[con->os->next]
+		? con->os->argv[con->os->next] : ""));
 }

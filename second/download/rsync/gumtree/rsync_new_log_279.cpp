@@ -1,1 +1,1 @@
-fprintf(FINFO,"make_file(%s)\n",fname);
+fprintf(FINFO,"deleting in %s\n", last_name);

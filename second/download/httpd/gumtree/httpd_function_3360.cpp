@@ -1,11 +1,44 @@
-static void mod_info_show_cmd(request_rec * r, const ap_directive_t * dir,
-                              int nest)
+static const char *isapi_cmd_cachefile(cmd_parms *cmd, void *dummy,
+                                       const char *filename)
 {
-    mod_info_indent(r, nest, dir->filename, dir->line_num);
-    if (r)
-        ap_rprintf(r, "%s <i>%s</i></tt></dd>\n",
-                   ap_escape_html(r->pool, dir->directive),
-                   ap_escape_html(r->pool, dir->args));
-    else
-        apr_file_printf(out, "%s %s\n", dir->directive, dir->args);
+    isapi_loaded *isa;
+    apr_finfo_t tmp;
+    apr_status_t rv;
+    char *fspec;
+
+    /* ### Just an observation ... it would be terribly cool to be
+     * able to use this per-dir, relative to the directory block being
+     * defined.  The hash result remains global, but shorthand of
+     * <Directory "c:/webapps/isapi">
+     *     ISAPICacheFile myapp.dll anotherapp.dll thirdapp.dll
+     * </Directory>
+     * would be very convienent.
+     */
+    fspec = ap_server_root_relative(cmd->pool, filename);
+    if (!fspec) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
+                     "ISAPI: invalid module path, skipping %s", filename);
+        return NULL;
+    }
+    if ((rv = apr_stat(&tmp, fspec, APR_FINFO_TYPE,
+                      cmd->temp_pool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, cmd->server,
+            "ISAPI: unable to stat, skipping %s", fspec);
+        return NULL;
+    }
+    if (tmp.filetype != APR_REG) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+            "ISAPI: not a regular file, skipping %s", fspec);
+        return NULL;
+    }
+
+    /* Load the extention as cached (with null request_rec) */
+    rv = isapi_lookup(cmd->pool, cmd->server, NULL, fspec, &isa);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, cmd->server,
+                     "ISAPI: unable to cache, skipping %s", fspec);
+        return NULL;
+    }
+
+    return NULL;
 }

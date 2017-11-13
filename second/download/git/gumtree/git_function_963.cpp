@@ -1,34 +1,33 @@
-static int write_shared_index(struct index_state *istate,
-			      struct lock_file *lock, unsigned flags)
+struct attr_check *attr_check_initl(const char *one, ...)
 {
-	struct split_index *si = istate->split_index;
-	int fd, ret;
+	struct attr_check *check;
+	int cnt;
+	va_list params;
+	const char *param;
 
-	fd = mks_tempfile(&temporary_sharedindex, git_path("sharedindex_XXXXXX"));
-	if (fd < 0) {
-		hashclr(si->base_sha1);
-		return do_write_locked_index(istate, lock, flags);
-	}
-	move_cache_to_base_index(istate);
-	ret = do_write_index(si->base, &temporary_sharedindex, 1);
-	if (ret) {
-		delete_tempfile(&temporary_sharedindex);
-		return ret;
-	}
-	ret = adjust_shared_perm(get_tempfile_path(&temporary_sharedindex));
-	if (ret) {
-		int save_errno = errno;
-		error("cannot fix permission bits on %s", get_tempfile_path(&temporary_sharedindex));
-		delete_tempfile(&temporary_sharedindex);
-		errno = save_errno;
-		return ret;
-	}
-	ret = rename_tempfile(&temporary_sharedindex,
-			      git_path("sharedindex.%s", sha1_to_hex(si->base->sha1)));
-	if (!ret) {
-		hashcpy(si->base_sha1, si->base->sha1);
-		clean_shared_index_files(sha1_to_hex(si->base->sha1));
-	}
+	va_start(params, one);
+	for (cnt = 1; (param = va_arg(params, const char *)) != NULL; cnt++)
+		;
+	va_end(params);
 
-	return ret;
+	check = attr_check_alloc();
+	check->nr = cnt;
+	check->alloc = cnt;
+	check->items = xcalloc(cnt, sizeof(struct attr_check_item));
+
+	check->items[0].attr = git_attr(one);
+	va_start(params, one);
+	for (cnt = 1; cnt < check->nr; cnt++) {
+		const struct git_attr *attr;
+		param = va_arg(params, const char *);
+		if (!param)
+			die("BUG: counted %d != ended at %d",
+			    check->nr, cnt);
+		attr = git_attr(param);
+		if (!attr)
+			die("BUG: %s: not a valid attribute name", param);
+		check->items[cnt].attr = attr;
+	}
+	va_end(params);
+	return check;
 }

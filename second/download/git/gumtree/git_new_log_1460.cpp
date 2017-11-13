@@ -1,1 +1,1 @@
-die(_("invalid path '%s'"), old_name);
+error("Unexpected line '%s', expected flush", line);

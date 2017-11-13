@@ -1,1 +1,1 @@
-fprintf(stderr, "CRYPT is now deprecated, use MD5 instead!\n");
+fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");

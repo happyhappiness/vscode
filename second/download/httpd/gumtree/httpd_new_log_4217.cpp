@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02017)
-                              "could not setaside bucket for SSL buffer");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01157)
+                      "error parsing URL %s: %s",
+                      url, err);

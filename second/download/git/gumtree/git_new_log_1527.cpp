@@ -1,1 +1,1 @@
-printf("%s %s\n", oid_to_hex(result), name);
+die("revision walk setup failed");

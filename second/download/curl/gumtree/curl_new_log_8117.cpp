@@ -1,8 +1,9 @@
 fputs(
-"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It  is a proprietary protocol, reverse-engineered by clever peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior  should  not be endorsed, you should encourage everyone\n"
-"              who uses NTLM to switch to a public and  documented  authentica-\n"
+"              is specified.  The only wildcard is a single * character,  which\n"
+"              matches all hosts, and effectively disables the proxy. Each name\n"
+"              in this list is matched as either a domain  which  contains  the\n"
+"              hostname,  or  the hostname itself. For example, local.com would\n"
+"              match  local.com,  local.com:80,  and  www.local.com,  but   not\n"
+"              www.notlocal.com.  (Added in 7.19.4).\n"
+"\n"
 , stdout);

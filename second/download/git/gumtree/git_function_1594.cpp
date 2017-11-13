@@ -1,31 +1,49 @@
-static int send_ref(const char *refname, const unsigned char *sha1, int flag, void *cb_data)
+static void dump_marks(void)
 {
-	static const char *capabilities = "multi_ack thin-pack side-band"
-		" side-band-64k ofs-delta shallow no-progress"
-		" include-tag multi_ack_detailed";
-	const char *refname_nons = strip_namespace(refname);
-	unsigned char peeled[20];
+	static struct lock_file mark_lock;
+	int mark_fd;
+	FILE *f;
 
-	if (mark_our_ref(refname, sha1))
-		return 0;
+	if (!export_marks_file)
+		return;
 
-	if (capabilities) {
-		struct strbuf symref_info = STRBUF_INIT;
-
-		format_symref_info(&symref_info, cb_data);
-		packet_write(1, "%s %s%c%s%s%s%s agent=%s\n",
-			     sha1_to_hex(sha1), refname_nons,
-			     0, capabilities,
-			     allow_tip_sha1_in_want ? " allow-tip-sha1-in-want" : "",
-			     stateless_rpc ? " no-done" : "",
-			     symref_info.buf,
-			     git_user_agent_sanitized());
-		strbuf_release(&symref_info);
-	} else {
-		packet_write(1, "%s %s\n", sha1_to_hex(sha1), refname_nons);
+	mark_fd = hold_lock_file_for_update(&mark_lock, export_marks_file, 0);
+	if (mark_fd < 0) {
+		failure |= error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(errno));
+		return;
 	}
-	capabilities = NULL;
-	if (!peel_ref(refname, peeled))
-		packet_write(1, "%s %s^{}\n", sha1_to_hex(peeled), refname_nons);
-	return 0;
+
+	f = fdopen(mark_fd, "w");
+	if (!f) {
+		int saved_errno = errno;
+		rollback_lock_file(&mark_lock);
+		failure |= error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(saved_errno));
+		return;
+	}
+
+	/*
+	 * Since the lock file was fdopen()'ed, it should not be close()'ed.
+	 * Assign -1 to the lock file descriptor so that commit_lock_file()
+	 * won't try to close() it.
+	 */
+	mark_lock.fd = -1;
+
+	dump_marks_helper(f, 0, marks);
+	if (ferror(f) || fclose(f)) {
+		int saved_errno = errno;
+		rollback_lock_file(&mark_lock);
+		failure |= error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(saved_errno));
+		return;
+	}
+
+	if (commit_lock_file(&mark_lock)) {
+		int saved_errno = errno;
+		rollback_lock_file(&mark_lock);
+		failure |= error("Unable to commit marks file %s: %s",
+			export_marks_file, strerror(saved_errno));
+		return;
+	}
 }

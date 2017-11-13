@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Found user %s in a subgroup (%s) at level %d of %d.",
-                          r->user, group, cur_subgroup_depth+1,
-                          max_subgroup_depth);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, apr_get_os_error(), r,
+                          "ISAPI: unrecognized result code %d "
+                          "from HttpExtensionProc(): %s ", 
+                          rv, r->filename);

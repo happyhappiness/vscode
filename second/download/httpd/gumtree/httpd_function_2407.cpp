@@ -1,12 +1,28 @@
-static apr_status_t seed_rand(void)
+static const char *set_threads_per_child (cmd_parms *cmd, void *dummy,
+                                          const char *arg)
 {
-    int seed = 0;
-    apr_status_t rv;
-    rv = apr_generate_random_bytes((unsigned char*) &seed, sizeof(seed));
-    if (rv) {
-        apr_file_printf(errfile, "Unable to generate random bytes: %pm" NL, &rv);
-        return rv;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
-    srand(seed);
-    return rv;
+
+    ap_threads_per_child = atoi(arg);
+    if (ap_threads_per_child > thread_limit) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                     "value of %d", ap_threads_per_child,
+                     thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "threads, lowering ThreadsPerChild to %d. To increase, please"
+                     " see the", thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " ThreadLimit directive.");
+        ap_threads_per_child = thread_limit;
+    }
+    else if (ap_threads_per_child < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
+        ap_threads_per_child = 1;
+    }
+    return NULL;
 }

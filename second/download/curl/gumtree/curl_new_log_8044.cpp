@@ -1,11 +1,9 @@
 fputs(
-"              from  a file named 'foobar' would thus be done with --data @foo-\n"
-"              bar.\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"       -D, --dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
-"\n"
-"              This option is handy to use when you want to store  the  headers\n"
-"              that  an  HTTP site sends to you. Cookies from the headers could\n"
-"              then be read in a  second  curl  invocation  by  using  the  -b,\n"
+"              If  you  start  the data with the letter @, the rest should be a\n"
+"              file name to read the data from, or - if you want curl  to  read\n"
+"              the  data  from stdin.  The contents of the file must already be\n"
+"              URL-encoded. Multiple files can also be specified. Posting  data\n"
 , stdout);

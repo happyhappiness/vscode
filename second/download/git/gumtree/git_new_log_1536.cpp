@@ -1,1 +1,2 @@
-die_errno(_("failed to stat %s"), mtime_dir.buf);
+error("Couldn't write %s",
+					lock->lk->filename.buf);

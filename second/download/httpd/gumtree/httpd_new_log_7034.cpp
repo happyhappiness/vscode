@@ -1,1 +1,2 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1796539 $");
+ap_log_error(APLOG_MARK, APLOG_ERR, err, s, APLOGNO(10007)
+                             "Failed to free auth_digest client allocation");

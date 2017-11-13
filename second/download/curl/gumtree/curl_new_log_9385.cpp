@@ -1,11 +1,11 @@
 fputs(
-"              note  that  if  --metalink  and  --include  are  used  together,\n"
-"              --include will be ignored. This is because including headers  in\n"
-"              the  response  will break Metalink parser and if the headers are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
+"              recipient  should be specified as the user name or user name and\n"
+"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
 "\n"
-"              (Added in 7.27.0, if built against the libmetalink library.)\n"
+"              When performing a mailing list expand (EXPN command), the recip-\n"
+"              ient  should  be  specified using the mailing list name, such as\n"
+"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
 "\n"
-"       -n, --netrc\n"
+"       --max-redirs <num>\n"
+"              Set maximum number of  redirection-followings  allowed.  If  -L,\n"
 , stdout);

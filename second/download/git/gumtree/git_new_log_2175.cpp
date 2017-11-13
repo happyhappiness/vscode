@@ -1,1 +1,1 @@
-fputs(pp->children[i].err.buf, stderr);
+error(_("could not delete references: %s"), err.buf);

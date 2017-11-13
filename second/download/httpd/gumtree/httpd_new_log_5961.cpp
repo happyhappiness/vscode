@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                                  "h2_task(%s): response header %s", task->id, line);
+ap_add_output_filter(reqtimeout_filter_name, ccfg, NULL, c);

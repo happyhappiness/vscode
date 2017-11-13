@@ -1,73 +1,84 @@
-static int h2_protocol_propose(conn_rec *c, request_rec *r,
-                               server_rec *s,
-                               const apr_array_header_t *offers,
-                               apr_array_header_t *proposals)
+static void set_signals(void)
 {
-    int proposed = 0;
-    int is_tls = h2_h2_is_tls(c);
-    const char **protos = is_tls? h2_tls_protos : h2_clear_protos;
-    
-    (void)s;
-    if (strcmp(AP_PROTOCOL_HTTP1, ap_get_protocol(c))) {
-        /* We do not know how to switch from anything else but http/1.1.
-         */
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "protocol switch: current proto != http/1.1, declined");
-        return DECLINED;
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
+#endif
+
+    if (!one_process) {
+        ap_fatal_signal_setup(ap_server_conf, pconf);
     }
-    
-    if (!h2_is_acceptable_connection(c, 0)) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "protocol propose: connection requirements not met");
-        return DECLINED;
+
+#ifndef NO_USE_SIGACTION
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGTERM)");
+#ifdef AP_SIG_GRACEFUL_STOP
+    if (sigaction(AP_SIG_GRACEFUL_STOP, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
+#endif
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGINT)");
+#endif
+#ifdef SIGXCPU
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXCPU, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGXCPU)");
+#endif
+#ifdef SIGXFSZ
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGXFSZ)");
+#endif
+#ifdef SIGPIPE
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGPIPE)");
+#endif
+
+    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy
+     * processing one */
+    sigaddset(&sa.sa_mask, SIGHUP);
+    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+    sa.sa_handler = restart;
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+#else
+    if (!one_process) {
+#ifdef SIGXCPU
+        apr_signal(SIGXCPU, SIG_DFL);
+#endif /* SIGXCPU */
+#ifdef SIGXFSZ
+        apr_signal(SIGXFSZ, SIG_DFL);
+#endif /* SIGXFSZ */
     }
-    
-    if (r) {
-        /* So far, this indicates an HTTP/1 Upgrade header initiated
-         * protocol switch. For that, the HTTP2-Settings header needs
-         * to be present and valid for the connection.
-         */
-        const char *p;
-        
-        if (!h2_allows_h2_upgrade(c)) {
-            return DECLINED;
-        }
-         
-        p = apr_table_get(r->headers_in, "HTTP2-Settings");
-        if (!p) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "upgrade without HTTP2-Settings declined");
-            return DECLINED;
-        }
-        
-        p = apr_table_get(r->headers_in, "Connection");
-        if (!ap_find_token(r->pool, p, "http2-settings")) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "upgrade without HTTP2-Settings declined");
-            return DECLINED;
-        }
-        
-        /* We also allow switching only for requests that have no body.
-         */
-        p = apr_table_get(r->headers_in, "Content-Length");
-        if (p && strcmp(p, "0")) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "upgrade with content-length: %s, declined", p);
-            return DECLINED;
-        }
-    }
-    
-    while (*protos) {
-        /* Add all protocols we know (tls or clear) and that
-         * are part of the offerings (if there have been any). 
-         */
-        if (!offers || ap_array_str_contains(offers, *protos)) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                          "proposing protocol '%s'", *protos);
-            APR_ARRAY_PUSH(proposals, const char*) = *protos;
-            proposed = 1;
-        }
-        ++protos;
-    }
-    return proposed? DECLINED : OK;
+
+    apr_signal(SIGTERM, sig_term);
+#ifdef SIGHUP
+    apr_signal(SIGHUP, restart);
+#endif /* SIGHUP */
+#ifdef AP_SIG_GRACEFUL
+    apr_signal(AP_SIG_GRACEFUL, restart);
+#endif /* AP_SIG_GRACEFUL */
+#ifdef AP_SIG_GRACEFUL_STOP
+    apr_signal(AP_SIG_GRACEFUL_STOP, sig_term);
+#endif /* AP_SIG_GRACEFUL_STOP */
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);
+#endif /* SIGPIPE */
+
+#endif
 }

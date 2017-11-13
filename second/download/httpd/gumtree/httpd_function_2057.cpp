@@ -1,235 +1,99 @@
-static int worker_check_config(apr_pool_t *p, apr_pool_t *plog,
-                               apr_pool_t *ptemp, server_rec *s)
+int ssl_io_buffer_fill(request_rec *r, apr_size_t maxlen)
 {
-    static int restart_num = 0;
-    int startup = 0;
+    conn_rec *c = r->connection;
+    struct modssl_buffer_ctx *ctx;
+    apr_bucket_brigade *tempb;
+    apr_off_t total = 0; /* total length buffered */
+    int eos = 0; /* non-zero once EOS is seen */
 
-    /* the reverse of pre_config, we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
-    }
+    /* Create the context which will be passed to the input filter;
+     * containing a setaside pool and a brigade which constrain the
+     * lifetime of the buffered data. */
+    ctx = apr_palloc(r->pool, sizeof *ctx);
+    apr_pool_create(&ctx->pool, r->pool);
+    ctx->bb = apr_brigade_create(ctx->pool, c->bucket_alloc);
 
-    if (server_limit > MAX_SERVER_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
+    /* ... and a temporary brigade. */
+    tempb = apr_brigade_create(r->pool, c->bucket_alloc);
+
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "filling buffer, max size "
+                  "%" APR_SIZE_T_FMT " bytes", maxlen);
+
+    do {
+        apr_status_t rv;
+        apr_bucket *e, *next;
+
+        /* The request body is read from the protocol-level input
+         * filters; the buffering filter will reinject it from that
+         * level, allowing content/resource filters to run later, if
+         * necessary. */
+
+        rv = ap_get_brigade(r->proto_input_filters, tempb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, 8192);
+        if (rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "could not read request body for SSL buffer");
+            return ap_map_http_request_error(rv, HTTP_INTERNAL_SERVER_ERROR);
         }
-        server_limit = MAX_SERVER_LIMIT;
-    }
-    else if (server_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
+
+        /* Iterate through the returned brigade: setaside each bucket
+         * into the context's pool and move it into the brigade. */
+        for (e = APR_BRIGADE_FIRST(tempb);
+             e != APR_BRIGADE_SENTINEL(tempb) && !eos; e = next) {
+            const char *data;
+            apr_size_t len;
+
+            next = APR_BUCKET_NEXT(e);
+
+            if (APR_BUCKET_IS_EOS(e)) {
+                eos = 1;
+            } else if (!APR_BUCKET_IS_METADATA(e)) {
+                rv = apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+                if (rv != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "could not read bucket for SSL buffer");
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+                total += len;
+            }
+
+            rv = apr_bucket_setaside(e, ctx->pool);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "could not setaside bucket for SSL buffer");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+
+            APR_BUCKET_REMOVE(e);
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
         }
-        server_limit = 1;
-    }
 
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
-     */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
-    }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
-    }
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
+                      total, eos);
 
-    if (thread_limit > MAX_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadLimit of %d exceeds compile-time "
-                         "limit of", thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
+        /* Fail if this exceeds the maximum buffer size. */
+        if (total > maxlen) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request body exceeds maximum size (%" APR_SIZE_T_FMT 
+                          ") for SSL buffer", maxlen);
+            return HTTP_REQUEST_ENTITY_TOO_LARGE;
         }
-        thread_limit = MAX_THREAD_LIMIT;
-    }
-    else if (thread_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadLimit of %d not allowed, "
-                         "increasing to 1.", thread_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
-        }
-        thread_limit = 1;
+
+    } while (!eos);
+
+    apr_brigade_destroy(tempb);
+
+    /* After consuming all protocol-level input, remove all protocol-level
+     * filters.  It should strictly only be necessary to remove filters
+     * at exactly ftype == AP_FTYPE_PROTOCOL, since this filter will 
+     * precede all > AP_FTYPE_PROTOCOL anyway. */
+    while (r->proto_input_filters->frec->ftype < AP_FTYPE_CONNECTION) {
+        ap_remove_input_filter(r->proto_input_filters);
     }
 
-    /* you cannot change ThreadLimit across a restart; ignore
-     * any such attempts
-     */
-    if (!retained->first_thread_limit) {
-        retained->first_thread_limit = thread_limit;
-    }
-    else if (thread_limit != retained->first_thread_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "changing ThreadLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     thread_limit, retained->first_thread_limit);
-        thread_limit = retained->first_thread_limit;
-    }
+    /* Insert the filter which will supply the buffered content. */
+    ap_add_input_filter(ssl_io_buffer, ctx, r, c);
 
-    if (threads_per_child > thread_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         thread_limit, thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ThreadLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         threads_per_child, thread_limit);
-        }
-        threads_per_child = thread_limit;
-    }
-    else if (threads_per_child < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", threads_per_child);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         threads_per_child);
-        }
-        threads_per_child = 1;
-    }
-
-    if (max_clients < threads_per_child) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d is less than "
-                         "ThreadsPerChild of", max_clients);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d, increasing to %d.  MaxClients must be at "
-                         "least as large",
-                         threads_per_child, threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " as the number of threads in a single server.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d is less than ThreadsPerChild "
-                         "of %d, increasing to match",
-                         max_clients, threads_per_child);
-        }
-        max_clients = threads_per_child;
-    }
-
-    ap_daemons_limit = max_clients / threads_per_child;
-
-    if (max_clients % threads_per_child) {
-        int tmp_max_clients = ap_daemons_limit * threads_per_child;
-
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d is not an integer "
-                         "multiple of", max_clients);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d,", threads_per_child,
-                         tmp_max_clients);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " for a maximum of %d servers.",
-                         ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d is not an integer multiple of "
-                         "ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d", max_clients, threads_per_child,
-                         tmp_max_clients);
-        }
-        max_clients = tmp_max_clients;
-    }
-
-    if (ap_daemons_limit > server_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d would require %d "
-                         "servers and ", max_clients, ap_daemons_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " would exceed ServerLimit of %d, decreasing to %d.",
-                         server_limit, server_limit * threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ServerLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d would require %d servers and "
-                         "exceed ServerLimit of %d, decreasing to %d",
-                         max_clients, ap_daemons_limit, server_limit,
-                         server_limit * threads_per_child);
-        }
-        ap_daemons_limit = server_limit;
-    }
-
-    /* ap_daemons_to_start > ap_daemons_limit checked in worker_run() */
-    if (ap_daemons_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
-    }
-
-    if (min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", min_spare_threads);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         min_spare_threads);
-        }
-        min_spare_threads = 1;
-    }
-
-    /* max_spare_threads < min_spare_threads + threads_per_child
-     * checked in worker_run()
-     */
-
-    return OK;
+    return 0;
 }

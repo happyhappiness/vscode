@@ -1,16 +1,36 @@
-static int packet_write_gently(const int fd_out, const char *buf, size_t size)
+static int list(int argc, const char **argv, const char *prefix)
 {
-	static char packet_write_buffer[LARGE_PACKET_MAX];
-	size_t packet_size;
+	struct notes_tree *t;
+	unsigned char object[20];
+	const unsigned char *note;
+	int retval = -1;
+	struct option options[] = {
+		OPT_END()
+	};
 
-	if (size > sizeof(packet_write_buffer) - 4)
-		return error("packet write failed - data exceeds max packet size");
+	if (argc)
+		argc = parse_options(argc, argv, prefix, options,
+				     git_notes_list_usage, 0);
 
-	packet_trace(buf, size, 1);
-	packet_size = size + 4;
-	set_packet_header(packet_write_buffer, packet_size);
-	memcpy(packet_write_buffer + 4, buf, size);
-	if (write_in_full(fd_out, packet_write_buffer, packet_size) == packet_size)
-		return 0;
-	return error("packet write failed");
+	if (1 < argc) {
+		error(_("too many parameters"));
+		usage_with_options(git_notes_list_usage, options);
+	}
+
+	t = init_notes_check("list", 0);
+	if (argc) {
+		if (get_sha1(argv[0], object))
+			die(_("Failed to resolve '%s' as a valid ref."), argv[0]);
+		note = get_note(t, object);
+		if (note) {
+			puts(sha1_to_hex(note));
+			retval = 0;
+		} else
+			retval = error(_("No note found for object %s."),
+				       sha1_to_hex(object));
+	} else
+		retval = for_each_note(t, 0, list_each_note, NULL);
+
+	free_notes(t);
+	return retval;
 }

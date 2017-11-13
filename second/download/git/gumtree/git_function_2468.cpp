@@ -1,25 +1,50 @@
-static char *gitdiff_verify_name(const char *line, int isnull, char *orig_name, int side)
+static void start_fetch_packed(struct transfer_request *request)
 {
-	if (!orig_name && !isnull)
-		return find_name(line, NULL, p_value, TERM_TAB);
+	struct packed_git *target;
 
-	if (orig_name) {
-		int len = strlen(orig_name);
-		char *another;
-		if (isnull)
-			die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"),
-			    orig_name, linenr);
-		another = find_name(line, NULL, p_value, TERM_TAB);
-		if (!another || memcmp(another, orig_name, len + 1))
-			die((side == DIFF_NEW_NAME) ?
-			    _("git apply: bad git-diff - inconsistent new filename on line %d") :
-			    _("git apply: bad git-diff - inconsistent old filename on line %d"), linenr);
-		free(another);
-		return orig_name;
-	} else {
-		/* expect "/dev/null" */
-		if (memcmp("/dev/null", line, 9) || line[9] != '\n')
-			die(_("git apply: bad git-diff - expected /dev/null on line %d"), linenr);
-		return NULL;
+	struct transfer_request *check_request = request_queue_head;
+	struct http_pack_request *preq;
+
+	target = find_sha1_pack(request->obj->sha1, repo->packs);
+	if (!target) {
+		fprintf(stderr, "Unable to fetch %s, will not be able to update server info refs\n", sha1_to_hex(request->obj->sha1));
+		repo->can_update_info_refs = 0;
+		release_request(request);
+		return;
+	}
+
+	fprintf(stderr,	"Fetching pack %s\n", sha1_to_hex(target->sha1));
+	fprintf(stderr, " which contains %s\n", sha1_to_hex(request->obj->sha1));
+
+	preq = new_http_pack_request(target, repo->url);
+	if (preq == NULL) {
+		repo->can_update_info_refs = 0;
+		return;
+	}
+	preq->lst = &repo->packs;
+
+	/* Make sure there isn't another open request for this pack */
+	while (check_request) {
+		if (check_request->state == RUN_FETCH_PACKED &&
+		    !strcmp(check_request->url, preq->url)) {
+			release_http_pack_request(preq);
+			release_request(request);
+			return;
+		}
+		check_request = check_request->next;
+	}
+
+	preq->slot->callback_func = process_response;
+	preq->slot->callback_data = request;
+	request->slot = preq->slot;
+	request->userData = preq;
+
+	/* Try to get the request started, abort the request on error */
+	request->state = RUN_FETCH_PACKED;
+	if (!start_active_slot(preq->slot)) {
+		fprintf(stderr, "Unable to start GET request\n");
+		release_http_pack_request(preq);
+		repo->can_update_info_refs = 0;
+		release_request(request);
 	}
 }

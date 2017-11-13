@@ -1,1 +1,2 @@
-error(_("could not read '%s'."), todo_file);
+packet_write_fmt(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
+			     vhost, 0);

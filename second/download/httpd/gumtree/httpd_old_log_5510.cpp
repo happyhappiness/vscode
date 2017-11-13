@@ -1,3 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
-                      session->id, stream->id);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_s,
+                         "VirtualHost %s:%u -- mixing * "
+                         "ports and non-* ports with "
+                         "a NameVirtualHost address is not supported,"
+                         " proceeding with undefined results",
+                         sar->virthost, sar->host_port);

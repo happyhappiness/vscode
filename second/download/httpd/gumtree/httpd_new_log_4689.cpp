@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(),
-                             ap_server_conf, APLOGNO(00342)
-                             "setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed.");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02288)
+                 "TLS session ticket key for %s successfully loaded from %s",
+                 (mySrvConfig(s))->vhost_id, path);

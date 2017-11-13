@@ -1,9 +1,12 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              --epsv can be used to explicitly enable EPSV again and --no-epsv\n"
+"              is an alias for --disable-epsv.\n"
 "\n"
-"       -E, --cert <certificate[:password]>\n"
-"              (SSL)  Tells  curl  to use the specified client certificate file\n"
-"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
-"              col.  The  certificate must be in PKCS#12 format if using Secure\n"
-"              Transport, or PEM format if using  any  other  engine.   If  the\n"
+"              If the server is an IPv6 host, this option will have  no  effect\n"
+"              as EPSV is necessary then.\n"
+"\n"
+"              Disabling EPSV only changes the passive behavior. If you want to\n"
+"              switch to active mode you need to use -P, --ftp-port.\n"
+"\n"
+"       --dns-interface <interface>\n"
 , stdout);

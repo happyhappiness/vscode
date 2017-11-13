@@ -1,1 +1,1 @@
-die("--progress can't be used with --incremental or porcelain formats");
+objreport(obj, (type == FSCK_WARN) ? "warning" : "error", message);

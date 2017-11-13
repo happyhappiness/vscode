@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
-            "mod_lua: Failed to create shared memory segment on file %s",
-                     lua_ivm_shmfile);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             ap_server_conf,
+                             "long lost child came home! (pid %ld)",
+                             (long) pid.pid);

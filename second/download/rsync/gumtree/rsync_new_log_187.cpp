@@ -1,1 +1,1 @@
-fprintf(FERROR,"send_files(%d,%s)\n",i,fname);
+fprintf(FERROR,"recv_generator failed to open %s\n",fname);

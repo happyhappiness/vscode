@@ -1,167 +1,132 @@
-static apr_status_t ap_cgi_build_command(const char **cmd, const char ***argv,
-                                         request_rec *r, apr_pool_t *p,
-                                         cgi_exec_info_t *e_info)
+static BOOL shmcb_insert_encoded_session(
+    server_rec *s, SHMCBQueue * queue,
+    SHMCBCache * cache,
+    unsigned char *encoded,
+    unsigned int encoded_len,
+    unsigned char *session_id,
+    time_t expiry_time)
 {
-    const apr_array_header_t *elts_arr = apr_table_elts(r->subprocess_env);
-    const apr_table_entry_t *elts = (apr_table_entry_t *) elts_arr->elts;
-    const char *ext = NULL;
-    const char *interpreter = NULL;
-    win32_dir_conf *d;
-    apr_file_t *fh;
-    const char *args = "";
-    int i;
+    SHMCBHeader *header;
+    SHMCBIndex *idx = NULL;
+    unsigned int gap, new_pos, loop, new_offset;
+    int need;
 
-    d = (win32_dir_conf *)ap_get_module_config(r->per_dir_config,
-                                               &win32_module);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "entering shmcb_insert_encoded_session, "
+                 "*queue->pos_count = %u",
+                 shmcb_get_safe_uint(queue->pos_count));
 
-    if (e_info->cmd_type) {
-        /* We have to consider that the client gets any QUERY_ARGS
-         * without any charset interpretation, use prep_string to
-         * create a string of the literal QUERY_ARGS bytes.
-         */
-        *cmd = r->filename;
-        if (r->args && r->args[0] && !ap_strchr_c(r->args, '=')) {
-            args = r->args;
+    /* If there's entries to expire, ditch them first thing. */
+    shmcb_expire_division(s, queue, cache);
+    header = cache->header;
+    gap = header->cache_data_size - shmcb_get_safe_uint(cache->pos_count);
+    if (gap < encoded_len) {
+        new_pos = shmcb_get_safe_uint(queue->first_pos);
+        loop = 0;
+        need = (int) encoded_len - (int) gap;
+        while ((need > 0) && (loop + 1 < shmcb_get_safe_uint(queue->pos_count))) {
+            new_pos = shmcb_cyclic_increment(header->index_num, new_pos, 1);
+            loop += 1;
+            idx = shmcb_get_index(queue, new_pos);
+            need = (int) encoded_len - (int) gap -
+                shmcb_cyclic_space(header->cache_data_size,
+                                   shmcb_get_safe_uint(cache->first_pos),
+                                   shmcb_get_safe_uint(&(idx->offset)));
+        }
+        if (loop > 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "about to scroll %u sessions from %u",
+                         loop, shmcb_get_safe_uint(queue->pos_count));
+            /* We are removing "loop" items from the cache. */
+            shmcb_set_safe_uint(cache->pos_count,
+                                shmcb_get_safe_uint(cache->pos_count) -
+                                shmcb_cyclic_space(header->cache_data_size,
+                                                   shmcb_get_safe_uint(cache->first_pos),
+                                                   shmcb_get_safe_uint(&(idx->offset))));
+            shmcb_set_safe_uint(cache->first_pos, shmcb_get_safe_uint(&(idx->offset)));
+            shmcb_set_safe_uint(queue->pos_count, shmcb_get_safe_uint(queue->pos_count) - loop);
+            shmcb_set_safe_uint(queue->first_pos, new_pos);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "now only have %u sessions",
+                         shmcb_get_safe_uint(queue->pos_count));
+            /* Update the stats!!! */
+            header->num_scrolled += loop;
         }
     }
-    /* Handle the complete file name, we DON'T want to follow suexec, since
-     * an unrooted command is as predictable as shooting craps in Win32.
-     * Notice that unlike most mime extension parsing, we have to use the
-     * win32 parsing here, therefore the final extension is the only one
-     * we will consider.
+
+    /* probably unecessary checks, but I'll leave them until this code
+     * is verified. */
+    if (shmcb_get_safe_uint(cache->pos_count) + encoded_len >
+        header->cache_data_size) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "shmcb_insert_encoded_session internal error");
+        return FALSE;
+    }
+    if (shmcb_get_safe_uint(queue->pos_count) == header->index_num) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "shmcb_insert_encoded_session internal error");
+        return FALSE;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "we have %u bytes and %u indexes free - enough",
+                 header->cache_data_size -
+                 shmcb_get_safe_uint(cache->pos_count), header->index_num -
+                 shmcb_get_safe_uint(queue->pos_count));
+
+
+    /* HERE WE ASSUME THAT THE NEW SESSION SHOULD GO ON THE END! I'M NOT
+     * CHECKING WHETHER IT SHOULD BE GENUINELY "INSERTED" SOMEWHERE.
+     *
+     * We either fix that, or find out at a "higher" (read "mod_ssl")
+     * level whether it is possible to have distinct session caches for
+     * any attempted tomfoolery to do with different session timeouts.
+     * Knowing in advance that we can have a cache-wide constant timeout
+     * would make this stuff *MUCH* more efficient. Mind you, it's very
+     * efficient right now because I'm ignoring this problem!!!
      */
-    ext = strrchr(apr_filepath_name_get(*cmd), '.');
 
-    /* If the file has an extension and it is not .com and not .exe and
-     * we've been instructed to search the registry, then do so.
-     * Let apr_proc_create do all of the .bat/.cmd dirty work.
-     */
-    if (ext && (!strcasecmp(ext,".exe") || !strcasecmp(ext,".com")
-                || !strcasecmp(ext,".bat") || !strcasecmp(ext,".cmd"))) {
-        interpreter = "";
+    /* Increment to the first unused byte */
+    new_offset = shmcb_cyclic_increment(header->cache_data_size,
+                                        shmcb_get_safe_uint(cache->first_pos),
+                                        shmcb_get_safe_uint(cache->pos_count));
+    /* Copy the DER-encoded session into place */
+    shmcb_cyclic_ntoc_memcpy(header->cache_data_size, cache->data,
+                            new_offset, encoded, encoded_len);
+    /* Get the new index that this session is stored in. */
+    new_pos = shmcb_cyclic_increment(header->index_num,
+                                     shmcb_get_safe_uint(queue->first_pos),
+                                     shmcb_get_safe_uint(queue->pos_count));
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "storing in index %u, at offset %u",
+                 new_pos, new_offset);
+    idx = shmcb_get_index(queue, new_pos);
+    if (idx == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "shmcb_insert_encoded_session internal error");
+        return FALSE;
     }
-    if (!interpreter && ext
-          && (d->script_interpreter_source
-                     == INTERPRETER_SOURCE_REGISTRY
-           || d->script_interpreter_source
-                     == INTERPRETER_SOURCE_REGISTRY_STRICT)) {
-         /* Check the registry */
-        int strict = (d->script_interpreter_source
-                      == INTERPRETER_SOURCE_REGISTRY_STRICT);
-        interpreter = get_interpreter_from_win32_registry(r->pool, ext,
-                                                          strict);
-        if (interpreter && e_info->cmd_type != APR_SHELLCMD) {
-            e_info->cmd_type = APR_PROGRAM_PATH;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 strict ? "No ExecCGI verb found for files of type '%s'."
-                        : "No ExecCGI or Open verb found for files of type '%s'.",
-                 ext);
-        }
-    }
-    if (!interpreter) {
-        apr_status_t rv;
-        char buffer[1024];
-        apr_size_t bytes = sizeof(buffer);
-        apr_size_t i;
+    shmcb_safe_clear(idx, sizeof(SHMCBIndex));
+    shmcb_set_safe_time(&(idx->expires), expiry_time);
+    shmcb_set_safe_uint(&(idx->offset), new_offset);
 
-        /* Need to peek into the file figure out what it really is...
-         * ### aught to go back and build a cache for this one of these days.
-         */
-        if ((rv = apr_file_open(&fh, *cmd, APR_READ | APR_BUFFERED,
-                                 APR_OS_DEFAULT, r->pool)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Failed to open cgi file %s for testing", *cmd);
-            return rv;
-        }
-        if ((rv = apr_file_read(fh, buffer, &bytes)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Failed to read cgi file %s for testing", *cmd);
-            return rv;
-        }
-        apr_file_close(fh);
+    /* idx->removed = (unsigned char)0; */ /* Not needed given the memset above. */
+    idx->s_id2 = session_id[1];
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "session_id[0]=%u, idx->s_id2=%u",
+                 session_id[0], session_id[1]);
 
-        /* Some twisted character [no pun intended] at MS decided that a
-         * zero width joiner as the lead wide character would be ideal for
-         * describing Unicode text files.  This was further convoluted to
-         * another MSism that the same character mapped into utf-8, EF BB BF
-         * would signify utf-8 text files.
-         *
-         * Since MS configuration files are all protecting utf-8 encoded
-         * Unicode path, file and resource names, we already have the correct
-         * WinNT encoding.  But at least eat the stupid three bytes up front.
-         *
-         * ### A more thorough check would also allow UNICODE text in buf, and
-         * convert it to UTF-8 for invoking unicode scripts.  Those are few
-         * and far between, so leave that code an enterprising soul with a need.
-         */
-        if ((bytes >= 3) && memcmp(buffer, "\xEF\xBB\xBF", 3) == 0) {
-            memmove(buffer, buffer + 3, bytes -= 3);
-        }
+    /* All that remains is to adjust the cache's and queue's "pos_count"s. */
+    shmcb_set_safe_uint(cache->pos_count,
+                       shmcb_get_safe_uint(cache->pos_count) + encoded_len);
+    shmcb_set_safe_uint(queue->pos_count,
+                       shmcb_get_safe_uint(queue->pos_count) + 1);
 
-        /* Script or executable, that is the question... */
-        if ((bytes >= 2) && (buffer[0] == '#') && (buffer[1] == '!')) {
-            /* Assuming file is a script since it starts with a shebang */
-            for (i = 2; i < bytes; i++) {
-                if ((buffer[i] == '\r') || (buffer[i] == '\n')) {
-                    buffer[i] = '\0';
-                    break;
-                }
-            }
-            if (i < bytes) {
-                interpreter = buffer + 2;
-                while (apr_isspace(*interpreter)) {
-                    ++interpreter;
-                }
-                if (e_info->cmd_type != APR_SHELLCMD) {
-                    e_info->cmd_type = APR_PROGRAM_PATH;
-                }
-            }
-        }
-        else if (bytes >= sizeof(IMAGE_DOS_HEADER)) {
-            /* Not a script, is it an executable? */
-            IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)buffer;
-            if (hdr->e_magic == IMAGE_DOS_SIGNATURE) {
-                if (hdr->e_lfarlc < 0x40) {
-                    /* Ought to invoke this 16 bit exe by a stub, (cmd /c?) */
-                    interpreter = "";
-                }
-                else {
-                    interpreter = "";
-                }
-            }
-        }
-    }
-    if (!interpreter) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "%s is not executable; ensure interpreted scripts have "
-                      "\"#!\" first line", *cmd);
-        return APR_EBADF;
-    }
-
-    *argv = (const char **)(split_argv(p, interpreter, *cmd,
-                                       args)->elts);
-    *cmd = (*argv)[0];
-
-    e_info->detached = 1;
-
-    /* XXX: Must fix r->subprocess_env to follow utf-8 conventions from
-     * the client's octets so that win32 apr_proc_create is happy.
-     * The -best- way is to determine if the .exe is unicode aware
-     * (using 0x0080-0x00ff) or is linked as a command or windows
-     * application (following the OEM or Ansi code page in effect.)
-     */
-    for (i = 0; i < elts_arr->nelts; ++i) {
-        if (elts[i].key && *elts[i].key
-                && (strncmp(elts[i].key, "HTTP_", 5) == 0
-                 || strncmp(elts[i].key, "SERVER_", 7) == 0
-                 || strncmp(elts[i].key, "REQUEST_", 8) == 0
-                 || strcmp(elts[i].key, "QUERY_STRING") == 0
-                 || strcmp(elts[i].key, "PATH_INFO") == 0
-                 || strcmp(elts[i].key, "PATH_TRANSLATED") == 0)) {
-            prep_string((const char**) &elts[i].val, r->pool);
-        }
-    }
-    return APR_SUCCESS;
+    /* And just for good debugging measure ... */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving now with %u bytes in the cache and %u indexes",
+                 shmcb_get_safe_uint(cache->pos_count),
+                 shmcb_get_safe_uint(queue->pos_count));
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving shmcb_insert_encoded_session");
+    return TRUE;
 }

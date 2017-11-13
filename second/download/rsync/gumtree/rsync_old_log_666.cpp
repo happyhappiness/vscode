@@ -1,3 +1,1 @@
-fprintf(f, " [-%s%s%s%s]", opt->shortName ? "" : "-", item,
-	    argDescrip ? (opt->shortName ? " " : "=") : "",
-	    argDescrip ? argDescrip : "");
+out_of_memory("send_file_list");

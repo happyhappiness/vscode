@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01744)
-                          "auth_ldap authorize: checking dn match %s", dn);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
+                                 "cgid daemon failed to initialize");

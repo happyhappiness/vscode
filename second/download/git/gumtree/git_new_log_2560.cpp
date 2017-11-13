@@ -1,1 +1,0 @@
-die(_("'%s' is not locked"), av[0]);

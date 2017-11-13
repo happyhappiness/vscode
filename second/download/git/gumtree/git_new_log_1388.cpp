@@ -1,1 +1,1 @@
-fputs(msgbuf.buf, fp);
+die ("BUG: error initializing pathspec_item");

@@ -1,1 +1,2 @@
-error(_("Could not read object %s"), sha1_to_hex(sha1));
+die("git diff header lacks filename information "
+				    "(line %d)", state->linenr);

@@ -1,35 +1,85 @@
-static void usage(FILE *f)
+struct file_list *send_file_list(int f,int recurse,int argc,char *argv[])
 {
-  fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
-	  VERSION);
-  fprintf(f,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
-  fprintf(f,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
-  fprintf(f,"Options:\n");
-  fprintf(f,"-v, --verbose            increase verbosity\n");
-  fprintf(f,"-c, --checksum           always checksum\n");
-  fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");
-  fprintf(f,"-r, --recursive          recurse into directories\n");
-  fprintf(f,"-b, --backup             make backups (default ~ extension)\n");
-  fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
-  fprintf(f,"-l, --links              preserve soft links\n");
-  fprintf(f,"-p, --perms              preserve permissions\n");
-  fprintf(f,"-o, --owner              preserve owner (root only)\n");
-  fprintf(f,"-g, --group              preserve group\n");
-  fprintf(f,"-D, --devices            preserve devices (root only)\n");
-  fprintf(f,"-t, --times              preserve times\n");  
-  fprintf(f,"-n, --dry-run            show what would have been transferred\n");
-  fprintf(f,"-x, --one-file-system    don't cross filesystem boundaries\n");
-  fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");  
-  fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
-  fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
-  fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
-  fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");
-  fprintf(f,"    --exclude FILE       exclude file FILE\n");
-  fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
-  fprintf(f,"    --suffix SUFFIX      override backup suffix\n");  
-  fprintf(f,"    --version            print version number\n");  
+  int i,l;
+  struct stat st;
+  char *p,*dir;
+  char dbuf[MAXPATHLEN];
+  struct file_list *flist;
 
-  fprintf(f,"\n");
-  fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
-  fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
+  if (verbose && recurse)
+    fprintf(am_server?stderr:stdout,"building file list ... ");
+
+  flist = (struct file_list *)malloc(sizeof(flist[0]));
+  if (!flist) out_of_memory("send_file_list");
+
+  flist->count=0;
+  flist->malloced = 100;
+  flist->files = (struct file_struct *)malloc(sizeof(flist->files[0])*
+					      flist->malloced);
+  if (!flist->files) out_of_memory("send_file_list");
+
+  for (i=0;i<argc;i++) {
+    char fname2[MAXPATHLEN];
+    char *fname = fname2;
+
+    strcpy(fname,argv[i]);
+
+    l = strlen(fname);
+    if (l != 1 && fname[l-1] == '/') {
+      strcat(fname,".");
+    }
+
+    if (lstat(fname,&st) != 0) {
+      fprintf(stderr,"%s : %s\n",fname,strerror(errno));
+      continue;
+    }
+
+    if (S_ISDIR(st.st_mode) && !recurse) {
+      fprintf(stderr,"skipping directory %s\n",fname);
+      continue;
+    }
+
+    dir = NULL;
+    p = strrchr(fname,'/');
+    if (p) {
+      *p = 0;
+      dir = fname;
+      fname = p+1;      
+    }
+    if (!*fname)
+      fname = ".";
+
+    if (dir && *dir) {
+      if (getcwd(dbuf,MAXPATHLEN-1) == NULL) {
+	fprintf(stderr,"getwd : %s\n",strerror(errno));
+	exit(1);
+      }
+      if (chdir(dir) != 0) {
+	fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+	continue;
+      }
+      flist_dir = dir;
+      send_file_name(f,flist,recurse,fname);
+      flist_dir = NULL;
+      if (chdir(dbuf) != 0) {
+	fprintf(stderr,"chdir %s : %s\n",dbuf,strerror(errno));
+	exit(1);
+      }
+      continue;
+    }
+
+    send_file_name(f,flist,recurse,fname);
+  }
+
+  if (f != -1) {
+    write_int(f,0);
+    write_flush(f);
+  }
+
+  clean_flist(flist);
+
+  if (verbose && recurse)
+    fprintf(am_server?stderr:stdout,"done\n");
+
+  return flist;
 }

@@ -1,10 +1,11 @@
 fputs(
-"       -w, --write-out <format>\n"
-"              Make curl display information on stdout after a completed trans-\n"
-"              fer. The format is a string that may contain  plain  text  mixed\n"
-"              with  any  number of variables. The format can be specified as a\n"
-"              literal \"string\", or you can have curl read the  format  from  a\n"
-"              file  with  \"@filename\" and to tell curl to read the format from\n"
-"              stdin you write \"@-\".\n"
+"              POP3  or  SMTP  then  that protocol will be used, otherwise HTTP\n"
+"              will be used. Since 7.45.0 guessing can be disabled by setting a\n"
+"              default protocol, see --proto-default for details.\n"
 "\n"
+"              This  option  may  be used any number of times. To control where\n"
+"              this URL is written, use the -o, --output or the  -O,  --remote-\n"
+"              name options.\n"
+"\n"
+"       -B, --use-ascii\n"
 , stdout);

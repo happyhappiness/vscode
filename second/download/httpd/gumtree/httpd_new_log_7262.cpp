@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02455)
-                      "AuthBasicFake: could not evaluate user expression for URI '%s': %s", r->uri, err);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02458)
+                      "AuthBasicFake: empty username expression for URI '%s', ignoring", r->uri);

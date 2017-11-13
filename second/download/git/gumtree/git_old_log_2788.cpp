@@ -1,4 +1,4 @@
-warning(_("not copying templates of "
-			"a wrong format version %d from '%s'"),
-			repository_format_version,
-			template_dir);
+printf(_("%s%s Git repository in %s%s\n"),
+		       reinit ? _("Reinitialized existing") : _("Initialized empty"),
+		       shared_repository ? _(" shared") : "",
+		       git_dir, len && git_dir[len-1] != '/' ? "/" : "");

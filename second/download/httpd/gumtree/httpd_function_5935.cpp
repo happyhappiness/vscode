@@ -1,745 +1,537 @@
-static int status_handler(request_rec *r)
+static int APR_THREAD_FUNC regfnServerSupportFunction(isapi_cid    *cid,
+                                                      apr_uint32_t  HSE_code,
+                                                      void         *buf_ptr,
+                                                      apr_uint32_t *buf_size,
+                                                      apr_uint32_t *data_type)
 {
-    const char *loc;
-    apr_time_t nowtime;
-    apr_uint32_t up_time;
-    ap_loadavg_t t;
-    int j, i, res, written;
-    int ready;
-    int busy;
-    unsigned long count;
-    unsigned long lres, my_lres, conn_lres;
-    apr_off_t bytes, my_bytes, conn_bytes;
-    apr_off_t bcount, kbcount;
-    long req_time;
-    int short_report;
-    int no_table_report;
-    worker_score *ws_record = apr_palloc(r->pool, sizeof *ws_record);
-    process_score *ps_record;
-    char *stat_buffer;
-    pid_t *pid_buffer, worker_pid;
-    int *thread_idle_buffer = NULL;
-    int *thread_busy_buffer = NULL;
-    clock_t tu, ts, tcu, tcs;
-    ap_generation_t mpm_generation, worker_generation;
-#ifdef HAVE_TIMES
-    float tick;
-    int times_per_thread;
-#endif
+    request_rec *r = cid->r;
+    conn_rec *c = r->connection;
+    char *buf_data = (char*)buf_ptr;
+    request_rec *subreq;
+    apr_status_t rv;
 
-    if (strcmp(r->handler, STATUS_MAGIC_TYPE) && strcmp(r->handler,
-            "server-status")) {
-        return DECLINED;
-    }
-
-#ifdef HAVE_TIMES
-    times_per_thread = getpid() != child_pid;
-#endif
-
-    ap_mpm_query(AP_MPMQ_GENERATION, &mpm_generation);
-
-#ifdef HAVE_TIMES
-#ifdef _SC_CLK_TCK
-    tick = sysconf(_SC_CLK_TCK);
-#else
-    tick = HZ;
-#endif
-#endif
-
-    ready = 0;
-    busy = 0;
-    count = 0;
-    bcount = 0;
-    kbcount = 0;
-    short_report = 0;
-    no_table_report = 0;
-
-    pid_buffer = apr_palloc(r->pool, server_limit * sizeof(pid_t));
-    stat_buffer = apr_palloc(r->pool, server_limit * thread_limit * sizeof(char));
-    if (is_async) {
-        thread_idle_buffer = apr_palloc(r->pool, server_limit * sizeof(int));
-        thread_busy_buffer = apr_palloc(r->pool, server_limit * sizeof(int));
-    }
-
-    nowtime = apr_time_now();
-    tu = ts = tcu = tcs = 0;
-
-    if (!ap_exists_scoreboard_image()) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01237)
-                      "Server status unavailable in inetd mode");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    r->allowed = (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
-        return DECLINED;
-
-    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
-
-    /*
-     * Simple table-driven form data set parser that lets you alter the header
-     */
-
-    if (r->args) {
-        i = 0;
-        while (status_options[i].id != STAT_OPT_END) {
-            if ((loc = ap_strstr_c(r->args,
-                                   status_options[i].form_data_str)) != NULL) {
-                switch (status_options[i].id) {
-                case STAT_OPT_REFRESH: {
-                    apr_size_t len = strlen(status_options[i].form_data_str);
-                    long t = 0;
-
-                    if (*(loc + len ) == '=') {
-                        t = atol(loc + len + 1);
-                    }
-                    apr_table_setn(r->headers_out,
-                                   status_options[i].hdr_out_str,
-                                   apr_ltoa(r->pool, t < 1 ? 10 : t));
-                    break;
-                }
-                case STAT_OPT_NOTABLE:
-                    no_table_report = 1;
-                    break;
-                case STAT_OPT_AUTO:
-                    ap_set_content_type(r, "text/plain; charset=ISO-8859-1");
-                    short_report = 1;
-                    break;
-                }
-            }
-
-            i++;
-        }
-    }
-
-    for (i = 0; i < server_limit; ++i) {
-#ifdef HAVE_TIMES
-        clock_t proc_tu = 0, proc_ts = 0, proc_tcu = 0, proc_tcs = 0;
-        clock_t tmp_tu, tmp_ts, tmp_tcu, tmp_tcs;
-#endif
-
-        ps_record = ap_get_scoreboard_process(i);
-        if (is_async) {
-            thread_idle_buffer[i] = 0;
-            thread_busy_buffer[i] = 0;
-        }
-        for (j = 0; j < thread_limit; ++j) {
-            int indx = (i * thread_limit) + j;
-
-            ap_copy_scoreboard_worker(ws_record, i, j);
-            res = ws_record->status;
-
-            if ((i >= max_servers || j >= threads_per_child)
-                && (res == SERVER_DEAD))
-                stat_buffer[indx] = status_flags[SERVER_DISABLED];
-            else
-                stat_buffer[indx] = status_flags[res];
-
-            if (!ps_record->quiescing
-                && ps_record->pid) {
-                if (res == SERVER_READY) {
-                    if (ps_record->generation == mpm_generation)
-                        ready++;
-                    if (is_async)
-                        thread_idle_buffer[i]++;
-                }
-                else if (res != SERVER_DEAD &&
-                         res != SERVER_STARTING &&
-                         res != SERVER_IDLE_KILL) {
-                    busy++;
-                    if (is_async) {
-                        if (res == SERVER_GRACEFUL)
-                            thread_idle_buffer[i]++;
-                        else
-                            thread_busy_buffer[i]++;
-                    }
-                }
-            }
-
-            /* XXX what about the counters for quiescing/seg faulted
-             * processes?  should they be counted or not?  GLA
-             */
-            if (ap_extended_status) {
-                lres = ws_record->access_count;
-                bytes = ws_record->bytes_served;
-
-                if (lres != 0 || (res != SERVER_READY && res != SERVER_DEAD)) {
-#ifdef HAVE_TIMES
-                    tmp_tu = ws_record->times.tms_utime;
-                    tmp_ts = ws_record->times.tms_stime;
-                    tmp_tcu = ws_record->times.tms_cutime;
-                    tmp_tcs = ws_record->times.tms_cstime;
-
-                    if (times_per_thread) {
-                        proc_tu += tmp_tu;
-                        proc_ts += tmp_ts;
-                        proc_tcu += tmp_tcu;
-                        proc_tcs += tmp_tcs;
-                    }
-                    else {
-                        if (tmp_tu > proc_tu ||
-                            tmp_ts > proc_ts ||
-                            tmp_tcu > proc_tcu ||
-                            tmp_tcs > proc_tcs) {
-                            proc_tu = tmp_tu;
-                            proc_ts = tmp_ts;
-                            proc_tcu = tmp_tcu;
-                            proc_tcs = tmp_tcs;
-                        }
-                    }
-#endif /* HAVE_TIMES */
-
-                    count += lres;
-                    bcount += bytes;
-
-                    if (bcount >= KBYTE) {
-                        kbcount += (bcount >> 10);
-                        bcount = bcount & 0x3ff;
-                    }
-                }
-            }
-        }
-#ifdef HAVE_TIMES
-        tu += proc_tu;
-        ts += proc_ts;
-        tcu += proc_tcu;
-        tcs += proc_tcs;
-#endif
-        pid_buffer[i] = ps_record->pid;
-    }
-
-    /* up_time in seconds */
-    up_time = (apr_uint32_t) apr_time_sec(nowtime -
-                               ap_scoreboard_image->global->restart_time);
-    ap_get_loadavg(&t);
-
-    if (!short_report) {
-        ap_rputs(DOCTYPE_HTML_3_2
-                 "<html><head>\n"
-                 "<title>Apache Status</title>\n"
-                 "</head><body>\n"
-                 "<h1>Apache Server Status for ", r);
-        ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
-                  " (via ", r->connection->local_ip,
-                  ")</h1>\n\n", NULL);
-        ap_rvputs(r, "<dl><dt>Server Version: ",
-                  ap_get_server_description(), "</dt>\n", NULL);
-        ap_rvputs(r, "<dt>Server MPM: ",
-                  ap_show_mpm(), "</dt>\n", NULL);
-        ap_rvputs(r, "<dt>Server Built: ",
-                  ap_get_server_built(), "\n</dt></dl><hr /><dl>\n", NULL);
-        ap_rvputs(r, "<dt>Current Time: ",
-                  ap_ht_time(r->pool, nowtime, DEFAULT_TIME_FORMAT, 0),
-                             "</dt>\n", NULL);
-        ap_rvputs(r, "<dt>Restart Time: ",
-                  ap_ht_time(r->pool,
-                             ap_scoreboard_image->global->restart_time,
-                             DEFAULT_TIME_FORMAT, 0),
-                  "</dt>\n", NULL);
-        ap_rprintf(r, "<dt>Parent Server Config. Generation: %d</dt>\n",
-                   ap_state_query(AP_SQ_CONFIG_GEN));
-        ap_rprintf(r, "<dt>Parent Server MPM Generation: %d</dt>\n",
-                   (int)mpm_generation);
-        ap_rputs("<dt>Server uptime: ", r);
-        show_time(r, up_time);
-        ap_rputs("</dt>\n", r);
-        ap_rprintf(r, "<dt>Server load: %.2f %.2f %.2f</dt>\n",
-                   t.loadavg, t.loadavg5, t.loadavg15);
-    }
-    else {
-        ap_rvputs(r, ap_get_server_name(r), "\n", NULL);
-        ap_rvputs(r, "ServerVersion: ",
-                  ap_get_server_description(), "\n", NULL);
-        ap_rvputs(r, "ServerMPM: ",
-                  ap_show_mpm(), "\n", NULL);
-        ap_rvputs(r, "Server Built: ",
-                  ap_get_server_built(), "\n", NULL);
-        ap_rvputs(r, "CurrentTime: ",
-                  ap_ht_time(r->pool, nowtime, DEFAULT_TIME_FORMAT, 0),
-                             "\n", NULL);
-        ap_rvputs(r, "RestartTime: ",
-                  ap_ht_time(r->pool,
-                             ap_scoreboard_image->global->restart_time,
-                             DEFAULT_TIME_FORMAT, 0),
-                  "\n", NULL);
-        ap_rprintf(r, "ParentServerConfigGeneration: %d\n",
-                   ap_state_query(AP_SQ_CONFIG_GEN));
-        ap_rprintf(r, "ParentServerMPMGeneration: %d\n",
-                   (int)mpm_generation);
-        ap_rprintf(r, "ServerUptimeSeconds: %u\n",
-                   up_time);
-        ap_rputs("ServerUptime:", r);
-        show_time(r, up_time);
-        ap_rputs("\n", r);
-        ap_rprintf(r, "Load1: %.2f\nLoad5: %.2f\nLoad15: %.2f\n",
-                   t.loadavg, t.loadavg5, t.loadavg15);
-    }
-
-    if (ap_extended_status) {
-        if (short_report) {
-            ap_rprintf(r, "Total Accesses: %lu\nTotal kBytes: %"
-                       APR_OFF_T_FMT "\n",
-                       count, kbcount);
-
-#ifdef HAVE_TIMES
-            /* Allow for OS/2 not having CPU stats */
-            ap_rprintf(r, "CPUUser: %g\nCPUSystem: %g\nCPUChildrenUser: %g\nCPUChildrenSystem: %g\n",
-                       tu / tick, ts / tick, tcu / tick, tcs / tick);
-
-            if (ts || tu || tcu || tcs)
-                ap_rprintf(r, "CPULoad: %g\n",
-                           (tu + ts + tcu + tcs) / tick / up_time * 100.);
-#endif
-
-            ap_rprintf(r, "Uptime: %ld\n", (long) (up_time));
-            if (up_time > 0) {
-                ap_rprintf(r, "ReqPerSec: %g\n",
-                           (float) count / (float) up_time);
-
-                ap_rprintf(r, "BytesPerSec: %g\n",
-                           KBYTE * (float) kbcount / (float) up_time);
-            }
-            if (count > 0)
-                ap_rprintf(r, "BytesPerReq: %g\n",
-                           KBYTE * (float) kbcount / (float) count);
-        }
-        else { /* !short_report */
-            ap_rprintf(r, "<dt>Total accesses: %lu - Total Traffic: ", count);
-            format_kbyte_out(r, kbcount);
-            ap_rputs("</dt>\n", r);
-
-#ifdef HAVE_TIMES
-            /* Allow for OS/2 not having CPU stats */
-            ap_rprintf(r, "<dt>CPU Usage: u%g s%g cu%g cs%g",
-                       tu / tick, ts / tick, tcu / tick, tcs / tick);
-
-            if (ts || tu || tcu || tcs)
-                ap_rprintf(r, " - %.3g%% CPU load</dt>\n",
-                           (tu + ts + tcu + tcs) / tick / up_time * 100.);
-#endif
-
-            if (up_time > 0) {
-                ap_rprintf(r, "<dt>%.3g requests/sec - ",
-                           (float) count / (float) up_time);
-
-                format_byte_out(r, (unsigned long)(KBYTE * (float) kbcount
-                                                   / (float) up_time));
-                ap_rputs("/second - ", r);
-            }
-
-            if (count > 0) {
-                format_byte_out(r, (unsigned long)(KBYTE * (float) kbcount
-                                                   / (float) count));
-                ap_rputs("/request", r);
-            }
-
-            ap_rputs("</dt>\n", r);
-        } /* short_report */
-    } /* ap_extended_status */
-
-    if (!short_report)
-        ap_rprintf(r, "<dt>%d requests currently being processed, "
-                      "%d idle workers</dt>\n", busy, ready);
-    else
-        ap_rprintf(r, "BusyWorkers: %d\nIdleWorkers: %d\n", busy, ready);
-
-    if (!short_report)
-        ap_rputs("</dl>", r);
-
-    if (is_async) {
-        int write_completion = 0, lingering_close = 0, keep_alive = 0,
-            connections = 0;
-        /*
-         * These differ from 'busy' and 'ready' in how gracefully finishing
-         * threads are counted. XXX: How to make this clear in the html?
+    switch (HSE_code) {
+    case HSE_REQ_SEND_URL_REDIRECT_RESP:
+        /* Set the status to be returned when the HttpExtensionProc()
+         * is done.
+         * WARNING: Microsoft now advertises HSE_REQ_SEND_URL_REDIRECT_RESP
+         *          and HSE_REQ_SEND_URL as equivalent per the Jan 2000 SDK.
+         *          They most definitely are not, even in their own samples.
          */
-        int busy_workers = 0, idle_workers = 0;
-        if (!short_report)
-            ap_rputs("\n\n<table rules=\"all\" cellpadding=\"1%\">\n"
-                     "<tr><th rowspan=\"2\">PID</th>"
-                         "<th colspan=\"2\">Connections</th>\n"
-                         "<th colspan=\"2\">Threads</th>"
-                         "<th colspan=\"4\">Async connections</th></tr>\n"
-                     "<tr><th>total</th><th>accepting</th>"
-                         "<th>busy</th><th>idle</th><th>writing</th>"
-                         "<th>keep-alive</th><th>closing</th></tr>\n", r);
-        for (i = 0; i < server_limit; ++i) {
-            ps_record = ap_get_scoreboard_process(i);
-            if (ps_record->pid) {
-                connections      += ps_record->connections;
-                write_completion += ps_record->write_completion;
-                keep_alive       += ps_record->keep_alive;
-                lingering_close  += ps_record->lingering_close;
-                busy_workers     += thread_busy_buffer[i];
-                idle_workers     += thread_idle_buffer[i];
-                if (!short_report)
-                    ap_rprintf(r, "<tr><td>%" APR_PID_T_FMT "</td><td>%u</td>"
-                                      "<td>%s</td><td>%u</td><td>%u</td>"
-                                      "<td>%u</td><td>%u</td><td>%u</td>"
-                                      "</tr>\n",
-                               ps_record->pid, ps_record->connections,
-                               ps_record->not_accepting ? "no" : "yes",
-                               thread_busy_buffer[i], thread_idle_buffer[i],
-                               ps_record->write_completion,
-                               ps_record->keep_alive,
-                               ps_record->lingering_close);
-            }
-        }
-        if (!short_report) {
-            ap_rprintf(r, "<tr><td>Sum</td><td>%d</td><td>&nbsp;</td><td>%d</td>"
-                          "<td>%d</td><td>%d</td><td>%d</td><td>%d</td>"
-                          "</tr>\n</table>\n",
-                          connections, busy_workers, idle_workers,
-                          write_completion, keep_alive, lingering_close);
+        apr_table_set (r->headers_out, "Location", buf_data);
+        cid->r->status = cid->ecb->dwHttpStatusCode = HTTP_MOVED_TEMPORARILY;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+        cid->headers_set = 1;
+        return 1;
 
+    case HSE_REQ_SEND_URL:
+        /* Soak up remaining input */
+        if (r->remaining > 0) {
+            char argsbuffer[HUGE_STRING_LEN];
+            while (ap_get_client_block(r, argsbuffer, HUGE_STRING_LEN));
+        }
+
+        /* Reset the method to GET */
+        r->method = "GET";
+        r->method_number = M_GET;
+
+        /* Don't let anyone think there's still data */
+        apr_table_unset(r->headers_in, "Content-Length");
+
+        /* AV fault per PR3598 - redirected path is lost! */
+        buf_data = apr_pstrdup(r->pool, (char*)buf_data);
+        ap_internal_redirect(buf_data, r);
+        return 1;
+
+    case HSE_REQ_SEND_RESPONSE_HEADER:
+    {
+        /* Parse them out, or die trying */
+        apr_size_t statlen = 0, headlen = 0;
+        apr_ssize_t ate;
+        if (buf_data)
+            statlen = strlen((char*) buf_data);
+        if (data_type)
+            headlen = strlen((char*) data_type);
+        ate = send_response_header(cid, (char*) buf_data,
+                                   (char*) data_type,
+                                   statlen, headlen);
+        if (ate < 0) {
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
+        else if ((apr_size_t)ate < headlen) {
+            apr_bucket_brigade *bb;
+            apr_bucket *b;
+            bb = apr_brigade_create(cid->r->pool, c->bucket_alloc);
+            b = apr_bucket_transient_create((char*) data_type + ate,
+                                           headlen - ate, c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            b = apr_bucket_flush_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            rv = ap_pass_brigade(cid->r->output_filters, bb);
+            cid->response_sent = 1;
+            if (rv != APR_SUCCESS)
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                              "ServerSupport function "
+                              "HSE_REQ_SEND_RESPONSE_HEADER "
+                              "ap_pass_brigade failed: %s", r->filename);
+            return (rv == APR_SUCCESS);
+        }
+        /* Deliberately hold off sending 'just the headers' to begin to
+         * accumulate the body and speed up the overall response, or at
+         * least wait for the end the session.
+         */
+        return 1;
+    }
+
+    case HSE_REQ_DONE_WITH_SESSION:
+        /* Signal to resume the thread completing this request,
+         * leave it to the pool cleanup to dispose of our mutex.
+         */
+        if (cid->completed) {
+            (void)apr_thread_mutex_unlock(cid->completed);
+            return 1;
+        }
+        else if (cid->dconf.log_unsupported) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02671)
+                          "ServerSupportFunction "
+                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
+                          r->filename);
+        }
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_MAP_URL_TO_PATH:
+    {
+        /* Map a URL to a filename */
+        char *file = (char *)buf_data;
+        apr_uint32_t len;
+        subreq = ap_sub_req_lookup_uri(
+                     apr_pstrndup(cid->r->pool, file, *buf_size), r, NULL);
+
+        if (!subreq->filename) {
+            ap_destroy_sub_req(subreq);
+            return 0;
+        }
+
+        len = (apr_uint32_t)strlen(r->filename);
+
+        if ((subreq->finfo.filetype == APR_DIR)
+              && (!subreq->path_info)
+              && (file[len - 1] != '/'))
+            file = apr_pstrcat(cid->r->pool, subreq->filename, "/", NULL);
+        else
+            file = apr_pstrcat(cid->r->pool, subreq->filename,
+                                              subreq->path_info, NULL);
+
+        ap_destroy_sub_req(subreq);
+
+#ifdef WIN32
+        /* We need to make this a real Windows path name */
+        apr_filepath_merge(&file, "", file, APR_FILEPATH_NATIVE, r->pool);
+#endif
+
+        *buf_size = apr_cpystrn(buf_data, file, *buf_size) - buf_data;
+
+        return 1;
+    }
+
+    case HSE_REQ_GET_SSPI_INFO:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02672)
+                           "ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
+                           "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_APPEND_LOG_PARAMETER:
+        /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field
+         */
+        apr_table_set(r->notes, "isapi-parameter", (char*) buf_data);
+        if (cid->dconf.log_to_query) {
+            if (r->args)
+                r->args = apr_pstrcat(r->pool, r->args, (char*) buf_data, NULL);
+            else
+                r->args = apr_pstrdup(r->pool, (char*) buf_data);
+        }
+        if (cid->dconf.log_to_errlog)
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "%s: %s", cid->r->filename,
+                          (char*) buf_data);
+        return 1;
+
+    case HSE_REQ_IO_COMPLETION:
+        /* Emulates a completion port...  Record callback address and
+         * user defined arg, we will call this after any async request
+         * (e.g. transmitfile) as if the request executed async.
+         * Per MS docs... HSE_REQ_IO_COMPLETION replaces any prior call
+         * to HSE_REQ_IO_COMPLETION, and buf_data may be set to NULL.
+         */
+        if (cid->dconf.fake_async) {
+            cid->completion = (PFN_HSE_IO_COMPLETION) buf_data;
+            cid->completion_arg = (void *) data_type;
+            return 1;
+        }
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02673)
+                      "ServerSupportFunction HSE_REQ_IO_COMPLETION "
+                      "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_TRANSMIT_FILE:
+    {
+        /* we do nothing with (tf->dwFlags & HSE_DISCONNECT_AFTER_SEND)
+         */
+        HSE_TF_INFO *tf = (HSE_TF_INFO*)buf_data;
+        apr_uint32_t sent = 0;
+        apr_ssize_t ate = 0;
+        apr_bucket_brigade *bb;
+        apr_bucket *b;
+        apr_file_t *fd;
+        apr_off_t fsize;
+
+        if (!cid->dconf.fake_async && (tf->dwFlags & HSE_IO_ASYNC)) {
+            if (cid->dconf.log_unsupported)
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02674)
+                         "ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
+                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
+
+        /* Presume the handle was opened with the CORRECT semantics
+         * for TransmitFile
+         */
+        if ((rv = apr_os_file_put(&fd, &tf->hFile,
+                                  APR_READ | APR_XTHREAD, r->pool))
+                != APR_SUCCESS) {
+            return 0;
+        }
+        if (tf->BytesToWrite) {
+            fsize = tf->BytesToWrite;
         }
         else {
-            ap_rprintf(r, "ConnsTotal: %d\n"
-                          "ConnsAsyncWriting: %d\n"
-                          "ConnsAsyncKeepAlive: %d\n"
-                          "ConnsAsyncClosing: %d\n",
-                       connections, write_completion, keep_alive,
-                       lingering_close);
+            apr_finfo_t fi;
+            if (apr_file_info_get(&fi, APR_FINFO_SIZE, fd) != APR_SUCCESS) {
+                apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+                return 0;
+            }
+            fsize = fi.size - tf->Offset;
         }
-    }
 
-    /* send the scoreboard 'table' out */
-    if (!short_report)
-        ap_rputs("<pre>", r);
-    else
-        ap_rputs("Scoreboard: ", r);
+        /* apr_dupfile_oshandle (&fd, tf->hFile, r->pool); */
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
 
-    written = 0;
-    for (i = 0; i < server_limit; ++i) {
-        for (j = 0; j < thread_limit; ++j) {
-            int indx = (i * thread_limit) + j;
-            if (stat_buffer[indx] != status_flags[SERVER_DISABLED]) {
-                ap_rputc(stat_buffer[indx], r);
-                if ((written % STATUS_MAXLINE == (STATUS_MAXLINE - 1))
-                    && !short_report)
-                    ap_rputs("\n", r);
-                written++;
+        /* According to MS: if calling HSE_REQ_TRANSMIT_FILE with the
+         * HSE_IO_SEND_HEADERS flag, then you can't otherwise call any
+         * HSE_SEND_RESPONSE_HEADERS* fn, but if you don't use the flag,
+         * you must have done so.  They document that the pHead headers
+         * option is valid only for HSE_IO_SEND_HEADERS - we are a bit
+         * more flexible and assume with the flag, pHead are the
+         * response headers, and without, pHead simply contains text
+         * (handled after this case).
+         */
+        if ((tf->dwFlags & HSE_IO_SEND_HEADERS) && tf->pszStatusCode) {
+            ate = send_response_header(cid, tf->pszStatusCode,
+                                            (char*)tf->pHead,
+                                            strlen(tf->pszStatusCode),
+                                            tf->HeadLength);
+        }
+        else if (!cid->headers_set && tf->pHead && tf->HeadLength
+                                   && *(char*)tf->pHead) {
+            ate = send_response_header(cid, NULL, (char*)tf->pHead,
+                                            0, tf->HeadLength);
+            if (ate < 0)
+            {
+                apr_brigade_destroy(bb);
+                apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+                return 0;
             }
         }
-    }
 
-
-    if (short_report)
-        ap_rputs("\n", r);
-    else {
-        ap_rputs("</pre>\n"
-                 "<p>Scoreboard Key:<br />\n"
-                 "\"<b><code>_</code></b>\" Waiting for Connection, \n"
-                 "\"<b><code>S</code></b>\" Starting up, \n"
-                 "\"<b><code>R</code></b>\" Reading Request,<br />\n"
-                 "\"<b><code>W</code></b>\" Sending Reply, \n"
-                 "\"<b><code>K</code></b>\" Keepalive (read), \n"
-                 "\"<b><code>D</code></b>\" DNS Lookup,<br />\n"
-                 "\"<b><code>C</code></b>\" Closing connection, \n"
-                 "\"<b><code>L</code></b>\" Logging, \n"
-                 "\"<b><code>G</code></b>\" Gracefully finishing,<br /> \n"
-                 "\"<b><code>I</code></b>\" Idle cleanup of worker, \n"
-                 "\"<b><code>.</code></b>\" Open slot with no current process<br />\n"
-                 "<p />\n", r);
-        if (!ap_extended_status) {
-            int j;
-            int k = 0;
-            ap_rputs("PID Key: <br />\n"
-                     "<pre>\n", r);
-            for (i = 0; i < server_limit; ++i) {
-                for (j = 0; j < thread_limit; ++j) {
-                    int indx = (i * thread_limit) + j;
-
-                    if (stat_buffer[indx] != '.') {
-                        ap_rprintf(r, "   %" APR_PID_T_FMT
-                                   " in state: %c ", pid_buffer[i],
-                                   stat_buffer[indx]);
-
-                        if (++k >= 3) {
-                            ap_rputs("\n", r);
-                            k = 0;
-                        } else
-                            ap_rputs(",", r);
-                    }
-                }
-            }
-
-            ap_rputs("\n"
-                     "</pre>\n", r);
+        if (tf->pHead && (apr_size_t)ate < tf->HeadLength) {
+            b = apr_bucket_transient_create((char*)tf->pHead + ate,
+                                            tf->HeadLength - ate,
+                                            c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            sent = tf->HeadLength;
         }
-    }
 
-    if (ap_extended_status && !short_report) {
-        if (no_table_report)
-            ap_rputs("<hr /><h2>Server Details</h2>\n\n", r);
-        else
-            ap_rputs("\n\n<table border=\"0\"><tr>"
-                     "<th>Srv</th><th>PID</th><th>Acc</th>"
-                     "<th>M</th>"
-#ifdef HAVE_TIMES
-                     "<th>CPU\n</th>"
-#endif
-                     "<th>SS</th><th>Req</th>"
-                     "<th>Conn</th><th>Child</th><th>Slot</th>"
-                     "<th>Client</th><th>Protocol</th><th>VHost</th>"
-                     "<th>Request</th></tr>\n\n", r);
+        sent += (apr_uint32_t)fsize;
+        apr_brigade_insert_file(bb, fd, tf->Offset, fsize, r->pool);
 
-        for (i = 0; i < server_limit; ++i) {
-            for (j = 0; j < thread_limit; ++j) {
-                ap_copy_scoreboard_worker(ws_record, i, j);
+        if (tf->pTail && tf->TailLength) {
+            sent += tf->TailLength;
+            b = apr_bucket_transient_create((char*)tf->pTail,
+                                            tf->TailLength, c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+        }
 
-                if (ws_record->access_count == 0 &&
-                    (ws_record->status == SERVER_READY ||
-                     ws_record->status == SERVER_DEAD)) {
-                    continue;
-                }
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+        if (rv != APR_SUCCESS)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "ServerSupport function "
+                          "HSE_REQ_TRANSMIT_FILE "
+                          "ap_pass_brigade failed: %s", r->filename);
 
-                ps_record = ap_get_scoreboard_process(i);
-
-                if (ws_record->start_time == 0L)
-                    req_time = 0L;
-                else
-                    req_time = (long)
-                        ((ws_record->stop_time -
-                          ws_record->start_time) / 1000);
-                if (req_time < 0L)
-                    req_time = 0L;
-
-                lres = ws_record->access_count;
-                my_lres = ws_record->my_access_count;
-                conn_lres = ws_record->conn_count;
-                bytes = ws_record->bytes_served;
-                my_bytes = ws_record->my_bytes_served;
-                conn_bytes = ws_record->conn_bytes;
-                if (ws_record->pid) { /* MPM sets per-worker pid and generation */
-                    worker_pid = ws_record->pid;
-                    worker_generation = ws_record->generation;
+        /* Use tf->pfnHseIO + tf->pContext, or if NULL, then use cid->fnIOComplete
+         * pass pContect to the HseIO callback.
+         */
+        if (tf->dwFlags & HSE_IO_ASYNC) {
+            if (tf->pfnHseIO) {
+                if (rv == APR_SUCCESS) {
+                    tf->pfnHseIO(cid->ecb, tf->pContext,
+                                 ERROR_SUCCESS, sent);
                 }
                 else {
-                    worker_pid = ps_record->pid;
-                    worker_generation = ps_record->generation;
+                    tf->pfnHseIO(cid->ecb, tf->pContext,
+                                 ERROR_WRITE_FAULT, sent);
                 }
-
-                if (no_table_report) {
-                    if (ws_record->status == SERVER_DEAD)
-                        ap_rprintf(r,
-                                   "<b>Server %d-%d</b> (-): %d|%lu|%lu [",
-                                   i, (int)worker_generation,
-                                   (int)conn_lres, my_lres, lres);
-                    else
-                        ap_rprintf(r,
-                                   "<b>Server %d-%d</b> (%"
-                                   APR_PID_T_FMT "): %d|%lu|%lu [",
-                                   i, (int) worker_generation,
-                                   worker_pid,
-                                   (int)conn_lres, my_lres, lres);
-
-                    switch (ws_record->status) {
-                    case SERVER_READY:
-                        ap_rputs("Ready", r);
-                        break;
-                    case SERVER_STARTING:
-                        ap_rputs("Starting", r);
-                        break;
-                    case SERVER_BUSY_READ:
-                        ap_rputs("<b>Read</b>", r);
-                        break;
-                    case SERVER_BUSY_WRITE:
-                        ap_rputs("<b>Write</b>", r);
-                        break;
-                    case SERVER_BUSY_KEEPALIVE:
-                        ap_rputs("<b>Keepalive</b>", r);
-                        break;
-                    case SERVER_BUSY_LOG:
-                        ap_rputs("<b>Logging</b>", r);
-                        break;
-                    case SERVER_BUSY_DNS:
-                        ap_rputs("<b>DNS lookup</b>", r);
-                        break;
-                    case SERVER_CLOSING:
-                        ap_rputs("<b>Closing</b>", r);
-                        break;
-                    case SERVER_DEAD:
-                        ap_rputs("Dead", r);
-                        break;
-                    case SERVER_GRACEFUL:
-                        ap_rputs("Graceful", r);
-                        break;
-                    case SERVER_IDLE_KILL:
-                        ap_rputs("Dying", r);
-                        break;
-                    default:
-                        ap_rputs("?STATE?", r);
-                        break;
-                    }
-
-                    ap_rprintf(r, "] "
-#ifdef HAVE_TIMES
-                               "u%g s%g cu%g cs%g"
-#endif
-                               "\n %ld %ld (",
-#ifdef HAVE_TIMES
-                               ws_record->times.tms_utime / tick,
-                               ws_record->times.tms_stime / tick,
-                               ws_record->times.tms_cutime / tick,
-                               ws_record->times.tms_cstime / tick,
-#endif
-                               (long)apr_time_sec(nowtime -
-                                                  ws_record->last_used),
-                               (long) req_time);
-
-                    format_byte_out(r, conn_bytes);
-                    ap_rputs("|", r);
-                    format_byte_out(r, my_bytes);
-                    ap_rputs("|", r);
-                    format_byte_out(r, bytes);
-                    ap_rputs(")\n", r);
-                    ap_rprintf(r,
-                               " <i>%s {%s}</i> <i>(%s)</i> <b>[%s]</b><br />\n\n",
-                               ap_escape_html(r->pool,
-                                              ws_record->client),
-                               ap_escape_html(r->pool,
-                                              ap_escape_logitem(r->pool,
-                                                                ws_record->request)),
-                               ap_escape_html(r->pool,
-                                              ws_record->protocol),
-                               ap_escape_html(r->pool,
-                                              ws_record->vhost));
+            }
+            else if (cid->completion) {
+                if (rv == APR_SUCCESS) {
+                    cid->completion(cid->ecb, cid->completion_arg,
+                                    sent, ERROR_SUCCESS);
                 }
-                else { /* !no_table_report */
-                    if (ws_record->status == SERVER_DEAD)
-                        ap_rprintf(r,
-                                   "<tr><td><b>%d-%d</b></td><td>-</td><td>%d/%lu/%lu",
-                                   i, (int)worker_generation,
-                                   (int)conn_lres, my_lres, lres);
-                    else
-                        ap_rprintf(r,
-                                   "<tr><td><b>%d-%d</b></td><td>%"
-                                   APR_PID_T_FMT
-                                   "</td><td>%d/%lu/%lu",
-                                   i, (int)worker_generation,
-                                   worker_pid,
-                                   (int)conn_lres,
-                                   my_lres, lres);
-
-                    switch (ws_record->status) {
-                    case SERVER_READY:
-                        ap_rputs("</td><td>_", r);
-                        break;
-                    case SERVER_STARTING:
-                        ap_rputs("</td><td><b>S</b>", r);
-                        break;
-                    case SERVER_BUSY_READ:
-                        ap_rputs("</td><td><b>R</b>", r);
-                        break;
-                    case SERVER_BUSY_WRITE:
-                        ap_rputs("</td><td><b>W</b>", r);
-                        break;
-                    case SERVER_BUSY_KEEPALIVE:
-                        ap_rputs("</td><td><b>K</b>", r);
-                        break;
-                    case SERVER_BUSY_LOG:
-                        ap_rputs("</td><td><b>L</b>", r);
-                        break;
-                    case SERVER_BUSY_DNS:
-                        ap_rputs("</td><td><b>D</b>", r);
-                        break;
-                    case SERVER_CLOSING:
-                        ap_rputs("</td><td><b>C</b>", r);
-                        break;
-                    case SERVER_DEAD:
-                        ap_rputs("</td><td>.", r);
-                        break;
-                    case SERVER_GRACEFUL:
-                        ap_rputs("</td><td>G", r);
-                        break;
-                    case SERVER_IDLE_KILL:
-                        ap_rputs("</td><td>I", r);
-                        break;
-                    default:
-                        ap_rputs("</td><td>?", r);
-                        break;
-                    }
-
-                    ap_rprintf(r,
-                               "\n</td>"
-#ifdef HAVE_TIMES
-                               "<td>%.2f</td>"
-#endif
-                               "<td>%ld</td><td>%ld",
-#ifdef HAVE_TIMES
-                               (ws_record->times.tms_utime +
-                                ws_record->times.tms_stime +
-                                ws_record->times.tms_cutime +
-                                ws_record->times.tms_cstime) / tick,
-#endif
-                               (long)apr_time_sec(nowtime -
-                                                  ws_record->last_used),
-                               (long)req_time);
-
-                    ap_rprintf(r, "</td><td>%-1.1f</td><td>%-2.2f</td><td>%-2.2f\n",
-                               (float)conn_bytes / KBYTE, (float) my_bytes / MBYTE,
-                               (float)bytes / MBYTE);
-
-                    ap_rprintf(r, "</td><td>%s</td><td>%s</td><td nowrap>%s</td>"
-                                  "<td nowrap>%s</td></tr>\n\n",
-                               ap_escape_html(r->pool,
-                                              ws_record->client),
-                               ap_escape_html(r->pool,
-                                              ws_record->protocol),
-                               ap_escape_html(r->pool,
-                                              ws_record->vhost),
-                               ap_escape_html(r->pool,
-                                              ap_escape_logitem(r->pool,
-                                                      ws_record->request)));
-                } /* no_table_report */
-            } /* for (j...) */
-        } /* for (i...) */
-
-        if (!no_table_report) {
-            ap_rputs("</table>\n \
-<hr /> \
-<table>\n \
-<tr><th>Srv</th><td>Child Server number - generation</td></tr>\n \
-<tr><th>PID</th><td>OS process ID</td></tr>\n \
-<tr><th>Acc</th><td>Number of accesses this connection / this child / this slot</td></tr>\n \
-<tr><th>M</th><td>Mode of operation</td></tr>\n"
-
-#ifdef HAVE_TIMES
-"<tr><th>CPU</th><td>CPU usage, number of seconds</td></tr>\n"
-#endif
-
-"<tr><th>SS</th><td>Seconds since beginning of most recent request</td></tr>\n \
-<tr><th>Req</th><td>Milliseconds required to process most recent request</td></tr>\n \
-<tr><th>Conn</th><td>Kilobytes transferred this connection</td></tr>\n \
-<tr><th>Child</th><td>Megabytes transferred this child</td></tr>\n \
-<tr><th>Slot</th><td>Total megabytes transferred this slot</td></tr>\n \
-</table>\n", r);
+                else {
+                    cid->completion(cid->ecb, cid->completion_arg,
+                                    sent, ERROR_WRITE_FAULT);
+                }
+            }
         }
-    } /* if (ap_extended_status && !short_report) */
-    else {
-
-        if (!short_report) {
-            ap_rputs("<hr />To obtain a full report with current status "
-                     "information you need to use the "
-                     "<code>ExtendedStatus On</code> directive.\n", r);
-        }
+        return (rv == APR_SUCCESS);
     }
 
+    case HSE_REQ_REFRESH_ISAPI_ACL:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02675)
+                          "ServerSupportFunction "
+                          "HSE_REQ_REFRESH_ISAPI_ACL "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_IS_KEEP_CONN:
+        *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
+        return 1;
+
+    case HSE_REQ_ASYNC_READ_CLIENT:
     {
-        /* Run extension hooks to insert extra content. */
-        int flags =
-            (short_report ? AP_STATUS_SHORT : 0) |
-            (no_table_report ? AP_STATUS_NOTABLE : 0) |
-            (ap_extended_status ? AP_STATUS_EXTENDED : 0);
+        apr_uint32_t read = 0;
+        int res = 0;
+        if (!cid->dconf.fake_async) {
+            if (cid->dconf.log_unsupported)
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                            "asynchronous I/O not supported: %s",
+                            r->filename);
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
 
-        ap_run_status_hook(r, flags);
+        if (r->remaining < *buf_size) {
+            *buf_size = (apr_size_t)r->remaining;
+        }
+
+        while (read < *buf_size &&
+            ((res = ap_get_client_block(r, (char*)buf_data + read,
+                                        *buf_size - read)) > 0)) {
+            read += res;
+        }
+
+        if ((*data_type & HSE_IO_ASYNC) && cid->completion) {
+            /* XXX: Many authors issue their next HSE_REQ_ASYNC_READ_CLIENT
+             * within the completion logic.  An example is MS's own PSDK
+             * sample web/iis/extensions/io/ASyncRead.  This potentially
+             * leads to stack exhaustion.  To refactor, the notification
+             * logic needs to move to isapi_handler() - differentiating
+             * the cid->completed event with a new flag to indicate
+             * an async-notice versus the async request completed.
+             */
+            if (res >= 0) {
+                cid->completion(cid->ecb, cid->completion_arg,
+                                read, ERROR_SUCCESS);
+            }
+            else {
+                cid->completion(cid->ecb, cid->completion_arg,
+                                read, ERROR_READ_FAULT);
+            }
+        }
+        return (res >= 0);
     }
 
-    if (!short_report) {
-        ap_rputs(ap_psignature("<hr />\n",r), r);
-        ap_rputs("</body></html>\n", r);
+    case HSE_REQ_GET_IMPERSONATION_TOKEN:  /* Added in ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02676)
+                          "ServerSupportFunction "
+                          "HSE_REQ_GET_IMPERSONATION_TOKEN "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_MAP_URL_TO_PATH_EX:
+    {
+        /* Map a URL to a filename */
+        HSE_URL_MAPEX_INFO *info = (HSE_URL_MAPEX_INFO*)data_type;
+        char* test_uri = apr_pstrndup(r->pool, (char *)buf_data, *buf_size);
+
+        subreq = ap_sub_req_lookup_uri(test_uri, r, NULL);
+        info->cchMatchingURL = strlen(test_uri);
+        info->cchMatchingPath = apr_cpystrn(info->lpszPath, subreq->filename,
+                                      sizeof(info->lpszPath)) - info->lpszPath;
+
+        /* Mapping started with assuming both strings matched.
+         * Now roll on the path_info as a mismatch and handle
+         * terminating slashes for directory matches.
+         */
+        if (subreq->path_info && *subreq->path_info) {
+            apr_cpystrn(info->lpszPath + info->cchMatchingPath,
+                        subreq->path_info,
+                        sizeof(info->lpszPath) - info->cchMatchingPath);
+            info->cchMatchingURL -= strlen(subreq->path_info);
+            if (subreq->finfo.filetype == APR_DIR
+                 && info->cchMatchingPath < sizeof(info->lpszPath) - 1) {
+                /* roll forward over path_info's first slash */
+                ++info->cchMatchingPath;
+                ++info->cchMatchingURL;
+            }
+        }
+        else if (subreq->finfo.filetype == APR_DIR
+                 && info->cchMatchingPath < sizeof(info->lpszPath) - 1) {
+            /* Add a trailing slash for directory */
+            info->lpszPath[info->cchMatchingPath++] = '/';
+            info->lpszPath[info->cchMatchingPath] = '\0';
+        }
+
+        /* If the matched isn't a file, roll match back to the prior slash */
+        if (subreq->finfo.filetype == APR_NOFILE) {
+            while (info->cchMatchingPath && info->cchMatchingURL) {
+                if (info->lpszPath[info->cchMatchingPath - 1] == '/')
+                    break;
+                --info->cchMatchingPath;
+                --info->cchMatchingURL;
+            }
+        }
+
+        /* Paths returned with back slashes */
+        for (test_uri = info->lpszPath; *test_uri; ++test_uri)
+            if (*test_uri == '/')
+                *test_uri = '\\';
+
+        /* is a combination of:
+         * HSE_URL_FLAGS_READ         0x001 Allow read
+         * HSE_URL_FLAGS_WRITE        0x002 Allow write
+         * HSE_URL_FLAGS_EXECUTE      0x004 Allow execute
+         * HSE_URL_FLAGS_SSL          0x008 Require SSL
+         * HSE_URL_FLAGS_DONT_CACHE   0x010 Don't cache (VRoot only)
+         * HSE_URL_FLAGS_NEGO_CERT    0x020 Allow client SSL cert
+         * HSE_URL_FLAGS_REQUIRE_CERT 0x040 Require client SSL cert
+         * HSE_URL_FLAGS_MAP_CERT     0x080 Map client SSL cert to account
+         * HSE_URL_FLAGS_SSL128       0x100 Require 128-bit SSL cert
+         * HSE_URL_FLAGS_SCRIPT       0x200 Allow script execution
+         *
+         * XxX: As everywhere, EXEC flags could use some work...
+         *      and this could go further with more flags, as desired.
+         */
+        info->dwFlags = (subreq->finfo.protection & APR_UREAD    ? 0x001 : 0)
+                      | (subreq->finfo.protection & APR_UWRITE   ? 0x002 : 0)
+                      | (subreq->finfo.protection & APR_UEXECUTE ? 0x204 : 0);
+        return 1;
     }
 
-    return 0;
+    case HSE_REQ_ABORTIVE_CLOSE:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02677)
+                          "ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
+                          " is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_GET_CERT_INFO_EX:  /* Added in ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02678)
+                          "ServerSupportFunction "
+                          "HSE_REQ_GET_CERT_INFO_EX "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_SEND_RESPONSE_HEADER_EX:  /* Added in ISAPI 4.0 */
+    {
+        HSE_SEND_HEADER_EX_INFO *shi = (HSE_SEND_HEADER_EX_INFO*)buf_data;
+
+        /*  Ignore shi->fKeepConn - we don't want the advise
+         */
+        apr_ssize_t ate = send_response_header(cid, shi->pszStatus,
+                                               shi->pszHeader,
+                                               shi->cchStatus,
+                                               shi->cchHeader);
+        if (ate < 0) {
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
+        else if ((apr_size_t)ate < shi->cchHeader) {
+            apr_bucket_brigade *bb;
+            apr_bucket *b;
+            bb = apr_brigade_create(cid->r->pool, c->bucket_alloc);
+            b = apr_bucket_transient_create(shi->pszHeader + ate,
+                                            shi->cchHeader - ate,
+                                            c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            b = apr_bucket_flush_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            rv = ap_pass_brigade(cid->r->output_filters, bb);
+            cid->response_sent = 1;
+            if (rv != APR_SUCCESS)
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                              "ServerSupport function "
+                              "HSE_REQ_SEND_RESPONSE_HEADER_EX "
+                              "ap_pass_brigade failed: %s", r->filename);
+            return (rv == APR_SUCCESS);
+        }
+        /* Deliberately hold off sending 'just the headers' to begin to
+         * accumulate the body and speed up the overall response, or at
+         * least wait for the end the session.
+         */
+        return 1;
+    }
+
+    case HSE_REQ_CLOSE_CONNECTION:  /* Added after ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02679)
+                          "ServerSupportFunction "
+                          "HSE_REQ_CLOSE_CONNECTION "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_IS_CONNECTED:  /* Added after ISAPI 4.0 */
+        /* Returns True if client is connected c.f. MSKB Q188346
+         * assuming the identical return mechanism as HSE_REQ_IS_KEEP_CONN
+         */
+        *((int *)buf_data) = (r->connection->aborted == 0);
+        return 1;
+
+    case HSE_REQ_EXTENSION_TRIGGER:  /* Added after ISAPI 4.0 */
+        /*  Undocumented - defined by the Microsoft Jan '00 Platform SDK
+         */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02680)
+                          "ServerSupportFunction "
+                          "HSE_REQ_EXTENSION_TRIGGER "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    default:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02681)
+                          "ServerSupportFunction (%d) not supported: "
+                          "%s", HSE_code, r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+    }
 }

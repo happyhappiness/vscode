@@ -1,11 +1,10 @@
 fputs(
-"              As part of the GSS-API negotiation a protection mode is  negoti-\n"
-"              ated.  RFC  1961 says in section 4.3/4.4 it should be protected,\n"
-"              but the NEC  reference  implementation  does  not.   The  option\n"
-"              --socks5-gssapi-nec  allows the unprotected exchange of the pro-\n"
-"              tection mode negotiation.\n"
+"              WARNING:  Exercise  judicious  use of this option, especially on\n"
+"              Windows. A rogue server could send you the  name  of  a  DLL  or\n"
+"              other  file  that could possibly be loaded automatically by Win-\n"
+"              dows or some third party software.\n"
 "\n"
-"              Added in 7.19.4.\n"
-"\n"
-"       --socks5-gssapi-service <name>\n"
+"       --remote-name-all\n"
+"              This option changes the default action for all given URLs to  be\n"
+"              dealt with as if -O, --remote-name were used for each one. So if\n"
 , stdout);

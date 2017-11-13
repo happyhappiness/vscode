@@ -1,1 +1,1 @@
-ap_update_mtime(r, info->lastmod);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABORT)");

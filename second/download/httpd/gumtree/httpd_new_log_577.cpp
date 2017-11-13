@@ -1,12 +1,4 @@
-apr_file_printf(stderr_log,
-                    "(%d)%s: %s\n",
-                    err,
-                    apr_strerror(err, errbuf, sizeof(errbuf)),
-#ifndef AP_UNSAFE_ERROR_LOG_UNESCAPED
-                    ap_escape_logitem(pool,
-#endif
-                    description
-#ifndef AP_UNSAFE_ERROR_LOG_UNESCAPED
-                    )
-#endif
-                    );
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field is missing ':' "
+                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+                                  last_field);

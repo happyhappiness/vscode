@@ -1,7 +1,4 @@
-apr_file_printf(stderr_log,
-                    "[%s] [client %s] mod_ext_filter (%d)%pm: %s\n",
-                    time_str,
-                    r->useragent_ip,
-                    err,
-                    &err,
-                    description);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03487) 
+                              "h2_proxy_session(%s): got interim HEADERS, "
+                              "status=%d, will forward=%d",
+                              session->id, r->status, forward);

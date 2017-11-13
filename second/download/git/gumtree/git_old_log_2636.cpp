@@ -1,1 +1,1 @@
-printf("%.*s\n", len, title);
+error(_("Could not remove config section '%s'"), buf.buf);

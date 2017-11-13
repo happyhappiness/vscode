@@ -1,1 +1,0 @@
-Curl_failf(data, "Out of memory base64-encoding");

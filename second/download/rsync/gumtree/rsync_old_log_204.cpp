@@ -1,1 +1,1 @@
-fprintf(stderr,"out of memory in %s\n",str);
+fprintf(stderr,"fstat %s : %s\n",fname,strerror(errno));

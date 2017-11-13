@@ -1,211 +1,325 @@
-static int show_server_settings(request_rec * r)
+static int read_request_line(request_rec *r, apr_bucket_brigade *bb)
 {
-    server_rec *serv = r->server;
-    int max_daemons, forked, threaded;
+    enum {
+        rrl_none, rrl_badmethod, rrl_badwhitespace, rrl_excesswhitespace,
+        rrl_missinguri, rrl_baduri, rrl_badprotocol, rrl_trailingtext,
+        rrl_badmethod09, rrl_reject09
+    } deferred_error = rrl_none;
+    char *ll;
+    char *uri;
+    apr_size_t len;
+    int num_blank_lines = DEFAULT_LIMIT_BLANK_LINES;
+    core_server_config *conf =
+        (core_server_config *)ap_get_module_config(r->server->module_config,
+                                                   &core_module);
+    int strict = (conf->http_conformance != AP_HTTP_CONFORMANCE_UNSAFE);
 
-    ap_rputs("<h2><a name=\"server\">Server Settings</a></h2>", r);
-    ap_rprintf(r,
-               "<dl><dt><strong>Server Version:</strong> "
-               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
-               ap_get_server_description());
-    ap_rprintf(r,
-               "<dt><strong>Server Built:</strong> "
-               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
-               ap_get_server_built());
-    ap_rprintf(r,
-               "<dt><strong>Server loaded APR Version:</strong> "
-               "<tt>%s</tt></dt>\n", apr_version_string());
-    ap_rprintf(r,
-               "<dt><strong>Compiled with APR Version:</strong> "
-               "<tt>%s</tt></dt>\n", APR_VERSION_STRING);
-    ap_rprintf(r,
-               "<dt><strong>Server loaded APU Version:</strong> "
-               "<tt>%s</tt></dt>\n", apu_version_string());
-    ap_rprintf(r,
-               "<dt><strong>Compiled with APU Version:</strong> "
-               "<tt>%s</tt></dt>\n", APU_VERSION_STRING);
-    ap_rprintf(r,
-               "<dt><strong>Module Magic Number:</strong> "
-               "<tt>%d:%d</tt></dt>\n", MODULE_MAGIC_NUMBER_MAJOR,
-               MODULE_MAGIC_NUMBER_MINOR);
-    ap_rprintf(r,
-               "<dt><strong>Hostname/port:</strong> "
-               "<tt>%s:%u</tt></dt>\n",
-               ap_escape_html(r->pool, ap_get_server_name(r)),
-               ap_get_server_port(r));
-    ap_rprintf(r,
-               "<dt><strong>Timeouts:</strong> "
-               "<tt>connection: %d &nbsp;&nbsp; "
-               "keep-alive: %d</tt></dt>",
-               (int) (apr_time_sec(serv->timeout)),
-               (int) (apr_time_sec(serv->keep_alive_timeout)));
-    ap_mpm_query(AP_MPMQ_MAX_DAEMON_USED, &max_daemons);
-    ap_mpm_query(AP_MPMQ_IS_THREADED, &threaded);
-    ap_mpm_query(AP_MPMQ_IS_FORKED, &forked);
-    ap_rprintf(r, "<dt><strong>MPM Name:</strong> <tt>%s</tt></dt>\n",
-               ap_show_mpm());
-    ap_rprintf(r,
-               "<dt><strong>MPM Information:</strong> "
-               "<tt>Max Daemons: %d Threaded: %s Forked: %s</tt></dt>\n",
-               max_daemons, threaded ? "yes" : "no", forked ? "yes" : "no");
-    ap_rprintf(r,
-               "<dt><strong>Server Architecture:</strong> "
-               "<tt>%ld-bit</tt></dt>\n", 8 * (long) sizeof(void *));
-    ap_rprintf(r,
-               "<dt><strong>Server Root:</strong> "
-               "<tt>%s</tt></dt>\n", ap_server_root);
-    ap_rprintf(r,
-               "<dt><strong>Config File:</strong> "
-               "<tt>%s</tt></dt>\n", ap_conftree->filename);
-
-    ap_rputs("<dt><strong>Server Built With:</strong>\n"
-             "<tt style=\"white-space: pre;\">\n", r);
-
-    /* TODO: Not all of these defines are getting set like they do in main.c.
-     *       Missing some headers?
+    /* Read past empty lines until we get a real request line,
+     * a read error, the connection closes (EOF), or we timeout.
+     *
+     * We skip empty lines because browsers have to tack a CRLF on to the end
+     * of POSTs to support old CERN webservers.  But note that we may not
+     * have flushed any previous response completely to the client yet.
+     * We delay the flush as long as possible so that we can improve
+     * performance for clients that are pipelining requests.  If a request
+     * is pipelined then we won't block during the (implicit) read() below.
+     * If the requests aren't pipelined, then the client is still waiting
+     * for the final buffer flush from us, and we will block in the implicit
+     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
+     * have to block during a read.
      */
 
-#ifdef BIG_SECURITY_HOLE
-    ap_rputs(" -D BIG_SECURITY_HOLE\n", r);
-#endif
+    do {
+        apr_status_t rv;
 
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    ap_rputs(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n", r);
-#endif
+        /* ensure ap_rgetline allocates memory each time thru the loop
+         * if there are empty lines
+         */
+        r->the_request = NULL;
+        rv = ap_rgetline(&(r->the_request), (apr_size_t)(r->server->limit_req_line + 2),
+                         &len, r, strict ? AP_GETLINE_CRLF : 0, bb);
 
-#ifdef OS
-    ap_rputs(" -D OS=\"" OS "\"\n", r);
-#endif
+        if (rv != APR_SUCCESS) {
+            r->request_time = apr_time_now();
 
-#ifdef APACHE_MPM_DIR
-    ap_rputs(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n", r);
-#endif
+            /* ap_rgetline returns APR_ENOSPC if it fills up the
+             * buffer before finding the end-of-line.  This is only going to
+             * happen if it exceeds the configured limit for a request-line.
+             */
+            if (APR_STATUS_IS_ENOSPC(rv)) {
+                r->status = HTTP_REQUEST_URI_TOO_LARGE;
+            }
+            else if (APR_STATUS_IS_TIMEUP(rv)) {
+                r->status = HTTP_REQUEST_TIME_OUT;
+            }
+            else if (APR_STATUS_IS_EINVAL(rv)) {
+                r->status = HTTP_BAD_REQUEST;
+            }
+            r->proto_num = HTTP_VERSION(1,0);
+            r->protocol  = apr_pstrdup(r->pool, "HTTP/1.0");
+            return 0;
+        }
+    } while ((len <= 0) && (--num_blank_lines >= 0));
 
-#ifdef HAVE_SHMGET
-    ap_rputs(" -D HAVE_SHMGET\n", r);
-#endif
+    r->request_time = apr_time_now();
 
-#if APR_FILE_BASED_SHM
-    ap_rputs(" -D APR_FILE_BASED_SHM\n", r);
-#endif
+    r->method = r->the_request;
 
-#if APR_HAS_SENDFILE
-    ap_rputs(" -D APR_HAS_SENDFILE\n", r);
-#endif
+    /* If there is whitespace before a method, skip it and mark in error */
+    if (apr_isspace(*r->method)) {
+        deferred_error = rrl_badwhitespace; 
+        for ( ; apr_isspace(*r->method); ++r->method)
+            ; 
+    }
 
-#if APR_HAS_MMAP
-    ap_rputs(" -D APR_HAS_MMAP\n", r);
-#endif
+    /* Scan the method up to the next whitespace, ensure it contains only
+     * valid http-token characters, otherwise mark in error
+     */
+    if (strict) {
+        ll = (char*) ap_scan_http_token(r->method);
+    }
+    else {
+        ll = (char*) ap_scan_vchar_obstext(r->method);
+    }
 
-#ifdef NO_WRITEV
-    ap_rputs(" -D NO_WRITEV\n", r);
-#endif
+    if (((ll == r->method) || (*ll && !apr_isspace(*ll)))
+            && deferred_error == rrl_none) {
+        deferred_error = rrl_badmethod;
+        ll = strpbrk(ll, "\t\n\v\f\r ");
+    }
 
-#ifdef NO_LINGCLOSE
-    ap_rputs(" -D NO_LINGCLOSE\n", r);
-#endif
+    /* Verify method terminated with a single SP, or mark as specific error */
+    if (!ll) {
+        if (deferred_error == rrl_none)
+            deferred_error = rrl_missinguri;
+        r->protocol = uri = "";
+        len = 0;
+        goto rrl_done;
+    }
+    else if (strict && ll[0] && apr_isspace(ll[1])
+             && deferred_error == rrl_none) {
+        deferred_error = rrl_excesswhitespace; 
+    }
 
-#if APR_HAVE_IPV6
-    ap_rputs(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ", r);
-#ifdef AP_ENABLE_V4_MAPPED
-    ap_rputs("enabled)\n", r);
-#else
-    ap_rputs("disabled)\n", r);
-#endif
-#endif
+    /* Advance uri pointer over leading whitespace, NUL terminate the method
+     * If non-SP whitespace is encountered, mark as specific error
+     */
+    for (uri = ll; apr_isspace(*uri); ++uri) 
+        if (*uri != ' ' && deferred_error == rrl_none)
+            deferred_error = rrl_badwhitespace; 
+    *ll = '\0';
 
-#if APR_USE_FLOCK_SERIALIZE
-    ap_rputs(" -D APR_USE_FLOCK_SERIALIZE\n", r);
-#endif
+    if (!*uri && deferred_error == rrl_none)
+        deferred_error = rrl_missinguri;
 
-#if APR_USE_SYSVSEM_SERIALIZE
-    ap_rputs(" -D APR_USE_SYSVSEM_SERIALIZE\n", r);
-#endif
+    /* Scan the URI up to the next whitespace, ensure it contains no raw
+     * control characters, otherwise mark in error
+     */
+    ll = (char*) ap_scan_vchar_obstext(uri);
+    if (ll == uri || (*ll && !apr_isspace(*ll))) {
+        deferred_error = rrl_baduri;
+        ll = strpbrk(ll, "\t\n\v\f\r ");
+    }
 
-#if APR_USE_POSIXSEM_SERIALIZE
-    ap_rputs(" -D APR_USE_POSIXSEM_SERIALIZE\n", r);
-#endif
+    /* Verify URI terminated with a single SP, or mark as specific error */
+    if (!ll) {
+        r->protocol = "";
+        len = 0;
+        goto rrl_done;
+    }
+    else if (strict && ll[0] && apr_isspace(ll[1])
+             && deferred_error == rrl_none) {
+        deferred_error = rrl_excesswhitespace; 
+    }
 
-#if APR_USE_FCNTL_SERIALIZE
-    ap_rputs(" -D APR_USE_FCNTL_SERIALIZE\n", r);
-#endif
+    /* Advance protocol pointer over leading whitespace, NUL terminate the uri
+     * If non-SP whitespace is encountered, mark as specific error
+     */
+    for (r->protocol = ll; apr_isspace(*r->protocol); ++r->protocol) 
+        if (*r->protocol != ' ' && deferred_error == rrl_none)
+            deferred_error = rrl_badwhitespace; 
+    *ll = '\0';
 
-#if APR_USE_PROC_PTHREAD_SERIALIZE
-    ap_rputs(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n", r);
-#endif
-#if APR_PROCESS_LOCK_IS_GLOBAL
-    ap_rputs(" -D APR_PROCESS_LOCK_IS_GLOBAL\n", r);
-#endif
+    /* Scan the protocol up to the next whitespace, validation comes later */
+    if (!(ll = (char*) ap_scan_vchar_obstext(r->protocol))) {
+        len = strlen(r->protocol);
+        goto rrl_done;
+    }
+    len = ll - r->protocol;
 
-#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
-    ap_rputs(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n", r);
-#endif
+    /* Advance over trailing whitespace, if found mark in error,
+     * determine if trailing text is found, unconditionally mark in error,
+     * finally NUL terminate the protocol string
+     */
+    if (*ll && !apr_isspace(*ll)) {
+        deferred_error = rrl_badprotocol;
+    }
+    else if (strict && *ll) {
+        deferred_error = rrl_excesswhitespace;
+    }
+    else {
+        for ( ; apr_isspace(*ll); ++ll)
+            if (*ll != ' ' && deferred_error == rrl_none)
+                deferred_error = rrl_badwhitespace; 
+        if (*ll && deferred_error == rrl_none)
+            deferred_error = rrl_trailingtext;
+    }
+    *((char *)r->protocol + len) = '\0';
 
-#if APR_HAS_OTHER_CHILD
-    ap_rputs(" -D APR_HAS_OTHER_CHILD\n", r);
-#endif
+rrl_done:
+    /* For internal integrety and palloc efficiency, reconstruct the_request
+     * in one palloc, using only single SP characters, per spec.
+     */
+    r->the_request = apr_pstrcat(r->pool, r->method, *uri ? " " : NULL, uri,
+                                 *r->protocol ? " " : NULL, r->protocol, NULL);
 
-#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
-    ap_rputs(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n", r);
-#endif
+    if (len == 8
+            && r->protocol[0] == 'H' && r->protocol[1] == 'T'
+            && r->protocol[2] == 'T' && r->protocol[3] == 'P'
+            && r->protocol[4] == '/' && apr_isdigit(r->protocol[5])
+            && r->protocol[6] == '.' && apr_isdigit(r->protocol[7])
+            && r->protocol[5] != '0') {
+        r->assbackwards = 0;
+        r->proto_num = HTTP_VERSION(r->protocol[5] - '0', r->protocol[7] - '0');
+    }
+    else if (len == 8
+                 && (r->protocol[0] == 'H' || r->protocol[0] == 'h')
+                 && (r->protocol[1] == 'T' || r->protocol[1] == 't')
+                 && (r->protocol[2] == 'T' || r->protocol[2] == 't')
+                 && (r->protocol[3] == 'P' || r->protocol[3] == 'p')
+                 && r->protocol[4] == '/' && apr_isdigit(r->protocol[5])
+                 && r->protocol[6] == '.' && apr_isdigit(r->protocol[7])
+                 && r->protocol[5] != '0') {
+        r->assbackwards = 0;
+        r->proto_num = HTTP_VERSION(r->protocol[5] - '0', r->protocol[7] - '0');
+        if (strict && deferred_error == rrl_none)
+            deferred_error = rrl_badprotocol;
+        else
+            memcpy((char*)r->protocol, "HTTP", 4);
+    }
+    else if (r->protocol[0]) {
+        r->proto_num = HTTP_VERSION(0, 9);
+        /* Defer setting the r->protocol string till error msg is composed */
+        if (deferred_error == rrl_none)
+            deferred_error = rrl_badprotocol;
+    }
+    else {
+        r->assbackwards = 1;
+        r->protocol  = apr_pstrdup(r->pool, "HTTP/0.9");
+        r->proto_num = HTTP_VERSION(0, 9);
+    }
 
-#ifdef BUFFERED_LOGS
-    ap_rputs(" -D BUFFERED_LOGS\n", r);
-#ifdef PIPE_BUF
-    ap_rputs(" -D PIPE_BUF=%ld\n", (long) PIPE_BUF, r);
-#endif
-#endif
+    /* Determine the method_number and parse the uri prior to invoking error
+     * handling, such that these fields are available for subsitution
+     */
+    r->method_number = ap_method_number_of(r->method);
+    if (r->method_number == M_GET && r->method[0] == 'H')
+        r->header_only = 1;
 
-#if APR_CHARSET_EBCDIC
-    ap_rputs(" -D APR_CHARSET_EBCDIC\n", r);
-#endif
+    ap_parse_uri(r, uri);
 
-#ifdef NEED_HASHBANG_EMUL
-    ap_rputs(" -D NEED_HASHBANG_EMUL\n", r);
-#endif
+    /* With the request understood, we can consider HTTP/0.9 specific errors */
+    if (r->proto_num == HTTP_VERSION(0, 9) && deferred_error == rrl_none) {
+        if (conf->http09_enable == AP_HTTP09_DISABLE)
+            deferred_error = rrl_reject09;
+        else if (strict && (r->method_number != M_GET || r->header_only))
+            deferred_error = rrl_badmethod09;
+    }
 
-#ifdef SHARED_CORE
-    ap_rputs(" -D SHARED_CORE\n", r);
-#endif
+    /* Now that the method, uri and protocol are all processed,
+     * we can safely resume any deferred error reporting
+     */
+    if (deferred_error != rrl_none) {
+        if (deferred_error == rrl_badmethod)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Invalid method token: '%.*s'",
+                          field_name_len(r->method), r->method);
+        else if (deferred_error == rrl_badmethod09)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Invalid method token: '%.*s'"
+                          " (only GET is allowed for HTTP/0.9 requests)",
+                          field_name_len(r->method), r->method);
+        else if (deferred_error == rrl_missinguri)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Missing URI");
+        else if (deferred_error == rrl_baduri)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; URI incorrectly encoded: '%.*s'",
+                          field_name_len(r->uri), r->uri);
+        else if (deferred_error == rrl_badwhitespace)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Invalid whitespace");
+        else if (deferred_error == rrl_excesswhitespace)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Excess whitespace "
+                          "(disallowed by HttpProtocolOptions Strict");
+        else if (deferred_error == rrl_trailingtext)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Extraneous text found '%.*s' "
+                          "(perhaps whitespace was injected?)",
+                          field_name_len(ll), ll);
+        else if (deferred_error == rrl_reject09)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Rejected HTTP/0.9 request");
+        else if (deferred_error == rrl_badprotocol)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Unrecognized protocol '%.*s' "
+                          "(perhaps whitespace was injected?)",
+                          field_name_len(r->protocol), r->protocol);
+        r->status = HTTP_BAD_REQUEST;
+        goto rrl_failed;
+    }
 
-/* This list displays the compiled in default paths: */
-#ifdef HTTPD_ROOT
-    ap_rputs(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n", r);
-#endif
+    if (conf->http_methods == AP_HTTP_METHODS_REGISTERED
+            && r->method_number == M_INVALID) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "HTTP Request Line; Unrecognized HTTP method: '%.*s' "
+                      "(disallowed by RegisteredMethods)",
+                      field_name_len(r->method), r->method);
+        r->status = HTTP_NOT_IMPLEMENTED;
+        /* This can't happen in an HTTP/0.9 request, we verified GET above */
+        return 0;
+    }
 
-#ifdef SUEXEC_BIN
-    ap_rputs(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n", r);
-#endif
+    if (r->status != HTTP_OK) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "HTTP Request Line; Unable to parse URI: '%.*s'",
+                      field_name_len(r->uri), r->uri);
+        goto rrl_failed;
+    }
 
-#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
-    ap_rputs(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n", r);
-#endif
+    if (strict) {
+        if (r->parsed_uri.fragment) {
+            /* RFC3986 3.5: no fragment */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; URI must not contain a fragment");
+            r->status = HTTP_BAD_REQUEST;
+            goto rrl_failed;
+        }
+        if (r->parsed_uri.user || r->parsed_uri.password) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; URI must not contain a "
+                          "username/password");
+            r->status = HTTP_BAD_REQUEST;
+            goto rrl_failed;
+        }
+    }
 
-#ifdef DEFAULT_PIDLOG
-    ap_rputs(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n", r);
-#endif
+    return 1;
 
-#ifdef DEFAULT_SCOREBOARD
-    ap_rputs(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n", r);
-#endif
-
-#ifdef DEFAULT_LOCKFILE
-    ap_rputs(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n", r);
-#endif
-
-#ifdef DEFAULT_ERRORLOG
-    ap_rputs(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n", r);
-#endif
-
-
-#ifdef AP_TYPES_CONFIG_FILE
-    ap_rputs(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n", r);
-#endif
-
-#ifdef SERVER_CONFIG_FILE
-    ap_rputs(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n", r);
-#endif
-    ap_rputs("</tt></dt>\n", r);
-    ap_rputs("</dl><hr />", r);
+rrl_failed:
+    if (r->proto_num == HTTP_VERSION(0, 9)) {
+        /* Send all parsing and protocol error response with 1.x behavior,
+         * and reserve 505 errors for actual HTTP protocols presented.
+         * As called out in RFC7230 3.5, any errors parsing the protocol
+         * from the request line are nearly always misencoded HTTP/1.x
+         * requests. Only a valid 0.9 request with no parsing errors
+         * at all may be treated as a simple request, if allowed.
+         */
+        r->assbackwards = 0;
+        r->connection->keepalive = AP_CONN_CLOSE;
+        r->proto_num = HTTP_VERSION(1, 0);
+        r->protocol  = apr_pstrdup(r->pool, "HTTP/1.0");
+    }
     return 0;
 }

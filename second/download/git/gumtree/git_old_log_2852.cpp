@@ -1,1 +1,0 @@
-warning(_("failed to exec '%s': %s"), cmd, strerror(errno));

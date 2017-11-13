@@ -1,12 +1,9 @@
 fputs(
-"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              given  file.   Alternately,  the file name \".\" (a single period)\n"
+"              may be specified instead of \"-\" to  use  stdin  in  non-blocking\n"
+"              mode  to  allow  reading  server  output  while  stdin  is being\n"
+"              uploaded.\n"
 "\n"
-"              This option overrides previous uses of -v, --verbose or --trace-\n"
-"              ascii.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --trace-ascii <file>\n"
+"              You can specify one -T for each URL on the command line. Each -T\n"
+"              + URL pair specifies what to upload and to where. curl also sup-\n"
 , stdout);

@@ -1,2 +1,1 @@
-error(_("Could not read object %s"),
-					    oid_to_hex(&t->tagged->oid));
+fprintf_ln(stderr, _(" OK"));

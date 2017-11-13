@@ -1,59 +1,46 @@
-int cmd_merge_recursive(int argc, const char **argv, const char *prefix)
+static void show_stats(struct apply_state *state, struct patch *patch)
 {
-	const struct object_id *bases[21];
-	unsigned bases_count = 0;
-	int i, failed;
-	struct object_id h1, h2;
-	struct merge_options o;
-	struct commit *result;
+	struct strbuf qname = STRBUF_INIT;
+	char *cp = patch->new_name ? patch->new_name : patch->old_name;
+	int max, add, del;
 
-	init_merge_options(&o);
-	if (argv[0] && ends_with(argv[0], "-subtree"))
-		o.subtree_shift = "";
+	quote_c_style(cp, &qname, NULL, 0);
 
-	if (argc < 4)
-		usagef(builtin_merge_recursive_usage, argv[0]);
+	/*
+	 * "scale" the filename
+	 */
+	max = state->max_len;
+	if (max > 50)
+		max = 50;
 
-	for (i = 1; i < argc; ++i) {
-		const char *arg = argv[i];
-
-		if (starts_with(arg, "--")) {
-			if (!arg[2])
-				break;
-			if (parse_merge_opt(&o, arg + 2))
-				die("Unknown option %s", arg);
-			continue;
-		}
-		if (bases_count < ARRAY_SIZE(bases)-1) {
-			struct object_id *oid = xmalloc(sizeof(struct object_id));
-			if (get_oid(argv[i], oid))
-				die("Could not parse object '%s'", argv[i]);
-			bases[bases_count++] = oid;
-		}
-		else
-			warning("Cannot handle more than %d bases. "
-				"Ignoring %s.",
-				(int)ARRAY_SIZE(bases)-1, argv[i]);
+	if (qname.len > max) {
+		cp = strchr(qname.buf + qname.len + 3 - max, '/');
+		if (!cp)
+			cp = qname.buf + qname.len + 3 - max;
+		strbuf_splice(&qname, 0, cp - qname.buf, "...", 3);
 	}
-	if (argc - i != 3) /* "--" "<head>" "<remote>" */
-		die("Not handling anything other than two heads merge.");
 
-	o.branch1 = argv[++i];
-	o.branch2 = argv[++i];
+	if (patch->is_binary) {
+		printf(" %-*s |  Bin\n", max, qname.buf);
+		strbuf_release(&qname);
+		return;
+	}
 
-	if (get_oid(o.branch1, &h1))
-		die("Could not resolve ref '%s'", o.branch1);
-	if (get_oid(o.branch2, &h2))
-		die("Could not resolve ref '%s'", o.branch2);
+	printf(" %-*s |", max, qname.buf);
+	strbuf_release(&qname);
 
-	o.branch1 = better_branch_name(o.branch1);
-	o.branch2 = better_branch_name(o.branch2);
+	/*
+	 * scale the add/delete
+	 */
+	max = max + state->max_change > 70 ? 70 - max : state->max_change;
+	add = patch->lines_added;
+	del = patch->lines_deleted;
 
-	if (o.verbosity >= 3)
-		printf("Merging %s with %s\n", o.branch1, o.branch2);
-
-	failed = merge_recursive_generic(&o, &h1, &h2, bases_count, bases, &result);
-	if (failed < 0)
-		return 128; /* die() error code */
-	return failed;
+	if (state->max_change > 0) {
+		int total = ((add + del) * max + state->max_change / 2) / state->max_change;
+		add = (add * max + state->max_change / 2) / state->max_change;
+		del = total - add;
+	}
+	printf("%5d %.*s%.*s\n", patch->lines_added + patch->lines_deleted,
+		add, pluses, del, minuses);
 }

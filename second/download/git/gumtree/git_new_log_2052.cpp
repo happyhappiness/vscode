@@ -1,2 +1,2 @@
-error(_("Commit %s does not have parent %d"),
-				oid_to_hex(&commit->object.oid), opts->mainline);
+die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

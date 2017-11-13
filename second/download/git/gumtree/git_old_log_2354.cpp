@@ -1,2 +1,1 @@
-error("Failed to flush %s: %s",
-				      path, strerror(errno));
+fprintf(stderr, "Checking directory %s\n", path);

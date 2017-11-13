@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01959)
-                     "SSLStapling: cannot initialise stapling mutex");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
+                                  "Got error '%s'", readbuf);

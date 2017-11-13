@@ -1,0 +1,1 @@
+die(_("--3way outside a repository"));

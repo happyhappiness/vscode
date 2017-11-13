@@ -1,19 +1,17 @@
-static apr_status_t ap_headers_output_filter(ap_filter_t *f,
-                                             apr_bucket_brigade *in)
-{
-    headers_conf *dirconf = ap_get_module_config(f->r->per_dir_config,
-                                                 &headers_module);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server, APLOGNO(01502)
-                 "headers: ap_headers_output_filter()");
-
-    /* do the fixup */
-    do_headers_fixup(f->r, f->r->err_headers_out, dirconf->fixup_err, 0);
-    do_headers_fixup(f->r, f->r->headers_out, dirconf->fixup_out, 0);
-
-    /* remove ourselves from the filter chain */
-    ap_remove_output_filter(f);
-
-    /* send the data up the stack */
-    return ap_pass_brigade(f->next,in);
+static apr_status_t dispatch_master(h2_session *session) {
+    apr_status_t status;
+    
+    status = h2_mplx_dispatch_master_events(session->mplx, 
+                                            on_stream_resume, session);
+    if (status == APR_EAGAIN) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, session->c,
+                      H2_SSSN_MSG(session, "no master event available"));
+    }
+    else if (status != APR_SUCCESS) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, session->c,
+                      H2_SSSN_MSG(session, "dispatch error"));
+        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
+                       H2_ERR_INTERNAL_ERROR, "dispatch error");
+    }
+    return status;
 }

@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: chdir failed\n");
+path_failure(f_out, strstr(module_dir, "/./"), False);

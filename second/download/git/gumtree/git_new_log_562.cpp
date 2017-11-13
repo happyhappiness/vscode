@@ -1,1 +1,1 @@
-fprintf(stderr, "BUG: %s\n", msg);
+die(_("Server does not support --shallow-exclude"));

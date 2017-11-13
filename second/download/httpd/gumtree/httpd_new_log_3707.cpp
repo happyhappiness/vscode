@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00876)
-                              "send failed to %pI (%s)",
-                              conn->worker->cp->addr,
-                              conn->worker->s->hostname);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01375) "%s", fname);

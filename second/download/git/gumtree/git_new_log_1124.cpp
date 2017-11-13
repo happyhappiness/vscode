@@ -1,1 +1,1 @@
-die("BUG: prepare called on a closed reference transaction");
+error(_("could not stat '%s'"), todo_file);

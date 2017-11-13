@@ -1,2 +1,2 @@
-error(_("corrupt binary patch at line %d: %.*s"),
-	      state->linenr-1, llen-1, buffer);
+fprintf(stderr,	"  fetch %s for %s\n",
+				oid_to_hex(&ref->old_oid), refname);

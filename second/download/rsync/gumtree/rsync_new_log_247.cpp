@@ -1,2 +1,1 @@
-fprintf(FERROR,"mkdir %s : %s (2)\n",
-			    fname,strerror(errno));
+fprintf(FERROR,"redoing %s(%d)\n",fname,i);

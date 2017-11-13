@@ -1,68 +1,51 @@
-const char *fmt_ident(const char *name, const char *email,
-		      const char *date_str, int flag)
+const char *read_gitfile(const char *path)
 {
-	static struct strbuf ident = STRBUF_INIT;
-	int strict = (flag & IDENT_STRICT);
-	int want_date = !(flag & IDENT_NO_DATE);
-	int want_name = !(flag & IDENT_NO_NAME);
+	char *buf;
+	char *dir;
+	const char *slash;
+	struct stat st;
+	int fd;
+	ssize_t len;
 
-	if (want_name) {
-		int using_default = 0;
-		if (!name) {
-			if (strict && ident_use_config_only
-			    && !(ident_config_given & IDENT_NAME_GIVEN)) {
-				fputs(env_hint, stderr);
-				die("no name was given and auto-detection is disabled");
-			}
-			name = ident_default_name();
-			using_default = 1;
-			if (strict && default_name_is_bogus) {
-				fputs(env_hint, stderr);
-				die("unable to auto-detect name (got '%s')", name);
-			}
-		}
-		if (!*name) {
-			struct passwd *pw;
-			if (strict) {
-				if (using_default)
-					fputs(env_hint, stderr);
-				die("empty ident name (for <%s>) not allowed", email);
-			}
-			pw = xgetpwuid_self(NULL);
-			name = pw->pw_name;
-		}
+	if (stat(path, &st))
+		return NULL;
+	if (!S_ISREG(st.st_mode))
+		return NULL;
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		die_errno("Error opening '%s'", path);
+	buf = xmalloc(st.st_size + 1);
+	len = read_in_full(fd, buf, st.st_size);
+	close(fd);
+	if (len != st.st_size)
+		die("Error reading %s", path);
+	buf[len] = '\0';
+	if (!starts_with(buf, "gitdir: "))
+		die("Invalid gitfile format: %s", path);
+	while (buf[len - 1] == '\n' || buf[len - 1] == '\r')
+		len--;
+	if (len < 9)
+		die("No path in gitfile: %s", path);
+	buf[len] = '\0';
+	dir = buf + 8;
+
+	if (!is_absolute_path(dir) && (slash = strrchr(path, '/'))) {
+		size_t pathlen = slash+1 - path;
+		size_t dirlen = pathlen + len - 8;
+		dir = xmalloc(dirlen + 1);
+		strncpy(dir, path, pathlen);
+		strncpy(dir + pathlen, buf + 8, len - 8);
+		dir[dirlen] = '\0';
+		free(buf);
+		buf = dir;
 	}
 
-	if (!email) {
-		if (strict && ident_use_config_only
-		    && !(ident_config_given & IDENT_MAIL_GIVEN)) {
-			fputs(env_hint, stderr);
-			die("no email was given and auto-detection is disabled");
-		}
-		email = ident_default_email();
-		if (strict && default_email_is_bogus) {
-			fputs(env_hint, stderr);
-			die("unable to auto-detect email address (got '%s')", email);
-		}
-	}
+	if (!is_git_directory(dir))
+		die("Not a git repository: %s", dir);
 
-	strbuf_reset(&ident);
-	if (want_name) {
-		strbuf_addstr_without_crud(&ident, name);
-		strbuf_addstr(&ident, " <");
-	}
-	strbuf_addstr_without_crud(&ident, email);
-	if (want_name)
-			strbuf_addch(&ident, '>');
-	if (want_date) {
-		strbuf_addch(&ident, ' ');
-		if (date_str && date_str[0]) {
-			if (parse_date(date_str, &ident) < 0)
-				die("invalid date format: %s", date_str);
-		}
-		else
-			strbuf_addstr(&ident, ident_default_date());
-	}
+	update_linked_gitdir(path, dir);
+	path = real_path(dir);
 
-	return ident.buf;
+	free(buf);
+	return path;
 }

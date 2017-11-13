@@ -1,21 +1,25 @@
-void *xcalloc(size_t nmemb, size_t size)
+static void print_value(struct atom_value *v, int quote_style)
 {
-	void *ret;
-
-	if (unsigned_mult_overflows(nmemb, size))
-		die("data too large to fit into virtual memory space");
-
-	memory_limit_check(size * nmemb, 0);
-	ret = calloc(nmemb, size);
-	if (!ret && (!nmemb || !size))
-		ret = calloc(1, 1);
-	if (!ret) {
-		try_to_free_routine(nmemb * size);
-		ret = calloc(nmemb, size);
-		if (!ret && (!nmemb || !size))
-			ret = calloc(1, 1);
-		if (!ret)
-			die("Out of memory, calloc failed");
+	struct strbuf sb = STRBUF_INIT;
+	switch (quote_style) {
+	case QUOTE_NONE:
+		fputs(v->s, stdout);
+		break;
+	case QUOTE_SHELL:
+		sq_quote_buf(&sb, v->s);
+		break;
+	case QUOTE_PERL:
+		perl_quote_buf(&sb, v->s);
+		break;
+	case QUOTE_PYTHON:
+		python_quote_buf(&sb, v->s);
+		break;
+	case QUOTE_TCL:
+		tcl_quote_buf(&sb, v->s);
+		break;
 	}
-	return ret;
+	if (quote_style != QUOTE_NONE) {
+		fputs(sb.buf, stdout);
+		strbuf_release(&sb);
+	}
 }

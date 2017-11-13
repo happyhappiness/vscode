@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "Cannot get media parameter.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
+                                 r->server, "Cache locked for url, not caching "
+                                 "response: %s", r->uri);

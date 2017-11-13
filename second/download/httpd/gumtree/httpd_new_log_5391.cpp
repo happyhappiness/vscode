@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(02979)
-                            "Watchdog: Created child worker thread (%s).", w->name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00315)
+                         "MaxRequestWorkers of %d is less than ThreadsPerChild "
+                         "of %d, increasing to match",
+                         max_workers, threads_per_child);

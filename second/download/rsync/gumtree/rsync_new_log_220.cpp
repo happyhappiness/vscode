@@ -1,1 +1,1 @@
-fprintf(FERROR,"send_files phase=%d\n",phase);
+fprintf(FERROR,"sender finished %s\n",fname);

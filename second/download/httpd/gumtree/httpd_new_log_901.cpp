@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                 "Child %d: Starting thread to listen on port %d.", my_pid, lr->bind_addr->port);
+printf("%sdebug: state %d, error recovery shifting\
+ to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yytable[ssl_expr_yyn]);

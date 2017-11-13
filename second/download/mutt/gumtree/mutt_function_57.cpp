@@ -1,31 +1,60 @@
-static int dotlock_file (const char *path, int fd, int retry)
+int mutt_save_confirm (const char *s, struct stat *st)
 {
-  int r;
-  int flags = DL_FL_USEPRIV | DL_FL_RETRY;
+  char tmp[_POSIX_PATH_MAX];
+  int ret = 1;
+  int magic = 0;
 
-  if (retry) retry = 1;
+  magic = mx_get_magic (s);
 
-retry_lock:
-  if ((r = invoke_dotlock(path, fd, flags, retry)) == DL_EX_EXIST)
+#ifdef USE_POP
+  if (magic == M_POP)
   {
-    if (!option (OPTNOCURSES))
+    mutt_error _("Can't save message to POP mailbox.");
+    return 0;
+  }
+#endif
+
+  if (stat (s, st) != -1)
+  {
+    if (magic == -1)
     {
-      char msg[LONG_STRING];
-      
-      snprintf(msg, sizeof(msg), _("Lock count exceeded, remove lock for %s?"),
-	       path);
-      if(retry && mutt_yesorno(msg, 1) == 1)
-      {
-	flags |= DL_FL_FORCE;
-	retry--;
-	mutt_clear_error ();
-	goto retry_lock;
-      }
-    } 
-    else
+      mutt_error (_("%s is not a mailbox!"), s);
+      return 0;
+    }
+
+    if (option (OPTCONFIRMAPPEND))
     {
-      mutt_error ( _("Can't dotlock %s.\n"), path);
+      snprintf (tmp, sizeof (tmp), _("Append messages to %s?"), s);
+      if (mutt_yesorno (tmp, 1) < 1)
+	ret = 0;
     }
   }
-  return (r == DL_EX_OK ? 0 : -1);
+  else
+  {
+#ifdef USE_IMAP
+    if (magic != M_IMAP)
+#endif /* execute the block unconditionally if we don't use imap */
+    {
+      st->st_mtime = 0;
+      st->st_atime = 0;
+
+      if (errno == ENOENT)
+      {
+	if (option (OPTCONFIRMCREATE))
+	{
+	  snprintf (tmp, sizeof (tmp), _("Create %s?"), s);
+	  if (mutt_yesorno (tmp, 1) < 1)
+	    ret = 0;
+	}
+      }
+      else
+      {
+	mutt_perror (s);
+	return 0;
+      }
+    }
+  }
+
+  CLEARLINE (LINES-1);
+  return (ret);
 }

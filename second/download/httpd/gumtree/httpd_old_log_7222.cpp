@@ -1,1 +1,1 @@
-fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");
+fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");

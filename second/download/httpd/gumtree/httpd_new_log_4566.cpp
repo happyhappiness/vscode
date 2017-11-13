@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00511)
-                         "WARNING: MaxRequestWorkers of %d is less than "
-                         "ThreadsPerChild of", max_workers);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00953)
+                         "apr_socket_opt_set(SO_RCVBUF): Failed to set "
+                         "ProxyReceiveBufferSize, using default");

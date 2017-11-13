@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+die("Whoops! Cannot find object '%s'", oid_to_hex(&obj->oid));

@@ -1,1 +1,1 @@
-fprintf(porcelain ? stdout : stderr, "To %s\n", dest);
+die(_("--sort and -n are incompatible"));

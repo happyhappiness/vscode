@@ -1,2 +1,2 @@
-rprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
-	      getpid(),4,ret==-1?strerror(errno):"EOF");
+fprintf(FINFO,"%s => %s\n",
+			f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));

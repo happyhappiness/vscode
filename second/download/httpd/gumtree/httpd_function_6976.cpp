@@ -1,65 +1,79 @@
-static void * APR_THREAD_FUNC hc_check(apr_thread_t *thread, void *b)
+static apr_status_t hc_check_http(baton_t *baton)
 {
-    baton_t *baton = (baton_t *)b;
+    int status;
+    proxy_conn_rec *backend = NULL;
     sctx_t *ctx = baton->ctx;
-    apr_time_t now = baton->now;
+    proxy_worker *hc = baton->hc;
     proxy_worker *worker = baton->worker;
     apr_pool_t *ptemp = baton->ptemp;
-    server_rec *s = ctx->s;
-    apr_status_t rv;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03256)
-                 "%sHealth checking %s", (thread ? "Threaded " : ""), worker->s->name);
+    request_rec *r;
+    wctx_t *wctx;
+    hc_condition_t *cond;
+    apr_bucket_brigade *bb;
 
-    switch (worker->s->method) {
-        case TCP:
-            rv = hc_check_tcp(ctx, ptemp, worker);
-            break;
-
-        case OPTIONS:
-        case HEAD:
-        case GET:
-             rv = hc_check_http(ctx, ptemp, worker);
-             break;
-
-        default:
-            rv = APR_ENOTIMPL;
-            break;
+    wctx = (wctx_t *)hc->context;
+    if (!wctx->req || !wctx->method) {
+        return APR_ENOTIMPL;
     }
-    if (rv == APR_ENOTIMPL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(03257)
-                         "Somehow tried to use unimplemented hcheck method: %d",
-                         (int)worker->s->method);
-        apr_pool_destroy(ptemp);
-        return NULL;
-    }
-    /* what state are we in ? */
-    if (PROXY_WORKER_IS_HCFAILED(worker)) {
-        if (rv == APR_SUCCESS) {
-            worker->s->pcount += 1;
-            if (worker->s->pcount >= worker->s->passes) {
-                ap_proxy_set_wstatus(PROXY_WORKER_HC_FAIL_FLAG, 0, worker);
-                ap_proxy_set_wstatus(PROXY_WORKER_IN_ERROR_FLAG, 0, worker);
-                worker->s->pcount = 0;
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03302)
-                             "%sHealth check ENABLING %s", (thread ? "Threaded " : ""),
-                             worker->s->name);
 
-            }
-        }
-    } else {
-        if (rv != APR_SUCCESS) {
-            worker->s->error_time = now;
-            worker->s->fcount += 1;
-            if (worker->s->fcount >= worker->s->fails) {
-                ap_proxy_set_wstatus(PROXY_WORKER_HC_FAIL_FLAG, 1, worker);
-                worker->s->fcount = 0;
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03303)
-                             "%sHealth check DISABLING %s", (thread ? "Threaded " : ""),
-                             worker->s->name);
-            }
+    if ((status = hc_get_backend("HCOH", &backend, hc, ctx, ptemp)) != OK) {
+        return backend_cleanup("HCOH", backend, ctx->s, status);
+    }
+    if ((status = ap_proxy_connect_backend("HCOH", backend, hc, ctx->s)) != OK) {
+        return backend_cleanup("HCOH", backend, ctx->s, status);
+    }
+
+    if (!backend->connection) {
+        if ((status = ap_proxy_connection_create("HCOH", backend, NULL, ctx->s)) != OK) {
+            return backend_cleanup("HCOH", backend, ctx->s, status);
         }
     }
-    worker->s->updated = now;
-    apr_pool_destroy(ptemp);
-    return NULL;
+
+    r = create_request_rec(ptemp, backend->connection, wctx->method);
+    bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+
+    if ((status = hc_send(r, wctx->req, bb)) != OK) {
+        return backend_cleanup("HCOH", backend, ctx->s, status);
+    }
+    if ((status = hc_read_headers(r)) != OK) {
+        return backend_cleanup("HCOH", backend, ctx->s, status);
+    }
+    if (!r->header_only) {
+        apr_table_t *saved_headers_in = r->headers_in;
+        r->headers_in = apr_table_copy(r->pool, r->headers_out);
+        ap_proxy_pre_http_request(backend->connection, r);
+        status = hc_read_body(r, bb);
+        r->headers_in = saved_headers_in;
+        if (status != OK) {
+            return backend_cleanup("HCOH", backend, ctx->s, status);
+        }
+        r->trailers_out = apr_table_copy(r->pool, r->trailers_in);
+    }
+
+    if (*worker->s->hcexpr &&
+            (cond = (hc_condition_t *)apr_table_get(ctx->conditions, worker->s->hcexpr)) != NULL) {
+        const char *err;
+        int ok = ap_expr_exec(r, cond->pexpr, &err);
+        if (ok > 0) {
+            ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, ctx->s,
+                         "Condition %s for %s (%s): passed", worker->s->hcexpr,
+                         hc->s->name, worker->s->name);
+        } else if (ok < 0 || err) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, ctx->s, APLOGNO(03301)
+                         "Error on checking condition %s for %s (%s): %s", worker->s->hcexpr,
+                         hc->s->name, worker->s->name, err);
+            status = !OK;
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, ctx->s,
+                         "Condition %s for %s (%s) : failed", worker->s->hcexpr,
+                         hc->s->name, worker->s->name);
+            status = !OK;
+        }
+    } else if (r->status < 200 || r->status > 399) {
+        ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, ctx->s,
+                     "Response status %i for %s (%s): failed", r->status,
+                     hc->s->name, worker->s->name);
+        status = !OK;
+    }
+    return backend_cleanup("HCOH", backend, ctx->s, status);
 }

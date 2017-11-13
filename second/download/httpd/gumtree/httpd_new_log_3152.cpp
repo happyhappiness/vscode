@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00617)
-                      "The DAV:merge element must contain a DAV:source "
-                      "element.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01813)
+        "internal redirect requested but one or all of method, mimetype or "
+                      "body are NULL: %s", r->uri);

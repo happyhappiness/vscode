@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01154) "send_socket failed:");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01606)
+                                         "Cannot get media parameter.");

@@ -1,3 +1,1 @@
-warning("Cannot handle more than %d bases. "
-				"Ignoring %s.",
-				(int)ARRAY_SIZE(bases)-1, argv[i]);
+error(_("unrecognized binary patch at line %d"), state->linenr-1);

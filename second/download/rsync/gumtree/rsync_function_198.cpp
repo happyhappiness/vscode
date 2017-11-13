@@ -1,36 +1,17 @@
-char *map_ptr(char *buf,off_t offset,int len)
+static void delete_one(struct file_struct *f)
 {
-  if (buf)
-    return buf+offset;
-
-  if (len == 0) 
-    return NULL;
-
-  len = MIN(len,map_size-offset);
-
-  if (offset >= p_offset && 
-      offset+len <= p_offset+p_len) {
-    return (p + (offset - p_offset));
+  if (!S_ISDIR(f->mode)) {
+    if (!dry_run && unlink(f->name) != 0) {
+      fprintf(stderr,"unlink %s : %s\n",f->name,strerror(errno));
+    } else if (verbose) {
+      fprintf(stderr,"deleting %s\n",f->name);
+    }
+  } else {    
+    if (!dry_run && rmdir(f->name) != 0) {
+      if (errno != ENOTEMPTY)
+	fprintf(stderr,"rmdir %s : %s\n",f->name,strerror(errno));
+    } else if (verbose) {
+      fprintf(stderr,"deleting directory %s\n",f->name);      
+    }
   }
-
-  len = MAX(len,CHUNK_SIZE);
-  len = MIN(len,map_size - offset);  
-
-  if (len > p_size) {
-    if (p) free(p);
-    p = (char *)malloc(len);
-    if (!p) out_of_memory("map_ptr");
-    p_size = len;
-  }
-
-  if (lseek(map_fd,offset,SEEK_SET) != offset ||
-      read(map_fd,p,len) != len) {
-    fprintf(stderr,"EOF in map_ptr!\n");
-    exit_cleanup(1);
-  }
-
-  p_offset = offset;
-  p_len = len;
-
-  return p; 
 }

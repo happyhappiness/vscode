@@ -1,1 +1,1 @@
-puts("  <none>");
+puts("");

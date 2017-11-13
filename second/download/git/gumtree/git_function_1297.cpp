@@ -1,242 +1,142 @@
-static struct imap_store *imap_open_store(struct imap_server_conf *srvc, char *folder)
+static int try_delta(struct unpacked *trg, struct unpacked *src,
+		     unsigned max_depth, unsigned long *mem_usage)
 {
-	struct credential cred = CREDENTIAL_INIT;
-	struct imap_store *ctx;
-	struct imap *imap;
-	char *arg, *rsp;
-	int s = -1, preauth;
+	struct object_entry *trg_entry = trg->entry;
+	struct object_entry *src_entry = src->entry;
+	unsigned long trg_size, src_size, delta_size, sizediff, max_size, sz;
+	unsigned ref_depth;
+	enum object_type type;
+	void *delta_buf;
 
-	ctx = xcalloc(1, sizeof(*ctx));
+	/* Don't bother doing diffs between different types */
+	if (trg_entry->type != src_entry->type)
+		return -1;
 
-	ctx->imap = imap = xcalloc(1, sizeof(*imap));
-	imap->buf.sock.fd[0] = imap->buf.sock.fd[1] = -1;
-	imap->in_progress_append = &imap->in_progress;
+	/*
+	 * We do not bother to try a delta that we discarded on an
+	 * earlier try, but only when reusing delta data.  Note that
+	 * src_entry that is marked as the preferred_base should always
+	 * be considered, as even if we produce a suboptimal delta against
+	 * it, we will still save the transfer cost, as we already know
+	 * the other side has it and we won't send src_entry at all.
+	 */
+	if (reuse_delta && trg_entry->in_pack &&
+	    trg_entry->in_pack == src_entry->in_pack &&
+	    !src_entry->preferred_base &&
+	    trg_entry->in_pack_type != OBJ_REF_DELTA &&
+	    trg_entry->in_pack_type != OBJ_OFS_DELTA)
+		return 0;
 
-	/* open connection to IMAP server */
+	/* Let's not bust the allowed depth. */
+	if (src->depth >= max_depth)
+		return 0;
 
-	if (srvc->tunnel) {
-		struct child_process tunnel = CHILD_PROCESS_INIT;
-
-		imap_info("Starting tunnel '%s'... ", srvc->tunnel);
-
-		argv_array_push(&tunnel.args, srvc->tunnel);
-		tunnel.use_shell = 1;
-		tunnel.in = -1;
-		tunnel.out = -1;
-		if (start_command(&tunnel))
-			die("cannot start proxy %s", srvc->tunnel);
-
-		imap->buf.sock.fd[0] = tunnel.out;
-		imap->buf.sock.fd[1] = tunnel.in;
-
-		imap_info("ok\n");
+	/* Now some size filtering heuristics. */
+	trg_size = trg_entry->size;
+	if (!trg_entry->delta) {
+		max_size = trg_size/2 - 20;
+		ref_depth = 1;
 	} else {
-#ifndef NO_IPV6
-		struct addrinfo hints, *ai0, *ai;
-		int gai;
-		char portstr[6];
+		max_size = trg_entry->delta_size;
+		ref_depth = trg->depth;
+	}
+	max_size = (uint64_t)max_size * (max_depth - src->depth) /
+						(max_depth - ref_depth + 1);
+	if (max_size == 0)
+		return 0;
+	src_size = src_entry->size;
+	sizediff = src_size < trg_size ? trg_size - src_size : 0;
+	if (sizediff >= max_size)
+		return 0;
+	if (trg_size < src_size / 32)
+		return 0;
 
-		snprintf(portstr, sizeof(portstr), "%d", srvc->port);
-
-		memset(&hints, 0, sizeof(hints));
-		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_protocol = IPPROTO_TCP;
-
-		imap_info("Resolving %s... ", srvc->host);
-		gai = getaddrinfo(srvc->host, portstr, &hints, &ai);
-		if (gai) {
-			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(gai));
-			goto bail;
-		}
-		imap_info("ok\n");
-
-		for (ai0 = ai; ai; ai = ai->ai_next) {
-			char addr[NI_MAXHOST];
-
-			s = socket(ai->ai_family, ai->ai_socktype,
-				   ai->ai_protocol);
-			if (s < 0)
-				continue;
-
-			getnameinfo(ai->ai_addr, ai->ai_addrlen, addr,
-				    sizeof(addr), NULL, 0, NI_NUMERICHOST);
-			imap_info("Connecting to [%s]:%s... ", addr, portstr);
-
-			if (connect(s, ai->ai_addr, ai->ai_addrlen) < 0) {
-				close(s);
-				s = -1;
-				perror("connect");
-				continue;
+	/* Load data if not already done */
+	if (!trg->data) {
+		read_lock();
+		trg->data = read_sha1_file(trg_entry->idx.sha1, &type, &sz);
+		read_unlock();
+		if (!trg->data)
+			die("object %s cannot be read",
+			    sha1_to_hex(trg_entry->idx.sha1));
+		if (sz != trg_size)
+			die("object %s inconsistent object length (%lu vs %lu)",
+			    sha1_to_hex(trg_entry->idx.sha1), sz, trg_size);
+		*mem_usage += sz;
+	}
+	if (!src->data) {
+		read_lock();
+		src->data = read_sha1_file(src_entry->idx.sha1, &type, &sz);
+		read_unlock();
+		if (!src->data) {
+			if (src_entry->preferred_base) {
+				static int warned = 0;
+				if (!warned++)
+					warning("object %s cannot be read",
+						sha1_to_hex(src_entry->idx.sha1));
+				/*
+				 * Those objects are not included in the
+				 * resulting pack.  Be resilient and ignore
+				 * them if they can't be read, in case the
+				 * pack could be created nevertheless.
+				 */
+				return 0;
 			}
-
-			break;
+			die("object %s cannot be read",
+			    sha1_to_hex(src_entry->idx.sha1));
 		}
-		freeaddrinfo(ai0);
-#else /* NO_IPV6 */
-		struct hostent *he;
-		struct sockaddr_in addr;
-
-		memset(&addr, 0, sizeof(addr));
-		addr.sin_port = htons(srvc->port);
-		addr.sin_family = AF_INET;
-
-		imap_info("Resolving %s... ", srvc->host);
-		he = gethostbyname(srvc->host);
-		if (!he) {
-			perror("gethostbyname");
-			goto bail;
+		if (sz != src_size)
+			die("object %s inconsistent object length (%lu vs %lu)",
+			    sha1_to_hex(src_entry->idx.sha1), sz, src_size);
+		*mem_usage += sz;
+	}
+	if (!src->index) {
+		src->index = create_delta_index(src->data, src_size);
+		if (!src->index) {
+			static int warned = 0;
+			if (!warned++)
+				warning("suboptimal pack - out of memory");
+			return 0;
 		}
-		imap_info("ok\n");
-
-		addr.sin_addr.s_addr = *((int *) he->h_addr_list[0]);
-
-		s = socket(PF_INET, SOCK_STREAM, 0);
-
-		imap_info("Connecting to %s:%hu... ", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-		if (connect(s, (struct sockaddr *)&addr, sizeof(addr))) {
-			close(s);
-			s = -1;
-			perror("connect");
-		}
-#endif
-		if (s < 0) {
-			fputs("Error: unable to connect to server.\n", stderr);
-			goto bail;
-		}
-
-		imap->buf.sock.fd[0] = s;
-		imap->buf.sock.fd[1] = dup(s);
-
-		if (srvc->use_ssl &&
-		    ssl_socket_connect(&imap->buf.sock, 0, srvc->ssl_verify)) {
-			close(s);
-			goto bail;
-		}
-		imap_info("ok\n");
+		*mem_usage += sizeof_delta_index(src->index);
 	}
 
-	/* read the greeting string */
-	if (buffer_gets(&imap->buf, &rsp)) {
-		fprintf(stderr, "IMAP error: no greeting response\n");
-		goto bail;
-	}
-	arg = next_arg(&rsp);
-	if (!arg || *arg != '*' || (arg = next_arg(&rsp)) == NULL) {
-		fprintf(stderr, "IMAP error: invalid greeting response\n");
-		goto bail;
-	}
-	preauth = 0;
-	if (!strcmp("PREAUTH", arg))
-		preauth = 1;
-	else if (strcmp("OK", arg) != 0) {
-		fprintf(stderr, "IMAP error: unknown greeting response\n");
-		goto bail;
-	}
-	parse_response_code(ctx, NULL, rsp);
-	if (!imap->caps && imap_exec(ctx, NULL, "CAPABILITY") != RESP_OK)
-		goto bail;
+	delta_buf = create_delta(src->index, trg->data, trg_size, &delta_size, max_size);
+	if (!delta_buf)
+		return 0;
 
-	if (!preauth) {
-#ifndef NO_OPENSSL
-		if (!srvc->use_ssl && CAP(STARTTLS)) {
-			if (imap_exec(ctx, NULL, "STARTTLS") != RESP_OK)
-				goto bail;
-			if (ssl_socket_connect(&imap->buf.sock, 1,
-					       srvc->ssl_verify))
-				goto bail;
-			/* capabilities may have changed, so get the new capabilities */
-			if (imap_exec(ctx, NULL, "CAPABILITY") != RESP_OK)
-				goto bail;
+	if (trg_entry->delta) {
+		/* Prefer only shallower same-sized deltas. */
+		if (delta_size == trg_entry->delta_size &&
+		    src->depth + 1 >= trg->depth) {
+			free(delta_buf);
+			return 0;
 		}
-#endif
-		imap_info("Logging in...\n");
-		if (!srvc->user || !srvc->pass) {
-			cred.protocol = xstrdup(srvc->use_ssl ? "imaps" : "imap");
-			cred.host = xstrdup(srvc->host);
-
-			if (srvc->user)
-				cred.username = xstrdup(srvc->user);
-			if (srvc->pass)
-				cred.password = xstrdup(srvc->pass);
-
-			credential_fill(&cred);
-
-			if (!srvc->user)
-				srvc->user = xstrdup(cred.username);
-			if (!srvc->pass)
-				srvc->pass = xstrdup(cred.password);
-		}
-
-		if (CAP(NOLOGIN)) {
-			fprintf(stderr, "Skipping account %s@%s, server forbids LOGIN\n", srvc->user, srvc->host);
-			goto bail;
-		}
-
-		if (srvc->auth_method) {
-			struct imap_cmd_cb cb;
-
-			if (!strcmp(srvc->auth_method, "CRAM-MD5")) {
-				if (!CAP(AUTH_CRAM_MD5)) {
-					fprintf(stderr, "You specified"
-						"CRAM-MD5 as authentication method, "
-						"but %s doesn't support it.\n", srvc->host);
-					goto bail;
-				}
-				/* CRAM-MD5 */
-
-				memset(&cb, 0, sizeof(cb));
-				cb.cont = auth_cram_md5;
-				if (imap_exec(ctx, &cb, "AUTHENTICATE CRAM-MD5") != RESP_OK) {
-					fprintf(stderr, "IMAP error: AUTHENTICATE CRAM-MD5 failed\n");
-					goto bail;
-				}
-			} else {
-				fprintf(stderr, "Unknown authentication method:%s\n", srvc->host);
-				goto bail;
-			}
-		} else {
-			if (!imap->buf.sock.ssl)
-				imap_warn("*** IMAP Warning *** Password is being "
-					  "sent in the clear\n");
-			if (imap_exec(ctx, NULL, "LOGIN \"%s\" \"%s\"", srvc->user, srvc->pass) != RESP_OK) {
-				fprintf(stderr, "IMAP error: LOGIN failed\n");
-				goto bail;
-			}
-		}
-	} /* !preauth */
-
-	if (cred.username)
-		credential_approve(&cred);
-	credential_clear(&cred);
-
-	/* check the target mailbox exists */
-	ctx->name = folder;
-	switch (imap_exec(ctx, NULL, "EXAMINE \"%s\"", ctx->name)) {
-	case RESP_OK:
-		/* ok */
-		break;
-	case RESP_BAD:
-		fprintf(stderr, "IMAP error: could not check mailbox\n");
-		goto out;
-	case RESP_NO:
-		if (imap_exec(ctx, NULL, "CREATE \"%s\"", ctx->name) == RESP_OK) {
-			imap_info("Created missing mailbox\n");
-		} else {
-			fprintf(stderr, "IMAP error: could not create missing mailbox\n");
-			goto out;
-		}
-		break;
 	}
 
-	ctx->prefix = "";
-	return ctx;
+	/*
+	 * Handle memory allocation outside of the cache
+	 * accounting lock.  Compiler will optimize the strangeness
+	 * away when NO_PTHREADS is defined.
+	 */
+	free(trg_entry->delta_data);
+	cache_lock();
+	if (trg_entry->delta_data) {
+		delta_cache_size -= trg_entry->delta_size;
+		trg_entry->delta_data = NULL;
+	}
+	if (delta_cacheable(src_size, trg_size, delta_size)) {
+		delta_cache_size += delta_size;
+		cache_unlock();
+		trg_entry->delta_data = xrealloc(delta_buf, delta_size);
+	} else {
+		cache_unlock();
+		free(delta_buf);
+	}
 
-bail:
-	if (cred.username)
-		credential_reject(&cred);
-	credential_clear(&cred);
+	trg_entry->delta = src_entry;
+	trg_entry->delta_size = delta_size;
+	trg->depth = src->depth + 1;
 
- out:
-	imap_close_store(ctx);
-	return NULL;
+	return 1;
 }

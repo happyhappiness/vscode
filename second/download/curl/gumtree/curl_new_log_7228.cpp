@@ -1,12 +1,9 @@
 fputs(
-"              as a part of the header content: do not add newlines or carriage\n"
-"              returns, they will only mess things up for you.\n"
+"              without content on the right  side  of  the  colon,  as  in:  -H\n"
+"              \"Host:\".  If  you  send the custom header with no-value then its\n"
+"              header must be terminated with a semicolon, such as  -H  \"X-Cus-\n"
+"              tom-Header;\" to send \"X-Custom-Header:\".\n"
 "\n"
-"              See also the -A, --user-agent and -e, --referer options.\n"
-"\n"
-"              This option can be used  multiple  times  to  add/replace/remove\n"
-"              multiple headers.\n"
-"\n"
-"       --hostpubmd5 <md5>\n"
-"              Pass  a  string  containing  32  hexadecimal  digits. The string\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
 , stdout);

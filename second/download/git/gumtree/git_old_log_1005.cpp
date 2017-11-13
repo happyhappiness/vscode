@@ -1,2 +1,1 @@
-error(_("no note found for object %s."),
-				       sha1_to_hex(object));
+warning("old-style 'git merge <msg> HEAD <commit>' is deprecated.");

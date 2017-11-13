@@ -1,164 +1,64 @@
-static int lua_websocket_read(lua_State *L) 
+static void ssl_io_data_dump(server_rec *srvr,
+                             const char *s,
+                             long len)
 {
-    apr_socket_t *sock;
-    apr_status_t rv;
-    int do_read = 1;
-    int n = 0;
-    apr_size_t len = 1;
-    apr_size_t plen = 0;
-    unsigned short payload_short = 0;
-    apr_uint64_t payload_long = 0;
-    unsigned char *mask_bytes;
-    char byte;
-    int plaintext;
-    
-    
-    request_rec *r = ap_lua_check_request_rec(L, 1);
-    plaintext = ap_lua_ssl_is_https(r->connection) ? 0 : 1;
+    char buf[256];
+    char tmp[64];
+    int i, j, rows, trunc;
+    unsigned char ch;
 
-    
-    mask_bytes = apr_pcalloc(r->pool, 4);
-    sock = ap_get_conn_socket(r->connection);
-
-    while (do_read) { 
-    do_read = 0;
-    /* Get opcode and FIN bit */
-    if (plaintext) {
-        rv = apr_socket_recv(sock, &byte, &len);
-    }
-    else {
-        rv = lua_websocket_readbytes(r->connection, &byte, 1);
-    }
-    if (rv == APR_SUCCESS) {
-        unsigned char ubyte, fin, opcode, mask, payload;
-        ubyte = (unsigned char)byte;
-        /* fin bit is the first bit */
-        fin = ubyte >> (CHAR_BIT - 1);
-        /* opcode is the last four bits (there's 3 reserved bits we don't care about) */
-        opcode = ubyte & 0xf;
-        
-        /* Get the payload length and mask bit */
-        if (plaintext) {
-            rv = apr_socket_recv(sock, &byte, &len);
-        }
-        else {
-            rv = lua_websocket_readbytes(r->connection, &byte, 1);
-        }
-        if (rv == APR_SUCCESS) {
-            ubyte = (unsigned char)byte;
-            /* Mask is the first bit */
-            mask = ubyte >> (CHAR_BIT - 1);
-            /* Payload is the last 7 bits */
-            payload = ubyte & 0x7f;
-            plen = payload;
-            
-            /* Extended payload? */
-            if (payload == 126) {
-                len = 2;
-                if (plaintext) {
-                    /* XXX: apr_socket_recv does not receive len bits, only up to len bits! */
-                    rv = apr_socket_recv(sock, (char*) &payload_short, &len);
-                }
-                else {
-                    rv = lua_websocket_readbytes(r->connection, 
-                        (char*) &payload_short, 2);
-                }
-                payload_short = ntohs(payload_short);
-                
-                if (rv == APR_SUCCESS) {
-                    plen = payload_short;
-                }
-                else {
-                    return 0;
-                }
-            }
-            /* Super duper extended payload? */
-            if (payload == 127) {
-                len = 8;
-                if (plaintext) {
-                    rv = apr_socket_recv(sock, (char*) &payload_long, &len);
-                }
-                else {
-                    rv = lua_websocket_readbytes(r->connection, 
-                            (char*) &payload_long, 8);
-                }
-                if (rv == APR_SUCCESS) {
-                    plen = ap_ntoh64(&payload_long);
-                }
-                else {
-                    return 0;
-                }
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03210)
-                    "Websocket: Reading %" APR_SIZE_T_FMT " (%s) bytes, masking is %s. %s", 
-                    plen,
-                    (payload >= 126) ? "extra payload" : "no extra payload", 
-                    mask ? "on" : "off", 
-                    fin ? "This is a final frame" : "more to follow");
-            if (mask) {
-                len = 4;
-                if (plaintext) {
-                    rv = apr_socket_recv(sock, (char*) mask_bytes, &len);
-                }
-                else {
-                    rv = lua_websocket_readbytes(r->connection, 
-                            (char*) mask_bytes, 4);
-                }
-                if (rv != APR_SUCCESS) {
-                    return 0;
-                }
-            }
-            if (plen < (HUGE_STRING_LEN*1024) && plen > 0) {
-                apr_size_t remaining = plen;
-                apr_size_t received;
-                apr_off_t at = 0;
-                char *buffer = apr_palloc(r->pool, plen+1);
-                buffer[plen] = 0;
-                
-                if (plaintext) {
-                    while (remaining > 0) {
-                        received = remaining;
-                        rv = apr_socket_recv(sock, buffer+at, &received);
-                        if (received > 0 ) {
-                            remaining -= received;
-                            at += received;
-                        }
-                    }
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                    "Websocket: Frame contained %" APR_OFF_T_FMT " bytes, pushed to Lua stack", 
-                        at);
-                }
-                else {
-                    rv = lua_websocket_readbytes(r->connection, buffer, 
-                            remaining);
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                    "Websocket: SSL Frame contained %" APR_SIZE_T_FMT " bytes, "\
-                            "pushed to Lua stack", 
-                        remaining);
-                }
-                if (mask) {
-                    for (n = 0; n < plen; n++) {
-                        buffer[n] ^= mask_bytes[n%4];
-                    }
-                }
-                
-                lua_pushlstring(L, buffer, (size_t) plen); /* push to stack */
-                lua_pushboolean(L, fin); /* push FIN bit to stack as boolean */
-                return 2;
-            }
-            
-            
-            /* Decide if we need to react to the opcode or not */
-            if (opcode == 0x09) { /* ping */
-                char frame[2];
-                plen = 2;
-                frame[0] = 0x8A;
-                frame[1] = 0;
-                apr_socket_send(sock, frame, &plen); /* Pong! */
-                do_read = 1;
+    trunc = 0;
+    for(; (len > 0) && ((s[len-1] == ' ') || (s[len-1] == '\0')); len--)
+        trunc++;
+    rows = (len / DUMP_WIDTH);
+    if ((rows * DUMP_WIDTH) < len)
+        rows++;
+    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+            "+-------------------------------------------------------------------------+");
+    for(i = 0 ; i< rows; i++) {
+#if APR_CHARSET_EBCDIC
+        char ebcdic_text[DUMP_WIDTH];
+        j = DUMP_WIDTH;
+        if ((i * DUMP_WIDTH + j) > len)
+            j = len % DUMP_WIDTH;
+        if (j == 0)
+            j = DUMP_WIDTH;
+        memcpy(ebcdic_text,(char *)(s) + i * DUMP_WIDTH, j);
+        ap_xlate_proto_from_ascii(ebcdic_text, j);
+#endif /* APR_CHARSET_EBCDIC */
+        apr_snprintf(tmp, sizeof(tmp), "| %04x: ", i * DUMP_WIDTH);
+        apr_cpystrn(buf, tmp, sizeof(buf));
+        for (j = 0; j < DUMP_WIDTH; j++) {
+            if (((i * DUMP_WIDTH) + j) >= len)
+                apr_cpystrn(buf+strlen(buf), "   ", sizeof(buf)-strlen(buf));
+            else {
+                ch = ((unsigned char)*((char *)(s) + i * DUMP_WIDTH + j)) & 0xff;
+                apr_snprintf(tmp, sizeof(tmp), "%02x%c", ch , j==7 ? '-' : ' ');
+                apr_cpystrn(buf+strlen(buf), tmp, sizeof(buf)-strlen(buf));
             }
         }
+        apr_cpystrn(buf+strlen(buf), " ", sizeof(buf)-strlen(buf));
+        for (j = 0; j < DUMP_WIDTH; j++) {
+            if (((i * DUMP_WIDTH) + j) >= len)
+                apr_cpystrn(buf+strlen(buf), " ", sizeof(buf)-strlen(buf));
+            else {
+                ch = ((unsigned char)*((char *)(s) + i * DUMP_WIDTH + j)) & 0xff;
+#if APR_CHARSET_EBCDIC
+                apr_snprintf(tmp, sizeof(tmp), "%c", (ch >= 0x20 && ch <= 0x7F) ? ebcdic_text[j] : '.');
+#else /* APR_CHARSET_EBCDIC */
+                apr_snprintf(tmp, sizeof(tmp), "%c", ((ch >= ' ') && (ch <= '~')) ? ch : '.');
+#endif /* APR_CHARSET_EBCDIC */
+                apr_cpystrn(buf+strlen(buf), tmp, sizeof(buf)-strlen(buf));
+            }
+        }
+        apr_cpystrn(buf+strlen(buf), " |", sizeof(buf)-strlen(buf));
+        ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+                     "%s", buf);
     }
-    }
-    return 0;
+    if (trunc > 0)
+        ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+                "| %04ld - <SPACES/NULS>", len + trunc);
+    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+            "+-------------------------------------------------------------------------+");
+    return;
 }

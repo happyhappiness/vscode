@@ -1,86 +1,116 @@
-static void init_submodule(const char *path, const char *prefix, int quiet)
+static int parse_mail(struct am_state *state, const char *mail)
 {
-	const struct submodule *sub;
+	FILE *fp;
 	struct strbuf sb = STRBUF_INIT;
-	char *upd = NULL, *url = NULL, *displaypath;
+	struct strbuf msg = STRBUF_INIT;
+	struct strbuf author_name = STRBUF_INIT;
+	struct strbuf author_date = STRBUF_INIT;
+	struct strbuf author_email = STRBUF_INIT;
+	int ret = 0;
+	struct mailinfo mi;
 
-	/* Only loads from .gitmodules, no overlay with .git/config */
-	gitmodules_config();
+	setup_mailinfo(&mi);
 
-	if (prefix) {
-		strbuf_addf(&sb, "%s%s", prefix, path);
-		displaypath = strbuf_detach(&sb, NULL);
-	} else
-		displaypath = xstrdup(path);
+	if (state->utf8)
+		mi.metainfo_charset = get_commit_output_encoding();
+	else
+		mi.metainfo_charset = NULL;
 
-	sub = submodule_from_path(null_sha1, path);
-
-	if (!sub)
-		die(_("No url found for submodule path '%s' in .gitmodules"),
-			displaypath);
-
-	/*
-	 * Copy url setting when it is not set yet.
-	 * To look up the url in .git/config, we must not fall back to
-	 * .gitmodules, so look it up directly.
-	 */
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "submodule.%s.url", sub->name);
-	if (git_config_get_string(sb.buf, &url)) {
-		url = xstrdup(sub->url);
-
-		if (!url)
-			die(_("No url found for submodule path '%s' in .gitmodules"),
-				displaypath);
-
-		/* Possibly a url relative to parent */
-		if (starts_with_dot_dot_slash(url) ||
-		    starts_with_dot_slash(url)) {
-			char *remoteurl, *relurl;
-			char *remote = get_default_remote();
-			struct strbuf remotesb = STRBUF_INIT;
-			strbuf_addf(&remotesb, "remote.%s.url", remote);
-			free(remote);
-
-			if (git_config_get_string(remotesb.buf, &remoteurl))
-				/*
-				 * The repository is its own
-				 * authoritative upstream
-				 */
-				remoteurl = xgetcwd();
-			relurl = relative_url(remoteurl, url, NULL);
-			strbuf_release(&remotesb);
-			free(remoteurl);
-			free(url);
-			url = relurl;
-		}
-
-		if (git_config_set_gently(sb.buf, url))
-			die(_("Failed to register url for submodule path '%s'"),
-			    displaypath);
-		if (!quiet)
-			fprintf(stderr,
-				_("Submodule '%s' (%s) registered for path '%s'\n"),
-				sub->name, url, displaypath);
+	switch (state->keep) {
+	case KEEP_FALSE:
+		break;
+	case KEEP_TRUE:
+		mi.keep_subject = 1;
+		break;
+	case KEEP_NON_PATCH:
+		mi.keep_non_patch_brackets_in_subject = 1;
+		break;
+	default:
+		die("BUG: invalid value for state->keep");
 	}
 
-	/* Copy "update" setting when it is not set yet */
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "submodule.%s.update", sub->name);
-	if (git_config_get_string(sb.buf, &upd) &&
-	    sub->update_strategy.type != SM_UPDATE_UNSPECIFIED) {
-		if (sub->update_strategy.type == SM_UPDATE_COMMAND) {
-			fprintf(stderr, _("warning: command update mode suggested for submodule '%s'\n"),
-				sub->name);
-			upd = xstrdup("none");
-		} else
-			upd = xstrdup(submodule_strategy_to_string(&sub->update_strategy));
+	if (state->message_id)
+		mi.add_message_id = 1;
 
-		if (git_config_set_gently(sb.buf, upd))
-			die(_("Failed to register update mode for submodule path '%s'"), displaypath);
+	switch (state->scissors) {
+	case SCISSORS_UNSET:
+		break;
+	case SCISSORS_FALSE:
+		mi.use_scissors = 0;
+		break;
+	case SCISSORS_TRUE:
+		mi.use_scissors = 1;
+		break;
+	default:
+		die("BUG: invalid value for state->scissors");
 	}
+
+	mi.input = fopen(mail, "r");
+	if (!mi.input)
+		die("could not open input");
+	mi.output = fopen(am_path(state, "info"), "w");
+	if (!mi.output)
+		die("could not open output 'info'");
+	if (mailinfo(&mi, am_path(state, "msg"), am_path(state, "patch")))
+		die("could not parse patch");
+
+	fclose(mi.input);
+	fclose(mi.output);
+
+	/* Extract message and author information */
+	fp = xfopen(am_path(state, "info"), "r");
+	while (!strbuf_getline(&sb, fp, '\n')) {
+		const char *x;
+
+		if (skip_prefix(sb.buf, "Subject: ", &x)) {
+			if (msg.len)
+				strbuf_addch(&msg, '\n');
+			strbuf_addstr(&msg, x);
+		} else if (skip_prefix(sb.buf, "Author: ", &x))
+			strbuf_addstr(&author_name, x);
+		else if (skip_prefix(sb.buf, "Email: ", &x))
+			strbuf_addstr(&author_email, x);
+		else if (skip_prefix(sb.buf, "Date: ", &x))
+			strbuf_addstr(&author_date, x);
+	}
+	fclose(fp);
+
+	/* Skip pine's internal folder data */
+	if (!strcmp(author_name.buf, "Mail System Internal Data")) {
+		ret = 1;
+		goto finish;
+	}
+
+	if (is_empty_file(am_path(state, "patch"))) {
+		printf_ln(_("Patch is empty. Was it split wrong?"));
+		die_user_resolve(state);
+	}
+
+	strbuf_addstr(&msg, "\n\n");
+	strbuf_addbuf(&msg, &mi.log_message);
+	strbuf_stripspace(&msg, 0);
+
+	if (state->signoff)
+		am_signoff(&msg);
+
+	assert(!state->author_name);
+	state->author_name = strbuf_detach(&author_name, NULL);
+
+	assert(!state->author_email);
+	state->author_email = strbuf_detach(&author_email, NULL);
+
+	assert(!state->author_date);
+	state->author_date = strbuf_detach(&author_date, NULL);
+
+	assert(!state->msg);
+	state->msg = strbuf_detach(&msg, &state->msg_len);
+
+finish:
+	strbuf_release(&msg);
+	strbuf_release(&author_date);
+	strbuf_release(&author_email);
+	strbuf_release(&author_name);
 	strbuf_release(&sb);
-	free(displaypath);
-	free(url);
-	free(upd);
+	clear_mailinfo(&mi);
+	return ret;
 }

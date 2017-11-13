@@ -1,54 +1,49 @@
-static int process_diff_filepair(struct rev_info *rev,
-				 struct diff_filepair *pair,
-				 struct line_log_data *range,
-				 struct diff_ranges **diff_out)
+void mark_reachable_objects(struct rev_info *revs, int mark_reflog,
+			    unsigned long mark_recent,
+			    struct progress *progress)
 {
-	struct line_log_data *rg = range;
-	struct range_set tmp;
-	struct diff_ranges diff;
-	mmfile_t file_parent, file_target;
+	struct connectivity_progress cp;
 
-	assert(pair->two->path);
-	while (rg) {
-		assert(rg->path);
-		if (!strcmp(rg->path, pair->two->path))
-			break;
-		rg = rg->next;
+	/*
+	 * Set up revision parsing, and mark us as being interested
+	 * in all object types, not just commits.
+	 */
+	revs->tag_objects = 1;
+	revs->blob_objects = 1;
+	revs->tree_objects = 1;
+
+	/* Add all refs from the index file */
+	add_index_objects_to_pending(revs, 0);
+
+	/* Add all external refs */
+	for_each_ref(add_one_ref, revs);
+
+	/* detached HEAD is not included in the list above */
+	head_ref(add_one_ref, revs);
+
+	/* Add all reflog info */
+	if (mark_reflog)
+		add_reflogs_to_pending(revs, 0);
+
+	cp.progress = progress;
+	cp.count = 0;
+
+	/*
+	 * Set up the revision walk - this will move all commits
+	 * from the pending list to the commit walking list.
+	 */
+	if (prepare_revision_walk(revs))
+		die("revision walk setup failed");
+	traverse_commit_list(revs, mark_commit, mark_object, &cp);
+
+	if (mark_recent) {
+		revs->ignore_missing_links = 1;
+		if (add_unseen_recent_objects_to_traversal(revs, mark_recent))
+			die("unable to mark recent objects");
+		if (prepare_revision_walk(revs))
+			die("revision walk setup failed");
+		traverse_commit_list(revs, mark_commit, mark_object, &cp);
 	}
 
-	if (!rg)
-		return 0;
-	if (rg->ranges.nr == 0)
-		return 0;
-
-	assert(pair->two->sha1_valid);
-	diff_populate_filespec(pair->two, 0);
-	file_target.ptr = pair->two->data;
-	file_target.size = pair->two->size;
-
-	if (pair->one->sha1_valid) {
-		diff_populate_filespec(pair->one, 0);
-		file_parent.ptr = pair->one->data;
-		file_parent.size = pair->one->size;
-	} else {
-		file_parent.ptr = "";
-		file_parent.size = 0;
-	}
-
-	diff_ranges_init(&diff);
-	if (collect_diff(&file_parent, &file_target, &diff))
-		die("unable to generate diff for %s", pair->one->path);
-
-	/* NEEDSWORK should apply some heuristics to prevent mismatches */
-	free(rg->path);
-	rg->path = xstrdup(pair->one->path);
-
-	range_set_init(&tmp, 0);
-	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
-	range_set_release(&rg->ranges);
-	range_set_move(&rg->ranges, &tmp);
-
-	diff_ranges_release(&diff);
-
-	return ((*diff_out)->parent.nr > 0);
+	display_progress(cp.progress, cp.count);
 }

@@ -1,1 +1,1 @@
-die("'%s' does not appear to be a git repository", dir);
+die(_("--reverse and --first-parent together require specified latest commit"));

@@ -1,2 +1,1 @@
-refname_atom_parser_internal(&atom->u.remote_ref.refname,
-						     arg, atom->name);
+error(_("could not remove CHERRY_PICK_HEAD"));

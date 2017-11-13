@@ -1,1 +1,0 @@
-ap_rputs(apr_strfsize(worker->s->read, fbuf), r);

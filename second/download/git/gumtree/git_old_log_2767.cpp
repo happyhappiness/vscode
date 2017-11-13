@@ -1,1 +1,1 @@
-error("Could not get ref %s", refspec[i]);
+error("rsync transport does not support mirror mode");

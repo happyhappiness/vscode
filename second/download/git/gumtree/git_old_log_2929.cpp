@@ -1,1 +1,1 @@
-warning("accept failed: %s", strerror(errno));
+warning("dup failed: %s", strerror(errno));

@@ -1,1 +1,1 @@
-printf ("\nncurses: %s (compiled with %s)", curses_version(), NCURSES_VERSION);
+fprintf (fp, "[%s] ", buf);

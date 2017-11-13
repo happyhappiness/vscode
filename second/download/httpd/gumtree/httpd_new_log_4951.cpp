@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL, APLOGNO(00042)
-                     "apr_MD5InitEBCDIC() failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00132)
+                          "file permissions deny server access: %s", r->filename);

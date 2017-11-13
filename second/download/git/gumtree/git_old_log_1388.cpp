@@ -1,1 +1,1 @@
-fprintf(fp, "\t%s\n", ce->name);
+die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");

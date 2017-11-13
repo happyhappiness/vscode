@@ -1,1 +1,2 @@
-die(_("unrecognized %%(%s) argument: %s"), name, arg);
+error(_("invalid contents: '%s'"),
+				rebase_path_amend());

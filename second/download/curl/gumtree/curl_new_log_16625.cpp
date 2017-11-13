@@ -1,9 +1,7 @@
-puts(
-"          files etc. To force the 'content' part to be be a file,\n"
-"          prefix  the  file  name with an @ sign. To just get the\n"
-"          content part from a file, prefix the file name with the\n"
-"          letter <. The difference between @ and < is then that @\n"
-"          makes a file get attached in the post as a file upload,\n"
-"          while  the  <  makes a text field and just get the con�\n"
-"          tents for that text field from a file.\n"
-);
+puts(" -r/--range <range> Retrieve a byte range from a HTTP/1.1 or FTP server\n"
+       " -s/--silent        Silent mode. Don't output anything\n"
+       " -S/--show-error    Show error. With -s, make curl show errors when they occur\n"
+       "    --stderr <file> Where to redirect stderr. - means stdout.\n"
+       " -t/--telnet-option <OPT=val> Set telnet option\n"
+       " -T/--upload-file <file> Transfer/upload <file> to remote site\n"
+       "    --url <URL>     Another way to specify URL to work with");

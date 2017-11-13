@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, "error determining cgi PID (for SSI)");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02986)
+                              "asynchronous I/O not supported: %s",
+                              r->filename);

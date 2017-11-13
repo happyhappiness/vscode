@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
+                      "%s: Forcing worker (%s) into error state "
+                      "due to timeout and 'failonstatus' parameter being set",
+                       balancer->s->name, ap_proxy_worker_name(r->pool, worker));

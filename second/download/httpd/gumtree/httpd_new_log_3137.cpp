@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00602)
-                                  "Within the DAV:activity-set element, the "
-                                  "DAV:new element must be used, or at least "
-                                  "one DAV:href must be specified.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01788)
+                      "realm mismatch - got `%s' but expected `%s'",
+                      resp->realm, conf->realm);

@@ -1,0 +1,1 @@
+fprintf(stderr,"receive_sums failed\n");

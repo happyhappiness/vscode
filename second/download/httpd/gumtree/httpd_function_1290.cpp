@@ -1,42 +1,125 @@
-apr_status_t  ajp_parse_data(request_rec  *r, ajp_msg_t *msg,
-                             apr_uint16_t *len, char **ptr)
+static int stream_reqbody_cl(apr_pool_t *p,
+                                      request_rec *r,
+                                      proxy_conn_rec *p_conn,
+                                      conn_rec *origin,
+                                      apr_bucket_brigade *header_brigade,
+                                      apr_bucket_brigade *input_brigade,
+                                      const char *old_cl_val)
 {
-    apr_byte_t result;
-    apr_status_t rc;
-    apr_uint16_t expected_len;
+    int seen_eos = 0, rv = 0;
+    apr_status_t status = APR_SUCCESS;
+    apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
+    apr_bucket_brigade *bb;
+    apr_bucket *e;
+    apr_off_t cl_val = 0;
+    apr_off_t bytes;
+    apr_off_t bytes_streamed = 0;
 
-    rc = ajp_msg_get_uint8(msg, &result);
-    if (rc != APR_SUCCESS) {
+    if (old_cl_val) {
+        char *endstr;
+
+        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
+        status = apr_strtoff(&cl_val, old_cl_val, &endstr, 10);
+        
+        if (status || *endstr || endstr == old_cl_val || cl_val < 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                          "proxy: could not parse request Content-Length (%s)",
+                          old_cl_val);
+            return HTTP_BAD_REQUEST;
+        }
+    }
+    terminate_headers(bucket_alloc, header_brigade);
+
+    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
+    {
+        apr_brigade_length(input_brigade, 1, &bytes);
+        bytes_streamed += bytes;
+
+        /* If this brigade contains EOS, either stop or remove it. */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
+            seen_eos = 1;
+
+            /* We can't pass this EOS to the output_filters. */
+            e = APR_BRIGADE_LAST(input_brigade);
+            apr_bucket_delete(e);
+        }
+
+        /* C-L < bytes streamed?!?
+         * We will error out after the body is completely
+         * consumed, but we can't stream more bytes at the
+         * back end since they would in part be interpreted
+         * as another request!  If nothing is sent, then
+         * just send nothing.
+         *
+         * Prevents HTTP Response Splitting.
+         */
+        if (bytes_streamed > cl_val) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "proxy: read more bytes of request body than expected "
+                          "(got %" APR_OFF_T_FMT ", expected %" APR_OFF_T_FMT ")",
+                          bytes_streamed, cl_val);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        if (header_brigade) {
+            /* we never sent the header brigade, so go ahead and
+             * take care of that now
+             */
+            bb = header_brigade;
+
+            /*
+             * Save input_brigade in bb brigade. (At least) in the SSL case
+             * input_brigade contains transient buckets whose data would get
+             * overwritten during the next call of ap_get_brigade in the loop.
+             * ap_save_brigade ensures these buckets to be set aside.
+             * Calling ap_save_brigade with NULL as filter is OK, because
+             * bb brigade already has been created and does not need to get
+             * created by ap_save_brigade.
+             */
+            status = ap_save_brigade(NULL, &bb, &input_brigade, p);
+            if (status != APR_SUCCESS) {
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+
+            header_brigade = NULL;
+        }
+        else {
+            bb = input_brigade;
+        }
+
+        /* Once we hit EOS, we are ready to flush. */
+        rv = pass_brigade(bucket_alloc, r, p_conn, origin, bb, seen_eos);
+        if (rv != OK) {
+            return rv ;
+        }
+
+        if (seen_eos) {
+            break;
+        }
+
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                HUGE_STRING_LEN);
+
+        if (status != APR_SUCCESS) {
+            return HTTP_BAD_REQUEST;
+        }
+    }
+
+    if (bytes_streamed != cl_val) {
         ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_parse_data: ajp_msg_get_byte failed");
-        return rc;
+                     "proxy: client %s given Content-Length did not match"
+                     " number of body bytes read", r->connection->remote_ip);
+        return HTTP_BAD_REQUEST;
     }
-    if (result != CMD_AJP13_SEND_BODY_CHUNK) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_parse_data: wrong type %02x expecting 0x03", result);
-        return AJP_EBAD_HEADER;
+
+    if (header_brigade) {
+        /* we never sent the header brigade since there was no request
+         * body; send it now with the flush flag
+         */
+        bb = header_brigade;
+        return(pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1));
     }
-    rc = ajp_msg_get_uint16(msg, len);
-    if (rc != APR_SUCCESS) {
-        return rc;
-    }
-    /*
-     * msg->len contains the complete length of the message including all
-     * headers. So the expected length for a CMD_AJP13_SEND_BODY_CHUNK is
-     * msg->len minus the sum of
-     * AJP_HEADER_LEN    : The length of the header to every AJP message.
-     * AJP_HEADER_SZ_LEN : The header giving the size of the chunk.
-     * 1                 : The CMD_AJP13_SEND_BODY_CHUNK indicator byte (0x03).
-     * 1                 : The last byte of this message always seems to be
-     *                     0x00 and is not part of the chunk.
-     */
-    expected_len = msg->len - (AJP_HEADER_LEN + AJP_HEADER_SZ_LEN + 1 + 1);
-    if (*len != expected_len) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_parse_data: Wrong chunk length. Length of chunk is %i,"
-               " expected length is %i.", *len, expected_len);
-        return AJP_EBAD_HEADER;
-    }
-    *ptr = (char *)&(msg->buf[msg->pos]);
-    return APR_SUCCESS;
+
+    return OK;
 }

@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                                 r->server,
-                                 "cache: nonconditional - no cached "
-                                 "etag/lastmods - add cache_in and DECLINE");
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check access"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

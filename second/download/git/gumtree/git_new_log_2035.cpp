@@ -1,1 +1,0 @@
-strbuf_release(&buf);

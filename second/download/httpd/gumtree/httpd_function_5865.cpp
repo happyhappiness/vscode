@@ -1,174 +1,208 @@
-static apr_status_t input_read(h2_task *task, ap_filter_t* f,
-                               apr_bucket_brigade* bb, ap_input_mode_t mode,
-                               apr_read_type_e block, apr_off_t readbytes)
+apr_status_t h2_session_process(h2_session *session)
 {
     apr_status_t status = APR_SUCCESS;
-    apr_bucket *b, *next, *first_data;
-    apr_off_t bblen = 0;
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_task(%s): read, mode=%d, block=%d, readbytes=%ld", 
-                  task->id, mode, block, (long)readbytes);
-    
-    if (mode == AP_MODE_INIT) {
-        return ap_get_brigade(f->c->input_filters, bb, mode, block, readbytes);
-    }
-    
-    if (f->c->aborted || !task->request) {
-        return APR_ECONNABORTED;
-    }
-    
-    if (!task->input.bb) {
-        if (!task->input.eos_written) {
-            input_append_eos(task, f->r);
-            return APR_SUCCESS;
-        }
-        return APR_EOF;
-    }
-    
-    /* Cleanup brigades from those nasty 0 length non-meta buckets
-     * that apr_brigade_split_line() sometimes produces. */
-    for (b = APR_BRIGADE_FIRST(task->input.bb);
-         b != APR_BRIGADE_SENTINEL(task->input.bb); b = next) {
-        next = APR_BUCKET_NEXT(b);
-        if (b->length == 0 && !APR_BUCKET_IS_METADATA(b)) {
-            apr_bucket_delete(b);
-        } 
-    }
-    
-    while (APR_BRIGADE_EMPTY(task->input.bb) && !task->input.eos) {
-        /* Get more input data for our request. */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      task->id, block, (long)readbytes, (long)bblen);
-        
-        /* Override the block mode we get called with depending on the input's
-         * setting. */
-        if (task->input.beam) {
-            status = h2_beam_receive(task->input.beam, task->input.bb, block, 
-                                     H2MIN(readbytes, 32*1024));
-        }
-        else {
-            status = APR_EOF;
-        }
-        
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, f->c,
-                      "h2_task(%s): read returned", task->id);
-        if (APR_STATUS_IS_EAGAIN(status) 
-            && (mode == AP_MODE_GETLINE || block == APR_BLOCK_READ)) {
-            /* chunked input handling does not seem to like it if we
-             * return with APR_EAGAIN from a GETLINE read... 
-             * upload 100k test on test-ser.example.org hangs */
-            status = APR_SUCCESS;
-        }
-        else if (APR_STATUS_IS_EOF(status)) {
-            task->input.eos = 1;
-        }
-        else if (status != APR_SUCCESS) {
-            return status;
-        }
-        
-        /* Inspect the buckets received, detect EOS and apply
-         * chunked encoding if necessary */
-        h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                       "input.beam recv raw", task->input.bb);
-        first_data = NULL;
-        bblen = 0;
-        for (b = APR_BRIGADE_FIRST(task->input.bb); 
-             b != APR_BRIGADE_SENTINEL(task->input.bb); b = next) {
-            next = APR_BUCKET_NEXT(b);
-            if (APR_BUCKET_IS_METADATA(b)) {
-                if (first_data && task->input.chunked) {
-                    make_chunk(task, task->input.bb, first_data, bblen, b);
-                    first_data = NULL;
-                    bblen = 0;
-                }
-                if (APR_BUCKET_IS_EOS(b)) {
-                    task->input.eos = 1;
-                    input_handle_eos(task, f->r, b);
-                    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                                   "input.bb after handle eos", 
-                                   task->input.bb);
+    apr_interval_time_t wait_micros = 0;
+    static const int MAX_WAIT_MICROS = 200 * 1000;
+    int got_streams = 0;
+    h2_stream *stream;
+
+    while (!session->aborted && (nghttp2_session_want_read(session->ngh2)
+                                 || nghttp2_session_want_write(session->ngh2))) {
+        int have_written = 0;
+        int have_read = 0;
+                                 
+        got_streams = !h2_stream_set_is_empty(session->streams);
+        if (got_streams) {            
+            h2_session_resume_streams_with_data(session);
+            
+            if (h2_stream_set_has_unsubmitted(session->streams)) {
+                int unsent_submits = 0;
+                
+                /* If we have responses ready, submit them now. */
+                while ((stream = h2_mplx_next_submit(session->mplx, session->streams))) {
+                    status = submit_response(session, stream);
+                    ++unsent_submits;
+                    
+                    /* Unsent push promises are written immediately, as nghttp2
+                     * 1.5.0 realizes internal stream data structures only on 
+                     * send and we might need them for other submits. 
+                     * Also, to conserve memory, we send at least every 10 submits
+                     * so that nghttp2 does not buffer all outbound items too 
+                     * long.
+                     */
+                    if (status == APR_SUCCESS 
+                        && (session->unsent_promises || unsent_submits > 10)) {
+                        int rv = nghttp2_session_send(session->ngh2);
+                        if (rv != 0) {
+                            ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                                          "h2_session: send: %s", nghttp2_strerror(rv));
+                            if (nghttp2_is_fatal(rv)) {
+                                h2_session_abort(session, status, rv);
+                                goto end_process;
+                            }
+                        }
+                        else {
+                            have_written = 1;
+                            wait_micros = 0;
+                            session->unsent_promises = 0;
+                            unsent_submits = 0;
+                        }
+                    }
                 }
             }
-            else if (b->length == 0) {
-                apr_bucket_delete(b);
-            } 
-            else {
-                if (!first_data) {
-                    first_data = b;
-                }
-                bblen += b->length;
-            }    
         }
-        if (first_data && task->input.chunked) {
-            make_chunk(task, task->input.bb, first_data, bblen, NULL);
-        }            
         
-        if (h2_task_logio_add_bytes_in) {
-            h2_task_logio_add_bytes_in(f->c, bblen);
+        /* Send data as long as we have it and window sizes allow. We are
+         * a server after all.
+         */
+        if (nghttp2_session_want_write(session->ngh2)) {
+            int rv;
+            
+            rv = nghttp2_session_send(session->ngh2);
+            if (rv != 0) {
+                ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                              "h2_session: send: %s", nghttp2_strerror(rv));
+                if (nghttp2_is_fatal(rv)) {
+                    h2_session_abort(session, status, rv);
+                    goto end_process;
+                }
+            }
+            else {
+                have_written = 1;
+                wait_micros = 0;
+                session->unsent_promises = 0;
+            }
         }
-    }
-    
-    if (task->input.eos) {
-        if (!task->input.eos_written) {
-            input_append_eos(task, f->r);
+        
+        if (wait_micros > 0) {
+            if (APLOGcdebug(session->c)) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                              "h2_session: wait for data, %ld micros", 
+                              (long)wait_micros);
+            }
+            nghttp2_session_send(session->ngh2);
+            h2_conn_io_flush(&session->io);
+            status = h2_mplx_out_trywait(session->mplx, wait_micros, session->iowait);
+            
+            if (status == APR_TIMEUP) {
+                if (wait_micros < MAX_WAIT_MICROS) {
+                    wait_micros *= 2;
+                }
+            }
         }
-        if (APR_BRIGADE_EMPTY(task->input.bb)) {
-            return APR_EOF;
-        }
-    }
+        
+        if (nghttp2_session_want_read(session->ngh2))
+        {
+            /* When we
+             * - and have no streams at all
+             * - or have streams, but none is suspended or needs submit and
+             *   have nothing written on the last try
+             * 
+             * or, the other way around
+             * - have only streams where data can be sent, but could
+             *   not send anything
+             *
+             * then we are waiting on frames from the client (for
+             * example WINDOW_UPDATE or HEADER) and without new frames
+             * from the client, we cannot make any progress,
+             * 
+             * and *then* we can safely do a blocking read.
+             */
+            int may_block = (session->frames_received <= 1);
+            if (!may_block) {
+                if (got_streams) {
+                    may_block = (!have_written 
+                                 && !h2_stream_set_has_unsubmitted(session->streams)
+                                 && !h2_stream_set_has_suspended(session->streams));
+                }
+                else {
+                    may_block = 1;
+                }
+            }
+            
+            if (may_block) {
+                h2_conn_io_flush(&session->io);
+                if (session->c->cs) {
+                    session->c->cs->state = (got_streams? CONN_STATE_HANDLER
+                                             : CONN_STATE_WRITE_COMPLETION);
+                }
+                status = h2_conn_io_read(&session->io, APR_BLOCK_READ, 
+                                         session_receive, session);
+            }
+            else {
+                if (session->c->cs) {
+                    session->c->cs->state = CONN_STATE_HANDLER;
+                }
+                status = h2_conn_io_read(&session->io, APR_NONBLOCK_READ, 
+                                         session_receive, session);
+            }
 
-    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                   "task_input.bb", task->input.bb);
-           
-    if (APR_BRIGADE_EMPTY(task->input.bb)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task(%s): no data", task->id);
-        return (block == APR_NONBLOCK_READ)? APR_EAGAIN : APR_EOF;
-    }
-    
-    if (mode == AP_MODE_EXHAUSTIVE) {
-        /* return all we have */
-        APR_BRIGADE_CONCAT(bb, task->input.bb);
-    }
-    else if (mode == AP_MODE_READBYTES) {
-        status = h2_brigade_concat_length(bb, task->input.bb, readbytes);
-    }
-    else if (mode == AP_MODE_SPECULATIVE) {
-        status = h2_brigade_copy_length(bb, task->input.bb, readbytes);
-    }
-    else if (mode == AP_MODE_GETLINE) {
-        /* we are reading a single LF line, e.g. the HTTP headers. 
-         * this has the nasty side effect to split the bucket, even
-         * though it ends with CRLF and creates a 0 length bucket */
-        status = apr_brigade_split_line(bb, task->input.bb, block, 
-                                        HUGE_STRING_LEN);
-        if (APLOGctrace1(f->c)) {
-            char buffer[1024];
-            apr_size_t len = sizeof(buffer)-1;
-            apr_brigade_flatten(bb, buffer, &len);
-            buffer[len] = 0;
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                          "h2_task(%s): getline: %s",
-                          task->id, buffer);
+            switch (status) {
+                case APR_SUCCESS:       /* successful read, reset our idle timers */
+                    have_read = 1;
+                    wait_micros = 0;
+                    break;
+                case APR_EAGAIN:              /* non-blocking read, nothing there */
+                    break;
+                default:
+                    if (APR_STATUS_IS_ETIMEDOUT(status)
+                        || APR_STATUS_IS_ECONNABORTED(status)
+                        || APR_STATUS_IS_ECONNRESET(status)
+                        || APR_STATUS_IS_EOF(status)
+                        || APR_STATUS_IS_EBADF(status)) {
+                        /* common status for a client that has left */
+                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
+                                      "h2_session(%ld): terminating",
+                                      session->id);
+                        /* Stolen from mod_reqtimeout to speed up lingering when
+                         * a read timeout happened.
+                         */
+                        apr_table_setn(session->c->notes, "short-lingering-close", "1");
+                    }
+                    else {
+                        /* uncommon status, log on INFO so that we see this */
+                        ap_log_cerror( APLOG_MARK, APLOG_INFO, status, session->c,
+                                      APLOGNO(02950) 
+                                      "h2_session(%ld): error reading, terminating",
+                                      session->id);
+                    }
+                    h2_session_abort(session, status, 0);
+                    goto end_process;
+            }
+        }
+        
+        got_streams = !h2_stream_set_is_empty(session->streams);
+        if (got_streams) {            
+            if (session->reprioritize) {
+                h2_mplx_reprioritize(session->mplx, stream_pri_cmp, session);
+                session->reprioritize = 0;
+            }
+            
+            if (!have_read && !have_written) {
+                /* Nothing read or written. That means no data yet ready to 
+                 * be send out. Slowly back off...
+                 */
+                if (wait_micros == 0) {
+                    wait_micros = 10;
+                }
+            }
+            
+            /* Check that any pending window updates are sent. */
+            status = h2_mplx_in_update_windows(session->mplx);
+            if (APR_STATUS_IS_EAGAIN(status)) {
+                status = APR_SUCCESS;
+            }
+            else if (status == APR_SUCCESS) {
+                /* need to flush window updates onto the connection asap */
+                h2_conn_io_flush(&session->io);
+            }
+        }
+        
+        if (have_written) {
+            h2_conn_io_flush(&session->io);
         }
     }
-    else {
-        /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
-         * to support it. Seems to work. */
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                      APLOGNO(02942) 
-                      "h2_task, unsupported READ mode %d", mode);
-        status = APR_ENOTIMPL;
-    }
     
-    if (APLOGctrace1(f->c)) {
-        apr_brigade_length(bb, 0, &bblen);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task(%s): return %ld data bytes",
-                      task->id, (long)bblen);
-    }
+end_process:
     return status;
 }

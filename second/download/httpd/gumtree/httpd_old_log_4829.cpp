@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
-                         ap_server_conf,
-                         "processor unbind failed");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "Found an extension '%s', but failed to "
+                              "create a string from it", extension);

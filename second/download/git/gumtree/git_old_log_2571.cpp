@@ -1,0 +1,1 @@
+printf("keep %s", message);

@@ -1,1 +1,2 @@
-fprintf(fp, "--shallow %s\n", sha1_to_hex(graft->sha1));
+error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(saved_errno));

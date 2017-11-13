@@ -1,89 +1,182 @@
-static const char *add_member(cmd_parms *cmd, void *dummy, const char *arg)
+static int display_info(request_rec * r)
 {
-    server_rec *s = cmd->server;
-    proxy_server_conf *conf =
-    ap_get_module_config(s->module_config, &proxy_module);
-    proxy_balancer *balancer;
-    proxy_worker *worker;
-    char *path = cmd->path;
-    char *name = NULL;
-    char *word;
-    apr_table_t *params = apr_table_make(cmd->pool, 5);
-    const apr_array_header_t *arr;
-    const apr_table_entry_t *elts;
-    int reuse = 0;
-    int i;
+    module *modp = NULL;
+    server_rec *serv = r->server;
+    const char *more_info;
+    const command_rec *cmd = NULL;
+    int comma = 0;
 
-    if (cmd->path)
-        path = apr_pstrdup(cmd->pool, cmd->path);
+    if (strcmp(r->handler, "server-info"))
+        return DECLINED;
 
-    while (*arg) {
-        char *val;
-        word = ap_getword_conf(cmd->pool, &arg);
-        val = strchr(word, '=');
+    r->allowed |= (AP_METHOD_BIT << M_GET);
+    if (r->method_number != M_GET)
+        return DECLINED;
 
-        if (!val) {
-            if (!path)
-                path = word;
-            else if (!name)
-                name = word;
-            else {
-                if (cmd->path)
-                    return "BalancerMember can not have a balancer name when defined in a location";
-                else
-                    return "Invalid BalancerMember parameter. Parameter must "
-                           "be in the form 'key=value'";
+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+
+    ap_rputs(DOCTYPE_XHTML_1_0T
+             "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
+             "<head>\n"
+             "  <title>Server Information</title>\n" "</head>\n", r);
+    ap_rputs("<body><h1 style=\"text-align: center\">"
+             "Apache Server Information</h1>\n", r);
+    if (!r->args || strcasecmp(r->args, "list")) {
+        if (!r->args) {
+            ap_rputs("<dl><dt><tt>Subpages:<br />", r);
+            ap_rputs("<a href=\"?config\">Configuration Files</a>, "
+                     "<a href=\"?server\">Server Settings</a>, "
+                     "<a href=\"?list\">Module List</a>,  "
+                     "<a href=\"?hooks\">Active Hooks</a>", r);
+            ap_rputs("</tt></dt></dl><hr />", r);
+
+            ap_rputs("<dl><dt><tt>Sections:<br />", r);
+            ap_rputs("<a href=\"#server\">Server Settings</a>, "
+                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
+                     "<a href=\"#request_hooks\">Request Hooks</a>", r);
+            ap_rputs("</tt></dt></dl><hr />", r);
+
+            ap_rputs("<dl><dt><tt>Loaded Modules: <br />", r);
+            /* TODO: Sort by Alpha */
+            for (modp = ap_top_module; modp; modp = modp->next) {
+                ap_rprintf(r, "<a href=\"#%s\">%s</a>", modp->name,
+                           modp->name);
+                if (modp->next) {
+                    ap_rputs(", ", r);
+                }
             }
-        } else {
-            *val++ = '\0';
-            apr_table_setn(params, word, val);
+            ap_rputs("</tt></dt></dl><hr />", r);
+        }
+
+        if (!r->args || !strcasecmp(r->args, "server")) {
+            show_server_settings(r);
+        }
+
+        if (!r->args || !strcasecmp(r->args, "hooks")) {
+            show_active_hooks(r);
+        }
+
+        if (r->args && 0 == strcasecmp(r->args, "config")) {
+            ap_rputs("<dl><dt><strong>Configuration:</strong>\n", r);
+            mod_info_module_cmds(r, NULL, ap_conftree, 0, 0);
+            ap_rputs("</dl><hr />", r);
+        }
+        else {
+            for (modp = ap_top_module; modp; modp = modp->next) {
+                if (!r->args || !strcasecmp(modp->name, r->args)) {
+                    ap_rprintf(r,
+                               "<dl><dt><a name=\"%s\"><strong>Module Name:</strong></a> "
+                               "<font size=\"+1\"><tt><a href=\"?%s\">%s</a></tt></font></dt>\n",
+                               modp->name, modp->name, modp->name);
+                    ap_rputs("<dt><strong>Content handlers:</strong> ", r);
+
+                    if (module_find_hook(modp, ap_hook_get_handler)) {
+                        ap_rputs("<tt> <em>yes</em></tt>", r);
+                    }
+                    else {
+                        ap_rputs("<tt> <em>none</em></tt>", r);
+                    }
+
+                    ap_rputs("</dt>", r);
+                    ap_rputs
+                        ("<dt><strong>Configuration Phase Participation:</strong>\n",
+                         r);
+                    if (modp->create_dir_config) {
+                        if (comma) {
+                            ap_rputs(", ", r);
+                        }
+                        ap_rputs("<tt>Create Directory Config</tt>", r);
+                        comma = 1;
+                    }
+                    if (modp->merge_dir_config) {
+                        if (comma) {
+                            ap_rputs(", ", r);
+                        }
+                        ap_rputs("<tt>Merge Directory Configs</tt>", r);
+                        comma = 1;
+                    }
+                    if (modp->create_server_config) {
+                        if (comma) {
+                            ap_rputs(", ", r);
+                        }
+                        ap_rputs("<tt>Create Server Config</tt>", r);
+                        comma = 1;
+                    }
+                    if (modp->merge_server_config) {
+                        if (comma) {
+                            ap_rputs(", ", r);
+                        }
+                        ap_rputs("<tt>Merge Server Configs</tt>", r);
+                        comma = 1;
+                    }
+                    if (!comma)
+                        ap_rputs("<tt> <em>none</em></tt>", r);
+                    comma = 0;
+                    ap_rputs("</dt>", r);
+
+                    module_request_hook_participate(r, modp);
+
+                    cmd = modp->cmds;
+                    if (cmd) {
+                        ap_rputs
+                            ("<dt><strong>Module Directives:</strong></dt>",
+                             r);
+                        while (cmd) {
+                            if (cmd->name) {
+                                ap_rprintf(r, "<dd><tt>%s%s - <i>",
+                                           ap_escape_html(r->pool, cmd->name),
+                                           cmd->name[0] == '<' ? "&gt;" : "");
+                                if (cmd->errmsg) {
+                                    ap_rputs(ap_escape_html(r->pool, cmd->errmsg), r);
+                                }
+                                ap_rputs("</i></tt></dd>\n", r);
+                            }
+                            else {
+                                break;
+                            }
+                            cmd++;
+                        }
+                        ap_rputs
+                            ("<dt><strong>Current Configuration:</strong></dt>\n",
+                             r);
+                        mod_info_module_cmds(r, modp->cmds, ap_conftree, 0,
+                                             0);
+                    }
+                    else {
+                        ap_rputs
+                            ("<dt><strong>Module Directives:</strong> <tt>none</tt></dt>",
+                             r);
+                    }
+                    more_info = find_more_info(serv, modp->name);
+                    if (more_info) {
+                        ap_rputs
+                            ("<dt><strong>Additional Information:</strong>\n</dt><dd>",
+                             r);
+                        ap_rputs(more_info, r);
+                        ap_rputs("</dd>", r);
+                    }
+                    ap_rputs("</dl><hr />\n", r);
+                    if (r->args) {
+                        break;
+                    }
+                }
+            }
+            if (!modp && r->args && strcasecmp(r->args, "server")) {
+                ap_rputs("<p><b>No such module</b></p>\n", r);
+            }
         }
     }
-    if (!path)
-        return "BalancerMember must define balancer name when outside <Proxy > section";
-    if (!name)
-        return "BalancerMember must define remote proxy server";
-
-    ap_str_tolower(path);   /* lowercase scheme://hostname */
-
-    /* Try to find existing worker */
-    worker = ap_proxy_get_worker(cmd->temp_pool, conf, name);
-    if (!worker) {
-        const char *err;
-        if ((err = ap_proxy_add_worker(&worker, cmd->pool, conf, name)) != NULL)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-        PROXY_COPY_CONF_PARAMS(worker, conf);
-    } else {
-        reuse = 1;
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
-                     "Sharing worker '%s' instead of creating new worker '%s'",
-                     worker->name, name);
-    }
-
-    arr = apr_table_elts(params);
-    elts = (const apr_table_entry_t *)arr->elts;
-    for (i = 0; i < arr->nelts; i++) {
-        if (reuse) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                         "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
-                         elts[i].key, elts[i].val, worker->name);
-        } else {
-            const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
-                                               elts[i].val);
-            if (err)
-                return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+    else {
+        ap_rputs("<dl><dt>Server Module List</dt>", r);
+        for (modp = ap_top_module; modp; modp = modp->next) {
+            ap_rputs("<dd>", r);
+            ap_rputs(modp->name, r);
+            ap_rputs("</dd>", r);
         }
+        ap_rputs("</dl><hr />", r);
     }
-    /* Try to find the balancer */
-    balancer = ap_proxy_get_balancer(cmd->temp_pool, conf, path);
-    if (!balancer) {
-        const char *err = ap_proxy_add_balancer(&balancer,
-                                                cmd->pool,
-                                                conf, path);
-        if (err)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-    }
-    /* Add the worker to the load balancer */
-    ap_proxy_add_worker_to_balancer(cmd->pool, balancer, worker);
-    return NULL;
+    ap_rputs(ap_psignature("", r), r);
+    ap_rputs("</body></html>\n", r);
+    /* Done, turn off timeout, close file and return */
+    return 0;
 }

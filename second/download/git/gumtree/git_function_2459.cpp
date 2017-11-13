@@ -1,31 +1,18 @@
-static void check_good_are_ancestors_of_bad(const char *prefix, int no_checkout)
+int fsck_walk(struct object *obj, void *data, struct fsck_options *options)
 {
-	char *filename = git_pathdup("BISECT_ANCESTORS_OK");
-	struct stat st;
-	int fd;
-
-	if (!current_bad_oid)
-		die("a %s revision is needed", term_bad);
-
-	/* Check if file BISECT_ANCESTORS_OK exists. */
-	if (!stat(filename, &st) && S_ISREG(st.st_mode))
-		goto done;
-
-	/* Bisecting with no good rev is ok. */
-	if (good_revs.nr == 0)
-		goto done;
-
-	/* Check if all good revs are ancestor of the bad rev. */
-	if (check_ancestors(prefix))
-		check_merge_bases(no_checkout);
-
-	/* Create file BISECT_ANCESTORS_OK. */
-	fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0600);
-	if (fd < 0)
-		warning_errno("could not create file '%s'",
-			      filename);
-	else
-		close(fd);
- done:
-	free(filename);
+	if (!obj)
+		return -1;
+	switch (obj->type) {
+	case OBJ_BLOB:
+		return 0;
+	case OBJ_TREE:
+		return fsck_walk_tree((struct tree *)obj, data, options);
+	case OBJ_COMMIT:
+		return fsck_walk_commit((struct commit *)obj, data, options);
+	case OBJ_TAG:
+		return fsck_walk_tag((struct tag *)obj, data, options);
+	default:
+		error("Unknown object type for %s", sha1_to_hex(obj->sha1));
+		return -1;
+	}
 }

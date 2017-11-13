@@ -1,1 +1,0 @@
-(mutt_yesorno (buf, M_NO);

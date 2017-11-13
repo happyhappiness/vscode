@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02596)
-                                  "RewriteRule '%s' and URI '%s' exceeded "
-                                  "maximum number of rounds (%d) via the [N] flag", 
-                                  p->pattern, r->uri, p->maxrounds);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01158)
+                     "Looking at %s -> %s initialized?", balancer->s->name,
+                     ap_proxy_worker_name(p, worker));

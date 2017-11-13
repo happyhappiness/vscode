@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL,
-                         APLOGNO(00018) "Configuration check failed, exiting");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00908)
+                         "%s", inet_ntoa(This->mask));

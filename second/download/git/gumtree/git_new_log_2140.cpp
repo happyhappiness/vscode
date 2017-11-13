@@ -1,1 +1,1 @@
-die(_("unrecognized color: %%(color:%s)"), color_value);
+die("Unknown fsck message type: '%s'", str);

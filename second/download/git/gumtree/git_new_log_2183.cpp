@@ -1,1 +1,0 @@
-fprintf(outfile, "\n");

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00407)
-                 "Child: retrieved %d listeners from parent", lcnt);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02219)
+                      "access to %s failed, reason: %s",
+                      r->filename, "SSL connection required");

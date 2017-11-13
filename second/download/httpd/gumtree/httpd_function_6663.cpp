@@ -1,162 +1,68 @@
-static int uldap_cache_compare(request_rec *r, util_ldap_connection_t *ldc,
-                               const char *url, const char *dn,
-                               const char *attrib, const char *value)
+static apr_status_t slave_out(h2_task *task, ap_filter_t* f, 
+                              apr_bucket_brigade* bb)
 {
-    int result = 0;
-    util_url_node_t *curl;
-    util_url_node_t curnode;
-    util_compare_node_t *compare_nodep;
-    util_compare_node_t the_compare_node;
-    apr_time_t curtime = 0; /* silence gcc -Wall */
-    int failures = 0;
-
-    util_ldap_state_t *st = (util_ldap_state_t *)
-                            ap_get_module_config(r->server->module_config,
-                                                 &ldap_module);
-
-    /* get cache entry (or create one) */
-    LDAP_CACHE_LOCK();
-    curnode.url = url;
-    curl = util_ald_cache_fetch(st->util_ldap_cache, &curnode);
-    if (curl == NULL) {
-        curl = util_ald_create_caches(st, url);
-    }
-    LDAP_CACHE_UNLOCK();
-
-    if (curl) {
-        /* make a comparison to the cache */
-        LDAP_CACHE_LOCK();
-        curtime = apr_time_now();
-
-        the_compare_node.dn = (char *)dn;
-        the_compare_node.attrib = (char *)attrib;
-        the_compare_node.value = (char *)value;
-        the_compare_node.result = 0;
-        the_compare_node.sgl_processed = 0;
-        the_compare_node.subgroupList = NULL;
-
-        compare_nodep = util_ald_cache_fetch(curl->compare_cache,
-                                             &the_compare_node);
-
-        if (compare_nodep != NULL) {
-            /* found it... */
-            if (curtime - compare_nodep->lastcompare > st->compare_cache_ttl) {
-                /* ...but it is too old */
-                util_ald_cache_remove(curl->compare_cache, compare_nodep);
+    apr_bucket *b;
+    apr_status_t status = APR_SUCCESS;
+    int flush = 0, blocking;
+    
+    if (task->frozen) {
+        h2_util_bb_log(task->c, task->stream_id, APLOG_TRACE2,
+                       "frozen task output write, ignored", bb);
+        while (!APR_BRIGADE_EMPTY(bb)) {
+            b = APR_BRIGADE_FIRST(bb);
+            if (AP_BUCKET_IS_EOR(b)) {
+                APR_BUCKET_REMOVE(b);
+                task->eor = b;
             }
             else {
-                /* ...and it is good */
-                if (LDAP_COMPARE_TRUE == compare_nodep->result) {
-                    ldc->reason = "Comparison true (cached)";
-                }
-                else if (LDAP_COMPARE_FALSE == compare_nodep->result) {
-                    ldc->reason = "Comparison false (cached)";
-                }
-                else if (LDAP_NO_SUCH_ATTRIBUTE == compare_nodep->result) {
-                    ldc->reason = "Comparison no such attribute (cached)";
-                }
-                else {
-                    ldc->reason = "Comparison undefined (cached)";
-                }
-
-                /* record the result code to return with the reason... */
-                result = compare_nodep->result;
-                /* and unlock this read lock */
-                LDAP_CACHE_UNLOCK();
-                return result;
+                apr_bucket_delete(b);
             }
         }
-        /* unlock this read lock */
-        LDAP_CACHE_UNLOCK();
+        return APR_SUCCESS;
     }
 
-start_over:
-    if (failures > st->retries) {
-        return result;
-    }
-
-    if (failures > 0 && st->retry_delay > 0) {
-        apr_sleep(st->retry_delay);
-    }
-
-    if (LDAP_SUCCESS != (result = uldap_connection_open(r, ldc))) {
-        /* connect failed */
-        return result;
-    }
-
-    result = ldap_compare_s(ldc->ldap,
-                            (char *)dn,
-                            (char *)attrib,
-                            (char *)value);
-    if (AP_LDAP_IS_SERVER_DOWN(result)) {
-        /* connection failed - try again */
-        ldc->reason = "ldap_compare_s() failed with server down";
-        uldap_connection_unbind(ldc);
-        failures++;
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
-        goto start_over;
-    }
-    if (result == LDAP_TIMEOUT && failures == 0) {
-        /*
-         * we are reusing a connection that doesn't seem to be active anymore
-         * (firewall state drop?), let's try a new connection.
-         */
-        ldc->reason = "ldap_compare_s() failed with timeout";
-        uldap_connection_unbind(ldc);
-        failures++;
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
-        goto start_over;
-    }
-
-    ldc->reason = "Comparison complete";
-    if ((LDAP_COMPARE_TRUE == result) ||
-        (LDAP_COMPARE_FALSE == result) ||
-        (LDAP_NO_SUCH_ATTRIBUTE == result)) {
-        if (curl) {
-            /* compare completed; caching result */
-            LDAP_CACHE_LOCK();
-            the_compare_node.lastcompare = curtime;
-            the_compare_node.result = result;
-            the_compare_node.sgl_processed = 0;
-            the_compare_node.subgroupList = NULL;
-
-            /* If the node doesn't exist then insert it, otherwise just update
-             * it with the last results
-             */
-            compare_nodep = util_ald_cache_fetch(curl->compare_cache,
-                                                 &the_compare_node);
-            if (   (compare_nodep == NULL)
-                || (strcmp(the_compare_node.dn, compare_nodep->dn) != 0)
-                || (strcmp(the_compare_node.attrib,compare_nodep->attrib) != 0)
-                || (strcmp(the_compare_node.value, compare_nodep->value) != 0))
-            {
-                void *junk;
-
-                junk = util_ald_cache_insert(curl->compare_cache,
-                                             &the_compare_node);
-                if (junk == NULL) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01287)
-                                  "cache_compare: Cache insertion failure.");
-                }
+    /* we send block once we opened the output, so someone is there
+     * reading it *and* the task is not assigned to a h2_req_engine */
+    blocking = (!task->assigned && task->output.opened);
+    if (!task->output.opened) {
+        for (b = APR_BRIGADE_FIRST(bb);
+             b != APR_BRIGADE_SENTINEL(bb);
+             b = APR_BUCKET_NEXT(b)) {
+            if (APR_BUCKET_IS_FLUSH(b)) {
+                flush = 1;
+                break;
             }
-            else {
-                compare_nodep->lastcompare = curtime;
-                compare_nodep->result = result;
-            }
-            LDAP_CACHE_UNLOCK();
-        }
-        if (LDAP_COMPARE_TRUE == result) {
-            ldc->reason = "Comparison true (adding to cache)";
-            return LDAP_COMPARE_TRUE;
-        }
-        else if (LDAP_COMPARE_FALSE == result) {
-            ldc->reason = "Comparison false (adding to cache)";
-            return LDAP_COMPARE_FALSE;
-        }
-        else {
-            ldc->reason = "Comparison no such attribute (adding to cache)";
-            return LDAP_NO_SUCH_ATTRIBUTE;
         }
     }
-    return result;
+    
+    if (task->output.bb && !APR_BRIGADE_EMPTY(task->output.bb)) {
+        /* still have data buffered from previous attempt.
+         * setaside and append new data and try to pass the complete data */
+        if (!APR_BRIGADE_EMPTY(bb)) {
+            status = ap_save_brigade(f, &task->output.bb, &bb, task->pool);
+        }
+        if (status == APR_SUCCESS) {
+            status = send_out(task, task->output.bb, blocking);
+        } 
+    }
+    else {
+        /* no data buffered here, try to pass the brigade directly */
+        status = send_out(task, bb, blocking); 
+        if (status == APR_SUCCESS && !APR_BRIGADE_EMPTY(bb)) {
+            /* could not write all, buffer the rest */
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c, APLOGNO(03405)
+                          "h2_slave_out(%s): saving brigade", 
+                          task->id);
+            status = ap_save_brigade(f, &task->output.bb, &bb, task->pool);
+            flush = 1;
+        }
+    }
+    
+    if (status == APR_SUCCESS && !task->output.opened && flush) {
+        /* got a flush or could not write all, time to tell someone to read */
+        status = open_output(task);
+    }
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, task->c, 
+                  "h2_slave_out(%s): slave_out leave", task->id);    
+    return status;
 }

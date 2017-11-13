@@ -1,124 +1,53 @@
-static int update_local_ref(struct ref *ref,
-			    const char *remote,
-			    const struct ref *remote_ref,
-			    struct strbuf *display)
+static void handle_fetch_head(struct commit_list **remotes, struct strbuf *merge_names)
 {
-	struct commit *current = NULL, *updated;
-	enum object_type type;
-	struct branch *current_branch = branch_get(NULL);
-	const char *pretty_ref = prettify_refname(ref->name);
+	const char *filename;
+	int fd, pos, npos;
+	struct strbuf fetch_head_file = STRBUF_INIT;
 
-	type = sha1_object_info(ref->new_sha1, NULL);
-	if (type < 0)
-		die(_("object %s not found"), sha1_to_hex(ref->new_sha1));
+	if (!merge_names)
+		merge_names = &fetch_head_file;
 
-	if (!hashcmp(ref->old_sha1, ref->new_sha1)) {
-		if (verbosity > 0)
-			strbuf_addf(display, "= %-*s %-*s -> %s",
-				    TRANSPORT_SUMMARY(_("[up to date]")),
-				    REFCOL_WIDTH, remote, pretty_ref);
-		return 0;
-	}
+	filename = git_path("FETCH_HEAD");
+	fd = open(filename, O_RDONLY);
+	if (fd < 0)
+		die_errno(_("could not open '%s' for reading"), filename);
 
-	if (current_branch &&
-	    !strcmp(ref->name, current_branch->name) &&
-	    !(update_head_ok || is_bare_repository()) &&
-	    !is_null_sha1(ref->old_sha1)) {
-		/*
-		 * If this is the head, and it's not okay to update
-		 * the head, and the old value of the head isn't empty...
-		 */
-		strbuf_addf(display,
-			    _("! %-*s %-*s -> %s  (can't fetch in current branch)"),
-			    TRANSPORT_SUMMARY(_("[rejected]")),
-			    REFCOL_WIDTH, remote, pretty_ref);
-		return 1;
-	}
+	if (strbuf_read(merge_names, fd, 0) < 0)
+		die_errno(_("could not read '%s'"), filename);
+	if (close(fd) < 0)
+		die_errno(_("could not close '%s'"), filename);
 
-	if (!is_null_sha1(ref->old_sha1) &&
-	    starts_with(ref->name, "refs/tags/")) {
-		int r;
-		r = s_update_ref("updating tag", ref, 0);
-		strbuf_addf(display, "%c %-*s %-*s -> %s%s",
-			    r ? '!' : '-',
-			    TRANSPORT_SUMMARY(_("[tag update]")),
-			    REFCOL_WIDTH, remote, pretty_ref,
-			    r ? _("  (unable to update local ref)") : "");
-		return r;
-	}
+	for (pos = 0; pos < merge_names->len; pos = npos) {
+		unsigned char sha1[20];
+		char *ptr;
+		struct commit *commit;
 
-	current = lookup_commit_reference_gently(ref->old_sha1, 1);
-	updated = lookup_commit_reference_gently(ref->new_sha1, 1);
-	if (!current || !updated) {
-		const char *msg;
-		const char *what;
-		int r;
-		/*
-		 * Nicely describe the new ref we're fetching.
-		 * Base this on the remote's ref name, as it's
-		 * more likely to follow a standard layout.
-		 */
-		const char *name = remote_ref ? remote_ref->name : "";
-		if (starts_with(name, "refs/tags/")) {
-			msg = "storing tag";
-			what = _("[new tag]");
-		} else if (starts_with(name, "refs/heads/")) {
-			msg = "storing head";
-			what = _("[new branch]");
-		} else {
-			msg = "storing ref";
-			what = _("[new ref]");
+		ptr = strchr(merge_names->buf + pos, '\n');
+		if (ptr)
+			npos = ptr - merge_names->buf + 1;
+		else
+			npos = merge_names->len;
+
+		if (npos - pos < 40 + 2 ||
+		    get_sha1_hex(merge_names->buf + pos, sha1))
+			commit = NULL; /* bad */
+		else if (memcmp(merge_names->buf + pos + 40, "\t\t", 2))
+			continue; /* not-for-merge */
+		else {
+			char saved = merge_names->buf[pos + 40];
+			merge_names->buf[pos + 40] = '\0';
+			commit = get_merge_parent(merge_names->buf + pos);
+			merge_names->buf[pos + 40] = saved;
 		}
-
-		if ((recurse_submodules != RECURSE_SUBMODULES_OFF) &&
-		    (recurse_submodules != RECURSE_SUBMODULES_ON))
-			check_for_new_submodule_commits(ref->new_sha1);
-		r = s_update_ref(msg, ref, 0);
-		strbuf_addf(display, "%c %-*s %-*s -> %s%s",
-			    r ? '!' : '*',
-			    TRANSPORT_SUMMARY(what),
-			    REFCOL_WIDTH, remote, pretty_ref,
-			    r ? _("  (unable to update local ref)") : "");
-		return r;
+		if (!commit) {
+			if (ptr)
+				*ptr = '\0';
+			die("not something we can merge in %s: %s",
+			    filename, merge_names->buf + pos);
+		}
+		remotes = &commit_list_insert(commit, remotes)->next;
 	}
 
-	if (in_merge_bases(current, updated)) {
-		char quickref[83];
-		int r;
-		strcpy(quickref, find_unique_abbrev(current->object.sha1, DEFAULT_ABBREV));
-		strcat(quickref, "..");
-		strcat(quickref, find_unique_abbrev(ref->new_sha1, DEFAULT_ABBREV));
-		if ((recurse_submodules != RECURSE_SUBMODULES_OFF) &&
-		    (recurse_submodules != RECURSE_SUBMODULES_ON))
-			check_for_new_submodule_commits(ref->new_sha1);
-		r = s_update_ref("fast-forward", ref, 1);
-		strbuf_addf(display, "%c %-*s %-*s -> %s%s",
-			    r ? '!' : ' ',
-			    TRANSPORT_SUMMARY_WIDTH, quickref,
-			    REFCOL_WIDTH, remote, pretty_ref,
-			    r ? _("  (unable to update local ref)") : "");
-		return r;
-	} else if (force || ref->force) {
-		char quickref[84];
-		int r;
-		strcpy(quickref, find_unique_abbrev(current->object.sha1, DEFAULT_ABBREV));
-		strcat(quickref, "...");
-		strcat(quickref, find_unique_abbrev(ref->new_sha1, DEFAULT_ABBREV));
-		if ((recurse_submodules != RECURSE_SUBMODULES_OFF) &&
-		    (recurse_submodules != RECURSE_SUBMODULES_ON))
-			check_for_new_submodule_commits(ref->new_sha1);
-		r = s_update_ref("forced-update", ref, 1);
-		strbuf_addf(display, "%c %-*s %-*s -> %s  (%s)",
-			    r ? '!' : '+',
-			    TRANSPORT_SUMMARY_WIDTH, quickref,
-			    REFCOL_WIDTH, remote, pretty_ref,
-			    r ? _("unable to update local ref") : _("forced update"));
-		return r;
-	} else {
-		strbuf_addf(display, "! %-*s %-*s -> %s  %s",
-			    TRANSPORT_SUMMARY(_("[rejected]")),
-			    REFCOL_WIDTH, remote, pretty_ref,
-			    _("(non-fast-forward)"));
-		return 1;
-	}
+	if (merge_names == &fetch_head_file)
+		strbuf_release(&fetch_head_file);
 }

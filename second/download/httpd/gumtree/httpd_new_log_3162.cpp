@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE7, rv, c,
-                          "mod_dumpio:  %s (%s-%s): %s", f->frec->name,
-                          (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
-                          b->type->name, "error reading data");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01660)
+                      "A prepared statement could not be found for "
+                      "AuthDBDUserRealmQuery with the key '%s'", conf->realm);

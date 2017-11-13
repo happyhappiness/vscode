@@ -1,2 +1,2 @@
-error(_("commit %s is a merge but no -m option was given."),
-				oid_to_hex(&commit->object.oid));
+die(_("failed to store link to current notes ref (%s)"),
+			    default_notes_ref());

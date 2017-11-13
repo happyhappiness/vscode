@@ -1,1 +1,1 @@
-die("No commit to dig up from?");
+fprintf(o->file, "%s", ecbdata->header->buf);

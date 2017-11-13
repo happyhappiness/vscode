@@ -1,2 +1,1 @@
-error("copy-fd: read returned %s",
-				     strerror(errno));
+error(_("Could not spawn pack-objects"));

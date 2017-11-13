@@ -1,30 +1,29 @@
-static void dump_marks(void)
+static void export_marks(char *file)
 {
-	static struct lock_file mark_lock;
+	unsigned int i;
+	uint32_t mark;
+	struct object_decoration *deco = idnums.hash;
 	FILE *f;
+	int e = 0;
 
-	if (!export_marks_file)
-		return;
+	f = fopen(file, "w");
+	if (!f)
+		die_errno("Unable to open marks file %s for writing.", file);
 
-	if (hold_lock_file_for_update(&mark_lock, export_marks_file, 0) < 0) {
-		failure |= error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(errno));
-		return;
+	for (i = 0; i < idnums.size; i++) {
+		if (deco->base && deco->base->type == 1) {
+			mark = ptr_to_mark(deco->decoration);
+			if (fprintf(f, ":%"PRIu32" %s\n", mark,
+				sha1_to_hex(deco->base->sha1)) < 0) {
+			    e = 1;
+			    break;
+			}
+		}
+		deco++;
 	}
 
-	f = fdopen_lock_file(&mark_lock, "w");
-	if (!f) {
-		int saved_errno = errno;
-		rollback_lock_file(&mark_lock);
-		failure |= error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(saved_errno));
-		return;
-	}
-
-	dump_marks_helper(f, 0, marks);
-	if (commit_lock_file(&mark_lock)) {
-		failure |= error("Unable to write file %s: %s",
-			export_marks_file, strerror(errno));
-		return;
-	}
+	e |= ferror(f);
+	e |= fclose(f);
+	if (e)
+		error("Unable to write marks file %s.", file);
 }

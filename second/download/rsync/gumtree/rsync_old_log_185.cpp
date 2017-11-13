@@ -1,1 +1,1 @@
-fprintf(stderr,"recv_files finished\n");
+fprintf(am_server?stderr:stdout,"%s\n",fname);

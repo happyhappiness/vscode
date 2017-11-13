@@ -1,1 +1,1 @@
-ap_rputs("Standby", r);
+ap_rputs("OK", r);

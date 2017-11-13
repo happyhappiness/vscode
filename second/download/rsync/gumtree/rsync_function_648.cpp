@@ -1,67 +1,47 @@
-static int start_daemon(int fd)
+static struct sum_struct *receive_sums(int f)
 {
-	char line[200];
-	char *motd;
-	int i = -1;
-	extern char *config_file;
-	extern int remote_version;
+	struct sum_struct *s;
+	int i;
+	OFF_T offset = 0;
 
-	if (!lp_load(config_file, 0)) {
-		exit_cleanup(RERR_SYNTAX);
+	s = (struct sum_struct *)malloc(sizeof(*s));
+	if (!s) out_of_memory("receive_sums");
+
+	s->count = read_int(f);
+	s->n = read_int(f);
+	s->remainder = read_int(f);  
+	s->sums = NULL;
+
+	if (verbose > 3)
+		rprintf(FINFO,"count=%d n=%d rem=%d\n",
+			s->count,s->n,s->remainder);
+
+	if (s->count == 0) 
+		return(s);
+
+	s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
+	if (!s->sums) out_of_memory("receive_sums");
+
+	for (i=0;i<s->count;i++) {
+		s->sums[i].sum1 = read_int(f);
+		read_buf(f,s->sums[i].sum2,csum_length);
+
+		s->sums[i].offset = offset;
+		s->sums[i].i = i;
+
+		if (i == s->count-1 && s->remainder != 0) {
+			s->sums[i].len = s->remainder;
+		} else {
+			s->sums[i].len = s->n;
+		}
+		offset += s->sums[i].len;
+
+		if (verbose > 3)
+			rprintf(FINFO,"chunk[%d] len=%d offset=%d sum1=%08x\n",
+				i,s->sums[i].len,(int)s->sums[i].offset,s->sums[i].sum1);
 	}
 
-	set_socket_options(fd,"SO_KEEPALIVE");
-	set_socket_options(fd,lp_socket_options());
-	set_nonblocking(fd);
+	s->flength = offset;
 
-	io_printf(fd,"@RSYNCD: %d\n", PROTOCOL_VERSION);
-
-	motd = lp_motd_file();
-	if (motd && *motd) {
-		FILE *f = fopen(motd,"r");
-		while (f && !feof(f)) {
-			int len = fread(line, 1, sizeof(line)-1, f);
-			if (len > 0) {
-				line[len] = 0;
-				io_printf(fd,"%s", line);
-			}
-		}
-		if (f) fclose(f);
-		io_printf(fd,"\n");
-	}
-
-	if (!read_line(fd, line, sizeof(line)-1)) {
-		return -1;
-	}
-
-	if (sscanf(line,"@RSYNCD: %d", &remote_version) != 1) {
-		io_printf(fd,"@ERROR: protocol startup error\n");
-		return -1;
-	}	
-
-	while (i == -1) {
-		line[0] = 0;
-		if (!read_line(fd, line, sizeof(line)-1)) {
-			return -1;
-		}
-
-		if (!*line || strcmp(line,"#list")==0) {
-			send_listing(fd);
-			return -1;
-		} 
-
-		if (*line == '#') {
-			/* it's some sort of command that I don't understand */
-			io_printf(fd,"@ERROR: Unknown command '%s'\n", line);
-			return -1;
-		}
-
-		i = lp_number(line);
-		if (i == -1) {
-			io_printf(fd,"@ERROR: Unknown module '%s'\n", line);
-			return -1;
-		}
-	}
-
-	return rsync_module(fd, i);
+	return s;
 }

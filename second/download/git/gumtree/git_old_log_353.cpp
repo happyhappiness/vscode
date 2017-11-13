@@ -1,1 +1,1 @@
-die("Option '--stat-graph-width' requires a value");
+packet_write(fd[1], "argument %s\n", argv[i]);

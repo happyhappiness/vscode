@@ -1,1 +1,1 @@
-printf("%s\n", sha1_to_hex(bases->item->object.sha1));
+(fprintf(f, "%"PRIuMAX"\n", (uintmax_t) getpid());

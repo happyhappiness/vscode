@@ -1,77 +1,205 @@
-static int proxy_http_canon(request_rec *r, char *url)
+static int cache_handler(request_rec *r)
 {
-    char *host, *path, sport[7];
-    char *search = NULL;
-    const char *err;
-    const char *scheme;
-    apr_port_t port, def_port;
+    apr_status_t rv;
+    cache_provider_list *providers;
+    cache_request_rec *cache;
+    apr_bucket_brigade *out;
+    ap_filter_t *next;
+    ap_filter_rec_t *cache_out_handle;
+    ap_filter_rec_t *cache_save_handle;
+    cache_server_conf *conf;
 
-    /* ap_port_of_scheme() */
-    if (strncasecmp(url, "http:", 5) == 0) {
-        url += 5;
-        scheme = "http";
-    }
-    else if (strncasecmp(url, "https:", 6) == 0) {
-        url += 6;
-        scheme = "https";
-    }
-    else {
+    /* Delay initialization until we know we are handling a GET */
+    if (r->method_number != M_GET) {
         return DECLINED;
     }
-    def_port = apr_uri_port_of_scheme(scheme);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-             "proxy: HTTP: canonicalising URL %s", url);
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                                      &cache_module);
 
-    /* do syntatic check.
-     * We break the URL into host, port, path, search
-     */
-    port = def_port;
-    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "error parsing URL %s: %s",
-                      url, err);
-        return HTTP_BAD_REQUEST;
+    /* only run if the quick handler is disabled */
+    if (conf->quick) {
+        return DECLINED;
     }
 
     /*
-     * now parse path/search args, according to rfc1738:
-     * process the path.
-     *
-     * In a reverse proxy, our URL has been processed, so canonicalise
-     * unless proxy-nocanon is set to say it's raw
-     * In a forward proxy, we have and MUST NOT MANGLE the original.
+     * Which cache module (if any) should handle this request?
      */
-    switch (r->proxyreq) {
-    default: /* wtf are we doing here? */
-    case PROXYREQ_REVERSE:
-        if (apr_table_get(r->notes, "proxy-nocanon")) {
-            path = url;   /* this is the raw path */
+    if (!(providers = ap_cache_get_providers(r, conf, r->parsed_uri))) {
+        return DECLINED;
+    }
+
+    /* make space for the per request config */
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
+                                                       &cache_module);
+    if (!cache) {
+        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
+        ap_set_module_config(r->request_config, &cache_module, cache);
+    }
+
+    /* save away the possible providers */
+    cache->providers = providers;
+
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file (DECLINED)
+     *   add cache_save filter
+     * If cached file (OK)
+     *   clear filter stack
+     *   add cache_out filter
+     *   return OK
+     */
+    rv = cache_select(r);
+    if (rv != OK) {
+        if (rv == DECLINED) {
+
+            /* try to obtain a cache lock at this point. if we succeed,
+             * we are the first to try and cache this url. if we fail,
+             * it means someone else is already trying to cache this
+             * url, and we should just let the request through to the
+             * backend without any attempt to cache. this stops
+             * duplicated simultaneous attempts to cache an entity.
+             */
+            rv = ap_cache_try_lock(conf, r, NULL);
+            if (APR_SUCCESS == rv) {
+
+                /*
+                 * Add cache_save filter to cache this request. Choose
+                 * the correct filter by checking if we are a subrequest
+                 * or not.
+                 */
+                if (r->main) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server,
+                            "Adding CACHE_SAVE_SUBREQ filter for %s",
+                            r->uri);
+                    cache_save_handle = cache_save_subreq_filter_handle;
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Adding CACHE_SAVE filter for %s",
+                            r->uri);
+                    cache_save_handle = cache_save_filter_handle;
+                }
+                ap_add_output_filter_handle(cache_save_handle,
+                        NULL, r, r->connection);
+
+                /*
+                 * Did the user indicate the precise location of the
+                 * CACHE_SAVE filter by inserting the CACHE filter as a
+                 * marker?
+                 *
+                 * If so, we get cunning and replace CACHE with the
+                 * CACHE_SAVE filter. This has the effect of inserting
+                 * the CACHE_SAVE filter at the precise location where
+                 * the admin wants to cache the content. All filters that
+                 * lie before and after the original location of the CACHE
+                 * filter will remain in place.
+                 */
+                if (cache_replace_filter(r->output_filters,
+                        cache_filter_handle, cache_save_handle)) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Replacing CACHE with CACHE_SAVE "
+                            "filter for %s", r->uri);
+                }
+
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                        "Adding CACHE_REMOVE_URL filter for %s",
+                        r->uri);
+
+                /* Add cache_remove_url filter to this request to remove a
+                 * stale cache entry if needed. Also put the current cache
+                 * request rec in the filter context, as the request that
+                 * is available later during running the filter may be
+                 * different due to an internal redirect.
+                 */
+                cache->remove_url_filter =
+                    ap_add_output_filter_handle(cache_remove_url_filter_handle,
+                            cache, r, r->connection);
+
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
+                             r->server, "Cache locked for url, not caching "
+                             "response: %s", r->uri);
+            }
         }
         else {
-            path = ap_proxy_canonenc(r->pool, url, strlen(url),
-                                     enc_path, 0, r->proxyreq);
-            search = r->args;
+            /* error */
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while checking for cached "
+                         "file by %s cache", cache->provider_name);
         }
-        break;
-    case PROXYREQ_PROXY:
-        path = url;
-        break;
+        return DECLINED;
     }
 
-    if (path == NULL)
-        return HTTP_BAD_REQUEST;
-
-    if (port != def_port)
-        apr_snprintf(sport, sizeof(sport), ":%d", port);
-    else
-        sport[0] = '\0';
-
-    if (ap_strchr_c(host, ':')) { /* if literal IPv6 address */
-        host = apr_pstrcat(r->pool, "[", host, "]", NULL);
+    rv = ap_meets_conditions(r);
+    if (rv != OK) {
+        return rv;
     }
-    r->filename = apr_pstrcat(r->pool, "proxy:", scheme, "://", host, sport,
-            "/", path, (search) ? "?" : "", (search) ? search : "", NULL);
+
+    /* Serve up the content */
+
+    /*
+     * Add cache_out filter to serve this request. Choose
+     * the correct filter by checking if we are a subrequest
+     * or not.
+     */
+    if (r->main) {
+        cache_out_handle = cache_out_subreq_filter_handle;
+    }
+    else {
+        cache_out_handle = cache_out_filter_handle;
+    }
+    ap_add_output_filter_handle(cache_out_handle, NULL, r, r->connection);
+
+    /*
+     * Did the user indicate the precise location of the CACHE_OUT filter by
+     * inserting the CACHE filter as a marker?
+     *
+     * If so, we get cunning and replace CACHE with the CACHE_OUT filters.
+     * This has the effect of inserting the CACHE_OUT filter at the precise
+     * location where the admin wants to cache the content. All filters that
+     * lie *after* the original location of the CACHE filter will remain in
+     * place.
+     */
+    if (cache_replace_filter(r->output_filters, cache_filter_handle, cache_out_handle)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                r->server, "Replacing CACHE with CACHE_OUT filter for %s",
+                r->uri);
+    }
+
+    /*
+     * Remove all filters that are before the cache_out filter. This ensures
+     * that we kick off the filter stack with our cache_out filter being the
+     * first in the chain. This make sense because we want to restore things
+     * in the same manner as we saved them.
+     * There may be filters before our cache_out filter, because
+     *
+     * 1. We call ap_set_content_type during cache_select. This causes
+     *    Content-Type specific filters to be added.
+     * 2. We call the insert_filter hook. This causes filters e.g. like
+     *    the ones set with SetOutputFilter to be added.
+     */
+    next = r->output_filters;
+    while (next && (next->frec != cache_out_handle)) {
+        ap_remove_output_filter(next);
+        next = next->next;
+    }
+
+    /* kick off the filter stack */
+    out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    rv = ap_pass_brigade(r->output_filters, out);
+    if (rv != APR_SUCCESS) {
+        if (rv != AP_FILTER_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while trying to return %s "
+                         "cached data",
+                         cache->provider_name);
+        }
+        return rv;
+    }
+
     return OK;
 }

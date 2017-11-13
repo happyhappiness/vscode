@@ -1,10 +1,11 @@
 fputs(
-"              with the proper end-of-line marker, you should thus not add that\n"
-"              as a part of the header content: do not add newlines or carriage\n"
-"              returns, they will only mess things up for you.\n"
+"              eral disabled for security reasons: Since 7.19.4  FILE  and  SCP\n"
+"              are  disabled,  and since 7.40.0 SMB and SMBS are also disabled.\n"
+"              Specifying all  or  +all  enables  all  protocols  on  redirect,\n"
+"              including those disabled for security.\n"
 "\n"
-"              Headers  specified  with  this  option  will  not be included in\n"
-"              requests that curl knows will not be sent to a proxy.\n"
+"              Added in 7.20.2.\n"
 "\n"
-"              Starting in 7.55.0, this option can take an argument  in  @file-\n"
+"       --proto <protocols>\n"
+"              Tells  curl  to limit what protocols it may use in the transfer.\n"
 , stdout);

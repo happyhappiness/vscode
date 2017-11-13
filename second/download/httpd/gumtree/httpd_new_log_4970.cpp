@@ -1,3 +1,3 @@
-ap_log_error(SCRIPT_LOG_MARK, APLOG_ERR, 0, r->server,
-                             "CGI Interface Error: Script headers apparently ASCII: (CGI = %s)",
-                             r->filename);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p, APLOGNO(00068)
+                      "make_sock: for address %pI, apr_socket_opt_set: (SO_KEEPALIVE)",
+                      server->bind_addr);

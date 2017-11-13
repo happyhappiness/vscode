@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(01587)
-                              "Invalid Content-Length");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r, APLOGNO(00692)
+                "cache: No cache request information available for key"
+                " generation");

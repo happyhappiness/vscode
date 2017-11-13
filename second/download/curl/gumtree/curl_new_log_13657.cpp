@@ -1,11 +1,11 @@
 fputs(
-"              This  option (as well as --socks4) does not work with IPV6, FTPS\n"
-"              or LDAP.\n"
+"              (WinSSL)  This  option tells curl to disable certificate revoca-\n"
+"              tion checks.  WARNING: this option loosens the SSL security, and\n"
+"              by using this flag you ask for exactly that.  (Added in 7.44.0)\n"
 "\n"
-"       --socks5-gssapi-service <servicename>\n"
-"              The default service name for a socks server is rcmd/server-fqdn.\n"
-"              This option allows you to change it.\n"
+"       --socks4 <host[:port]>\n"
+"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
+"              fied, it is assumed at port 1080. (Added in 7.15.2)\n"
 "\n"
-"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
-"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
+"              This option overrides any previous use of -x, --proxy,  as  they\n"
 , stdout);

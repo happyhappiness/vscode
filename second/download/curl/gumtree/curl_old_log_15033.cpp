@@ -1,11 +1,8 @@
 fputs(
-"              Note  that  to  be able to specify a URL in the config file, you\n"
-"              need to specify it using the --url option,  and  not  by  simply\n"
-"              writing  the  URL  on its own line. So, it could look similar to\n"
-"              this:\n"
-"\n"
-"              url = \"https://curl.haxx.se/docs/\"\n"
-"\n"
-"              When curl is invoked, it always (unless -q, --disable  is  used)\n"
-"              checks  for  a  default  config  file  and uses it if found. The\n"
+"  from sites that require valid certificates. The only drawback is that the\n"
+"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
+"  store certificates with, but it is not used by the most commonly used\n"
+"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
+"  want curl to use the certificates you use with your (favourite) browser, you\n"
+"  may need to download/compile a converter that can convert your browser's\n"
 , stdout);

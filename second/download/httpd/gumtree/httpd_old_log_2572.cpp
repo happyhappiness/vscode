@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "[%" APR_PID_T_FMT "] util_ldap: Couldn't "
-                              "retrieve group entry for %s from cache",
-                               getpid(), dn);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: return code %d from HttpExtensionProc() "
+                           "was not not recognized", rv);

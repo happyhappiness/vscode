@@ -1,9 +1,11 @@
 fputs(
-"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
-"              GET request instead of the POST request that otherwise would  be\n"
-"              used. The data will be appended to the URL with a '?' separator.\n"
-"              If  used  in  combination with -I, the POST data will instead be\n"
-"              appended to the URL with a HEAD request.\n"
+"              connection. Instead curl will re-use  the  same  IP  address  it\n"
+"              already uses for the control connection. (Added in 7.14.2)\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
+"              This  option has no effect if PORT, EPRT or EPSV is used instead\n"
+"              of PASV.\n"
+"\n"
+"       --ftp-pret\n"
+"              (FTP) Tell curl to send a PRET command before PASV  (and  EPSV).\n"
+"              Certain  FTP  servers,  mainly drftpd, require this non-standard\n"
 , stdout);

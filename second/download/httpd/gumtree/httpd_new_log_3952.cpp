@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01090)
-                                  "creation of temporary file in directory "
-                                  "%s failed", temp_dir);
+ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s, APLOGNO(01322)
+                     "Failed to initialise global mutex %s in child process",
+                     ldap_cache_mutex_type);

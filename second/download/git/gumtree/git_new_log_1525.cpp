@@ -1,1 +1,2 @@
-die(_("Can merge only exactly one commit into empty head"));
+error(_("The note contents have been left in %s"),
+				      path);

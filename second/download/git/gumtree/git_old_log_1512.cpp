@@ -1,1 +1,1 @@
-fprintf(stderr, "Invalid pattern: %s\n", regex_);
+die("Not a valid object name %s", obj_name);

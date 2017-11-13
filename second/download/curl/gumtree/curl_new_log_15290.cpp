@@ -1,8 +1,9 @@
 fputs(
-"              This  option  can  tell curl to parse and process a given URI as\n"
-"              Metalink file (both version 3 and 4 (RFC  5854)  are  supported)\n"
-"              and  make use of the mirrors listed within for failover if there\n"
-"              are errors (such as the file or server not being available).  It\n"
-"              will  also  verify  the hash of the file after the download com-\n"
-"              pletes. The Metalink file itself is downloaded and processed  in\n"
+"              (for example POST or PUT), it will do the following request with\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code  was  any  other  3xx code, curl will re-send the following\n"
+"              request using the same unmodified method.\n"
+"\n"
+"              You can tell curl to not change the non-GET  request  method  to\n"
+"              GET  after  a  30x  response  by using the dedicated options for\n"
 , stdout);

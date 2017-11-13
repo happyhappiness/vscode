@@ -1,210 +1,312 @@
-int main (int argc, const char * const argv[])
+int main(int argc, const char * const argv[])
 {
-    char buf[BUFSIZE];
-    apr_size_t nRead, nWrite;
-    apr_file_t *f_stdin;
-    apr_file_t *f_stdout;
+    char c;
+    int configtestonly = 0, showcompile = 0;
+    const char *confname = SERVER_CONFIG_FILE;
+    const char *def_server_root = HTTPD_ROOT;
+    const char *temp_error_log = NULL;
+    const char *error;
+    process_rec *process;
+    apr_pool_t *pconf;
+    apr_pool_t *plog; /* Pool of log streams, reset _after_ each read of conf */
+    apr_pool_t *ptemp; /* Pool for temporary config stuff, reset often */
+    apr_pool_t *pcommands; /* Pool for -D, -C and -c switches */
     apr_getopt_t *opt;
     apr_status_t rv;
-    char c;
-    const char *opt_arg;
-    const char *err = NULL;
-#if APR_FILES_AS_SOCKETS
-    apr_pollfd_t pollfd = { 0 };
-    apr_status_t pollret = APR_SUCCESS;
-    int polltimeout;
+    module **mod;
+    const char *optarg;
+    APR_OPTIONAL_FN_TYPE(ap_signal_server) *signal_server;
+
+    AP_MONCONTROL(0); /* turn off profiling of startup */
+
+    process = init_process(&argc, &argv);
+    ap_pglobal = process->pool;
+    pconf = process->pconf;
+    ap_server_argv0 = process->short_name;
+
+    /* Set up the OOM callback in the global pool, so all pools should
+     * by default inherit it. */
+    apr_pool_abort_set(abort_on_oom, apr_pool_parent_get(process->pool));
+
+#if APR_CHARSET_EBCDIC
+    if (ap_init_ebcdic(ap_pglobal) != APR_SUCCESS) {
+        destroy_and_exit_process(process, 1);
+    }
 #endif
+    if (ap_expr_init(ap_pglobal) != APR_SUCCESS) {
+        destroy_and_exit_process(process, 1);
+    }
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(apr_terminate);
+    apr_pool_create(&pcommands, ap_pglobal);
+    apr_pool_tag(pcommands, "pcommands");
+    ap_server_pre_read_config  = apr_array_make(pcommands, 1, sizeof(char *));
+    ap_server_post_read_config = apr_array_make(pcommands, 1, sizeof(char *));
+    ap_server_config_defines   = apr_array_make(pcommands, 1, sizeof(char *));
 
-    memset(&config, 0, sizeof config);
-    memset(&status, 0, sizeof status);
-    status.rotateReason = ROTATE_NONE;
+    error = ap_setup_prelinked_modules(process);
+    if (error) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, 0, NULL, "%s: %s",
+                     ap_server_argv0, error);
+        destroy_and_exit_process(process, 1);
+    }
 
-    apr_pool_create(&status.pool, NULL);
-    apr_getopt_init(&opt, status.pool, argc, argv);
-#if APR_FILES_AS_SOCKETS
-    while ((rv = apr_getopt(opt, "lL:p:ftvec", &c, &opt_arg)) == APR_SUCCESS) {
-#else
-    while ((rv = apr_getopt(opt, "lL:p:ftve", &c, &opt_arg)) == APR_SUCCESS) {
-#endif
+    ap_run_rewrite_args(process);
+
+    /* Maintain AP_SERVER_BASEARGS list in http_main.h to allow the MPM
+     * to safely pass on our args from its rewrite_args() handler.
+     */
+    apr_getopt_init(&opt, pcommands, process->argc, process->argv);
+
+    while ((rv = apr_getopt(opt, AP_SERVER_BASEARGS, &c, &optarg))
+            == APR_SUCCESS) {
+        char **new;
+
         switch (c) {
-        case 'l':
-            config.use_localtime = 1;
-            break;
-        case 'L':
-            config.linkfile = opt_arg;
-            break;
-        case 'p':
-            config.postrotate_prog = opt_arg;
-            break;
-        case 'f':
-            config.force_open = 1;
-            break;
-        case 't':
-            config.truncate = 1;
-            break;
-        case 'v':
-            config.verbose = 1;
-            break;
-        case 'e':
-            config.echo = 1;
-            break;
-#if APR_FILES_AS_SOCKETS
         case 'c':
-            config.create_empty = 1;
+            new = (char **)apr_array_push(ap_server_post_read_config);
+            *new = apr_pstrdup(pcommands, optarg);
             break;
-#endif
-        }
-    }
 
-    if (rv != APR_EOF) {
-        usage(argv[0], NULL /* specific error message already issued */ );
-    }
+        case 'C':
+            new = (char **)apr_array_push(ap_server_pre_read_config);
+            *new = apr_pstrdup(pcommands, optarg);
+            break;
 
-    /*
-     * After the initial flags we need 2 to 4 arguments,
-     * the file name, either the rotation interval time or size
-     * or both of them, and optionally the UTC offset.
-     */
-    if ((argc - opt->ind < 2) || (argc - opt->ind > 4) ) {
-        usage(argv[0], "Incorrect number of arguments");
-    }
+        case 'd':
+            def_server_root = optarg;
+            break;
 
-    config.szLogRoot = argv[opt->ind++];
+        case 'D':
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = apr_pstrdup(pcommands, optarg);
+            /* Setting -D DUMP_VHOSTS is equivalent to setting -S */
+            if (strcmp(optarg, "DUMP_VHOSTS") == 0)
+                configtestonly = 1;
+            /* Setting -D DUMP_MODULES is equivalent to setting -M */
+            if (strcmp(optarg, "DUMP_MODULES") == 0)
+                configtestonly = 1;
+            break;
 
-    /* Read in the remaining flags, namely time, size and UTC offset. */
-    for(; opt->ind < argc; opt->ind++) {
-        if ((err = get_time_or_size(&config, argv[opt->ind],
-                                    opt->ind < argc - 1 ? 0 : 1)) != NULL) {
-            usage(argv[0], err);
-        }
-    }
+        case 'e':
+            if (ap_parse_log_level(optarg, &ap_default_loglevel) != NULL)
+                usage(process);
+            break;
 
-    config.use_strftime = (strchr(config.szLogRoot, '%') != NULL);
+        case 'E':
+            temp_error_log = apr_pstrdup(process->pool, optarg);
+            break;
 
-    if (apr_file_open_stdin(&f_stdin, status.pool) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to open stdin\n");
-        exit(1);
-    }
+        case 'X':
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = "DEBUG";
+            break;
 
-    if (apr_file_open_stdout(&f_stdout, status.pool) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to open stdout\n");
-        exit(1);
-    }
+        case 'f':
+            confname = optarg;
+            break;
 
-    /*
-     * Write out result of config parsing if verbose is set.
-     */
-    if (config.verbose) {
-        dumpConfig(&config);
-    }
+        case 'v':
+            printf("Server version: %s\n", ap_get_server_description());
+            printf("Server built:   %s\n", ap_get_server_built());
+            destroy_and_exit_process(process, 0);
 
-#if APR_FILES_AS_SOCKETS
-    if (config.create_empty && config.tRotation) {
-        pollfd.p = status.pool;
-        pollfd.desc_type = APR_POLL_FILE;
-        pollfd.reqevents = APR_POLLIN;
-        pollfd.desc.f = f_stdin;
-    }
-#endif
-
-    /*
-     * Immediately open the logfile as we start, if we were forced
-     * to do so via '-f'.
-     */
-    if (config.force_open) {
-        doRotate(&config, &status);
-    }
-
-    for (;;) {
-        nRead = sizeof(buf);
-#if APR_FILES_AS_SOCKETS
-        if (config.create_empty && config.tRotation) {
-            polltimeout = status.tLogEnd ? status.tLogEnd - get_now(&config) : config.tRotation;
-            if (polltimeout <= 0) {
-                pollret = APR_TIMEUP;
+        case 'V':
+            if (strcmp(ap_show_mpm(), "")) { /* MPM built-in? */
+                show_compile_settings();
+                destroy_and_exit_process(process, 0);
             }
             else {
-                pollret = apr_poll(&pollfd, 1, &pollret, apr_time_from_sec(polltimeout));
+                showcompile = 1;
             }
-        }
-        if (pollret == APR_SUCCESS) {
-            rv = apr_file_read(f_stdin, buf, &nRead);
-            if (APR_STATUS_IS_EOF(rv)) {
-                break;
-            }
-            else if (rv != APR_SUCCESS) {
-                exit(3);
-            }
-        }
-        else if (pollret == APR_TIMEUP) {
-            *buf = 0;
-            nRead = 0;
-        }
-        else {
-            fprintf(stderr, "Unable to poll stdin\n");
-            exit(5);
-        }
-#else /* APR_FILES_AS_SOCKETS */
-        rv = apr_file_read(f_stdin, buf, &nRead);
-        if (APR_STATUS_IS_EOF(rv)) {
             break;
-        }
-        else if (rv != APR_SUCCESS) {
-            exit(3);
-        }
-#endif /* APR_FILES_AS_SOCKETS */
-        checkRotate(&config, &status);
-        if (status.rotateReason != ROTATE_NONE) {
-            doRotate(&config, &status);
-        }
 
-        nWrite = nRead;
-        rv = apr_file_write(status.current.fd, buf, &nWrite);
-        if (rv == APR_SUCCESS && nWrite != nRead) {
-            /* buffer partially written, which for rotatelogs means we encountered
-             * an error such as out of space or quota or some other limit reached;
-             * try to write the rest so we get the real error code
-             */
-            apr_size_t nWritten = nWrite;
+        case 'l':
+            ap_show_modules();
+            destroy_and_exit_process(process, 0);
 
-            nRead  = nRead - nWritten;
-            nWrite = nRead;
-            rv = apr_file_write(status.current.fd, buf + nWritten, &nWrite);
-        }
-        if (nWrite != nRead) {
-            char strerrbuf[120];
-            apr_off_t cur_offset;
+        case 'L':
+            ap_show_directives();
+            destroy_and_exit_process(process, 0);
 
-            cur_offset = 0;
-            if (apr_file_seek(status.current.fd, APR_CUR, &cur_offset) != APR_SUCCESS) {
-                cur_offset = -1;
-            }
-            apr_strerror(rv, strerrbuf, sizeof strerrbuf);
-            status.nMessCount++;
-            apr_snprintf(status.errbuf, sizeof status.errbuf,
-                         "Error %d writing to log file at offset %" APR_OFF_T_FMT ". "
-                         "%10d messages lost (%s)\n",
-                         rv, cur_offset, status.nMessCount, strerrbuf);
-            nWrite = strlen(status.errbuf);
-            apr_file_trunc(status.current.fd, 0);
-            if (apr_file_write(status.current.fd, status.errbuf, &nWrite) != APR_SUCCESS) {
-                fprintf(stderr, "Error writing to the file %s\n", status.current.name);
-                exit(2);
-            }
-        }
-        else {
-            status.nMessCount++;
-        }
-        if (config.echo) {
-            if (apr_file_write_full(f_stdout, buf, nRead, &nWrite)) {
-                fprintf(stderr, "Unable to write to stdout\n");
-                exit(4);
-            }
+        case 't':
+            configtestonly = 1;
+            break;
+
+       case 'T':
+           ap_document_root_check = 0;
+           break;
+
+        case 'S':
+            configtestonly = 1;
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = "DUMP_VHOSTS";
+            break;
+
+        case 'M':
+            configtestonly = 1;
+            new = (char **)apr_array_push(ap_server_config_defines);
+            *new = "DUMP_MODULES";
+            break;
+
+        case 'h':
+        case '?':
+            usage(process);
         }
     }
 
-    return 0; /* reached only at stdin EOF. */
+    /* bad cmdline option?  then we die */
+    if (rv != APR_EOF || opt->ind < opt->argc) {
+        usage(process);
+    }
+
+    apr_pool_create(&plog, ap_pglobal);
+    apr_pool_tag(plog, "plog");
+    apr_pool_create(&ptemp, pconf);
+    apr_pool_tag(ptemp, "ptemp");
+
+    /* Note that we preflight the config file once
+     * before reading it _again_ in the main loop.
+     * This allows things, log files configuration
+     * for example, to settle down.
+     */
+
+    ap_server_root = def_server_root;
+    if (temp_error_log) {
+        ap_replace_stderr_log(process->pool, temp_error_log);
+    }
+    ap_server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+    if (!ap_server_conf) {
+        destroy_and_exit_process(process, 1);
+    }
+
+    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Pre-configuration failed");
+        destroy_and_exit_process(process, 1);
+    }
+
+    rv = ap_process_config_tree(ap_server_conf, ap_conftree,
+                                process->pconf, ptemp);
+    if (rv == OK) {
+        ap_fixup_virtual_hosts(pconf, ap_server_conf);
+        ap_fini_vhost_config(pconf, ap_server_conf);
+        apr_hook_sort_all();
+
+        if (ap_run_check_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                         NULL, "Configuration check failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (configtestonly) {
+            ap_run_test_config(pconf, ap_server_conf);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+            destroy_and_exit_process(process, 0);
+        }
+        else if (showcompile) { /* deferred due to dynamically loaded MPM */
+            show_compile_settings();
+            destroy_and_exit_process(process, 0);
+        }
+    }
+
+    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
+    if (signal_server) {
+        int exit_status;
+
+        if (signal_server(&exit_status, pconf) != 0) {
+            destroy_and_exit_process(process, exit_status);
+        }
+    }
+
+    /* If our config failed, deal with that here. */
+    if (rv != OK) {
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_clear(plog);
+
+    if ( ap_run_open_logs(pconf, plog, ptemp, ap_server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs");
+        destroy_and_exit_process(process, 1);
+    }
+
+    if ( ap_run_post_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Configuration Failed");
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_destroy(ptemp);
+
+    for (;;) {
+        apr_hook_deregister_all();
+        apr_pool_clear(pconf);
+        ap_clear_auth_internal();
+
+        for (mod = ap_prelinked_modules; *mod != NULL; mod++) {
+            ap_register_hooks(*mod, pconf);
+        }
+
+        /* This is a hack until we finish the code so that it only reads
+         * the config file once and just operates on the tree already in
+         * memory.  rbb
+         */
+        ap_conftree = NULL;
+        apr_pool_create(&ptemp, pconf);
+        apr_pool_tag(ptemp, "ptemp");
+        ap_server_root = def_server_root;
+        ap_server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+        if (!ap_server_conf) {
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Pre-configuration failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_process_config_tree(ap_server_conf, ap_conftree, process->pconf,
+                                   ptemp) != OK) {
+            destroy_and_exit_process(process, 1);
+        }
+        ap_fixup_virtual_hosts(pconf, ap_server_conf);
+        ap_fini_vhost_config(pconf, ap_server_conf);
+        apr_hook_sort_all();
+
+        if (ap_run_check_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                         NULL, "Configuration check failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_clear(plog);
+        if (ap_run_open_logs(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Unable to open logs");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_run_post_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Configuration Failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_destroy(ptemp);
+        apr_pool_lock(pconf, 1);
+
+        ap_run_optional_fn_retrieve();
+
+        if (ap_run_mpm(pconf, plog, ap_server_conf) != OK)
+            break;
+
+        apr_pool_lock(pconf, 0);
+    }
+
+    apr_pool_lock(pconf, 0);
+    destroy_and_exit_process(process, 0);
+
+    return 0; /* Termination 'ok' */
 }

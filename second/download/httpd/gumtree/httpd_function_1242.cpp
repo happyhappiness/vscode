@@ -1,45 +1,34 @@
-static PCOMP_CONTEXT winnt_get_connection(PCOMP_CONTEXT context)
+static apr_status_t dbd_setup_lock(apr_pool_t *pool, server_rec *s)
 {
-    int rc;
-    DWORD BytesRead;
-    LPOVERLAPPED pol;
-#ifdef _WIN64
-    ULONG_PTR CompKey;
-#else
-    DWORD CompKey;
-#endif
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
+    apr_status_t rv, rv2 = APR_SUCCESS;
 
-    mpm_recycle_completion_context(context);
-
-    apr_atomic_inc32(&g_blocked_threads);
-    while (1) {
-        if (workers_may_exit) {
-            apr_atomic_dec32(&g_blocked_threads);
-            return NULL;
-        }
-        rc = GetQueuedCompletionStatus(ThreadDispatchIOCP, &BytesRead, &CompKey,
-                                       &pol, INFINITE);
-        if (!rc) {
-            rc = apr_get_os_error();
-            ap_log_error(APLOG_MARK,APLOG_DEBUG, rc, ap_server_conf,
-                             "Child %d: GetQueuedComplationStatus returned %d", my_pid, rc);
-            continue;
-        }
-
-        switch (CompKey) {
-        case IOCP_CONNECTION_ACCEPTED:
-            context = CONTAINING_RECORD(pol, COMP_CONTEXT, Overlapped);
-            break;
-        case IOCP_SHUTDOWN:
-            apr_atomic_dec32(&g_blocked_threads);
-            return NULL;
-        default:
-            apr_atomic_dec32(&g_blocked_threads);
-            return NULL;
-        }
-        break;
+    /* several threads could be here at the same time, all trying to
+     * initialize the reslist because dbd_setup_init failed to do so
+     */
+    if (!svr->mutex) {
+        /* we already logged an error when the mutex couldn't be created */
+        return APR_EGENERAL;
     }
-    apr_atomic_dec32(&g_blocked_threads);
 
-    return context;
+    rv = apr_thread_mutex_lock(svr->mutex);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to acquire thread mutex");
+        return rv;
+    }
+
+    if (!svr->dbpool) {
+        rv2 = dbd_setup(s->process->pool, svr);
+    }
+
+    rv = apr_thread_mutex_unlock(svr->mutex);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to release thread mutex");
+        if (rv2 == APR_SUCCESS) {
+            rv2 = rv;
+        }
+    }
+    return rv2;
 }

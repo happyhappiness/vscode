@@ -1,3 +1,1 @@
-printf("\n--%s%s--\n\n\n",
-				       mime_boundary_leader,
-				       rev.mime_boundary);
+die("internal error: packed-ref cache cleared while locked");

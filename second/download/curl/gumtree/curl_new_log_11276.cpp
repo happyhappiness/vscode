@@ -1,9 +1,11 @@
 fputs(
-"              should  be used in this session if they match. Using this method\n"
-"              also activates the cookie engine which  will  make  curl  record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination with the -L, --location option. The file  format  of\n"
-"              the  file  to  read cookies from should be plain HTTP headers or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              The default service name for a socks server is rcmd/server-fqdn.\n"
+"              This option allows you to change it.\n"
+"\n"
+"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
+"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
+"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
+"              where the proxy-name does not match the principal name.   (Added\n"
+"              in 7.19.4).\n"
 "\n"
 , stdout);

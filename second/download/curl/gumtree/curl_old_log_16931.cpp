@@ -1,8 +1,11 @@
 puts(
-"  store certificates with, but it is not used by the most commonly used\n"
-"  browsers (Netscape and MSEI both use the so called PKCS#12 format). If you\n"
-"  want curl to use the certificates you use with your (favourite) browser, you\n"
-"  may need to download/compile a converter that can convert your browser's\n"
-"  formatted certificates to PEM formatted ones. This kind of converter is\n"
-"  included in recent versions of OpenSSL, and for older versions Dr Stephen\n"
+"  The default way for curl is to issue the PASV command which causes the\n"
+"  server to open another port and await another connection performed by the\n"
+"  client. This is good if the client is behind a firewall that don't allow\n"
+"  incoming connections.\n"
+"\n"
+"        curl ftp.download.com\n"
+"\n"
+"  If the server for example, is behind a firewall that don't allow connections\n"
+"  on other ports than 21 (or if it just doesn't support the PASV command), the\n"
 );

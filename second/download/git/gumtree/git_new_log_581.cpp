@@ -1,1 +1,2 @@
-die_errno(_("could not read '%s'"), git_path_abort_safety_file());
+die("Failed to read notes tree referenced by %s (%s)",
+		    notes_ref, oid_to_hex(&object_oid));

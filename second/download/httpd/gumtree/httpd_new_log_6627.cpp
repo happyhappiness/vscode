@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01859)
-                      "query execution error inserting session '%s' "
-                      "in database with '%s': %s", newkey, conf->insertlabel,
-                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03367)
+                      "h2_request: access_status=%d, request_create failed",
+                      access_status);

@@ -1,45 +1,58 @@
-static int proxy_connect_transfer(request_rec *r, conn_rec *c_i, conn_rec *c_o,
-                                  apr_bucket_brigade *bb, char *name)
+static authz_status group_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    int rv;
-#ifdef DEBUGGING
-    apr_off_t len;
-#endif
+    authz_groupfile_config_rec *conf = ap_get_module_config(r->per_dir_config,
+            &authz_groupfile_module);
+    char *user = r->user;
+    const char *t, *w;
+    apr_table_t *grpstatus = NULL;
+    apr_status_t status;
 
-    do {
-        apr_brigade_cleanup(bb);
-        rv = ap_get_brigade(c_i->input_filters, bb, AP_MODE_READBYTES,
-                            APR_NONBLOCK_READ, CONN_BLKSZ);
-        if (rv == APR_SUCCESS) {
-            if (c_o->aborted)
-                return APR_EPIPE;
-            if (APR_BRIGADE_EMPTY(bb))
-                break;
-#ifdef DEBUGGING
-            len = -1;
-            apr_brigade_length(bb, 0, &len);
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "proxy: CONNECT: read %" APR_OFF_T_FMT
-                          " bytes from %s", len, name);
-#endif
-            rv = ap_pass_brigade(c_o->output_filters, bb);
-            if (rv == APR_SUCCESS) {
-                ap_fflush(c_o->output_filters, bb);
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "proxy: CONNECT: error on %s - ap_pass_brigade",
-                              name);
-            }
-        } else if (!APR_STATUS_IS_EAGAIN(rv)) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "proxy: CONNECT: error on %s - ap_get_brigade",
-                          name);
-        }
-    } while (rv == APR_SUCCESS);
-
-    if (APR_STATUS_IS_EAGAIN(rv)) {
-        rv = APR_SUCCESS;
+    if (!user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
     }
-    return rv;
+
+    /* If there is no group file - then we are not
+     * configured. So decline.
+     */
+    if (!(conf->groupfile)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "No group file was specified in the configuration");
+        return AUTHZ_DENIED;
+    }
+
+    status = groups_for_user(r->pool, user, conf->groupfile,
+                                &grpstatus);
+
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                        "Could not open group file: %s",
+                        conf->groupfile);
+        return AUTHZ_DENIED;
+    }
+
+    if (apr_table_elts(grpstatus)->nelts == 0) {
+        /* no groups available, so exit immediately */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Authorization of user %s to access %s failed, reason: "
+                      "user doesn't appear in group file (%s).",
+                      r->user, r->uri, conf->groupfile);
+        return AUTHZ_DENIED;
+    }
+
+    t = require_args;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+        if (apr_table_get(grpstatus, w)) {
+            return AUTHZ_GRANTED;
+        }
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "Authorization of user %s to access %s failed, reason: "
+                    "user is not part of the 'require'ed group(s).",
+                    r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

@@ -1,11 +1,11 @@
 fputs(
-"              connects etc. If this is a concern for you, try  the  --connect-\n"
-"              timeout option.\n"
+"              enabled  by  default.   Use  --socks5-gssapi  to  force  GSS-API\n"
+"              authentication to SOCKS5 proxies.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              Added in 7.55.0.\n"
 "\n"
-"       --ssl-allow-beast\n"
-"              This option tells curl to not work around a security flaw in the\n"
-"              SSL3 and TLS1.0 protocols known as BEAST.  If this option  isn't\n"
-"              used,  the SSL layer may use workarounds known to cause interop-\n"
+"       --socks5-gssapi-nec\n"
+"              As  part of the GSS-API negotiation a protection mode is negoti-\n"
+"              ated. RFC 1961 says in section 4.3/4.4 it should  be  protected,\n"
+"              but  the  NEC  reference  implementation  does  not.  The option\n"
 , stdout);

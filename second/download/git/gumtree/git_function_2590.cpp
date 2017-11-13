@@ -1,47 +1,126 @@
-static struct grep_expr *prep_header_patterns(struct grep_opt *opt)
+static void try_to_simplify_commit(struct rev_info *revs, struct commit *commit)
 {
-	struct grep_pat *p;
-	struct grep_expr *header_expr;
-	struct grep_expr *(header_group[GREP_HEADER_FIELD_MAX]);
-	enum grep_header_field fld;
+	struct commit_list **pp, *parent;
+	struct treesame_state *ts = NULL;
+	int relevant_change = 0, irrelevant_change = 0;
+	int relevant_parents, nth_parent;
 
-	if (!opt->header_list)
-		return NULL;
+	/*
+	 * If we don't do pruning, everything is interesting
+	 */
+	if (!revs->prune)
+		return;
 
-	for (p = opt->header_list; p; p = p->next) {
-		if (p->token != GREP_PATTERN_HEAD)
-			die("bug: a non-header pattern in grep header list.");
-		if (p->field < GREP_HEADER_FIELD_MIN ||
-		    GREP_HEADER_FIELD_MAX <= p->field)
-			die("bug: unknown header field %d", p->field);
-		compile_regexp(p, opt);
+	if (!commit->tree)
+		return;
+
+	if (!commit->parents) {
+		if (rev_same_tree_as_empty(revs, commit))
+			commit->object.flags |= TREESAME;
+		return;
 	}
 
-	for (fld = 0; fld < GREP_HEADER_FIELD_MAX; fld++)
-		header_group[fld] = NULL;
+	/*
+	 * Normal non-merge commit? If we don't want to make the
+	 * history dense, we consider it always to be a change..
+	 */
+	if (!revs->dense && !commit->parents->next)
+		return;
 
-	for (p = opt->header_list; p; p = p->next) {
-		struct grep_expr *h;
-		struct grep_pat *pp = p;
+	for (pp = &commit->parents, nth_parent = 0, relevant_parents = 0;
+	     (parent = *pp) != NULL;
+	     pp = &parent->next, nth_parent++) {
+		struct commit *p = parent->item;
+		if (relevant_commit(p))
+			relevant_parents++;
 
-		h = compile_pattern_atom(&pp);
-		if (!h || pp != p->next)
-			die("bug: malformed header expr");
-		if (!header_group[p->field]) {
-			header_group[p->field] = h;
+		if (nth_parent == 1) {
+			/*
+			 * This our second loop iteration - so we now know
+			 * we're dealing with a merge.
+			 *
+			 * Do not compare with later parents when we care only about
+			 * the first parent chain, in order to avoid derailing the
+			 * traversal to follow a side branch that brought everything
+			 * in the path we are limited to by the pathspec.
+			 */
+			if (revs->first_parent_only)
+				break;
+			/*
+			 * If this will remain a potentially-simplifiable
+			 * merge, remember per-parent treesame if needed.
+			 * Initialise the array with the comparison from our
+			 * first iteration.
+			 */
+			if (revs->treesame.name &&
+			    !revs->simplify_history &&
+			    !(commit->object.flags & UNINTERESTING)) {
+				ts = initialise_treesame(revs, commit);
+				if (!(irrelevant_change || relevant_change))
+					ts->treesame[0] = 1;
+			}
+		}
+		if (parse_commit(p) < 0)
+			die("cannot simplify commit %s (because of %s)",
+			    sha1_to_hex(commit->object.sha1),
+			    sha1_to_hex(p->object.sha1));
+		switch (rev_compare_tree(revs, p, commit)) {
+		case REV_TREE_SAME:
+			if (!revs->simplify_history || !relevant_commit(p)) {
+				/* Even if a merge with an uninteresting
+				 * side branch brought the entire change
+				 * we are interested in, we do not want
+				 * to lose the other branches of this
+				 * merge, so we just keep going.
+				 */
+				if (ts)
+					ts->treesame[nth_parent] = 1;
+				continue;
+			}
+			parent->next = NULL;
+			commit->parents = parent;
+			commit->object.flags |= TREESAME;
+			return;
+
+		case REV_TREE_NEW:
+			if (revs->remove_empty_trees &&
+			    rev_same_tree_as_empty(revs, p)) {
+				/* We are adding all the specified
+				 * paths from this parent, so the
+				 * history beyond this parent is not
+				 * interesting.  Remove its parents
+				 * (they are grandparents for us).
+				 * IOW, we pretend this parent is a
+				 * "root" commit.
+				 */
+				if (parse_commit(p) < 0)
+					die("cannot simplify commit %s (invalid %s)",
+					    sha1_to_hex(commit->object.sha1),
+					    sha1_to_hex(p->object.sha1));
+				p->parents = NULL;
+			}
+		/* fallthrough */
+		case REV_TREE_OLD:
+		case REV_TREE_DIFFERENT:
+			if (relevant_commit(p))
+				relevant_change = 1;
+			else
+				irrelevant_change = 1;
 			continue;
 		}
-		header_group[p->field] = grep_or_expr(h, header_group[p->field]);
+		die("bad tree compare for commit %s", sha1_to_hex(commit->object.sha1));
 	}
 
-	header_expr = NULL;
-
-	for (fld = 0; fld < GREP_HEADER_FIELD_MAX; fld++) {
-		if (!header_group[fld])
-			continue;
-		if (!header_expr)
-			header_expr = grep_true_expr();
-		header_expr = grep_or_expr(header_group[fld], header_expr);
-	}
-	return header_expr;
+	/*
+	 * TREESAME is straightforward for single-parent commits. For merge
+	 * commits, it is most useful to define it so that "irrelevant"
+	 * parents cannot make us !TREESAME - if we have any relevant
+	 * parents, then we only consider TREESAMEness with respect to them,
+	 * allowing irrelevant merges from uninteresting branches to be
+	 * simplified away. Only if we have only irrelevant parents do we
+	 * base TREESAME on them. Note that this logic is replicated in
+	 * update_treesame, which should be kept in sync.
+	 */
+	if (relevant_parents ? !relevant_change : !irrelevant_change)
+		commit->object.flags |= TREESAME;
 }

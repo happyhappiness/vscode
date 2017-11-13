@@ -1,1 +1,1 @@
-die(_("corrupt patch at line %d"), linenr);
+die("unknown pending object %s (%s)", sha1_to_hex(obj->sha1), name);

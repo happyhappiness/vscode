@@ -1,1 +1,0 @@
-warning(_("--local is ignored"));

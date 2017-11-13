@@ -1,9 +1,11 @@
 fputs(
-"              (HTTP)  Sends  the  specified data in a POST request to the HTTP\n"
-"              server, in the same way that a browser  does  when  a  user  has\n"
-"              filled  in an HTML form and presses the submit button. This will\n"
-"              cause curl to pass the data to the server using the content-type\n"
-"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
+"              The file format of the file to read cookies from should be plain\n"
+"              HTTP headers (Set-Cookie style) or the  Netscape/Mozilla  cookie\n"
+"              file format.\n"
 "\n"
-"              --data-raw is almost the same but does not have a special inter-\n"
+"              The  file  specified with -b, --cookie is only used as input. No\n"
+"              cookies will be written to the file. To store cookies,  use  the\n"
+"              -c, --cookie-jar option.\n"
+"\n"
+"              Exercise  caution  if  you  are  using  this option and multiple\n"
 , stdout);

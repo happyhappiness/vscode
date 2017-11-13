@@ -1,3 +1,1 @@
-fprintf(stderr, "If you want to trace into a file, "
-		"then please set %s to an absolute pathname "
-		"(starting with /).\n", key);
+die("Missing space after tree-ish: %s", command_buf.buf);

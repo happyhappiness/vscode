@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                              "h2_stream(%ld-%d): DATA, len=%ld, eos=%d", 
-                              session->id, frame->hd.stream_id, 
-                              (long)frame->hd.length, eos);
+ap_log_error(APLOG_MARK,APLOG_INFO, 0, NULL, APLOGNO(00434)
+                             "Using ConfigArgs of the installed service "
+                             "\"%s\".", service_name);

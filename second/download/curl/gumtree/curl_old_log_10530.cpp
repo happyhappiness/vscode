@@ -1,10 +1,11 @@
 fputs(
-"              (FTP) Reverses the default initiator/listener  roles  when  con-\n"
-"              necting  with  FTP.  This  switch makes curl use active mode. In\n"
-"              practice, curl then tells the server  to  connect  back  to  the\n"
-"              client's specified address and port, while passive mode asks the\n"
-"              server to setup an IP address and port for  it  to  connect  to.\n"
-"              <address> should be one of:\n"
+"              (Only  the file part of the remote file is used, the path is cut\n"
+"              off.)\n"
 "\n"
-"              interface\n"
+"              The remote file name to use for saving  is  extracted  from  the\n"
+"              given URL, nothing else.\n"
+"\n"
+"              Consequentially,  the  file will be saved in the current working\n"
+"              directory. If you want the file saved in a different  directory,\n"
+"              make sure you change current working directory before you invoke\n"
 , stdout);

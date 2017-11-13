@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00861)
-                          "Found %s: %s - preparing subrequest.",
-                          conf->sendfile, location);
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01475)
+                          "lua: Unable to find function %s in %s",
+                          "handle",
+                          spec->file);

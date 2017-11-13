@@ -1,1 +1,1 @@
-die("user.useConfigOnly set but no mail given");
+die("Could not open skip list: %s", path);

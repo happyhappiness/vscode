@@ -1,10 +1,10 @@
 fputs(
-"              This method is not fail-safe and there are occasions where  non-\n"
-"              successful  response  codes  will  slip through, especially when\n"
-"              authentication is involved (response codes 401 and 407).\n"
+"              --cacert if the --cacert file contains many CA certificates.\n"
 "\n"
-"       -F, --form <name=content>\n"
-"              (HTTP) This lets curl emulate a filled-in form in which  a  user\n"
-"              has  pressed  the  submit  button. This causes curl to POST data\n"
-"              using the  Content-Type  multipart/form-data  according  to  RFC\n"
+"              If this option is set, the default capath value will be ignored,\n"
+"              and if it is used several times, the last one will be used.\n"
+"\n"
+"       --pinnedpubkey <pinned public key (hashes)>\n"
+"              (SSL) Tells curl to  use  the  specified  public  key  file  (or\n"
+"              hashes)  to  verify the peer. This can be a path to a file which\n"
 , stdout);

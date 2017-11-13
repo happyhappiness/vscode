@@ -1,67 +1,53 @@
-int bisect_next_all(const char *prefix, int no_checkout)
+int finish_http_pack_request(struct http_pack_request *preq)
 {
-	struct rev_info revs;
-	struct commit_list *tried;
-	int reaches = 0, all = 0, nr, steps;
-	const unsigned char *bisect_rev;
-	char steps_msg[32];
+	struct packed_git **lst;
+	struct packed_git *p = preq->target;
+	char *tmp_idx;
+	size_t len;
+	struct child_process ip = CHILD_PROCESS_INIT;
+	const char *ip_argv[8];
 
-	read_bisect_terms(&term_bad, &term_good);
-	if (read_bisect_refs())
-		die(_("reading bisect refs failed"));
+	close_pack_index(p);
 
-	check_good_are_ancestors_of_bad(prefix, no_checkout);
+	fclose(preq->packfile);
+	preq->packfile = NULL;
 
-	bisect_rev_setup(&revs, prefix, "%s", "^%s", 1);
-	revs.limited = 1;
+	lst = preq->lst;
+	while (*lst != p)
+		lst = &((*lst)->next);
+	*lst = (*lst)->next;
 
-	bisect_common(&revs);
+	if (!strip_suffix(preq->tmpfile, ".pack.temp", &len))
+		die("BUG: pack tmpfile does not end in .pack.temp?");
+	tmp_idx = xstrfmt("%.*s.idx.temp", (int)len, preq->tmpfile);
 
-	revs.commits = find_bisection(revs.commits, &reaches, &all,
-				       !!skipped_revs.nr);
-	revs.commits = managed_skipped(revs.commits, &tried);
+	ip_argv[0] = "index-pack";
+	ip_argv[1] = "-o";
+	ip_argv[2] = tmp_idx;
+	ip_argv[3] = preq->tmpfile;
+	ip_argv[4] = NULL;
 
-	if (!revs.commits) {
-		/*
-		 * We should exit here only if the "bad"
-		 * commit is also a "skip" commit.
-		 */
-		exit_if_skipped_commits(tried, NULL);
+	ip.argv = ip_argv;
+	ip.git_cmd = 1;
+	ip.no_stdin = 1;
+	ip.no_stdout = 1;
 
-		printf(_("%s was both %s and %s\n"),
-		       oid_to_hex(current_bad_oid),
-		       term_good,
-		       term_bad);
-		exit(1);
+	if (run_command(&ip)) {
+		unlink(preq->tmpfile);
+		unlink(tmp_idx);
+		free(tmp_idx);
+		return -1;
 	}
 
-	if (!all) {
-		fprintf(stderr, _("No testable commit found.\n"
-			"Maybe you started with bad path parameters?\n"));
-		exit(4);
+	unlink(sha1_pack_index_name(p->sha1));
+
+	if (finalize_object_file(preq->tmpfile, sha1_pack_name(p->sha1))
+	 || finalize_object_file(tmp_idx, sha1_pack_index_name(p->sha1))) {
+		free(tmp_idx);
+		return -1;
 	}
 
-	bisect_rev = revs.commits->item->object.oid.hash;
-
-	if (!hashcmp(bisect_rev, current_bad_oid->hash)) {
-		exit_if_skipped_commits(tried, current_bad_oid);
-		printf("%s is the first %s commit\n", sha1_to_hex(bisect_rev),
-			term_bad);
-		show_diff_tree(prefix, revs.commits->item);
-		/* This means the bisection process succeeded. */
-		exit(10);
-	}
-
-	nr = all - reaches - 1;
-	steps = estimate_bisect_steps(all);
-	xsnprintf(steps_msg, sizeof(steps_msg),
-		  Q_("(roughly %d step)", "(roughly %d steps)", steps),
-		  steps);
-	/* TRANSLATORS: the last %s will be replaced with
-	   "(roughly %d steps)" translation */
-	printf(Q_("Bisecting: %d revision left to test after this %s\n",
-		  "Bisecting: %d revisions left to test after this %s\n",
-		  nr), nr, steps_msg);
-
-	return bisect_checkout(bisect_rev, no_checkout);
+	install_packed_git(p);
+	free(tmp_idx);
+	return 0;
 }

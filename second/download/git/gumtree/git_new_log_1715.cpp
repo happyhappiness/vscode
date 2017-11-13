@@ -1,1 +1,1 @@
-die("Unknown mark: %s", command_buf.buf);
+die(_("Please supply the note contents using either -m or -F option"));

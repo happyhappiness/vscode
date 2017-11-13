@@ -1,1 +1,1 @@
-error(_("could not read index"));
+die("BUG: multiple get_short_sha1 disambiguator flags");

@@ -1,1 +1,2 @@
-h2_beam_mutex_set(task->output.beam, beam_enter, task->cond, m);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
+                      "h2_conn_io: flush");

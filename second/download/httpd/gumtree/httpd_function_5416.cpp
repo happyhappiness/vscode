@@ -1,29 +1,53 @@
-apr_status_t h2_conn_run(struct h2_ctx *ctx, conn_rec *c)
+apr_status_t ap_mpm_safe_kill(pid_t pid, int sig)
 {
-    apr_status_t status;
-    int mpm_state = 0;
-    
-    do {
-        if (c->cs) {
-            c->cs->sense = CONN_SENSE_DEFAULT;
-        }
-        status = h2_session_process(h2_ctx_session_get(ctx), async_mpm);
-        
-        if (APR_STATUS_IS_EOF(status)) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03045)
-                          "h2_session(%ld): process, closing conn", c->id);
-            c->keepalive = AP_CONN_CLOSE;
-        }
-        else {
-            c->keepalive = AP_CONN_KEEPALIVE;
-        }
-        
-        if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state)) {
-            break;
-        }
-    } while (!async_mpm
-             && c->keepalive == AP_CONN_KEEPALIVE 
-             && mpm_state != AP_MPMQ_STOPPING);
-    
-    return DONE;
+#ifndef HAVE_GETPGID
+    apr_proc_t proc;
+    apr_status_t rv;
+    apr_exit_why_e why;
+    int status;
+
+    /* Ensure pid sanity */
+    if (pid < 1) {
+        return APR_EINVAL;
+    }
+
+    proc.pid = pid;
+    rv = apr_proc_wait(&proc, &status, &why, APR_NOWAIT);
+    if (rv == APR_CHILD_DONE) {
+        /* The child already died - log the termination status if
+         * necessary: */
+        ap_process_child_status(&proc, why, status);
+        return APR_EINVAL;
+    }
+    else if (rv != APR_CHILD_NOTDONE) {
+        /* The child is already dead and reaped, or was a bogus pid -
+         * log this either way. */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
+                     "cannot send signal %d to pid %ld (non-child or "
+                     "already dead)", sig, (long)pid);
+        return APR_EINVAL;
+    }
+#else
+    pid_t pg;
+
+    /* Ensure pid sanity. */
+    if (pid < 1) {
+        return APR_EINVAL;
+    }
+
+    pg = getpgid(pid);    
+    if (pg == -1) {
+        /* Process already dead... */
+        return errno;
+    }
+
+    if (pg != getpgrp()) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf,
+                     "refusing to send signal %d to pid %ld outside "
+                     "process group", sig, (long)pid);
+        return APR_EINVAL;
+    }
+#endif        
+
+    return kill(pid, sig) ? errno : APR_SUCCESS;
 }

@@ -1,1 +1,1 @@
-die_errno ("Could not make temporary directory");
+die ("Could not run rsync to get refs");

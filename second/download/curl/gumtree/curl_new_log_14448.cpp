@@ -1,10 +1,12 @@
 fputs(
-"              extracting a filename from the URL.\n"
+"              as  random  data. The data may be used to seed the random engine\n"
+"              for SSL connections.  See also the --egd-file option.\n"
 "\n"
-"              If  the  server  specifies a file name and a file with that name\n"
-"              already exists in the current working directory it will  not  be\n"
-"              overwritten and an error will occur. If the server doesn't spec-\n"
-"              ify a file name then this option has no effect.\n"
+"       -r, --range <range>\n"
+"              (HTTP FTP SFTP FILE) Retrieve a byte range (i.e a partial  docu-\n"
+"              ment)  from  a  HTTP/1.1,  FTP  or  SFTP server or a local FILE.\n"
+"              Ranges can be specified in a number of ways.\n"
 "\n"
-"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
+"              0-499     specifies the first 500 bytes\n"
+"\n"
 , stdout);

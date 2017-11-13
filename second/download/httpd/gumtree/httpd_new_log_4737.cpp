@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), ap_server_conf, APLOGNO(00406)
-                         "Child: SetHandleInformation failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02032)
+                        "Hostname %s provided via SNI and hostname %s provided"
+                        " via HTTP are different", servername, host);

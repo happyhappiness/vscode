@@ -1,2 +1,2 @@
-warnf(config->global, "unrecognized delegation method '%s', using none\n",
-        str);
+warnf(config->global, "Keep-alive functionality somewhat crippled "
+                "due to missing support in your operating system!\n");

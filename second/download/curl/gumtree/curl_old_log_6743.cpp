@@ -1,12 +1,9 @@
 fputs(
-"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
-"              PROFILE%\\Application Data'.\n"
+"              default  config  file  and  uses it if found. The default config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"              2)  On  windows, if there is no _curlrc file in the home dir, it\n"
-"              checks for one in the same dir the curl executable is placed. On\n"
-"              UNIX-like  systems,  it will simply try to load .curlrc from the\n"
-"              determined home dir.\n"
-"\n"
-"              # --- Example file ---\n"
-"              # this is a comment\n"
+"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it uses getpwuid() on UNIX-like systems (which returns the  home\n"
+"              dir  given the current user in your system). On Windows, it then\n"
 , stdout);

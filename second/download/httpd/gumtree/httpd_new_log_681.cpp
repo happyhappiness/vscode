@@ -1,5 +1,2 @@
-ap_rputs("\n\n<table border=\"0\"><tr>"
-                 "<th>Sch</th><th>Host</th><th>Stat</th>"
-                 "<th>Route</th><th>Redir</th>"
-                 "<th>F</th><th>Acc</th><th>Wr</th><th>Rd</th>"
-                 "</tr>\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
+                          "\"%s\" to tag exec in %s", tag, file);

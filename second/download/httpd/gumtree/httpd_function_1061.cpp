@@ -1,34 +1,44 @@
-static apr_status_t dbd_setup(apr_pool_t *pool, svr_cfg *svr)
+char *ap_get_local_host(apr_pool_t *a)
 {
-    apr_status_t rv;
+#ifndef MAXHOSTNAMELEN
+#define MAXHOSTNAMELEN 256
+#endif
+    char str[MAXHOSTNAMELEN + 1];
+    char *server_hostname = NULL;
+    apr_sockaddr_t *sockaddr;
+    char *hostname;
 
-    /* create a pool just for the reslist from a process-lifetime pool;
-     * that pool (s->process->pool in the dbd_setup_lock case,
-     * whatever was passed to ap_run_child_init in the dbd_setup_init case)
-     * will be shared with other threads doing other non-mod_dbd things
-     * so we can't use it for the reslist directly
-     */
-    rv = apr_pool_create(&svr->pool, pool);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
-                      "DBD: Failed to create reslist memory pool");
-        return rv;
+    if (apr_gethostname(str, sizeof(str) - 1, a) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
+                     "%s: apr_gethostname() failed to determine ServerName",
+                     ap_server_argv0);
+    } else {
+        str[sizeof(str) - 1] = '\0';
+        if (apr_sockaddr_info_get(&sockaddr, str, APR_UNSPEC, 0, 0, a) == APR_SUCCESS) {
+            if ( (apr_getnameinfo(&hostname, sockaddr, 0) == APR_SUCCESS) &&
+                (ap_strchr_c(hostname, '.')) ) {
+                server_hostname = apr_pstrdup(a, hostname);
+                return server_hostname;
+            } else if (ap_strchr_c(str, '.')) {
+                server_hostname = apr_pstrdup(a, str);
+            } else {
+                apr_sockaddr_ip_get(&hostname, sockaddr);
+                server_hostname = apr_pstrdup(a, hostname);
+            }
+        } else {
+            ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
+                         "%s: apr_sockaddr_info_get() failed for %s",
+                         ap_server_argv0, str);
+        }
     }
 
-    rv = apr_reslist_create(&svr->dbpool, svr->nmin, svr->nkeep, svr->nmax,
-                            apr_time_from_sec(svr->exptime),
-                            dbd_construct, dbd_destruct, svr, svr->pool);
-    if (rv == APR_SUCCESS) {
-        apr_pool_cleanup_register(svr->pool, svr->dbpool,
-                                  (void*)apr_reslist_destroy,
-                                  apr_pool_cleanup_null);
-    }
-    else {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, svr->pool,
-                      "DBD: failed to initialise");
-        apr_pool_destroy(svr->pool);
-        svr->pool = NULL;
-    }
+    if (!server_hostname)
+        server_hostname = apr_pstrdup(a, "127.0.0.1");
 
-    return rv;
+    ap_log_perror(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0, a,
+                 "%s: Could not reliably determine the server's fully qualified "
+                 "domain name, using %s for ServerName",
+                 ap_server_argv0, server_hostname);
+
+    return server_hostname;
 }

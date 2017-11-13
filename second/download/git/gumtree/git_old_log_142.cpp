@@ -1,1 +1,0 @@
-fprintf(stderr, "What does '%s' for %s mean?\n", trace, key);

@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                                  H2_STRM_MSG(stream, "prep, -> response %d"), 
-                                  (*pheaders)->status);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(03137)
+                                 "apr_pollset_poll: (listen)");

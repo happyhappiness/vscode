@@ -1,1 +1,2 @@
-die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+error("Object %s is a %s, not a commit or tree",
+	      sha1_to_hex(sha1), typename(obj->type));

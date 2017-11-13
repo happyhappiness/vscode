@@ -1,1 +1,3 @@
-die("BUG: you need to specify a get_next_task function");
+opterror(opt,
+				"expects a non-negative integer value with an optional k/m/g suffix",
+				flags);

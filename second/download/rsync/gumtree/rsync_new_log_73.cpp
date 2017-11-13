@@ -1,1 +1,1 @@
-out_of_memory("read check");
+delete_one(&local_file_list->files[i]);

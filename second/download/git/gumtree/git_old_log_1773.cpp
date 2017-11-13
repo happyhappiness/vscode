@@ -1,1 +1,2 @@
-die_errno(_("Could not write to %s"), todo_file);
+error("unable to generate patch-id diff for %s",
+				     p->one->path);

@@ -1,1 +1,1 @@
-hashmap_init(&submodule_ref_stores, submodule_hash_cmp, 0);
+die(_("could not create directory '%s'"), new_git_dir);

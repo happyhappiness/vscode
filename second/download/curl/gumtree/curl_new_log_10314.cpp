@@ -1,10 +1,11 @@
 fputs(
-"              url = \"http://curl.haxx.se/docs/\"\n"
+"              See    this    online    resource    for    further     details:\n"
+"              http://curl.haxx.se/docs/sslcerts.html\n"
 "\n"
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default  config  file  and  uses it if found. The default config\n"
-"              file is checked for in the following places in this order:\n"
+"       -K, --config <config file>\n"
+"              Specify  which config file to read curl arguments from. The con-\n"
+"              fig file is a text file in which command line arguments  can  be\n"
+"              written  which  then will be used as if they were written on the\n"
+"              actual command line.\n"
 "\n"
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
 , stdout);

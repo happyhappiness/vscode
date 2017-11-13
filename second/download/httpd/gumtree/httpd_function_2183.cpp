@@ -1,93 +1,82 @@
-static int proxy_balancer_pre_request(proxy_worker **worker,
-                                      proxy_balancer **balancer,
-                                      request_rec *r,
-                                      proxy_server_conf *conf, char **url)
+static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
+                                apr_pool_t *ptemp, server_rec *s)
 {
-    int access_status;
-    proxy_worker *runtime;
-    char *route = NULL;
-    apr_status_t rv;
+    static int restart_num = 0;
+    int startup = 0;
 
-    *worker = NULL;
-    /* Step 1: check if the url is for us
-     * The url we can handle starts with 'balancer://'
-     * If balancer is already provided skip the search
-     * for balancer, because this is failover attempt.
-     */
-    if (!*balancer &&
-        !(*balancer = ap_proxy_get_balancer(r->pool, conf, *url)))
-        return DECLINED;
-
-    /* Step 2: find the session route */
-
-    runtime = find_session_route(*balancer, r, &route, url);
-    /* Lock the LoadBalancer
-     * XXX: perhaps we need the process lock here
-     */
-    if ((rv = PROXY_THREAD_LOCK(*balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "proxy: BALANCER: lock");
-        return DECLINED;
+    /* we want this only the first time around */
+    if (restart_num++ == 0) {
+        startup = 1;
     }
-    if (runtime) {
-        int i, total_factor = 0;
-        proxy_worker *workers;
-        /* We have a sticky load balancer
-         * Update the workers status
-         * so that even session routes get
-         * into account.
-         */
-        workers = (proxy_worker *)(*balancer)->workers->elts;
-        for (i = 0; i < (*balancer)->workers->nelts; i++) {
-            /* Take into calculation only the workers that are
-             * not in error state or not disabled.
-             */
-            if (PROXY_WORKER_IS_USABLE(workers)) {
-                workers->s->lbstatus += workers->s->lbfactor;
-                total_factor += workers->s->lbfactor;
-            }
-            workers++;
+
+    if (ap_threads_limit > HARD_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxThreads of %d exceeds compile-time "
+                         "limit of", ap_threads_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the HARD_THREAD_LIMIT"
+                         "define in");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxThreads of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         ap_threads_limit, HARD_THREAD_LIMIT);
         }
-        runtime->s->lbstatus -= total_factor;
-        runtime->s->elected++;
-
-        *worker = runtime;
+        ap_threads_limit = HARD_THREAD_LIMIT;
     }
-    else if (route && (*balancer)->sticky_force) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "proxy: BALANCER: (%s). All workers are in error state for route (%s)",
-                     (*balancer)->name, route);
-        PROXY_THREAD_UNLOCK(*balancer);
-        return HTTP_SERVICE_UNAVAILABLE;
-    }
-
-    PROXY_THREAD_UNLOCK(*balancer);
-    if (!*worker) {
-        runtime = find_best_worker(*balancer, r);
-        if (!runtime) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "proxy: BALANCER: (%s). All workers are in error state",
-                         (*balancer)->name);
-
-            return HTTP_SERVICE_UNAVAILABLE;
+    else if (ap_threads_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxThreads of %d not allowed, "
+                         "increasing to 1.", ap_threads_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxThreads of %d not allowed, increasing to 1",
+                         ap_threads_limit);
         }
-        *worker = runtime;
+        ap_threads_limit = 1;
     }
 
-    /* Rewrite the url from 'balancer://url'
-     * to the 'worker_scheme://worker_hostname[:worker_port]/url'
-     * This replaces the balancers fictional name with the
-     * real hostname of the elected worker.
+    /* ap_threads_to_start > ap_threads_limit effectively checked in
+     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
      */
-    access_status = rewrite_url(r, *worker, url);
-    /* Add the session route to request notes if present */
-    if (route) {
-        apr_table_setn(r->notes, "session-sticky", (*balancer)->sticky);
-        apr_table_setn(r->notes, "session-route", route);
+    if (ap_threads_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartThreads of %d not allowed, "
+                         "increasing to 1.", ap_threads_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartThreads of %d not allowed, increasing to 1",
+                         ap_threads_to_start);
+        }
+        ap_threads_to_start = 1;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: BALANCER (%s) worker (%s) rewritten to %s",
-                 (*balancer)->name, (*worker)->name, *url);
 
-    return access_status;
+    if (ap_threads_min_free < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", ap_threads_min_free);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         ap_threads_min_free);
+        }
+        ap_threads_min_free = 1;
+    }
+
+    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
+
+    return OK;
 }

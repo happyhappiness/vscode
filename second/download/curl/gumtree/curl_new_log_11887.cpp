@@ -1,11 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              url = \"http://curl.haxx.se/docs/\"\n"
 "\n"
-"       --krb <level>\n"
-"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
-"              'private'.  Should  you  use  a  level that is not one of these,\n"
-"              'private' will instead be used.\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default config file and uses it if  found.  The  default  config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"              This option requires a library  built  with  kerberos4  support.\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
 , stdout);

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "stapling_cb: don't need to refresh cached response "
-                         "after obtaining refresh mutex");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf, APLOGNO(00166)
+                                 "Ignoring fatal error in child of previous "
+                                 "generation (pid %ld).",
+                                 (long)pid.pid);

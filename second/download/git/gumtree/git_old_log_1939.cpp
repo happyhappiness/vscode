@@ -1,1 +1,0 @@
-fputs(sha1_to_hex(commit->object.sha1), stdout);

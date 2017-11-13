@@ -1,99 +1,151 @@
-int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */,
-                 apr_pool_t *ptemp, server_rec *s_main)
+static int proxy_http_handler(request_rec *r, proxy_worker *worker,
+                              proxy_server_conf *conf,
+                              char *url, const char *proxyname,
+                              apr_port_t proxyport)
 {
-    apr_pool_t *stderr_p;
-    server_rec *virt, *q;
-    int replace_stderr;
-
-
-    /* Register to throw away the read_handles list when we
-     * cleanup plog.  Upon fork() for the apache children,
-     * this read_handles list is closed so only the parent
-     * can relaunch a lost log child.  These read handles 
-     * are always closed on exec.
-     * We won't care what happens to our stderr log child 
-     * between log phases, so we don't mind losing stderr's 
-     * read_handle a little bit early.
+    int status;
+    char server_portstr[32];
+    char *scheme;
+    const char *proxy_function;
+    const char *u;
+    proxy_conn_rec *backend = NULL;
+    int is_ssl = 0;
+    conn_rec *c = r->connection;
+    int retry = 0;
+    /*
+     * Use a shorter-lived pool to reduce memory usage
+     * and avoid a memory leak
      */
-    apr_pool_cleanup_register(p, NULL, clear_handle_list,
-                              apr_pool_cleanup_null);
+    apr_pool_t *p = r->pool;
+    apr_uri_t *uri = apr_palloc(p, sizeof(*uri));
 
-    /* HERE we need a stdout log that outlives plog.
-     * We *presume* the parent of plog is a process 
-     * or global pool which spans server restarts.
-     * Create our stderr_pool as a child of the plog's
-     * parent pool.
-     */
-    apr_pool_create(&stderr_p, apr_pool_parent_get(p));
-    apr_pool_tag(stderr_p, "stderr_pool");
+    /* find the scheme */
+    u = strchr(url, ':');
+    if (u == NULL || u[1] != '/' || u[2] != '/' || u[3] == '\0')
+       return DECLINED;
+    if ((u - url) > 14)
+        return HTTP_BAD_REQUEST;
+    scheme = apr_pstrndup(p, url, u - url);
+    /* scheme is lowercase */
+    ap_str_tolower(scheme);
+    /* is it for us? */
+    if (strcmp(scheme, "https") == 0) {
+        if (!ap_proxy_ssl_enable(NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: HTTPS: declining URL %s"
+                         " (mod_ssl not configured?)", url);
+            return DECLINED;
+        }
+        is_ssl = 1;
+        proxy_function = "HTTPS";
+    }
+    else if (!(strcmp(scheme, "http") == 0 || (strcmp(scheme, "ftp") == 0 && proxyname))) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: HTTP: declining URL %s", url);
+        return DECLINED; /* only interested in HTTP, or FTP via proxy */
+    }
+    else {
+        if (*scheme == 'h')
+            proxy_function = "HTTP";
+        else
+            proxy_function = "FTP";
+    }
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+                 "proxy: HTTP: serving URL %s", url);
 
-    if (open_error_log(s_main, 1, stderr_p) != OK) {
-        return DONE;
+
+    /* create space for state information */
+    if ((status = ap_proxy_acquire_connection(proxy_function, &backend,
+                                              worker, r->server)) != OK)
+        goto cleanup;
+
+
+    backend->is_ssl = is_ssl;
+
+    if (is_ssl) {
+        ap_proxy_ssl_connection_cleanup(backend, r);
     }
 
-    replace_stderr = 1;
-    if (s_main->error_log) {
-        apr_status_t rv;
+    /*
+     * In the case that we are handling a reverse proxy connection and this
+     * is not a request that is coming over an already kept alive connection
+     * with the client, do NOT reuse the connection to the backend, because
+     * we cannot forward a failure to the client in this case as the client
+     * does NOT expect this in this situation.
+     * Yes, this creates a performance penalty.
+     */
+    if ((r->proxyreq == PROXYREQ_REVERSE) && (!c->keepalives)
+        && (apr_table_get(r->subprocess_env, "proxy-initial-not-pooled"))) {
+        backend->close = 1;
+    }
 
-        /* Replace existing stderr with new log. */
-        apr_file_flush(s_main->error_log);
-        rv = apr_file_dup2(stderr_log, s_main->error_log, stderr_p);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main,
-                         "unable to replace stderr with error_log");
+    while (retry < 2) {
+        char *locurl = url;
+
+        /* Step One: Determine Who To Connect To */
+        if ((status = ap_proxy_determine_connection(p, r, conf, worker, backend,
+                                                uri, &locurl, proxyname,
+                                                proxyport, server_portstr,
+                                                sizeof(server_portstr))) != OK)
+            break;
+
+        /* Step Two: Make the Connection */
+        if (ap_proxy_connect_backend(proxy_function, backend, worker, r->server)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "proxy: HTTP: failed to make connection to backend: %s",
+                         backend->hostname);
+            status = HTTP_SERVICE_UNAVAILABLE;
+            break;
         }
-        else {
-            /* We are done with stderr_pool, close it, killing
-             * the previous generation's stderr logger
-             */
-            if (stderr_pool)
-                apr_pool_destroy(stderr_pool);
-            stderr_pool = stderr_p;
-            replace_stderr = 0;
+
+        /* Step Three: Create conn_rec */
+        if (!backend->connection) {
+            if ((status = ap_proxy_connection_create(proxy_function, backend,
+                                                     c, r->server)) != OK)
+                break;
             /*
-             * Now that we have dup'ed s_main->error_log to stderr_log
-             * close it and set s_main->error_log to stderr_log. This avoids
-             * this fd being inherited by the next piped logger who would
-             * keep open the writing end of the pipe that this one uses
-             * as stdin. This in turn would prevent the piped logger from
-             * exiting.
+             * On SSL connections set a note on the connection what CN is
+             * requested, such that mod_ssl can check if it is requested to do
+             * so.
              */
-             apr_file_close(s_main->error_log);
-             s_main->error_log = stderr_log;
+            if (is_ssl) {
+                apr_table_set(backend->connection->notes, "proxy-request-hostname",
+                              uri->hostname);
+            }
         }
-    }
-    /* note that stderr may still need to be replaced with something
-     * because it points to the old error log, or back to the tty
-     * of the submitter.
-     * XXX: This is BS - /dev/null is non-portable
-     *      errno-as-apr_status_t is also non-portable
-     */
-    if (replace_stderr && freopen("/dev/null", "w", stderr) == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main,
-                     "unable to replace stderr with /dev/null");
+
+        /* Step Four: Send the Request
+         * On the off-chance that we forced a 100-Continue as a
+         * kinda HTTP ping test, allow for retries
+         */
+        if ((status = ap_proxy_http_request(p, r, backend, worker,
+                                        conf, uri, locurl, server_portstr)) != OK) {
+            if ((status == HTTP_SERVICE_UNAVAILABLE) && worker->ping_timeout_set) {
+                backend->close = 1;
+                ap_log_error(APLOG_MARK, APLOG_INFO, status, r->server,
+                             "proxy: HTTP: 100-Continue failed to %pI (%s)",
+                             worker->cp->addr, worker->hostname);
+                retry++;
+                continue;
+            } else {
+                break;
+            }
+
+        }
+
+        /* Step Five: Receive the Response... Fall thru to cleanup */
+        status = ap_proxy_http_process_response(p, r, backend, worker,
+                                                conf, server_portstr);
+
+        break;
     }
 
-    for (virt = s_main->next; virt; virt = virt->next) {
-        if (virt->error_fname) {
-            for (q=s_main; q != virt; q = q->next) {
-                if (q->error_fname != NULL
-                    && strcmp(q->error_fname, virt->error_fname) == 0) {
-                    break;
-                }
-            }
-
-            if (q == virt) {
-                if (open_error_log(virt, 0, p) != OK) {
-                    return DONE;
-                }
-            }
-            else {
-                virt->error_log = q->error_log;
-            }
-        }
-        else {
-            virt->error_log = s_main->error_log;
-        }
+    /* Step Six: Clean Up */
+cleanup:
+    if (backend) {
+        if (status != OK)
+            backend->close = 1;
+        ap_proxy_http_cleanup(proxy_function, r, backend);
     }
-    return OK;
+    return status;
 }

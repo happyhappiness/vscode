@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00916)
-                          "connect to remote machine %s blocked: name %s "
-                          "matched", uri_addr->hostname, npent[j].name);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      "h2_session(%ld): destroy, %d streams open",
+                      session->id, (int)h2_ihash_count(session->streams));

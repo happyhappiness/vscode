@@ -1,74 +1,44 @@
-static int push_check(int argc, const char **argv, const char *prefix)
+static void get_commit_info(struct am_state *state, struct commit *commit)
 {
-	struct remote *remote;
-	const char *superproject_head;
-	char *head;
-	int detached_head = 0;
-	struct object_id head_oid;
+	const char *buffer, *ident_line, *author_date, *msg;
+	size_t ident_len;
+	struct ident_split ident_split;
+	struct strbuf sb = STRBUF_INIT;
 
-	if (argc < 3)
-		die("submodule--helper push-check requires at least 2 arguments");
+	buffer = logmsg_reencode(commit, NULL, get_commit_output_encoding());
 
-	/*
-	 * superproject's resolved head ref.
-	 * if HEAD then the superproject is in a detached head state, otherwise
-	 * it will be the resolved head ref.
-	 */
-	superproject_head = argv[1];
-	argv++;
-	argc--;
-	/* Get the submodule's head ref and determine if it is detached */
-	head = resolve_refdup("HEAD", 0, head_oid.hash, NULL);
-	if (!head)
-		die(_("Failed to resolve HEAD as a valid ref."));
-	if (!strcmp(head, "HEAD"))
-		detached_head = 1;
+	ident_line = find_commit_header(buffer, "author", &ident_len);
 
-	/*
-	 * The remote must be configured.
-	 * This is to avoid pushing to the exact same URL as the parent.
-	 */
-	remote = pushremote_get(argv[1]);
-	if (!remote || remote->origin == REMOTE_UNCONFIGURED)
-		die("remote '%s' not configured", argv[1]);
-
-	/* Check the refspec */
-	if (argc > 2) {
-		int i, refspec_nr = argc - 2;
-		struct ref *local_refs = get_local_heads();
-		struct refspec *refspec = parse_push_refspec(refspec_nr,
-							     argv + 2);
-
-		for (i = 0; i < refspec_nr; i++) {
-			struct refspec *rs = refspec + i;
-
-			if (rs->pattern || rs->matching)
-				continue;
-
-			/* LHS must match a single ref */
-			switch (count_refspec_match(rs->src, local_refs, NULL)) {
-			case 1:
-				break;
-			case 0:
-				/*
-				 * If LHS matches 'HEAD' then we need to ensure
-				 * that it matches the same named branch
-				 * checked out in the superproject.
-				 */
-				if (!strcmp(rs->src, "HEAD")) {
-					if (!detached_head &&
-					    !strcmp(head, superproject_head))
-						break;
-					die("HEAD does not match the named branch in the superproject");
-				}
-			default:
-				die("src refspec '%s' must name a ref",
-				    rs->src);
-			}
-		}
-		free_refspec(refspec_nr, refspec);
+	if (split_ident_line(&ident_split, ident_line, ident_len) < 0) {
+		strbuf_add(&sb, ident_line, ident_len);
+		die(_("invalid ident line: %s"), sb.buf);
 	}
-	free(head);
 
-	return 0;
+	assert(!state->author_name);
+	if (ident_split.name_begin) {
+		strbuf_add(&sb, ident_split.name_begin,
+			ident_split.name_end - ident_split.name_begin);
+		state->author_name = strbuf_detach(&sb, NULL);
+	} else
+		state->author_name = xstrdup("");
+
+	assert(!state->author_email);
+	if (ident_split.mail_begin) {
+		strbuf_add(&sb, ident_split.mail_begin,
+			ident_split.mail_end - ident_split.mail_begin);
+		state->author_email = strbuf_detach(&sb, NULL);
+	} else
+		state->author_email = xstrdup("");
+
+	author_date = show_ident_date(&ident_split, DATE_MODE(NORMAL));
+	strbuf_addstr(&sb, author_date);
+	assert(!state->author_date);
+	state->author_date = strbuf_detach(&sb, NULL);
+
+	assert(!state->msg);
+	msg = strstr(buffer, "\n\n");
+	if (!msg)
+		die(_("unable to parse commit %s"), oid_to_hex(&commit->object.oid));
+	state->msg = xstrdup(msg + 2);
+	state->msg_len = strlen(state->msg);
 }

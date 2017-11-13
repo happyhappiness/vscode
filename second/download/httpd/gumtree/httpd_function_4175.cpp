@@ -1,66 +1,83 @@
-static void ssl_init_server_certs(server_rec *s,
-                                  apr_pool_t *p,
-                                  apr_pool_t *ptemp,
-                                  modssl_ctx_t *mctx)
+static proxy_worker *find_best_hb(proxy_balancer *balancer,
+                                  request_rec *r)
 {
-    const char *rsa_id, *dsa_id;
-#ifndef OPENSSL_NO_EC
-    const char *ecc_id;
-#endif
-    const char *vhost_id = mctx->sc->vhost_id;
+    apr_status_t rv;
     int i;
-    int have_rsa, have_dsa;
-#ifndef OPENSSL_NO_EC
-    int have_ecc;
-#endif
+    apr_uint32_t openslots = 0;
+    proxy_worker **worker;
+    hb_server_t *server;
+    apr_array_header_t *up_servers;
+    proxy_worker *mycandidate = NULL;
+    apr_pool_t *tpool;
+    apr_hash_t *servers;
 
-    rsa_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_RSA);
-    dsa_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_DSA);
-#ifndef OPENSSL_NO_EC
-    ecc_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_ECC);
-#endif
+    lb_hb_ctx_t *ctx = 
+        ap_get_module_config(r->server->module_config,
+                             &lbmethod_heartbeat_module);
 
-    have_rsa = ssl_server_import_cert(s, mctx, rsa_id, SSL_AIDX_RSA);
-    have_dsa = ssl_server_import_cert(s, mctx, dsa_id, SSL_AIDX_DSA);
-#ifndef OPENSSL_NO_EC
-    have_ecc = ssl_server_import_cert(s, mctx, ecc_id, SSL_AIDX_ECC);
-#endif
+    apr_pool_create(&tpool, r->pool);
 
-    if (!(have_rsa || have_dsa
-#ifndef OPENSSL_NO_EC
-        || have_ecc
-#endif
-)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-#ifndef OPENSSL_NO_EC
-                "Oops, no RSA, DSA or ECC server certificate found "
-#else
-                "Oops, no RSA or DSA server certificate found "
-#endif
-                "for '%s:%d'?!", s->server_hostname, s->port);
-        ssl_die();
+    servers = apr_hash_make(tpool);
+
+    rv = read_heartbeats(ctx->path, servers, tpool);
+
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "lb_heartbeat: Unable to read heartbeats at '%s'",
+                      ctx->path);
+        apr_pool_destroy(tpool);
+        return NULL;
     }
 
-    for (i = 0; i < SSL_AIDX_MAX; i++) {
-        ssl_check_public_cert(s, ptemp, mctx->pks->certs[i], i);
+    up_servers = apr_array_make(tpool, apr_hash_count(servers), sizeof(hb_server_t *));
+
+    for (i = 0; i < balancer->workers->nelts; i++) {
+        worker = &APR_ARRAY_IDX(balancer->workers, i, proxy_worker *);
+        server = apr_hash_get(servers, (*worker)->hostname, APR_HASH_KEY_STRING);
+
+        if (!server) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                      "lb_heartbeat: No server for worker %s", (*worker)->name);
+            continue;
+        }
+
+        if (!PROXY_WORKER_IS_USABLE(*worker)) {
+            ap_proxy_retry_worker("BALANCER", *worker, r->server);
+        }
+
+        if (PROXY_WORKER_IS_USABLE(*worker)) {
+            server->worker = *worker;
+            if (server->seen < LBM_HEARTBEAT_MAX_LASTSEEN) {
+                openslots += server->ready;
+                APR_ARRAY_PUSH(up_servers, hb_server_t *) = server;
+            }
+        }
     }
 
-    have_rsa = ssl_server_import_key(s, mctx, rsa_id, SSL_AIDX_RSA);
-    have_dsa = ssl_server_import_key(s, mctx, dsa_id, SSL_AIDX_DSA);
-#ifndef OPENSSL_NO_EC
-    have_ecc = ssl_server_import_key(s, mctx, ecc_id, SSL_AIDX_ECC);
-#endif
+    if (openslots > 0) {
+        apr_uint32_t c = 0;
+        apr_uint32_t pick = 0;
 
-    if (!(have_rsa || have_dsa
-#ifndef OPENSSL_NO_EC
-        || have_ecc
-#endif
-          )) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-#ifndef OPENSSL_NO_EC
-                "Oops, no RSA, DSA or ECC server private key found?!");
-#else
-                "Oops, no RSA or DSA server private key found?!");
-#endif
-        ssl_die();
+        rv = random_pick(&pick, 0, openslots);
+
+        if (rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "lb_heartbeat: failed picking a random number. how random.");
+            apr_pool_destroy(tpool);
+            return NULL;
+        }
+
+        for (i = 0; i < up_servers->nelts; i++) {
+            server = APR_ARRAY_IDX(up_servers, i, hb_server_t *);
+            if (pick >= c && pick <= c + server->ready) {
+                mycandidate = server->worker;
+            }
+
+            c += server->ready;
+        }
     }
+
+    apr_pool_destroy(tpool);
+
+    return mycandidate;
+}

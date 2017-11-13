@@ -1,1 +1,1 @@
-fprintf(stderr, "Rotation verbose:            %12s\n", config->verbose ? "yes" : "no");
+printf("Compiled using: APR %s\n", APR_VERSION_STRING);

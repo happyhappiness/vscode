@@ -1,1 +1,1 @@
-printf(_("Applied autostash."));
+error("no such remote ref %s", sought[i]->name);

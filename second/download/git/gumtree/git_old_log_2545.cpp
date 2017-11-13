@@ -1,1 +1,1 @@
-printf("      %s\n", msg);
+error("unable to lock %s for rollback: %s", oldrefname, err.buf);

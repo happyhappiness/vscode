@@ -1,1 +1,1 @@
-error("cannot unlink %s: %s", filename, strerror(errno));
+die(_("Could not make %s writable by group"), dir);

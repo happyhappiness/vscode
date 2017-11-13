@@ -1,2 +1,1 @@
-rprintf(FERROR,"Failed to exec %s : %s\n",
-	      command[0],strerror(errno));
+rprintf(FERROR,"mktemp %s failed\n",fnametmp);

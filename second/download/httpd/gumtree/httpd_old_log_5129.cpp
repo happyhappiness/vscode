@@ -1,2 +1,1 @@
-log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno, APLOGNO(01258)
-                                   "cgid daemon is gone; is Apache terminating?");
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");

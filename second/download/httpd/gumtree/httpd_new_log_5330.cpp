@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
-                  "h2_stream(%ld-%d): prep_read %s, len=%ld eos=%d, trailers=%s",
-                  stream->session->id, stream->id, src, (long)*plen, *peos,
-                  trailers? "yes" : "no");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL, APLOGNO(00380)
+                     "Failed to open the %s Service", mpm_display_name);

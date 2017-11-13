@@ -1,1 +1,1 @@
-die_errno(_("failed to read '%s'"), path.buf);
+die(_("%%(subject) does not take arguments"));

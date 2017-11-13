@@ -1,1 +1,1 @@
-fprintf(FERROR,"fork: %s\n",strerror(errno));
+fprintf(FERROR,"rmdir %s : %s\n",f->name,strerror(errno));

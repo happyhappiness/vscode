@@ -1,1 +1,1 @@
-error("Unknown object type for %s", describe_object(options, obj));
+die("bad tree %s", oid_to_hex(&obj->oid));

@@ -1,1 +1,1 @@
-printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));
+warning("Duplicated ref: %s", ref1->name);

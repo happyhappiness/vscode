@@ -1,11 +1,11 @@
 fputs(
-"              libcurl  was built to support TLS. This option overrides --basic\n"
-"              and --negotiated and --digest and --anyauth.\n"
+"              default  if  libcurl was built with an SSL library that supports\n"
+"              ALPN. ALPN is used by a libcurl that supports HTTP/2 to  negoti-\n"
+"              ate HTTP/2 support with the server during https sessions.\n"
 "\n"
-"       --oauth2-bearer <token>\n"
-"              (IMAP POP3 SMTP) Specify the Bearer Token for OAUTH  2.0  server\n"
-"              authentication. The Bearer Token is used in conjunction with the\n"
-"              user name which can be specified as part of  the  --url  or  -u,\n"
-"              --user options.\n"
+"              See  also  --no-npn  and  --http2.  --no-alpn  requires that the\n"
+"              underlying libcurl was built to support TLS. Added in 7.36.0.\n"
 "\n"
+"       -N, --no-buffer\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
 , stdout);

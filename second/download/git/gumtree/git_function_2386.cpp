@@ -1,35 +1,19 @@
-int index_path(unsigned char *sha1, const char *path, struct stat *st, unsigned flags)
+static int handle_independent(int count, const char **args)
 {
-	int fd;
-	struct strbuf sb = STRBUF_INIT;
+	struct commit_list *revs = NULL;
+	struct commit_list *result;
+	int i;
 
-	switch (st->st_mode & S_IFMT) {
-	case S_IFREG:
-		fd = open(path, O_RDONLY);
-		if (fd < 0)
-			return error("open(\"%s\"): %s", path,
-				     strerror(errno));
-		if (index_fd(sha1, fd, st, OBJ_BLOB, path, flags) < 0)
-			return error("%s: failed to insert into database",
-				     path);
-		break;
-	case S_IFLNK:
-		if (strbuf_readlink(&sb, path, st->st_size)) {
-			char *errstr = strerror(errno);
-			return error("readlink(\"%s\"): %s", path,
-			             errstr);
-		}
-		if (!(flags & HASH_WRITE_OBJECT))
-			hash_sha1_file(sb.buf, sb.len, blob_type, sha1);
-		else if (write_sha1_file(sb.buf, sb.len, blob_type, sha1))
-			return error("%s: failed to insert into database",
-				     path);
-		strbuf_release(&sb);
-		break;
-	case S_IFDIR:
-		return resolve_gitlink_ref(path, "HEAD", sha1);
-	default:
-		return error("%s: unsupported file type", path);
+	for (i = count - 1; i >= 0; i--)
+		commit_list_insert(get_commit_reference(args[i]), &revs);
+
+	result = reduce_heads(revs);
+	if (!result)
+		return 1;
+
+	while (result) {
+		printf("%s\n", sha1_to_hex(result->item->object.sha1));
+		result = result->next;
 	}
 	return 0;
 }

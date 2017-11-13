@@ -1,14 +1,7 @@
-puts(
-"          interpreted by curl itself. Note that these letters are\n"
-"          not  normal  legal  URL  contents  but  they  should be\n"
-"          encoded according to the URI standard. (Option added in\n"
-"          curl 7.6)\n"
-"\n"
-"     -h/--help\n"
-"          Usage help.\n"
-"\n"
-"     -H/--header <header>\n"
-"          (HTTP) Extra header to use when getting a web page. You\n"
-"          may specify any number of extra headers. Note  that  if\n"
-"          you  should  add a custom header that has the same name\n"
-);
+puts(" -E/--cert <cert[:passwd]> Specifies your certificate file and password (HTTPS)\n"
+       "    --cacert <file> CA certifciate to verify peer against (HTTPS)\n"
+       "    --connect-timeout <seconds> Maximum time allowed for connection\n"
+       " -f/--fail          Fail silently (no output at all) on errors (H)\n"
+       " -F/--form <name=content> Specify HTTP POST data (H)\n"
+       " -g/--globoff       Disable URL sequences and ranges using {} and []\n"
+       " -G/--get           Send the -d data with a HTTP GET (H)\n");

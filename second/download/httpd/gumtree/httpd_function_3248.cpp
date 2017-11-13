@@ -1,62 +1,137 @@
-static int parse_ap_expr(include_ctx_t *ctx, const char *expr, int *was_error)
+static authz_status ldapfilter_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    ap_expr_info_t expr_info;
-    const char *err;
-    int ret;
-    backref_t *re = ctx->intern->re;
-    ap_expr_eval_ctx_t *eval_ctx = ctx->intern->expr_eval_ctx;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    expr_info.filename = ctx->r->filename;
-    expr_info.line_number = 0;
-    expr_info.module_index = APLOG_MODULE_INDEX;
-    expr_info.flags = AP_EXPR_FLAG_RESTRICTED;
-    err = ap_expr_parse(ctx->r->pool, ctx->r->pool, &expr_info, expr,
-                        include_expr_lookup);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(01337)
-                      "Could not parse expr \"%s\" in %s: %s", expr,
-                      ctx->r->filename, err);
-        *was_error = 1;
-        return 0;
+    util_ldap_connection_t *ldc = NULL;
+    const char *t;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
     }
 
-    if (!re) {
-        ctx->intern->re = re = apr_pcalloc(ctx->pool, sizeof(*re));
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
+    }
+
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_SEARCH);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
     }
     else {
-        /* ap_expr_exec_ctx() does not care about re->have_match but only about
-         * re->source
-         */
-        if (!re->have_match)
-            re->source = NULL;
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "auth_ldap authorize: no sec->host - weird...?");
+        return AUTHZ_DENIED;
     }
 
-    if (!eval_ctx) {
-        eval_ctx = apr_pcalloc(ctx->pool, sizeof(*eval_ctx));
-        ctx->intern->expr_eval_ctx = eval_ctx;
-        eval_ctx->r         = ctx->r;
-        eval_ctx->c         = ctx->r->connection;
-        eval_ctx->s         = ctx->r->server;
-        eval_ctx->p         = ctx->r->pool;
-        eval_ctx->data      = ctx;
-        eval_ctx->err       = &ctx->intern->expr_err;
-        eval_ctx->vary_this = &ctx->intern->expr_vary_this;
-        eval_ctx->re_nmatch = AP_MAX_REG_MATCH;
-        eval_ctx->re_pmatch = re->match;
-        eval_ctx->re_source = &re->source;
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
+
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
     }
 
-    eval_ctx->info = &expr_info;
-    ret = ap_expr_exec_ctx(eval_ctx);
-    if (ret < 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(01338)
-                      "Could not evaluate expr \"%s\" in %s: %s", expr,
-                      ctx->r->filename, ctx->intern->expr_err);
-        *was_error = 1;
-        return 0;
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
+        }
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
     }
-    *was_error = 0;
-    if (re->source)
-        re->have_match = 1;
-    return ret;
+
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: require ldap-filter: user's DN "
+                      "has not been defined; failing authorization");
+        return AUTHZ_DENIED;
+    }
+
+    t = require_args;
+
+    if (t[0]) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: checking filter %s", t);
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, req->user, t, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Make sure that the filtered search returned the correct user dn */
+        if (result == LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: checking dn match %s", dn);
+            if (sec->compare_as_user) {
+                /* ldap-filter is the only authz that requires a search and a compare */
+                apr_pool_cleanup_kill(r->pool, ldc, authnz_ldap_cleanup_connection_close);
+                authnz_ldap_cleanup_connection_close(ldc);
+                ldc = get_connection_for_authz(r, LDAP_COMPARE);
+            }
+            result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, dn,
+                                               sec->compare_dn_on_server);
+        }
+
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require ldap-filter: "
+                              "authorization successful");
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
+            }
+            case LDAP_FILTER_ERROR: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require ldap-filter: "
+                              "%s authorization failed [%s][%s]",
+                              filtbuf, ldc->reason, ldap_err2string(result));
+                break;
+            }
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require ldap-filter: "
+                              "authorization failed [%s][%s]",
+                              ldc->reason, ldap_err2string(result));
+            }
+        }
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "auth_ldap authorize filter: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

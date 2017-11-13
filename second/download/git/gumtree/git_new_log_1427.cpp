@@ -1,1 +1,1 @@
-execute_commands_non_atomic(commands, si);
+warning("die() called many times. Recursion error or racy threaded death!");

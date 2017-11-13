@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(2404)
-                     "write pipe_of_death");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03454)
+                          "HTTP Request Line; URI incorrectly encoded: '%.*s'",
+                          field_name_len(r->uri), r->uri);

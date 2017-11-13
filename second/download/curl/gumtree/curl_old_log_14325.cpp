@@ -1,10 +1,9 @@
 fputs(
-"              To read content from stdin instead of a file, use - as the file-\n"
-"              name. This goes for both @ and <  constructs.  Unfortunately  it\n"
-"              does  not support reading the file from a named pipe or similar,\n"
-"              as it needs the full size before the transfer starts.\n"
-"\n"
-"              You can also  tell  curl  what  Content-Type  to  use  by  using\n"
-"              'type=', in a manner similar to:\n"
+"              (HTTP)  Fail  silently (no output at all) on server errors. This\n"
+"              is mostly done to better enable scripts etc to better deal  with\n"
+"              failed  attempts.  In  normal cases when an HTTP server fails to\n"
+"              deliver a document, it  returns  an  HTML  document  stating  so\n"
+"              (which  often  also describes why and more). This flag will pre-\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
 , stdout);

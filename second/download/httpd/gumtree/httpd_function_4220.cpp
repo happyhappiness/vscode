@@ -1,92 +1,55 @@
-static apr_status_t ssl_io_filter_buffer(ap_filter_t *f,
-                                         apr_bucket_brigade *bb,
-                                         ap_input_mode_t mode,
-                                         apr_read_type_e block,
-                                         apr_off_t bytes)
+static proxy_worker *find_session_route(proxy_balancer *balancer,
+                                        request_rec *r,
+                                        char **route,
+                                        const char **sticky_used,
+                                        char **url)
 {
-    struct modssl_buffer_ctx *ctx = f->ctx;
-    apr_status_t rv;
+    proxy_worker *worker = NULL;
 
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
-                  "read from buffered SSL brigade, mode %d, "
-                  "%" APR_OFF_T_FMT " bytes",
-                  mode, bytes);
-
-    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
-        return APR_ENOTIMPL;
-    }
-
-    if (APR_BRIGADE_EMPTY(ctx->bb)) {
-        /* Suprisingly (and perhaps, wrongly), the request body can be
-         * pulled from the input filter stack more than once; a
-         * handler may read it, and ap_discard_request_body() will
-         * attempt to do so again after *every* request.  So input
-         * filters must be prepared to give up an EOS if invoked after
-         * initially reading the request. The HTTP_IN filter does this
-         * with its ->eos_sent flag. */
-
-        APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_eos_create(f->c->bucket_alloc));
-        return APR_SUCCESS;
-    }
-
-    if (mode == AP_MODE_READBYTES) {
-        apr_bucket *e;
-
-        /* Partition the buffered brigade. */
-        rv = apr_brigade_partition(ctx->bb, bytes, &e);
-        if (rv && rv != APR_INCOMPLETE) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
-                          "could not partition buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
-        }
-
-        /* If the buffered brigade contains less then the requested
-         * length, just pass it all back. */
-        if (rv == APR_INCOMPLETE) {
-            APR_BRIGADE_CONCAT(bb, ctx->bb);
-        } else {
-            apr_bucket *d = APR_BRIGADE_FIRST(ctx->bb);
-
-            e = APR_BUCKET_PREV(e);
-
-            /* Unsplice the partitioned segment and move it into the
-             * passed-in brigade; no convenient way to do this with
-             * the APR_BRIGADE_* macros. */
-            APR_RING_UNSPLICE(d, e, link);
-            APR_RING_SPLICE_HEAD(&bb->list, d, e, apr_bucket, link);
-
-            APR_BRIGADE_CHECK_CONSISTENCY(bb);
-            APR_BRIGADE_CHECK_CONSISTENCY(ctx->bb);
-        }
+    if (!balancer->sticky)
+        return NULL;
+    /* Try to find the sticky route inside url */
+    *route = get_path_param(r->pool, *url, balancer->sticky_path, balancer->scolonsep);
+    if (*route) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: BALANCER: Found value %s for "
+                     "stickysession %s", *route, balancer->sticky_path);
+        *sticky_used =  balancer->sticky_path;
     }
     else {
-        /* Split a line into the passed-in brigade. */
-        rv = apr_brigade_split_line(bb, ctx->bb, block, bytes);
-
-        if (rv) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
-                          "could not split line from buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
+        *route = get_cookie_param(r, balancer->sticky);
+        if (*route) {
+            *sticky_used =  balancer->sticky;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: BALANCER: Found value %s for "
+                         "stickysession %s", *route, balancer->sticky);
         }
     }
-
-    if (APR_BRIGADE_EMPTY(ctx->bb)) {
-        apr_bucket *e = APR_BRIGADE_LAST(bb);
-
-        /* Ensure that the brigade is terminated by an EOS if the
-         * buffered request body has been entirely consumed. */
-        if (e == APR_BRIGADE_SENTINEL(bb) || !APR_BUCKET_IS_EOS(e)) {
-            e = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bb, e);
+    /*
+     * If we found a value for sticksession, find the first '.' within.
+     * Everything after '.' (if present) is our route.
+     */
+    if ((*route) && ((*route = strchr(*route, '.')) != NULL ))
+        (*route)++;
+    if ((*route) && (**route)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                  "proxy: BALANCER: Found route %s", *route);
+        /* We have a route in path or in cookie
+         * Find the worker that has this route defined.
+         */
+        worker = find_route_worker(balancer, *route, r);
+        if (worker && strcmp(*route, worker->s->route)) {
+            /*
+             * Notice that the route of the worker chosen is different from
+             * the route supplied by the client.
+             */
+            apr_table_setn(r->subprocess_env, "BALANCER_ROUTE_CHANGED", "1");
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: BALANCER: Route changed from %s to %s",
+                         *route, worker->s->route);
         }
-
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
-                      "buffered SSL brigade exhausted");
-        /* Note that the filter must *not* be removed here; it may be
-         * invoked again, see comment above. */
+        return worker;
     }
-
-    return APR_SUCCESS;
+    else
+        return NULL;
 }

@@ -1,51 +1,65 @@
-static apr_status_t open_scoreboard(apr_pool_t *pconf)
+static const char *set_error_document(cmd_parms *cmd, void *conf_,
+                                      const char *errno_str, const char *msg)
 {
-#if APR_HAS_SHARED_MEMORY
-    apr_status_t rv;
-    char *fname = NULL;
-    apr_pool_t *global_pool;
+    core_dir_config *conf = conf_;
+    int error_number, index_number, idx500;
+    enum { MSG, LOCAL_PATH, REMOTE_PATH } what = MSG;
 
-    /* We don't want to have to recreate the scoreboard after
-     * restarts, so we'll create a global pool and never clean it.
+    /* 1st parameter should be a 3 digit number, which we recognize;
+     * convert it into an array index
      */
-    rv = apr_pool_create(&global_pool, NULL);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "Fatal error: unable to create global pool "
-                     "for use by the scoreboard");
-        return rv;
+    error_number = atoi(errno_str);
+    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
+
+    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
+        index_number = idx500;
+    }
+    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
+        return apr_pstrcat(cmd->pool, "Unsupported HTTP response code ",
+                           errno_str, NULL);
     }
 
-    /* The config says to create a name-based shmem */
-    if (ap_scoreboard_fname) {
-        /* make sure it's an absolute pathname */
-        fname = ap_server_root_relative(pconf, ap_scoreboard_fname);
-        if (!fname) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, APR_EBADPATH, NULL,
-                         "Fatal error: Invalid Scoreboard path %s",
-                         ap_scoreboard_fname);
-            return APR_EBADPATH;
-        }
-        return create_namebased_scoreboard(global_pool, fname);
-    }
-    else { /* config didn't specify, we get to choose shmem type */
-        rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, NULL,
-                            global_pool); /* anonymous shared memory */
-        if ((rv != APR_SUCCESS) && (rv != APR_ENOTIMPL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                         "Unable to create or access scoreboard "
-                         "(anonymous shared memory failure)");
-            return rv;
-        }
-        /* Make up a filename and do name-based shmem */
-        else if (rv == APR_ENOTIMPL) {
-            /* Make sure it's an absolute pathname */
-            ap_scoreboard_fname = DEFAULT_SCOREBOARD;
-            fname = ap_server_root_relative(pconf, ap_scoreboard_fname);
+    /* Heuristic to determine second argument. */
+    if (ap_strchr_c(msg,' '))
+        what = MSG;
+    else if (msg[0] == '/')
+        what = LOCAL_PATH;
+    else if (ap_is_url(msg))
+        what = REMOTE_PATH;
+    else
+        what = MSG;
 
-            return create_namebased_scoreboard(global_pool, fname);
+    /* The entry should be ignored if it is a full URL for a 401 error */
+
+    if (error_number == 401 && what == REMOTE_PATH) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
+                     "cannot use a full URL in a 401 ErrorDocument "
+                     "directive --- ignoring!");
+    }
+    else { /* Store it... */
+        if (conf->response_code_strings == NULL) {
+            conf->response_code_strings =
+                apr_pcalloc(cmd->pool,
+                            sizeof(*conf->response_code_strings) *
+                            RESPONSE_CODES);
+        }
+
+        if (strcmp(msg, "default") == 0) {
+            /* special case: ErrorDocument 404 default restores the
+             * canned server error response
+             */
+            conf->response_code_strings[index_number] = &errordocument_default;
+        }
+        else {
+            /* hack. Prefix a " if it is a msg; as that is what
+             * http_protocol.c relies on to distinguish between
+             * a msg and a (local) path.
+             */
+            conf->response_code_strings[index_number] = (what == MSG) ?
+                    apr_pstrcat(cmd->pool, "\"",msg,NULL) :
+                    apr_pstrdup(cmd->pool, msg);
         }
     }
-#endif /* APR_HAS_SHARED_MEMORY */
-    return APR_SUCCESS;
+
+    return NULL;
 }

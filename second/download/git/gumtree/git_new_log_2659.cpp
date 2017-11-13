@@ -1,1 +1,1 @@
-err(o, _("merge returned no commit"));
+die(_("stage should be between 1 and 3 or all"));

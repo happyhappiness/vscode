@@ -1,2 +1,1 @@
-error("opening %s: %s", config_filename,
-			      strerror(errno));
+warning(_("--dissociate given, but there is no --reference"));

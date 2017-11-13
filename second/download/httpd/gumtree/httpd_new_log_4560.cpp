@@ -1,4 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00506)
-                     "changing ThreadLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     thread_limit, retained->first_thread_limit);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00948)
+                 "CONNECT: sending the CONNECT request for %s:%d "
+                 "to the remote proxy %pI (%s)",
+                 forward->target_host, forward->target_port,
+                 backend->addr, backend->hostname);

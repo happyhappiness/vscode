@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+error_buf(err, _("HEAD does not point to a branch"));

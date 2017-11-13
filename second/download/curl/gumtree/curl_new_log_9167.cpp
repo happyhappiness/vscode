@@ -1,10 +1,11 @@
 fputs(
-"              (FTP/SFTP) When used in an upload, this will tell curl to append\n"
-"              to  the  target  file  instead  of  overwriting  it. If the file\n"
-"              doesn't exist, it will be  created.   Note  that  this  flag  is\n"
-"              ignored by some SSH servers (including OpenSSH).\n"
+"              Disable  the  NPN  TLS  extension.  NPN is enabled by default if\n"
+"              libcurl was built with an SSL library that supports NPN. NPN  is\n"
+"              used  by a libcurl that supports HTTP 2 to negotiate HTTP 2 sup-\n"
+"              port with the server during https sessions.\n"
 "\n"
-"       -A, --user-agent <agent string>\n"
-"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
-"              Some  badly  done  CGIs  fail  if  this  field  isn't   set   to\n"
+"              (Added in 7.36.0)\n"
+"\n"
+"       --no-alpn\n"
+"              Disable the ALPN TLS extension. ALPN is enabled  by  default  if\n"
 , stdout);

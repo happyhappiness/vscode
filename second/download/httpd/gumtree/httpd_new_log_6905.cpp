@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
-                      H2_STRM_MSG(stream, "non-state event %d"), ev);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
+                      H2_STRM_MSG(stream, "invalid frame %d send"), ftype);

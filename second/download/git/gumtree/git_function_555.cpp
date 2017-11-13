@@ -1,77 +1,98 @@
-static void wt_porcelain_v2_print_unmerged_entry(
-	struct string_list_item *it,
-	struct wt_status *s)
+static struct ref *do_fetch_pack(struct fetch_pack_args *args,
+				 int fd[2],
+				 const struct ref *orig_ref,
+				 struct ref **sought, int nr_sought,
+				 struct shallow_info *si,
+				 char **pack_lockfile)
 {
-	struct wt_status_change_data *d = it->util;
-	const struct cache_entry *ce;
-	struct strbuf buf_index = STRBUF_INIT;
-	const char *path_index = NULL;
-	int pos, stage, sum;
-	struct {
-		int mode;
-		struct object_id oid;
-	} stages[3];
-	char *key;
-	char submodule_token[5];
-	char unmerged_prefix = 'u';
-	char eol_char = s->null_termination ? '\0' : '\n';
+	struct ref *ref = copy_ref_list(orig_ref);
+	unsigned char sha1[20];
+	const char *agent_feature;
+	int agent_len;
 
-	wt_porcelain_v2_submodule_state(d, submodule_token);
+	sort_ref_list(&ref, ref_compare_name);
+	qsort(sought, nr_sought, sizeof(*sought), cmp_ref_by_name);
 
-	switch (d->stagemask) {
-	case 1: key = "DD"; break; /* both deleted */
-	case 2: key = "AU"; break; /* added by us */
-	case 3: key = "UD"; break; /* deleted by them */
-	case 4: key = "UA"; break; /* added by them */
-	case 5: key = "DU"; break; /* deleted by us */
-	case 6: key = "AA"; break; /* both added */
-	case 7: key = "UU"; break; /* both modified */
-	default:
-		die("BUG: unhandled unmerged status %x", d->stagemask);
+	if ((args->depth > 0 || is_repository_shallow()) && !server_supports("shallow"))
+		die("Server does not support shallow clients");
+	if (server_supports("multi_ack_detailed")) {
+		if (args->verbose)
+			fprintf(stderr, "Server supports multi_ack_detailed\n");
+		multi_ack = 2;
+		if (server_supports("no-done")) {
+			if (args->verbose)
+				fprintf(stderr, "Server supports no-done\n");
+			if (args->stateless_rpc)
+				no_done = 1;
+		}
+	}
+	else if (server_supports("multi_ack")) {
+		if (args->verbose)
+			fprintf(stderr, "Server supports multi_ack\n");
+		multi_ack = 1;
+	}
+	if (server_supports("side-band-64k")) {
+		if (args->verbose)
+			fprintf(stderr, "Server supports side-band-64k\n");
+		use_sideband = 2;
+	}
+	else if (server_supports("side-band")) {
+		if (args->verbose)
+			fprintf(stderr, "Server supports side-band\n");
+		use_sideband = 1;
+	}
+	if (server_supports("allow-tip-sha1-in-want")) {
+		if (args->verbose)
+			fprintf(stderr, "Server supports allow-tip-sha1-in-want\n");
+		allow_unadvertised_object_request |= ALLOW_TIP_SHA1;
+	}
+	if (server_supports("allow-reachable-sha1-in-want")) {
+		if (args->verbose)
+			fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");
+		allow_unadvertised_object_request |= ALLOW_REACHABLE_SHA1;
+	}
+	if (!server_supports("thin-pack"))
+		args->use_thin_pack = 0;
+	if (!server_supports("no-progress"))
+		args->no_progress = 0;
+	if (!server_supports("include-tag"))
+		args->include_tag = 0;
+	if (server_supports("ofs-delta")) {
+		if (args->verbose)
+			fprintf(stderr, "Server supports ofs-delta\n");
+	} else
+		prefer_ofs_delta = 0;
+
+	if ((agent_feature = server_feature_value("agent", &agent_len))) {
+		agent_supported = 1;
+		if (args->verbose && agent_len)
+			fprintf(stderr, "Server version is %.*s\n",
+				agent_len, agent_feature);
 	}
 
-	/*
-	 * Disregard d.aux.porcelain_v2 data that we accumulated
-	 * for the head and index columns during the scans and
-	 * replace with the actual stage data.
-	 *
-	 * Note that this is a last-one-wins for each the individual
-	 * stage [123] columns in the event of multiple cache entries
-	 * for same stage.
-	 */
-	memset(stages, 0, sizeof(stages));
-	sum = 0;
-	pos = cache_name_pos(it->string, strlen(it->string));
-	assert(pos < 0);
-	pos = -pos-1;
-	while (pos < active_nr) {
-		ce = active_cache[pos++];
-		stage = ce_stage(ce);
-		if (strcmp(ce->name, it->string) || !stage)
-			break;
-		stages[stage - 1].mode = ce->ce_mode;
-		hashcpy(stages[stage - 1].oid.hash, ce->oid.hash);
-		sum |= (1 << (stage - 1));
+	if (everything_local(args, &ref, sought, nr_sought)) {
+		packet_flush(fd[1]);
+		goto all_done;
 	}
-	if (sum != d->stagemask)
-		die("BUG: observed stagemask 0x%x != expected stagemask 0x%x", sum, d->stagemask);
+	if (find_common(args, fd, sha1, ref) < 0)
+		if (!args->keep_pack)
+			/* When cloning, it is not unusual to have
+			 * no common commit.
+			 */
+			warning("no common commits");
 
-	if (s->null_termination)
-		path_index = it->string;
+	if (args->stateless_rpc)
+		packet_flush(fd[1]);
+	if (args->depth > 0)
+		setup_alternate_shallow(&shallow_lock, &alternate_shallow_file,
+					NULL);
+	else if (si->nr_ours || si->nr_theirs)
+		alternate_shallow_file = setup_temporary_shallow(si->shallow);
 	else
-		path_index = quote_path(it->string, s->prefix, &buf_index);
+		alternate_shallow_file = NULL;
+	if (get_pack(args, fd, pack_lockfile))
+		die("git fetch-pack: fetch failed.");
 
-	fprintf(s->fp, "%c %s %s %06o %06o %06o %06o %s %s %s %s%c",
-			unmerged_prefix, key, submodule_token,
-			stages[0].mode, /* stage 1 */
-			stages[1].mode, /* stage 2 */
-			stages[2].mode, /* stage 3 */
-			d->mode_worktree,
-			oid_to_hex(&stages[0].oid), /* stage 1 */
-			oid_to_hex(&stages[1].oid), /* stage 2 */
-			oid_to_hex(&stages[2].oid), /* stage 3 */
-			path_index,
-			eol_char);
-
-	strbuf_release(&buf_index);
+ all_done:
+	return ref;
 }

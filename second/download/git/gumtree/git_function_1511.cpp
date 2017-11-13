@@ -1,80 +1,77 @@
-static int get_value(const char *key_, const char *regex_)
+static void cmd_log_init_finish(int argc, const char **argv, const char *prefix,
+			 struct rev_info *rev, struct setup_revision_opt *opt)
 {
-	int ret = CONFIG_GENERIC_ERROR;
-	struct strbuf_list values = {NULL};
-	int i;
+	struct userformat_want w;
+	int quiet = 0, source = 0, mailmap = 0;
+	static struct line_opt_callback_data line_cb = {NULL, NULL, STRING_LIST_INIT_DUP};
 
-	if (use_key_regexp) {
-		char *tl;
+	const struct option builtin_log_options[] = {
+		OPT__QUIET(&quiet, N_("suppress diff output")),
+		OPT_BOOL(0, "source", &source, N_("show source")),
+		OPT_BOOL(0, "use-mailmap", &mailmap, N_("Use mail map file")),
+		{ OPTION_CALLBACK, 0, "decorate", NULL, NULL, N_("decorate options"),
+		  PARSE_OPT_OPTARG, decorate_callback},
+		OPT_CALLBACK('L', NULL, &line_cb, "n,m:file",
+			     "Process line range n,m in file, counting from 1",
+			     log_line_range_callback),
+		OPT_END()
+	};
 
+	line_cb.rev = rev;
+	line_cb.prefix = prefix;
+
+	mailmap = use_mailmap_config;
+	argc = parse_options(argc, argv, prefix,
+			     builtin_log_options, builtin_log_usage,
+			     PARSE_OPT_KEEP_ARGV0 | PARSE_OPT_KEEP_UNKNOWN |
+			     PARSE_OPT_KEEP_DASHDASH);
+
+	if (quiet)
+		rev->diffopt.output_format |= DIFF_FORMAT_NO_OUTPUT;
+	argc = setup_revisions(argc, argv, rev, opt);
+
+	/* Any arguments at this point are not recognized */
+	if (argc > 1)
+		die("unrecognized argument: %s", argv[1]);
+
+	memset(&w, 0, sizeof(w));
+	userformat_find_requirements(NULL, &w);
+
+	if (!rev->show_notes_given && (!rev->pretty_given || w.notes))
+		rev->show_notes = 1;
+	if (rev->show_notes)
+		init_display_notes(&rev->notes_opt);
+
+	if (rev->diffopt.pickaxe || rev->diffopt.filter ||
+	    DIFF_OPT_TST(&rev->diffopt, FOLLOW_RENAMES))
+		rev->always_show_header = 0;
+
+	if (source)
+		rev->show_source = 1;
+
+	if (mailmap) {
+		rev->mailmap = xcalloc(1, sizeof(struct string_list));
+		read_mailmap(rev->mailmap, NULL);
+	}
+
+	if (rev->pretty_given && rev->commit_format == CMIT_FMT_RAW) {
 		/*
-		 * NEEDSWORK: this naive pattern lowercasing obviously does not
-		 * work for more complex patterns like "^[^.]*Foo.*bar".
-		 * Perhaps we should deprecate this altogether someday.
+		 * "log --pretty=raw" is special; ignore UI oriented
+		 * configuration variables such as decoration.
 		 */
-
-		key = xstrdup(key_);
-		for (tl = key + strlen(key) - 1;
-		     tl >= key && *tl != '.';
-		     tl--)
-			*tl = tolower(*tl);
-		for (tl = key; *tl && *tl != '.'; tl++)
-			*tl = tolower(*tl);
-
-		key_regexp = (regex_t*)xmalloc(sizeof(regex_t));
-		if (regcomp(key_regexp, key, REG_EXTENDED)) {
-			fprintf(stderr, "Invalid key pattern: %s\n", key_);
-			free(key_regexp);
-			key_regexp = NULL;
-			ret = CONFIG_INVALID_PATTERN;
-			goto free_strings;
-		}
-	} else {
-		if (git_config_parse_key(key_, &key, NULL)) {
-			ret = CONFIG_INVALID_KEY;
-			goto free_strings;
-		}
+		if (!decoration_given)
+			decoration_style = 0;
+		if (!rev->abbrev_commit_given)
+			rev->abbrev_commit = 0;
 	}
 
-	if (regex_) {
-		if (regex_[0] == '!') {
-			do_not_match = 1;
-			regex_++;
-		}
-
-		regexp = (regex_t*)xmalloc(sizeof(regex_t));
-		if (regcomp(regexp, regex_, REG_EXTENDED)) {
-			fprintf(stderr, "Invalid pattern: %s\n", regex_);
-			free(regexp);
-			regexp = NULL;
-			ret = CONFIG_INVALID_PATTERN;
-			goto free_strings;
-		}
+	if (decoration_style) {
+		rev->show_decorations = 1;
+		load_ref_decorations(decoration_style);
 	}
 
-	git_config_with_options(collect_config, &values,
-				&given_config_source, respect_includes);
+	if (rev->line_level_traverse)
+		line_log_init(rev, line_cb.prefix, &line_cb.args);
 
-	ret = !values.nr;
-
-	for (i = 0; i < values.nr; i++) {
-		struct strbuf *buf = values.items + i;
-		if (do_all || i == values.nr - 1)
-			fwrite(buf->buf, 1, buf->len, stdout);
-		strbuf_release(buf);
-	}
-	free(values.items);
-
-free_strings:
-	free(key);
-	if (key_regexp) {
-		regfree(key_regexp);
-		free(key_regexp);
-	}
-	if (regexp) {
-		regfree(regexp);
-		free(regexp);
-	}
-
-	return ret;
+	setup_pager();
 }

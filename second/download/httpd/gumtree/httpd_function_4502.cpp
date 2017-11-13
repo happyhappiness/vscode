@@ -1,20 +1,86 @@
-static void event_note_child_lost_slot(int slot, pid_t newpid)
+static int proxy_match_ipaddr(struct dirconn_entry *This, request_rec *r)
 {
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00458)
-                 "pid %" APR_PID_T_FMT " taking over scoreboard slot from "
-                 "%" APR_PID_T_FMT "%s",
-                 newpid,
-                 ap_scoreboard_image->parent[slot].pid,
-                 ap_scoreboard_image->parent[slot].quiescing ?
-                 " (quiescing)" : "");
-    ap_run_child_status(ap_server_conf,
-                        ap_scoreboard_image->parent[slot].pid,
-                        ap_scoreboard_image->parent[slot].generation,
-                        slot, MPM_CHILD_LOST_SLOT);
-    /* Don't forget about this exiting child process, or we
-     * won't be able to kill it if it doesn't exit by the
-     * time the server is shut down.
-     */
-    ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid,
-                                  ap_scoreboard_image->parent[slot].generation);
+    int i, ip_addr[4];
+    struct in_addr addr, *ip;
+    const char *host = proxy_get_host_of_request(r);
+
+    if (host == NULL) {   /* oops! */
+       return 0;
+    }
+
+    memset(&addr, '\0', sizeof addr);
+    memset(ip_addr, '\0', sizeof ip_addr);
+
+    if (4 == sscanf(host, "%d.%d.%d.%d", &ip_addr[0], &ip_addr[1], &ip_addr[2], &ip_addr[3])) {
+        for (addr.s_addr = 0, i = 0; i < 4; ++i) {
+            /* ap_proxy_is_ipaddr() already confirmed that we have
+             * a valid octet in ip_addr[i]
+             */
+            addr.s_addr |= htonl(ip_addr[i] << (24 - 8 * i));
+        }
+
+        if (This->addr.s_addr == (addr.s_addr & This->mask.s_addr)) {
+#if DEBUGGING
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "1)IP-Match: %s[%s] <-> ", host, inet_ntoa(addr));
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "%s/", inet_ntoa(This->addr));
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "%s", inet_ntoa(This->mask));
+#endif
+            return 1;
+        }
+#if DEBUGGING
+        else {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "1)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(addr));
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "%s/", inet_ntoa(This->addr));
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "%s", inet_ntoa(This->mask));
+        }
+#endif
+    }
+    else {
+        struct apr_sockaddr_t *reqaddr;
+
+        if (apr_sockaddr_info_get(&reqaddr, host, APR_UNSPEC, 0, 0, r->pool)
+            != APR_SUCCESS) {
+#if DEBUGGING
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+             "2)IP-NoMatch: hostname=%s msg=Host not found", host);
+#endif
+            return 0;
+        }
+
+        /* Try to deal with multiple IP addr's for a host */
+        /* FIXME: This needs to be able to deal with IPv6 */
+        while (reqaddr) {
+            ip = (struct in_addr *) reqaddr->ipaddr_ptr;
+            if (This->addr.s_addr == (ip->s_addr & This->mask.s_addr)) {
+#if DEBUGGING
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "3)IP-Match: %s[%s] <-> ", host, inet_ntoa(*ip));
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "%s/", inet_ntoa(This->addr));
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "%s", inet_ntoa(This->mask));
+#endif
+                return 1;
+            }
+#if DEBUGGING
+            else {
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "3)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(*ip));
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "%s/", inet_ntoa(This->addr));
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "%s", inet_ntoa(This->mask));
+            }
+#endif
+            reqaddr = reqaddr->next;
+        }
+    }
+
+    return 0;
 }

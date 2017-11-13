@@ -1,37 +1,64 @@
-static void update_remote_refs(const struct ref *refs,
-			       const struct ref *mapped_refs,
-			       const struct ref *remote_head_points_at,
-			       const char *branch_top,
-			       const char *msg,
-			       struct transport *transport,
-			       int check_connectivity)
+static void show_filemodify(struct diff_queue_struct *q,
+			    struct diff_options *options, void *data)
 {
-	const struct ref *rm = mapped_refs;
+	int i;
 
-	if (check_connectivity) {
-		if (transport->progress)
-			fprintf(stderr, _("Checking connectivity... "));
-		if (check_everything_connected_with_transport(iterate_ref_map,
-							      0, &rm, transport))
-			die(_("remote did not send all necessary objects"));
-		if (transport->progress)
-			fprintf(stderr, _("done.\n"));
-	}
+	/*
+	 * Handle files below a directory first, in case they are all deleted
+	 * and the directory changes to a file or symlink.
+	 */
+	qsort(q->queue, q->nr, sizeof(q->queue[0]), depth_first);
 
-	if (refs) {
-		write_remote_refs(mapped_refs);
-		if (option_single_branch)
-			write_followtags(refs, msg);
-	}
+	for (i = 0; i < q->nr; i++) {
+		struct diff_filespec *ospec = q->queue[i]->one;
+		struct diff_filespec *spec = q->queue[i]->two;
 
-	if (remote_head_points_at && !option_bare) {
-		struct strbuf head_ref = STRBUF_INIT;
-		strbuf_addstr(&head_ref, branch_top);
-		strbuf_addstr(&head_ref, "HEAD");
-		if (create_symref(head_ref.buf,
-				  remote_head_points_at->peer_ref->name,
-				  msg) < 0)
-			die(_("unable to update %s"), head_ref.buf);
-		strbuf_release(&head_ref);
+		switch (q->queue[i]->status) {
+		case DIFF_STATUS_DELETED:
+			printf("D ");
+			print_path(spec->path);
+			putchar('\n');
+			break;
+
+		case DIFF_STATUS_COPIED:
+		case DIFF_STATUS_RENAMED:
+			printf("%c ", q->queue[i]->status);
+			print_path(ospec->path);
+			putchar(' ');
+			print_path(spec->path);
+			putchar('\n');
+
+			if (!hashcmp(ospec->sha1, spec->sha1) &&
+			    ospec->mode == spec->mode)
+				break;
+			/* fallthrough */
+
+		case DIFF_STATUS_TYPE_CHANGED:
+		case DIFF_STATUS_MODIFIED:
+		case DIFF_STATUS_ADDED:
+			/*
+			 * Links refer to objects in another repositories;
+			 * output the SHA-1 verbatim.
+			 */
+			if (no_data || S_ISGITLINK(spec->mode))
+				printf("M %06o %s ", spec->mode,
+				       sha1_to_hex(anonymize ?
+						   anonymize_sha1(spec->sha1) :
+						   spec->sha1));
+			else {
+				struct object *object = lookup_object(spec->sha1);
+				printf("M %06o :%d ", spec->mode,
+				       get_object_mark(object));
+			}
+			print_path(spec->path);
+			putchar('\n');
+			break;
+
+		default:
+			die("Unexpected comparison status '%c' for %s, %s",
+				q->queue[i]->status,
+				ospec->path ? ospec->path : "none",
+				spec->path ? spec->path : "none");
+		}
 	}
 }

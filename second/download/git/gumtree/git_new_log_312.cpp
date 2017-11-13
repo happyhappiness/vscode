@@ -1,1 +1,0 @@
-die(_("Value '%s' for submodule.alternateLocation is not recognized"), sm_alternate);

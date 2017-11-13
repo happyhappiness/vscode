@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                 "mod_file_cache: unable to cache file: %s. MMAP is not supported by this OS", filename);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());

@@ -1,10 +1,10 @@
 fputs(
-"              Transport server over FTPS using  a  client  certificate,  using\n"
-"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
-"              the certificate. (Added in 7.15.5)\n"
+"              successful response codes will  slip  through,  especially  when\n"
+"              authentication is involved (response codes 401 and 407).\n"
 "\n"
-"       --ftp-create-dirs\n"
-"              (FTP/SFTP) When an FTP or SFTP URL/operation uses  a  path  that\n"
-"              doesn't  currently exist on the server, the standard behavior of\n"
-"              curl is to fail. Using this option, curl will instead attempt to\n"
+"       -F, --form <name=content>\n"
+"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
+"              has pressed the submit button. This causes  curl  to  POST  data\n"
+"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
+"              2388. This enables uploading of binary files etc. To  force  the\n"
 , stdout);

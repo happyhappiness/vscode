@@ -15,14 +15,9 @@ static void output_html_results(void)
     printf("<tr %s><th colspan=2 %s>Document Path:</th>"
        "<td colspan=2 %s>%s</td></tr>\n",
        trstring, tdstring, tdstring, path);
-    if (nolength)
-        printf("<tr %s><th colspan=2 %s>Document Length:</th>"
-            "<td colspan=2 %s>Variable</td></tr>\n",
-            trstring, tdstring, tdstring);
-    else
-        printf("<tr %s><th colspan=2 %s>Document Length:</th>"
-            "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
-            trstring, tdstring, tdstring, doclen);
+    printf("<tr %s><th colspan=2 %s>Document Length:</th>"
+       "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, doclen);
     printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
        "<td colspan=2 %s>%d</td></tr>\n",
        trstring, tdstring, tdstring, concurrency);
@@ -65,16 +60,16 @@ static void output_html_results(void)
            trstring, tdstring, tdstring, (double) done / timetaken);
         printf("<tr %s><th colspan=2 %s>Transfer rate:</th>"
            "<td colspan=2 %s>%.2f kb/s received</td></tr>\n",
-           trstring, tdstring, tdstring, (double) totalread / 1024 / timetaken);
+           trstring, tdstring, tdstring, (double) totalread / timetaken);
         if (send_body) {
             printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
                "<td colspan=2 %s>%.2f kb/s sent</td></tr>\n",
                trstring, tdstring, tdstring,
-               (double) totalposted / 1024 / timetaken);
+               (double) totalposted / timetaken);
             printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
                "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
                trstring, tdstring, tdstring,
-               (double) (totalread + totalposted) / 1024 / timetaken);
+               (double) (totalread + totalposted) / timetaken);
         }
     }
     {

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00148)
-                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02293)
+                     "slotmem(%s) grab failed. Num %u/num_free %u",
+                     slot->name, slotmem_num_slots(slot),
+                     slotmem_num_free_slots(slot));

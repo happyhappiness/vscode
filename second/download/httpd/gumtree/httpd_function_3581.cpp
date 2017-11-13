@@ -1,54 +1,98 @@
-static int fsmagic(request_rec *r, const char *fn)
+static apr_status_t dbd_construct(void **data_ptr,
+                                  void *params, apr_pool_t *pool)
 {
-    switch (r->finfo.filetype) {
-    case APR_DIR:
-        magic_rsl_puts(r, DIR_MAGIC_TYPE);
-        return DONE;
-    case APR_CHR:
-        /*
-         * (void) magic_rsl_printf(r,"character special (%d/%d)",
-         * major(sb->st_rdev), minor(sb->st_rdev));
-         */
-        (void) magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
-        return DONE;
-    case APR_BLK:
-        /*
-         * (void) magic_rsl_printf(r,"block special (%d/%d)",
-         * major(sb->st_rdev), minor(sb->st_rdev));
-         */
-        (void) magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
-        return DONE;
-        /* TODO add code to handle V7 MUX and Blit MUX files */
-    case APR_PIPE:
-        /*
-         * magic_rsl_puts(r,"fifo (named pipe)");
-         */
-        (void) magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
-        return DONE;
-    case APR_LNK:
-        /* We used stat(), the only possible reason for this is that the
-         * symlink is broken.
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    MODNAME ": broken symlink (%s)", fn);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    case APR_SOCK:
-        magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
-        return DONE;
-    case APR_REG:
-        break;
-    default:
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      MODNAME ": invalid file type %d.", r->finfo.filetype);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    dbd_group_t *group = params;
+    dbd_cfg_t *cfg = group->cfg;
+    apr_pool_t *rec_pool, *prepared_pool;
+    ap_dbd_t *rec;
+    apr_status_t rv;
+    const char *err = "";
+
+    rv = apr_pool_create(&rec_pool, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");
+        return rv;
     }
 
-    /*
-     * regular file, check next possibility
+    rec = apr_pcalloc(rec_pool, sizeof(ap_dbd_t));
+
+    rec->pool = rec_pool;
+
+    /* The driver is loaded at config time now, so this just checks a hash.
+     * If that changes, the driver DSO could be registered to unload against
+     * our pool, which is probably not what we want.  Error checking isn't
+     * necessary now, but in case that changes in the future ...
      */
-    if (r->finfo.size == 0) {
-        magic_rsl_puts(r, MIME_TEXT_UNKNOWN);
-        return DONE;
+    rv = apr_dbd_get_driver(rec->pool, cfg->name, &rec->driver);
+    if (rv != APR_SUCCESS) {
+        if (APR_STATUS_IS_ENOTIMPL(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s not available", cfg->name);
+        }
+        else if (APR_STATUS_IS_EDSOOPEN(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: can't find driver for %s", cfg->name);
+        }
+        else if (APR_STATUS_IS_ESYMNOTFOUND(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s is invalid or corrupted",
+                         cfg->name);
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in get_driver");
+        }
+        apr_pool_destroy(rec->pool);
+        return rv;
     }
-    return OK;
+
+    rv = apr_dbd_open_ex(rec->driver, rec->pool, cfg->params, &rec->handle, &err);
+    if (rv != APR_SUCCESS) {
+        switch (rv) {
+        case APR_EGENERAL:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: Can't connect to %s: %s", cfg->name, err);
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in open");
+            break;
+        }
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    apr_pool_cleanup_register(rec->pool, rec, dbd_close,
+                              apr_pool_cleanup_null);
+
+    /* we use a sub-pool for the prepared statements for each connection so
+     * that they will be cleaned up first, before the connection is closed
+     */
+    rv = apr_pool_create(&prepared_pool, rec->pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    rv = dbd_prepared_init(prepared_pool, cfg, rec);
+    if (rv != APR_SUCCESS) {
+        const char *errmsg = apr_dbd_error(rec->driver, rec->handle, rv);
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                     "DBD: failed to prepare SQL statements: %s",
+                     (errmsg ? errmsg : "[???]"));
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }
+
+    dbd_run_post_connect(prepared_pool, cfg, rec);
+
+    *data_ptr = rec;
+
+    return APR_SUCCESS;
 }

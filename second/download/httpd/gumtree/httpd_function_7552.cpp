@@ -1,32 +1,18 @@
-static void get_notes_auth(request_rec *r,
-                           const char **user, const char **pw,
-                           const char **method, const char **mimetype)
+static apr_status_t get_session_auth(request_rec * r,
+                                     const char **user, const char **pw, const char **hash)
 {
-    const char *authname;
-    request_rec *m = r;
+    const char *authname = ap_auth_name(r);
+    session_rec *z = NULL;
+    ap_session_load_fn(r, &z);
 
-    /* find the main request */
-    while (m->main) {
-        m = m->main;
-    }
-    /* find the first redirect */
-    while (m->prev) {
-        m = m->prev;
-    }
-
-    /* have we isolated the user and pw before? */
-    authname = ap_auth_name(m);
     if (user) {
-        *user = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-user", NULL));
+        ap_session_get_fn(r, z, apr_pstrcat(r->pool, authname, "-" MOD_SESSION_USER, NULL), user);
     }
     if (pw) {
-        *pw = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-pw", NULL));
+        ap_session_get_fn(r, z, apr_pstrcat(r->pool, authname, "-" MOD_SESSION_PW, NULL), pw);
     }
-    if (method) {
-        *method = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-method", NULL));
-    }
-    if (mimetype) {
-        *mimetype = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-mimetype", NULL));
+    if (hash) {
+        ap_session_get_fn(r, z, apr_pstrcat(r->pool, authname, "-" MOD_AUTH_FORM_HASH, NULL), hash);
     }
 
     /* set the user, even though the user is unauthenticated at this point */
@@ -34,9 +20,12 @@ static void get_notes_auth(request_rec *r,
         r->user = (char *) *user;
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE6, 0, r,
-                  "from notes: user: %s, pw: %s, method: %s, mimetype: %s",
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                  "from session: " MOD_SESSION_USER ": %s, " MOD_SESSION_PW
+                  ": %s, " MOD_AUTH_FORM_HASH ": %s",
                   user ? *user : "<null>", pw ? *pw : "<null>",
-                  method ? *method : "<null>", mimetype ? *mimetype : "<null>");
+                  hash ? *hash : "<null>");
+
+    return APR_SUCCESS;
 
 }

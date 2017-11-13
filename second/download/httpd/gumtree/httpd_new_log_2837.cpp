@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02124)
-                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
+printf("<tr %s><th %s>Connect:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mincon, tdstring, totalcon / done, tdstring, maxcon);

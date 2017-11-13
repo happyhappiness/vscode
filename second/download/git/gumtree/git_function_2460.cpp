@@ -1,23 +1,9 @@
-void read_bisect_terms(const char **read_bad, const char **read_good)
+int fsck_error_function(struct object *obj, int msg_type, const char *message)
 {
-	struct strbuf str = STRBUF_INIT;
-	const char *filename = git_path("BISECT_TERMS");
-	FILE *fp = fopen(filename, "r");
-
-	if (!fp) {
-		if (errno == ENOENT) {
-			*read_bad = "bad";
-			*read_good = "good";
-			return;
-		} else {
-			die_errno("could not read file '%s'", filename);
-		}
-	} else {
-		strbuf_getline_lf(&str, fp);
-		*read_bad = strbuf_detach(&str, NULL);
-		strbuf_getline_lf(&str, fp);
-		*read_good = strbuf_detach(&str, NULL);
+	if (msg_type == FSCK_WARN) {
+		warning("object %s: %s", sha1_to_hex(obj->sha1), message);
+		return 0;
 	}
-	strbuf_release(&str);
-	fclose(fp);
+	error("object %s: %s", sha1_to_hex(obj->sha1), message);
+	return 1;
 }

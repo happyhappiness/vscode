@@ -1,1 +1,1 @@
-error("%s", err.buf);
+die_errno("Error opening '%s'", path);

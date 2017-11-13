@@ -1,27 +1,20 @@
-int ref_transaction_delete(struct ref_transaction *transaction,
-			   const char *refname,
-			   const unsigned char *old_sha1,
-			   int flags, int have_old, const char *msg,
-			   struct strbuf *err)
+int read_mmfile(mmfile_t *ptr, const char *filename)
 {
-	struct ref_update *update;
+	struct stat st;
+	FILE *f;
+	size_t sz;
 
-	assert(err);
-
-	if (transaction->state != REF_TRANSACTION_OPEN)
-		die("BUG: delete called for transaction that is not open");
-
-	if (have_old && !old_sha1)
-		die("BUG: have_old is true but old_sha1 is NULL");
-
-	update = add_update(transaction, refname);
-	update->flags = flags;
-	update->have_old = have_old;
-	if (have_old) {
-		assert(!is_null_sha1(old_sha1));
-		hashcpy(update->old_sha1, old_sha1);
+	if (stat(filename, &st))
+		return error("Could not stat %s", filename);
+	if ((f = fopen(filename, "rb")) == NULL)
+		return error("Could not open %s", filename);
+	sz = xsize_t(st.st_size);
+	ptr->ptr = xmalloc(sz ? sz : 1);
+	if (sz && fread(ptr->ptr, sz, 1, f) != 1) {
+		fclose(f);
+		return error("Could not read %s", filename);
 	}
-	if (msg)
-		update->msg = xstrdup(msg);
+	fclose(f);
+	ptr->size = sz;
 	return 0;
 }

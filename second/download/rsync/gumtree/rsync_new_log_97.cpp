@@ -1,1 +1,0 @@
-fprintf(FERROR,"getwd : %s\n",strerror(errno));

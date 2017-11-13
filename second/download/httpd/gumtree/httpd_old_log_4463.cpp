@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, status, process->pool,
-                          "alloc_listener: failed to get a socket for %s",
-                          addr);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                          "proxy: error reading status line from remote "
+                          "server %s:%d", backend->hostname, backend->port);

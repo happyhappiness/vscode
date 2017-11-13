@@ -1,11 +1,10 @@
 fputs(
-"              the response will break Metalink parser and if the  headers  are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
+"              When performing a mailing list expand (EXPN command), the recip-\n"
+"              ient should be specified using the mailing list  name,  such  as\n"
+"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
 "\n"
-"              (Added in 7.27.0, if built against the libmetalink library.)\n"
-"\n"
-"       -n, --netrc\n"
-"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
-"              user's home directory for login name and password. This is typi-\n"
+"       --max-redirs <num>\n"
+"              Set  maximum  number  of  redirection-followings allowed. If -L,\n"
+"              --location is used, this option can be used to prevent curl from\n"
+"              following  redirections  \"in absurdum\". By default, the limit is\n"
 , stdout);

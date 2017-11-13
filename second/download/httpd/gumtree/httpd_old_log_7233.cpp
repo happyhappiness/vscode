@@ -1,1 +1,1 @@
-fprintf(stderr, "Password too long\n");
+fprintf(stderr, "Password verification error\n");

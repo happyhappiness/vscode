@@ -1,9 +1,12 @@
 fputs(
-"              of  ciphers  must  specify  valid ciphers. Read up on SSL cipher\n"
-"              list          details           on           this           URL:\n"
-"              http://www.openssl.org/docs/apps/ciphers.html\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"              NSS  ciphers  are  done differently than OpenSSL and GnuTLS. The\n"
-"              full list of NSS ciphers is in the NSSCipherSuite entry at  this\n"
-"              URL:                                          http://git.fedora-\n"
+"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
+"              resume  the  transfer. It then uses the given output/input files\n"
+"              to figure that out.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --ciphers <list of ciphers>\n"
+"              (SSL) Specifies which ciphers to use in the connection. The list\n"
 , stdout);

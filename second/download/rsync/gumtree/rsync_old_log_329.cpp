@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);
+fprintf(FERROR,"%s ",args[i]);

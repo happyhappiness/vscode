@@ -1,11 +1,11 @@
 fputs(
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the name resolving was completed.\n"
+"              http_connect   The  numerical  code  that  was found in the last\n"
+"                             response  (from  a  proxy)  to  a  curl   CONNECT\n"
+"                             request. (Added in 7.12.4)\n"
 "\n"
-"              time_connect   The time, in seconds,  it  took  from  the  start\n"
-"                             until  the  TCP  connect  to  the remote host (or\n"
-"                             proxy) was completed.\n"
+"              time_total     The  total time, in seconds, that the full opera-\n"
+"                             tion lasted. The time will be displayed with mil-\n"
+"                             lisecond resolution.\n"
 "\n"
-"              time_appconnect\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
+"              time_namelookup\n"
 , stdout);

@@ -1,37 +1,25 @@
-static int show(int argc, const char **argv, const char *prefix)
+static int load_patch_target(struct apply_state *state,
+			     struct strbuf *buf,
+			     const struct cache_entry *ce,
+			     struct stat *st,
+			     const char *name,
+			     unsigned expected_mode)
 {
-	const char *object_ref;
-	struct notes_tree *t;
-	unsigned char object[20];
-	const unsigned char *note;
-	int retval;
-	struct option options[] = {
-		OPT_END()
-	};
-
-	argc = parse_options(argc, argv, prefix, options, git_notes_show_usage,
-			     0);
-
-	if (1 < argc) {
-		error(_("too many parameters"));
-		usage_with_options(git_notes_show_usage, options);
+	if (state->cached || state->check_index) {
+		if (read_file_or_gitlink(ce, buf))
+			return error(_("failed to read %s"), name);
+	} else if (name) {
+		if (S_ISGITLINK(expected_mode)) {
+			if (ce)
+				return read_file_or_gitlink(ce, buf);
+			else
+				return SUBMODULE_PATCH_WITHOUT_INDEX;
+		} else if (has_symlink_leading_path(name, strlen(name))) {
+			return error(_("reading from '%s' beyond a symbolic link"), name);
+		} else {
+			if (read_old_data(st, name, buf))
+				return error(_("failed to read %s"), name);
+		}
 	}
-
-	object_ref = argc ? argv[0] : "HEAD";
-
-	if (get_sha1(object_ref, object))
-		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
-
-	t = init_notes_check("show", 0);
-	note = get_note(t, object);
-
-	if (!note)
-		retval = error(_("No note found for object %s."),
-			       sha1_to_hex(object));
-	else {
-		const char *show_args[3] = {"show", sha1_to_hex(note), NULL};
-		retval = execv_git_cmd(show_args);
-	}
-	free_notes(t);
-	return retval;
+	return 0;
 }

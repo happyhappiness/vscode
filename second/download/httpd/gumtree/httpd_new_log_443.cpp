@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                              "[%d] auth_ldap authorise: "
-                              "require ldap-attribute: user's DN has not been defined; failing authorisation", 
-                              getpid());
+fprintf(stderr, "%s: Directory %s exceeds the maximum include "
+                    "directory nesting level of %u. You have probably a "
+                    "recursion somewhere.\n", ap_server_argv0, path,
+                    AP_MAX_INCLUDE_DIR_DEPTH);

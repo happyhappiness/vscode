@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf, APLOGNO(00490)
-                 "Server built: %s", ap_get_server_built());
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00928)
+                             "can not create worker thread mutex");

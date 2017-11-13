@@ -1,1 +1,1 @@
-packet_write(1, "NAK\n");
+warning(degrade_cc_to_c_warning);

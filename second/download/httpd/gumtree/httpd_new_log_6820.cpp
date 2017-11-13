@@ -1,2 +1,7 @@
-apr_file_printf(writetty, "Private key %s (%s)\n",
-                            ppcb_arg->key_id, ppcb_arg->pkey_file);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_stream(%ld-%d): PRIORITY frame "
+                          " weight=%d, dependsOn=%d, exclusive=%d", 
+                          session->id, (int)frame->hd.stream_id,
+                          frame->priority.pri_spec.weight,
+                          frame->priority.pri_spec.stream_id,
+                          frame->priority.pri_spec.exclusive);

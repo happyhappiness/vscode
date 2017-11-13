@@ -1,1 +1,1 @@
-fprintf(stderr, "Recorded preimage for '%s'\n", path);
+die(_("Not all child objects of %s are reachable"), sha1_to_hex(obj->sha1));

@@ -1,1 +1,3 @@
-die("bad tree object %s", oid_to_hex(&obj->oid));
+die("request was larger than our maximum size (%lu);"
+			    " try setting GIT_HTTP_MAX_REQUEST_BUFFER",
+			    max_request_buffer);

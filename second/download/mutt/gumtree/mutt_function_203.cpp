@@ -1,58 +1,47 @@
-static void redraw_crypt_lines (HEADER *msg)
+static void print_smime_keyinfo (const char* msg, gpgme_signature_t sig,
+                                 gpgme_key_t key, STATE *s)
 {
-  mutt_window_mvprintw (MuttIndexWindow, HDR_CRYPT, 0, TITLE_FMT, "Security: ");
+  size_t msglen;
+  gpgme_user_id_t uids = NULL;
+  int i, aka = 0;
 
-  if ((WithCrypto & (APPLICATION_PGP | APPLICATION_SMIME)) == 0)
+  state_attach_puts (msg, s);
+  state_attach_puts (" ", s);
+  /* key is NULL when not present in the user's keyring */
+  if (key)
   {
-    addstr(_("Not supported"));
-    return;
-  }
-
-  if ((msg->security & (ENCRYPT | SIGN)) == (ENCRYPT | SIGN))
-    addstr (_("Sign, Encrypt"));
-  else if (msg->security & ENCRYPT)
-    addstr (_("Encrypt"));
-  else if (msg->security & SIGN)
-    addstr (_("Sign"));
-  else
-    addstr (_("None"));
-
-  if ((msg->security & (ENCRYPT | SIGN)))
-  {
-    if ((WithCrypto & APPLICATION_PGP) && (msg->security & APPLICATION_PGP))
+    for (uids = key->uids; uids; uids = uids->next)
     {
-      if ((msg->security & INLINE))
-        addstr (_(" (inline PGP)"));
-      else
-        addstr (_(" (PGP/MIME)"));
+      if (uids->revoked)
+	continue;
+      if (aka)
+      {
+        /* TODO: need to account for msg wide characters
+         * and "aka" translation length */
+	msglen = mutt_strlen (msg) - 4;
+	for (i = 0; i < msglen; i++)
+	  state_attach_puts(" ", s);
+	state_attach_puts(_("aka: "), s);
+      }
+      state_attach_puts (uids->uid, s);
+      state_attach_puts ("\n", s);
+
+      aka = 1;
     }
-    else if ((WithCrypto & APPLICATION_SMIME) &&
-             (msg->security & APPLICATION_SMIME))
-      addstr (_(" (S/MIME)"));
+  }
+  else
+  {
+    state_attach_puts (_("KeyID "), s);
+    state_attach_puts (sig->fpr, s);
+    state_attach_puts ("\n", s);
   }
 
-  if (option (OPTCRYPTOPPORTUNISTICENCRYPT) && (msg->security & OPPENCRYPT))
-      addstr (_(" (OppEnc mode)"));
-
-  mutt_window_clrtoeol (MuttIndexWindow);
-  mutt_window_move (MuttIndexWindow, HDR_CRYPTINFO, 0);
-  mutt_window_clrtoeol (MuttIndexWindow);
-
-  if ((WithCrypto & APPLICATION_PGP)
-      && (msg->security & APPLICATION_PGP) && (msg->security & SIGN))
-    printw (TITLE_FMT "%s", _("sign as: "), PgpSignAs ? PgpSignAs : _("<default>"));
-
-  if ((WithCrypto & APPLICATION_SMIME)
-      && (msg->security & APPLICATION_SMIME) && (msg->security & SIGN)) {
-      printw (TITLE_FMT "%s", _("sign as: "), SmimeDefaultKey ? SmimeDefaultKey : _("<default>"));
-  }
-
-  if ((WithCrypto & APPLICATION_SMIME)
-      && (msg->security & APPLICATION_SMIME)
-      && (msg->security & ENCRYPT)
-      && SmimeCryptAlg
-      && *SmimeCryptAlg) {
-    mutt_window_mvprintw (MuttIndexWindow, HDR_CRYPTINFO, 40, "%s%s", _("Encrypt with: "),
-		NONULL(SmimeCryptAlg));
-  }
+  msglen = mutt_strlen (msg) - 8;
+  /* TODO: need to account for msg wide characters
+   * and "created" translation length */
+  for (i = 0; i < msglen; i++)
+    state_attach_puts(" ", s);
+  state_attach_puts (_("created: "), s);
+  print_time (sig->timestamp, s);
+  state_attach_puts ("\n", s);  
 }

@@ -1,9 +1,10 @@
 fputs(
-"              equals character between the option and its parameter.\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the  command  HEAD which this uses to get nothing but the header\n"
+"              of a document. When used on an FTP or FILE file,  curl  displays\n"
+"              the file size and last modification time only.\n"
 "\n"
-"              If the parameter is to contain whitespace, the parameter must be\n"
-"              enclosed within quotes.  Within  double  quotes,  the  following\n"
-"              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
-"              backslash preceding any other letter is ignored.  If  the  first\n"
-"              column of a config line is a '#' character, the rest of the line\n"
+"       --interface <name>\n"
+"              Perform  an operation using a specified interface. You can enter\n"
+"              interface name, IP address or host name. An example  could  look\n"
 , stdout);

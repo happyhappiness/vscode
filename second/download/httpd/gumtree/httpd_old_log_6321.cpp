@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02665)
-            "mod_lua: Failed to create shared memory segment on file %s",
-                     lua_ivm_shmfile);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");

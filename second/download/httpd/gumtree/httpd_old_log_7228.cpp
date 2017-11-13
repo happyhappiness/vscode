@@ -1,1 +1,1 @@
-fprintf(stderr, "   -t   The last param is username comment.\n");
+fprintf(stderr, "   -v   Verify the username/password.\n");

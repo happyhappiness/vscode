@@ -1,2 +1,1 @@
-printf("Compiled using: APR %s, APR-Util %s\n",
-           APR_VERSION_STRING, APU_VERSION_STRING);
+fprintf(stderr, "apr_table_overlap: b's pool is not an ancestor of a's\n");

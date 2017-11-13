@@ -1,1 +1,1 @@
-die("unable to create lazy_dir_thread");
+error(_("could not read index"));

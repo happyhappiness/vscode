@@ -1,1 +1,1 @@
-fprintf(stderr,"failed to load config file %s\n", config_file);
+fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));

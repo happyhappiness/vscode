@@ -1,1 +1,0 @@
-fprintf(FINFO,"%s/\n",fname);

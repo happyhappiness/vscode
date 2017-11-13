@@ -1,1 +1,1 @@
-die(_("format: %%(end) atom used without corresponding atom"));
+die("unable to generate diffstat for %s", one->path);

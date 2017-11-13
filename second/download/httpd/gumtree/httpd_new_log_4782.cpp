@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00449)
-                             "Parent: Cannot create restart event %s", signal_restart_name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02290)
+                      "TLS session ticket key for %s successfully set, "
+                      "decrypting existing session ticket", sc->vhost_id);

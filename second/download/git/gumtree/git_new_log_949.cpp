@@ -1,1 +1,1 @@
-die_errno("sigprocmask");
+die(_("no email was given and auto-detection is disabled"));

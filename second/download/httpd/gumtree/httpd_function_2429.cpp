@@ -1,109 +1,88 @@
-static BOOL shmcb_init_memory(
-    server_rec *s, void *shm_mem,
-    unsigned int shm_mem_size)
+int ap_signal_server(int *exit_status, apr_pool_t *pconf)
 {
-    SHMCBHeader *header;
-    SHMCBQueue queue;
-    SHMCBCache cache;
-    unsigned int temp, loop, granularity;
+    apr_status_t rv;
+    pid_t otherpid;
+    int running = 0;
+    const char *status;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "entered shmcb_init_memory()");
+    *exit_status = 0;
 
-    /* Calculate some sizes... */
-    temp = sizeof(SHMCBHeader);
-
-    /* If the segment is ridiculously too small, bail out */
-    if (shm_mem_size < (2*temp)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shared memory segment too small");
-        return FALSE;
+    rv = ap_read_pid(pconf, ap_pid_fname, &otherpid);
+    if (rv != APR_SUCCESS) {
+        if (rv != APR_ENOENT) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rv, NULL,
+                         "Error retrieving pid file %s", ap_pid_fname);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "Remove it before continuing if it is corrupted.");
+            *exit_status = 1;
+            return 1;
+        }
+        status = "httpd (no pid file) not running";
+    }
+    else {
+        if (kill(otherpid, 0) == 0) {
+            running = 1;
+            status = apr_psprintf(pconf,
+                                  "httpd (pid %" APR_PID_T_FMT ") already "
+                                  "running", otherpid);
+        }
+        else {
+            status = apr_psprintf(pconf,
+                                  "httpd (pid %" APR_PID_T_FMT "?) not running",
+                                  otherpid);
+        }
     }
 
-    /* Make temp the amount of memory without the header */
-    temp = shm_mem_size - temp;
-
-    /* Work on the basis that you need 10 bytes index for each session
-     * (approx 150 bytes), which is to divide temp by 160 - and then
-     * make sure we err on having too index space to burn even when
-     * the cache is full, which is a lot less stupid than having
-     * having not enough index space to utilise the whole cache!. */
-    temp /= 120;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "for %u bytes, recommending %u indexes",
-                 shm_mem_size, temp);
-
-    /* We should divide these indexes evenly amongst the queues. Try
-     * to get it so that there are roughly half the number of divisions
-     * as there are indexes in each division. */
-    granularity = 256;
-    while ((temp / granularity) < (2 * granularity))
-        granularity /= 2;
-
-    /* So we have 'granularity' divisions, set 'temp' equal to the
-     * number of indexes in each division. */
-    temp /= granularity;
-
-    /* Too small? Bail ... */
-    if (temp < 5) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shared memory segment too small");
-        return FALSE;
+    if (!strcmp(dash_k_arg, "start")) {
+        if (running) {
+            printf("%s\n", status);
+            return 1;
+        }
     }
 
-    /* OK, we're sorted - from here on in, the return should be TRUE */
-    header = (SHMCBHeader *)shm_mem;
-    header->division_mask = (unsigned char)(granularity - 1);
-    header->division_offset = sizeof(SHMCBHeader);
-    header->index_num = temp;
-    header->index_offset = (2 * sizeof(unsigned int));
-    header->index_size = sizeof(SHMCBIndex);
-    header->queue_size = header->index_offset +
-                         (header->index_num * header->index_size);
-
-    /* Now calculate the space for each division */
-    temp = shm_mem_size - header->division_offset;
-    header->division_size = temp / granularity;
-
-    /* Calculate the space left in each division for the cache */
-    temp -= header->queue_size;
-    header->cache_data_offset = (2 * sizeof(unsigned int));
-    header->cache_data_size = header->division_size -
-                              header->queue_size - header->cache_data_offset;
-
-    /* Output trace info */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "shmcb_init_memory choices follow");
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "division_mask = 0x%02X", header->division_mask);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "division_offset = %u", header->division_offset);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "division_size = %u", header->division_size);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "queue_size = %u", header->queue_size);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "index_num = %u", header->index_num);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "index_offset = %u", header->index_offset);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "index_size = %u", header->index_size);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "cache_data_offset = %u", header->cache_data_offset);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "cache_data_size = %u", header->cache_data_size);
-
-    /* The header is done, make the caches empty */
-    for (loop = 0; loop < granularity; loop++) {
-        if (!shmcb_get_division(header, &queue, &cache, loop))
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "shmcb_init_memory, " "internal error");
-        shmcb_set_safe_uint(cache.first_pos, 0);
-        shmcb_set_safe_uint(cache.pos_count, 0);
-        shmcb_set_safe_uint(queue.first_pos, 0);
-        shmcb_set_safe_uint(queue.pos_count, 0);
+    if (!strcmp(dash_k_arg, "stop")) {
+        if (!running) {
+            printf("%s\n", status);
+        }
+        else {
+            send_signal(otherpid, SIGTERM);
+        }
+        return 1;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving shmcb_init_memory()");
-    return TRUE;
+    if (!strcmp(dash_k_arg, "restart")) {
+        if (!running) {
+            printf("httpd not running, trying to start\n");
+        }
+        else {
+            *exit_status = send_signal(otherpid, SIGHUP);
+            return 1;
+        }
+    }
+
+    if (!strcmp(dash_k_arg, "graceful")) {
+        if (!running) {
+            printf("httpd not running, trying to start\n");
+        }
+        else {
+            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL);
+            return 1;
+        }
+    }
+
+    if (!strcmp(dash_k_arg, "graceful-stop")) {
+#ifdef AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN
+        if (!running) {
+            printf("%s\n", status);
+        }
+        else {
+            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL_STOP);
+        }
+#else
+        printf("httpd MPM \"" MPM_NAME "\" does not support graceful-stop\n");
+#endif
+        return 1;
+    }
+
+    return 0;
 }

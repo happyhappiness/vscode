@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00008) LOG_PREFIX
-                  "user '%s' set cookie2: '%s'", r->user, rfc2965);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00127)
+                     "Cannot map %s to file", r->the_request);

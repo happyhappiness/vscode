@@ -1,84 +1,86 @@
-static void set_signals(void)
+static int proxy_match_ipaddr(struct dirconn_entry *This, request_rec *r)
 {
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-#endif
+    int i, ip_addr[4];
+    struct in_addr addr, *ip;
+    const char *host = proxy_get_host_of_request(r);
 
-    if (!one_process) {
-        ap_fatal_signal_setup(ap_server_conf, pconf);
+    if (host == NULL) {   /* oops! */
+       return 0;
     }
 
-#ifndef NO_USE_SIGACTION
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+    memset(&addr, '\0', sizeof addr);
+    memset(ip_addr, '\0', sizeof ip_addr);
 
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGTERM)");
-#ifdef AP_SIG_GRACEFUL_STOP
-    if (sigaction(AP_SIG_GRACEFUL_STOP, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
-#endif
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGINT)");
-#endif
-#ifdef SIGXCPU
-    sa.sa_handler = SIG_DFL;
-    if (sigaction(SIGXCPU, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGXCPU)");
-#endif
-#ifdef SIGXFSZ
-    sa.sa_handler = SIG_DFL;
-    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGXFSZ)");
-#endif
-#ifdef SIGPIPE
-    sa.sa_handler = SIG_IGN;
-    if (sigaction(SIGPIPE, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGPIPE)");
-#endif
+    if (4 == sscanf(host, "%d.%d.%d.%d", &ip_addr[0], &ip_addr[1], &ip_addr[2], &ip_addr[3])) {
+        for (addr.s_addr = 0, i = 0; i < 4; ++i) {
+            /* ap_proxy_is_ipaddr() already confirmed that we have
+             * a valid octet in ip_addr[i]
+             */
+            addr.s_addr |= htonl(ip_addr[i] << (24 - 8 * i));
+        }
 
-    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy
-     * processing one */
-    sigaddset(&sa.sa_mask, SIGHUP);
-    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
-    sa.sa_handler = restart;
-    if (sigaction(SIGHUP, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGHUP)");
-    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
-#else
-    if (!one_process) {
-#ifdef SIGXCPU
-        apr_signal(SIGXCPU, SIG_DFL);
-#endif /* SIGXCPU */
-#ifdef SIGXFSZ
-        apr_signal(SIGXFSZ, SIG_DFL);
-#endif /* SIGXFSZ */
+        if (This->addr.s_addr == (addr.s_addr & This->mask.s_addr)) {
+#if DEBUGGING
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "1)IP-Match: %s[%s] <-> ", host, inet_ntoa(addr));
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "%s/", inet_ntoa(This->addr));
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "%s", inet_ntoa(This->mask));
+#endif
+            return 1;
+        }
+#if DEBUGGING
+        else {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "1)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(addr));
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "%s/", inet_ntoa(This->addr));
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "%s", inet_ntoa(This->mask));
+        }
+#endif
+    }
+    else {
+        struct apr_sockaddr_t *reqaddr;
+
+        if (apr_sockaddr_info_get(&reqaddr, host, APR_UNSPEC, 0, 0, r->pool)
+            != APR_SUCCESS) {
+#if DEBUGGING
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+             "2)IP-NoMatch: hostname=%s msg=Host not found", host);
+#endif
+            return 0;
+        }
+
+        /* Try to deal with multiple IP addr's for a host */
+        /* FIXME: This needs to be able to deal with IPv6 */
+        while (reqaddr) {
+            ip = (struct in_addr *) reqaddr->ipaddr_ptr;
+            if (This->addr.s_addr == (ip->s_addr & This->mask.s_addr)) {
+#if DEBUGGING
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "3)IP-Match: %s[%s] <-> ", host, inet_ntoa(*ip));
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "%s/", inet_ntoa(This->addr));
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "%s", inet_ntoa(This->mask));
+#endif
+                return 1;
+            }
+#if DEBUGGING
+            else {
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "3)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(*ip));
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "%s/", inet_ntoa(This->addr));
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "%s", inet_ntoa(This->mask));
+            }
+#endif
+            reqaddr = reqaddr->next;
+        }
     }
 
-    apr_signal(SIGTERM, sig_term);
-#ifdef SIGHUP
-    apr_signal(SIGHUP, restart);
-#endif /* SIGHUP */
-#ifdef AP_SIG_GRACEFUL
-    apr_signal(AP_SIG_GRACEFUL, restart);
-#endif /* AP_SIG_GRACEFUL */
-#ifdef AP_SIG_GRACEFUL_STOP
-     apr_signal(AP_SIG_GRACEFUL_STOP, sig_term);
-#endif /* AP_SIG_GRACEFUL_STOP */
-#ifdef SIGPIPE
-    apr_signal(SIGPIPE, SIG_IGN);
-#endif /* SIGPIPE */
-
-#endif
+    return 0;
 }

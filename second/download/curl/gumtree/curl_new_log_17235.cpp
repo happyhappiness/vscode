@@ -1,6 +1,17 @@
-puts("    --engine <eng>  Specifies the crypto engine to use (HTTPS)\n"
-       "    --cacert <file> CA certifciate to verify peer against (SSL)\n"
-       "    --capath <directory> CA directory (made using c_rehash) to verify\n"
-       "                    peer against (SSL, NOT Windows)\n"
-       "    --ciphers <list> What SSL ciphers to use (SSL)\n"
-       "    --compressed    Request a compressed response (using deflate).");
+puts(
+"     25   FTP  couldn't  STOR  file.  The  server denied the STOR\n"
+"          operation.\n"
+"\n"
+"     26   Read error. Various reading problems.\n"
+"\n"
+"     27   Out of memory. A memory allocation request failed.\n"
+"\n"
+"     28   Operation timeout. The specified  time-out  period  was\n"
+"          reached according to the conditions.\n"
+"\n"
+"     29   FTP  couldn't set ASCII. The server returned an unknown\n"
+"          reply.\n"
+"\n"
+"     30   FTP PORT failed. The PORT command failed.\n"
+"\n"
+);

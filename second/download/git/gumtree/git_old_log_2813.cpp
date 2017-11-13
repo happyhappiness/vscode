@@ -1,2 +1,2 @@
-die("unknown repository extension: %s",
-			    unknown_extensions.items[0].string);
+warning("unknown repository extension: %s",
+				unknown_extensions.items[i].string);

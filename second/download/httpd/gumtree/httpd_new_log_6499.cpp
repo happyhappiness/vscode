@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(02433)
-                     "Cannot find LB Method: %s", b->s->lbpname);
+ap_rvputs(r, "value='", ap_escape_html(r->pool, wsel->s->route),
+                      NULL);

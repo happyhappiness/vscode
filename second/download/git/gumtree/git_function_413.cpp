@@ -1,50 +1,59 @@
-int checkout_fast_forward(const unsigned char *head,
-			  const unsigned char *remote,
-			  int overwrite_ignore)
+int cmd_merge_recursive(int argc, const char **argv, const char *prefix)
 {
-	struct tree *trees[MAX_UNPACK_TREES];
-	struct unpack_trees_options opts;
-	struct tree_desc t[MAX_UNPACK_TREES];
-	int i, nr_trees = 0;
-	struct dir_struct dir;
-	struct lock_file *lock_file = xcalloc(1, sizeof(struct lock_file));
+	const struct object_id *bases[21];
+	unsigned bases_count = 0;
+	int i, failed;
+	struct object_id h1, h2;
+	struct merge_options o;
+	struct commit *result;
 
-	refresh_cache(REFRESH_QUIET);
+	init_merge_options(&o);
+	if (argv[0] && ends_with(argv[0], "-subtree"))
+		o.subtree_shift = "";
 
-	hold_locked_index(lock_file, 1);
+	if (argc < 4)
+		usagef(builtin_merge_recursive_usage, argv[0]);
 
-	memset(&trees, 0, sizeof(trees));
-	memset(&opts, 0, sizeof(opts));
-	memset(&t, 0, sizeof(t));
-	if (overwrite_ignore) {
-		memset(&dir, 0, sizeof(dir));
-		dir.flags |= DIR_SHOW_IGNORED;
-		setup_standard_excludes(&dir);
-		opts.dir = &dir;
+	for (i = 1; i < argc; ++i) {
+		const char *arg = argv[i];
+
+		if (starts_with(arg, "--")) {
+			if (!arg[2])
+				break;
+			if (parse_merge_opt(&o, arg + 2))
+				die("Unknown option %s", arg);
+			continue;
+		}
+		if (bases_count < ARRAY_SIZE(bases)-1) {
+			struct object_id *oid = xmalloc(sizeof(struct object_id));
+			if (get_oid(argv[i], oid))
+				die("Could not parse object '%s'", argv[i]);
+			bases[bases_count++] = oid;
+		}
+		else
+			warning("Cannot handle more than %d bases. "
+				"Ignoring %s.",
+				(int)ARRAY_SIZE(bases)-1, argv[i]);
 	}
+	if (argc - i != 3) /* "--" "<head>" "<remote>" */
+		die("Not handling anything other than two heads merge.");
 
-	opts.head_idx = 1;
-	opts.src_index = &the_index;
-	opts.dst_index = &the_index;
-	opts.update = 1;
-	opts.verbose_update = 1;
-	opts.merge = 1;
-	opts.fn = twoway_merge;
-	setup_unpack_trees_porcelain(&opts, "merge");
+	o.branch1 = argv[++i];
+	o.branch2 = argv[++i];
 
-	trees[nr_trees] = parse_tree_indirect(head);
-	if (!trees[nr_trees++])
-		return -1;
-	trees[nr_trees] = parse_tree_indirect(remote);
-	if (!trees[nr_trees++])
-		return -1;
-	for (i = 0; i < nr_trees; i++) {
-		parse_tree(trees[i]);
-		init_tree_desc(t+i, trees[i]->buffer, trees[i]->size);
-	}
-	if (unpack_trees(nr_trees, t, &opts))
-		return -1;
-	if (write_locked_index(&the_index, lock_file, COMMIT_LOCK))
-		die(_("unable to write new index file"));
-	return 0;
+	if (get_oid(o.branch1, &h1))
+		die("Could not resolve ref '%s'", o.branch1);
+	if (get_oid(o.branch2, &h2))
+		die("Could not resolve ref '%s'", o.branch2);
+
+	o.branch1 = better_branch_name(o.branch1);
+	o.branch2 = better_branch_name(o.branch2);
+
+	if (o.verbosity >= 3)
+		printf("Merging %s with %s\n", o.branch1, o.branch2);
+
+	failed = merge_recursive_generic(&o, &h1, &h2, bases_count, bases, &result);
+	if (failed < 0)
+		return 128; /* die() error code */
+	return failed;
 }

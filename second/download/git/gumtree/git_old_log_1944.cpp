@@ -1,2 +1,2 @@
-warning(_("Missing author: %s"),
-		    sha1_to_hex(commit->object.sha1));
+error("Ref %s is at %s but expected %s", lock->ref_name,
+			sha1_to_hex(lock->old_sha1), sha1_to_hex(old_sha1));

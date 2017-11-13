@@ -1,4 +1,3 @@
 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                          "proxy: error processing body.%s",
-                                          r->connection->aborted ?
-                                          " Client aborted connection." : "");
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: agreeing because non-restricted",
+                      getpid());

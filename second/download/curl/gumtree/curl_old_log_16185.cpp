@@ -1,9 +1,9 @@
 fputs(
-"              If no '=' symbol is used in the argument, it is instead  treated\n"
-"              as a filename to read previously stored cookie from. This option\n"
-"              also activates the cookie engine which  will  make  curl  record\n"
-"              incoming  cookies,  which  may  be handy if you're using this in\n"
-"              combination with the -L, --location option or  do  multiple  URL\n"
-"              transfers on the same invoke.\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it  uses getpwuid() on Unix-like systems (which returns the home\n"
+"              dir given the current user in your system). On Windows, it  then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
 "\n"
 , stdout);

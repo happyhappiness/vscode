@@ -1,1 +1,2 @@
-die(_("unknown error occurred while reading the configuration files"));
+logerror("unable to set SO_KEEPALIVE on socket: %s",
+			strerror(errno));

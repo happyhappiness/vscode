@@ -1,1 +1,1 @@
-error_errno("cannot stat %s", arg);
+error(_("Unable to write index."));

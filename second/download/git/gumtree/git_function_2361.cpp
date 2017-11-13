@@ -1,63 +1,84 @@
-static int do_plain_rerere(struct string_list *rr, int fd)
+static void sha1_object(const void *data, struct object_entry *obj_entry,
+			unsigned long size, enum object_type type,
+			const unsigned char *sha1)
 {
-	struct string_list conflict = STRING_LIST_INIT_DUP;
-	struct string_list update = STRING_LIST_INIT_DUP;
-	int i;
+	void *new_data = NULL;
+	int collision_test_needed;
 
-	find_conflict(&conflict);
+	assert(data || obj_entry);
 
-	/*
-	 * MERGE_RR records paths with conflicts immediately after
-	 * merge failed.  Some of the conflicted paths might have been
-	 * hand resolved in the working tree since then, but the
-	 * initial run would catch all and register their preimages.
-	 */
-	for (i = 0; i < conflict.nr; i++) {
-		struct rerere_id *id;
-		unsigned char sha1[20];
-		const char *path = conflict.items[i].string;
-		int ret;
+	read_lock();
+	collision_test_needed = has_sha1_file_with_flags(sha1, HAS_SHA1_QUICK);
+	read_unlock();
 
-		if (string_list_has_string(rr, path))
-			continue;
-
-		/*
-		 * Ask handle_file() to scan and assign a
-		 * conflict ID.  No need to write anything out
-		 * yet.
-		 */
-		ret = handle_file(path, sha1, NULL);
-		if (ret < 1)
-			continue;
-
-		id = new_rerere_id(sha1);
-		string_list_insert(rr, path)->util = id;
-
-		/*
-		 * If the directory does not exist, create
-		 * it.  mkdir_in_gitdir() will fail with
-		 * EEXIST if there already is one.
-		 *
-		 * NEEDSWORK: make sure "gc" does not remove
-		 * preimage without removing the directory.
-		 */
-		if (mkdir_in_gitdir(rerere_path(id, NULL)))
-			continue;
-
-		/*
-		 * We are the first to encounter this
-		 * conflict.  Ask handle_file() to write the
-		 * normalized contents to the "preimage" file.
-		 */
-		handle_file(path, NULL, rerere_path(id, "preimage"));
-		fprintf(stderr, "Recorded preimage for '%s'\n", path);
+	if (collision_test_needed && !data) {
+		read_lock();
+		if (!check_collison(obj_entry))
+			collision_test_needed = 0;
+		read_unlock();
+	}
+	if (collision_test_needed) {
+		void *has_data;
+		enum object_type has_type;
+		unsigned long has_size;
+		read_lock();
+		has_type = sha1_object_info(sha1, &has_size);
+		if (has_type != type || has_size != size)
+			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+		has_data = read_sha1_file(sha1, &has_type, &has_size);
+		read_unlock();
+		if (!data)
+			data = new_data = get_data_from_pack(obj_entry);
+		if (!has_data)
+			die(_("cannot read existing object %s"), sha1_to_hex(sha1));
+		if (size != has_size || type != has_type ||
+		    memcmp(data, has_data, size) != 0)
+			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+		free(has_data);
 	}
 
-	for (i = 0; i < rr->nr; i++)
-		do_rerere_one_path(&rr->items[i], &update);
+	if (strict) {
+		read_lock();
+		if (type == OBJ_BLOB) {
+			struct blob *blob = lookup_blob(sha1);
+			if (blob)
+				blob->object.flags |= FLAG_CHECKED;
+			else
+				die(_("invalid blob object %s"), sha1_to_hex(sha1));
+		} else {
+			struct object *obj;
+			int eaten;
+			void *buf = (void *) data;
 
-	if (update.nr)
-		update_paths(&update);
+			assert(data && "data can only be NULL for large _blobs_");
 
-	return write_rr(rr, fd);
+			/*
+			 * we do not need to free the memory here, as the
+			 * buf is deleted by the caller.
+			 */
+			obj = parse_object_buffer(sha1, type, size, buf, &eaten);
+			if (!obj)
+				die(_("invalid %s"), typename(type));
+			if (do_fsck_object &&
+			    fsck_object(obj, buf, size, &fsck_options))
+				die(_("Error in object"));
+			if (fsck_walk(obj, NULL, &fsck_options))
+				die(_("Not all child objects of %s are reachable"), sha1_to_hex(obj->sha1));
+
+			if (obj->type == OBJ_TREE) {
+				struct tree *item = (struct tree *) obj;
+				item->buffer = NULL;
+				obj->parsed = 0;
+			}
+			if (obj->type == OBJ_COMMIT) {
+				struct commit *commit = (struct commit *) obj;
+				if (detach_commit_buffer(commit, NULL) != data)
+					die("BUG: parse_object_buffer transmogrified our buffer");
+			}
+			obj->flags |= FLAG_CHECKED;
+		}
+		read_unlock();
+	}
+
+	free(new_data);
 }

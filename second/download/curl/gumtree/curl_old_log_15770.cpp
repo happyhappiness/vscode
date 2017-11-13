@@ -1,11 +1,8 @@
 fputs(
-"              When using NTLM, the user name can be specified  simply  as  the\n"
-"              user  name,  without the domain, if there is a single domain and\n"
-"              forest in your setup for example.\n"
-"\n"
-"              To specify the domain name use either Down-Level Logon  Name  or\n"
-"              UPN (User Principal Name) formats. For example, EXAMPLE\\user and\n"
-"              user@example.com respectively.\n"
-"\n"
-"              If you use a Windows SSPI-enabled curl binary and  perform  Ker-\n"
+"              This  transfers  the  specified local file to the remote URL. If\n"
+"              there is no file part in the specified URL, curl will append the\n"
+"              local file name. NOTE that you must use a trailing / on the last\n"
+"              directory to really prove to Curl that there is no file name  or\n"
+"              curl will think that your last directory name is the remote file\n"
+"              name to use. That will most likely cause the upload operation to\n"
 , stdout);

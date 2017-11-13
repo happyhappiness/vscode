@@ -1,53 +1,81 @@
-static void wt_porcelain_v2_print_tracking(struct wt_status *s)
+static int everything_local(struct fetch_pack_args *args,
+			    struct ref **refs,
+			    struct ref **sought, int nr_sought)
 {
-	struct branch *branch;
-	const char *base;
-	const char *branch_name;
-	struct wt_status_state state;
-	int ab_info, nr_ahead, nr_behind;
-	char eol = s->null_termination ? '\0' : '\n';
+	struct ref *ref;
+	int retval;
+	unsigned long cutoff = 0;
 
-	memset(&state, 0, sizeof(state));
-	wt_status_get_state(&state, s->branch && !strcmp(s->branch, "HEAD"));
+	save_commit_buffer = 0;
 
-	fprintf(s->fp, "# branch.oid %s%c",
-			(s->is_initial ? "(initial)" : sha1_to_hex(s->sha1_commit)),
-			eol);
+	for (ref = *refs; ref; ref = ref->next) {
+		struct object *o;
 
-	if (!s->branch)
-		fprintf(s->fp, "# branch.head %s%c", "(unknown)", eol);
-	else {
-		if (!strcmp(s->branch, "HEAD")) {
-			fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);
+		if (!has_object_file(&ref->old_oid))
+			continue;
 
-			if (state.rebase_in_progress || state.rebase_interactive_in_progress)
-				branch_name = state.onto;
-			else if (state.detached_from)
-				branch_name = state.detached_from;
-			else
-				branch_name = "";
-		} else {
-			branch_name = NULL;
-			skip_prefix(s->branch, "refs/heads/", &branch_name);
+		o = parse_object(ref->old_oid.hash);
+		if (!o)
+			continue;
 
-			fprintf(s->fp, "# branch.head %s%c", branch_name, eol);
-		}
-
-		/* Lookup stats on the upstream tracking branch, if set. */
-		branch = branch_get(branch_name);
-		base = NULL;
-		ab_info = (stat_tracking_info(branch, &nr_ahead, &nr_behind, &base) == 0);
-		if (base) {
-			base = shorten_unambiguous_ref(base, 0);
-			fprintf(s->fp, "# branch.upstream %s%c", base, eol);
-			free((char *)base);
-
-			if (ab_info)
-				fprintf(s->fp, "# branch.ab +%d -%d%c", nr_ahead, nr_behind, eol);
+		/* We already have it -- which may mean that we were
+		 * in sync with the other side at some time after
+		 * that (it is OK if we guess wrong here).
+		 */
+		if (o->type == OBJ_COMMIT) {
+			struct commit *commit = (struct commit *)o;
+			if (!cutoff || cutoff < commit->date)
+				cutoff = commit->date;
 		}
 	}
 
-	free(state.branch);
-	free(state.onto);
-	free(state.detached_from);
+	if (!args->depth) {
+		for_each_ref(mark_complete_oid, NULL);
+		for_each_alternate_ref(mark_alternate_complete, NULL);
+		commit_list_sort_by_date(&complete);
+		if (cutoff)
+			mark_recent_complete_commits(args, cutoff);
+	}
+
+	/*
+	 * Mark all complete remote refs as common refs.
+	 * Don't mark them common yet; the server has to be told so first.
+	 */
+	for (ref = *refs; ref; ref = ref->next) {
+		struct object *o = deref_tag(lookup_object(ref->old_oid.hash),
+					     NULL, 0);
+
+		if (!o || o->type != OBJ_COMMIT || !(o->flags & COMPLETE))
+			continue;
+
+		if (!(o->flags & SEEN)) {
+			rev_list_push((struct commit *)o, COMMON_REF | SEEN);
+
+			mark_common((struct commit *)o, 1, 1);
+		}
+	}
+
+	filter_refs(args, refs, sought, nr_sought);
+
+	for (retval = 1, ref = *refs; ref ; ref = ref->next) {
+		const unsigned char *remote = ref->old_oid.hash;
+		struct object *o;
+
+		o = lookup_object(remote);
+		if (!o || !(o->flags & COMPLETE)) {
+			retval = 0;
+			if (!args->verbose)
+				continue;
+			fprintf(stderr,
+				"want %s (%s)\n", sha1_to_hex(remote),
+				ref->name);
+			continue;
+		}
+		if (!args->verbose)
+			continue;
+		fprintf(stderr,
+			"already have %s (%s)\n", sha1_to_hex(remote),
+			ref->name);
+	}
+	return retval;
 }

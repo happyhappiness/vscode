@@ -1,27 +1,22 @@
-struct tree *write_tree_from_memory(struct merge_options *o)
+static const char **parse_argv(const char *arg, const char *service)
 {
-	struct tree *result = NULL;
+	int arguments = 0;
+	int i;
+	const char **ret;
+	char *temparray[MAXARGUMENTS + 1];
 
-	if (unmerged_cache()) {
-		int i;
-		fprintf(stderr, "BUG: There are unmerged index entries:\n");
-		for (i = 0; i < active_nr; i++) {
-			const struct cache_entry *ce = active_cache[i];
-			if (ce_stage(ce))
-				fprintf(stderr, "BUG: %d %.*s\n", ce_stage(ce),
-					(int)ce_namelen(ce), ce->name);
-		}
-		die("Bug in merge-recursive.c");
+	while (*arg) {
+		char *expanded;
+		if (arguments == MAXARGUMENTS)
+			die("remote-ext command has too many arguments");
+		expanded = strip_escapes(arg, service, &arg);
+		if (expanded)
+			temparray[arguments++] = expanded;
 	}
 
-	if (!active_cache_tree)
-		active_cache_tree = cache_tree();
-
-	if (!cache_tree_fully_valid(active_cache_tree) &&
-	    cache_tree_update(&the_index, 0) < 0)
-		die(_("error building trees"));
-
-	result = lookup_tree(active_cache_tree->sha1);
-
-	return result;
+	ret = xmalloc((arguments + 1) * sizeof(char *));
+	for (i = 0; i < arguments; i++)
+		ret[i] = temparray[i];
+	ret[arguments] = NULL;
+	return ret;
 }

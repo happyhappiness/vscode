@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00878)
-                      "read response failed from %pI (%s)",
-                      conn->worker->cp->addr,
-                      conn->worker->s->hostname);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c, APLOGNO(01377)
+                          "Chaining of FilterProviders not supported");

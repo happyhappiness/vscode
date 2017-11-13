@@ -1,48 +1,57 @@
-static void import_object(unsigned char *sha1, enum object_type type,
-			  int raw, const char *filename)
+int cmd_replace(int argc, const char **argv, const char *prefix)
 {
-	int fd;
+	int list = 0, delete = 0, force = 0;
+	const char *format = NULL;
+	struct option options[] = {
+		OPT_BOOL('l', "list", &list, N_("list replace refs")),
+		OPT_BOOL('d', "delete", &delete, N_("delete replace refs")),
+		OPT_BOOL('f', "force", &force, N_("replace the ref if it exists")),
+		OPT_STRING(0, "format", &format, N_("format"), N_("use this format")),
+		OPT_END()
+	};
 
-	fd = open(filename, O_RDONLY);
-	if (fd < 0)
-		die_errno("unable to open %s for reading", filename);
+	check_replace_refs = 0;
 
-	if (!raw && type == OBJ_TREE) {
-		const char *argv[] = { "mktree", NULL };
-		struct child_process cmd = { argv };
-		struct strbuf result = STRBUF_INIT;
+	argc = parse_options(argc, argv, prefix, options, git_replace_usage, 0);
 
-		cmd.argv = argv;
-		cmd.git_cmd = 1;
-		cmd.in = fd;
-		cmd.out = -1;
+	if (list && delete)
+		usage_msg_opt("-l and -d cannot be used together",
+			      git_replace_usage, options);
 
-		if (start_command(&cmd))
-			die("unable to spawn mktree");
+	if (format && delete)
+		usage_msg_opt("--format and -d cannot be used together",
+			      git_replace_usage, options);
 
-		if (strbuf_read(&result, cmd.out, 41) < 0)
-			die_errno("unable to read from mktree");
-		close(cmd.out);
+	if (force && (list || delete))
+		usage_msg_opt("-f cannot be used with -d or -l",
+			      git_replace_usage, options);
 
-		if (finish_command(&cmd))
-			die("mktree reported failure");
-		if (get_sha1_hex(result.buf, sha1) < 0)
-			die("mktree did not return an object name");
-
-		strbuf_release(&result);
-	} else {
-		struct stat st;
-		int flags = HASH_FORMAT_CHECK | HASH_WRITE_OBJECT;
-
-		if (fstat(fd, &st) < 0)
-			die_errno("unable to fstat %s", filename);
-		if (index_fd(sha1, fd, &st, type, NULL, flags) < 0)
-			die("unable to write object to database");
-		/* index_fd close()s fd for us */
+	/* Delete refs */
+	if (delete) {
+		if (argc < 1)
+			usage_msg_opt("-d needs at least one argument",
+				      git_replace_usage, options);
+		return for_each_replace_name(argv, delete_replace_ref);
 	}
 
-	/*
-	 * No need to close(fd) here; both run-command and index-fd
-	 * will have done it for us.
-	 */
+	/* Replace object */
+	if (!list && argc) {
+		if (argc != 2)
+			usage_msg_opt("bad number of arguments",
+				      git_replace_usage, options);
+		if (format)
+			usage_msg_opt("--format cannot be used when not listing",
+				      git_replace_usage, options);
+		return replace_object(argv[0], argv[1], force);
+	}
+
+	/* List refs, even if "list" is not set */
+	if (argc > 1)
+		usage_msg_opt("only one pattern can be given with -l",
+			      git_replace_usage, options);
+	if (force)
+		usage_msg_opt("-f needs some arguments",
+			      git_replace_usage, options);
+
+	return list_replace_refs(argv[0], format);
 }

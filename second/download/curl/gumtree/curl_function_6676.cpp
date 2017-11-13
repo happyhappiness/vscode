@@ -1,109 +1,113 @@
-CURLcode Curl_krb_kauth(struct connectdata *conn)
+static int
+krb4_auth(void *app_data, struct connectdata *conn)
 {
-  des_cblock key;
-  des_key_schedule schedule;
-  KTEXT_ST tkt, tktcopy;
-  char *name;
+  int ret;
   char *p;
-  char passwd[100];
-  size_t tmp = 0;
-  ssize_t nread;
-  enum protection_level save;
-  CURLcode result;
   unsigned char *ptr;
+  size_t len = 0;
+  KTEXT_ST adat;
+  MSG_DAT msg_data;
+  int checksum;
+  u_int32_t cs;
+  struct krb4_data *d = app_data;
+  char *host = conn->host.name;
+  ssize_t nread;
+  int l = sizeof(conn->local_addr);
+  struct SessionHandle *data = conn->data;
+  CURLcode result;
   size_t base64_sz = 0;
 
-  save = krb4_set_command_prot(conn, PROT_PRIVATE);
+  if(getsockname(conn->sock[FIRSTSOCKET],
+                 (struct sockaddr *)LOCAL_ADDR, &l) < 0)
+    perror("getsockname()");
 
-  result = Curl_ftpsendf(conn, "SITE KAUTH %s", conn->user);
-
-  if(result)
-    return result;
-
-  result = Curl_GetFTPResponse(&nread, conn, NULL);
-  if(result)
-    return result;
-
-  if(conn->data->state.buffer[0] != '3') {
-    krb4_set_command_prot(conn, save);
-    return CURLE_FTP_WEIRD_SERVER_REPLY;
+  checksum = getpid();
+  ret = mk_auth(d, &adat, "ftp", host, checksum);
+  if(ret == KDC_PR_UNKNOWN)
+    ret = mk_auth(d, &adat, "rcmd", host, checksum);
+  if(ret) {
+    infof(data, "%s\n", krb_get_err_text(ret));
+    return AUTH_CONTINUE;
   }
 
-  p = strstr(conn->data->state.buffer, "T=");
-  if(!p) {
-    Curl_failf(conn->data, "Bad reply from server");
-    krb4_set_command_prot(conn, save);
-    return CURLE_FTP_WEIRD_SERVER_REPLY;
-  }
+#ifdef HAVE_KRB_GET_OUR_IP_FOR_REALM
+  if(krb_get_config_bool("nat_in_use")) {
+    struct sockaddr_in *localaddr  = (struct sockaddr_in *)LOCAL_ADDR;
+    struct in_addr natAddr;
 
-  p += 2;
-  result = Curl_base64_decode(p, &ptr, &tmp);
-  if(result) {
-    Curl_failf(conn->data, "base64-decoding: %s", curl_easy_strerror(result));
-    return result;
+    if(krb_get_our_ip_for_realm(krb_realmofhost(host),
+                                 &natAddr) != KSUCCESS
+        && krb_get_our_ip_for_realm(NULL, &natAddr) != KSUCCESS)
+      infof(data, "Can't get address for realm %s\n",
+                 krb_realmofhost(host));
+    else {
+      if(natAddr.s_addr != localaddr->sin_addr.s_addr) {
+        char addr_buf[128];
+        if(Curl_inet_ntop(AF_INET, natAddr, addr_buf, sizeof(addr_buf)))
+          infof(data, "Using NAT IP address (%s) for kerberos 4\n", addr_buf);
+        localaddr->sin_addr = natAddr;
+      }
+    }
   }
-  if(tmp >= sizeof(tkt.dat)) {
-    free(ptr);
-    ptr = NULL;
-    tmp = 0;
-  }
-  if(!tmp || !ptr) {
-    Curl_failf(conn->data, "Failed to decode base64 in reply");
-    krb4_set_command_prot(conn, save);
-    return CURLE_FTP_WEIRD_SERVER_REPLY;
-  }
-  memcpy((char *)tkt.dat, ptr, tmp);
-  free(ptr);
-  tkt.length = tmp;
-  tktcopy.length = tkt.length;
+#endif
 
-  p = strstr(conn->data->state.buffer, "P=");
-  if(!p) {
-    Curl_failf(conn->data, "Bad reply from server");
-    krb4_set_command_prot(conn, save);
-    return CURLE_FTP_WEIRD_SERVER_REPLY;
-  }
-  name = p + 2;
-  for(; *p && *p != ' ' && *p != '\r' && *p != '\n'; p++);
-  *p = 0;
-
-  des_string_to_key (conn->passwd, &key);
-  des_key_sched(&key, schedule);
-
-  des_pcbc_encrypt((void *)tkt.dat, (void *)tktcopy.dat,
-                   tkt.length,
-                   schedule, &key, DES_DECRYPT);
-  if(strcmp ((char*)tktcopy.dat + 8,
-              KRB_TICKET_GRANTING_TICKET) != 0) {
-    afs_string_to_key(passwd,
-                      krb_realmofhost(conn->host.name),
-                      &key);
-    des_key_sched(&key, schedule);
-    des_pcbc_encrypt((void *)tkt.dat, (void *)tktcopy.dat,
-                     tkt.length,
-                     schedule, &key, DES_DECRYPT);
-  }
-  memset(key, 0, sizeof(key));
-  memset(schedule, 0, sizeof(schedule));
-  memset(passwd, 0, sizeof(passwd));
-  result = Curl_base64_encode(conn->data, (char *)tktcopy.dat, tktcopy.length,
+  result = Curl_base64_encode(conn->data, (char *)adat.dat, adat.length,
                               &p, &base64_sz);
   if(result) {
-    Curl_failf(conn->data, "base64-encoding: %s", curl_easy_strerror(result));
-    krb4_set_command_prot(conn, save);
-    return result;
+    Curl_failf(data, "base64-encoding: %s", curl_easy_strerror(result));
+    return AUTH_CONTINUE;
   }
-  memset (tktcopy.dat, 0, tktcopy.length);
 
-  result = Curl_ftpsendf(conn, "SITE KAUTH %s %s", name, p);
+  result = Curl_ftpsendf(conn, "ADAT %s", p);
+
   free(p);
-  if(result)
-    return result;
 
-  result = Curl_GetFTPResponse(&nread, conn, NULL);
   if(result)
-    return result;
-  krb4_set_command_prot(conn, save);
+    return -2;
 
-  return CURLE_OK;
+  if(Curl_GetFTPResponse(&nread, conn, NULL))
+    return -1;
+
+  if(data->state.buffer[0] != '2') {
+    Curl_failf(data, "Server didn't accept auth data");
+    return AUTH_ERROR;
+  }
+
+  p = strstr(data->state.buffer, "ADAT=");
+  if(!p) {
+    Curl_failf(data, "Remote host didn't send adat reply");
+    return AUTH_ERROR;
+  }
+  p += 5;
+  result = Curl_base64_decode(p, &ptr, &len);
+  if(result) {
+    Curl_failf(data, "base64-decoding: %s", curl_easy_strerror(result));
+    return AUTH_ERROR;
+  }
+  if(len > sizeof(adat.dat)-1) {
+    free(ptr);
+    ptr = NULL;
+    len = 0;
+  }
+  if(!len || !ptr) {
+    Curl_failf(data, "Failed to decode base64 from server");
+    return AUTH_ERROR;
+  }
+  memcpy((char *)adat.dat, ptr, len);
+  free(ptr);
+  adat.length = len;
+  ret = krb_rd_safe(adat.dat, adat.length, &d->key,
+                    (struct sockaddr_in *)hisctladdr,
+                    (struct sockaddr_in *)myctladdr, &msg_data);
+  if(ret) {
+    Curl_failf(data, "Error reading reply from server: %s",
+               krb_get_err_text(ret));
+    return AUTH_ERROR;
+  }
+  krb_get_int(msg_data.app_data, &cs, 4, 0);
+  if(cs - checksum != 1) {
+    Curl_failf(data, "Bad checksum returned from server");
+    return AUTH_ERROR;
+  }
+  return AUTH_OK;
 }

@@ -1,26 +1,33 @@
-static void ssl_init_ctx_cipher_suite(server_rec *s,
-                                      apr_pool_t *p,
-                                      apr_pool_t *ptemp,
-                                      modssl_ctx_t *mctx)
+apr_status_t ajp_msg_create(apr_pool_t *pool, apr_size_t size, ajp_msg_t **rmsg)
 {
-    SSL_CTX *ctx = mctx->ssl_ctx;
-    const char *suite = mctx->auth.cipher_suite;
+    ajp_msg_t *msg = (ajp_msg_t *)apr_pcalloc(pool, sizeof(ajp_msg_t));
 
-    /*
-     *  Configure SSL Cipher Suite
+    if (!msg) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_msg_create(): can't allocate AJP message memory");
+        return APR_ENOPOOL;
+    }
+
+    msg->server_side = 0;
+
+    msg->buf = (apr_byte_t *)apr_palloc(pool, size);
+
+    /* XXX: This should never happen
+     * In case if the OS cannont allocate 8K of data
+     * we are in serious trouble
+     * No need to check the alloc return value, cause the
+     * core dump is probably the best solution anyhow.
      */
-    if (!suite) {
-        return;
+    if (msg->buf == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_msg_create(): can't allocate AJP message memory");
+        return APR_ENOPOOL;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                 "Configuring permitted SSL ciphers [%s]",
-                 suite);
+    msg->len = 0;
+    msg->header_len = AJP_HEADER_LEN;
+    msg->max_size = size;
+    *rmsg = msg;
 
-    if (!SSL_CTX_set_cipher_list(ctx, MODSSL_PCHAR_CAST suite)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Unable to configure permitted SSL ciphers");
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        ssl_die();
-    }
+    return APR_SUCCESS;
 }

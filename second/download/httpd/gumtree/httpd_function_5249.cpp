@@ -1,78 +1,78 @@
-apr_status_t h2_response_output_filter(ap_filter_t *f, apr_bucket_brigade *bb)
+static int send_handles_to_child(apr_pool_t *p,
+                                 HANDLE child_ready_event,
+                                 HANDLE child_exit_event,
+                                 apr_proc_mutex_t *child_start_mutex,
+                                 apr_shm_t *scoreboard_shm,
+                                 HANDLE hProcess,
+                                 apr_file_t *child_in)
 {
-    h2_task_env *env = f->ctx;
-    h2_from_h1 *from_h1 = env->output? env->output->from_h1 : NULL;
-    request_rec *r = f->r;
-    apr_bucket *b;
-    ap_bucket_error *eb = NULL;
+    apr_status_t rv;
+    HANDLE hCurrentProcess = GetCurrentProcess();
+    HANDLE hDup;
+    HANDLE os_start;
+    HANDLE hScore;
+    apr_size_t BytesWritten;
 
-    AP_DEBUG_ASSERT(from_h1 != NULL);
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_from_h1(%d): output_filter called", from_h1->stream_id);
-    
-    if (r->header_only && env->output && from_h1->response) {
-        /* throw away any data after we have compiled the response */
-        apr_brigade_cleanup(bb);
-        return OK;
+    if (!DuplicateHandle(hCurrentProcess, child_ready_event, hProcess, &hDup,
+        EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Unable to duplicate the ready event handle for the child");
+        return -1;
     }
-    
-    for (b = APR_BRIGADE_FIRST(bb);
-         b != APR_BRIGADE_SENTINEL(bb);
-         b = APR_BUCKET_NEXT(b))
-    {
-        if (AP_BUCKET_IS_ERROR(b) && !eb) {
-            eb = b->data;
-            continue;
-        }
-        /*
-         * If we see an EOC bucket it is a signal that we should get out
-         * of the way doing nothing.
-         */
-        if (AP_BUCKET_IS_EOC(b)) {
-            ap_remove_output_filter(f);
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
-                          "h2_from_h1(%d): eoc bucket passed", 
-                          from_h1->stream_id);
-            return ap_pass_brigade(f->next, bb);
-        }
+    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to send the exit event handle to the child");
+        return -1;
     }
-    
-    if (eb) {
-        int st = eb->status;
-        apr_brigade_cleanup(bb);
-        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
-                      "h2_from_h1(%d): err bucket status=%d", 
-                      from_h1->stream_id, st);
-        ap_die(st, r);
-        return AP_FILTER_ERROR;
+    if (!DuplicateHandle(hCurrentProcess, child_exit_event, hProcess, &hDup,
+                         EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Unable to duplicate the exit event handle for the child");
+        return -1;
     }
-    
-    from_h1->response = create_response(from_h1, r);
-    if (from_h1->response == NULL) {
-        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
-                      "h2_from_h1(%d): unable to create response", 
-                      from_h1->stream_id);
-        return APR_ENOMEM;
+    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to send the exit event handle to the child");
+        return -1;
     }
-    
-    if (r->header_only) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_from_h1(%d): header_only, cleanup output brigade", 
-                      from_h1->stream_id);
-        apr_brigade_cleanup(bb);
-        return OK;
+    if ((rv = apr_os_proc_mutex_get(&os_start, child_start_mutex)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to retrieve the start mutex for the child");
+        return -1;
     }
-    
-    r->sent_bodyct = 1;         /* Whatever follows is real body stuff... */
-    
-    ap_remove_output_filter(f);
-    if (APLOGctrace1(f->c)) {
-        apr_off_t len = 0;
-        apr_brigade_length(bb, 0, &len);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_from_h1(%d): removed header filter, passing brigade "
-                      "len=%ld", from_h1->stream_id, (long)len);
+    if (!DuplicateHandle(hCurrentProcess, os_start, hProcess, &hDup,
+                         SYNCHRONIZE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Unable to duplicate the start mutex to the child");
+        return -1;
     }
-    return ap_pass_brigade(f->next, bb);
+    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to send the start mutex to the child");
+        return -1;
+    }
+    if ((rv = apr_os_shm_get(&hScore, scoreboard_shm)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to retrieve the scoreboard handle for the child");
+        return -1;
+    }
+    if (!DuplicateHandle(hCurrentProcess, hScore, hProcess, &hDup,
+                         FILE_MAP_READ | FILE_MAP_WRITE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Unable to duplicate the scoreboard handle to the child");
+        return -1;
+    }
+    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to send the scoreboard handle to the child");
+        return -1;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Parent: Sent the scoreboard to the child");
+    return 0;
 }

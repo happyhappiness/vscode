@@ -1,12 +1,12 @@
-static apr_status_t seed_rand(void)
+static void putline(apr_file_t *f, const char *l)
 {
-    int seed = 0;
-    apr_status_t rv;
-    rv = apr_generate_random_bytes((unsigned char*) &seed, sizeof(seed));
-    if (rv) {
-        apr_file_printf(errfile, "Unable to generate random bytes: %pm" NL, &rv);
-        return rv;
+    apr_status_t rc;
+    rc = apr_file_puts(l, f);
+    if (rc != APR_SUCCESS) {
+        char errstr[MAX_STRING_LEN];
+        apr_strerror(rc, errstr, MAX_STRING_LEN);
+        apr_file_printf(errfile, "Error writing temp file: %s" NL, errstr);
+        apr_file_close(f);
+        exit(ERR_FILEPERM);
     }
-    srand(seed);
-    return rv;
 }

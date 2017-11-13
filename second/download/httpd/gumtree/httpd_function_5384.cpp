@@ -1,161 +1,235 @@
-static void* APR_THREAD_FUNC wd_worker(apr_thread_t *thread, void *data)
+static int worker_check_config(apr_pool_t *p, apr_pool_t *plog,
+                               apr_pool_t *ptemp, server_rec *s)
 {
-    ap_watchdog_t *w = (ap_watchdog_t *)data;
-    apr_status_t rv;
-    int locked = 0;
-    int probed = 0;
-    int inited = 0;
-    int mpmq_s = 0;
+    static int restart_num = 0;
+    int startup = 0;
 
-    w->pool = apr_thread_pool_get(thread);
-    w->is_running = 1;
-
-    apr_thread_mutex_unlock(w->startup);
-    if (w->mutex) {
-        while (w->is_running) {
-            if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpmq_s) != APR_SUCCESS) {
-                w->is_running = 0;
-                break;
-            }
-            if (mpmq_s == AP_MPMQ_STOPPING) {
-                w->is_running = 0;
-                break;
-            }
-            rv = apr_proc_mutex_trylock(w->mutex);
-            if (rv == APR_SUCCESS) {
-                if (probed) {
-                    /* Sleep after we were locked
-                     * up to 1 second. Httpd can be
-                     * in the middle of shutdown, and
-                     * our child didn't yet received
-                     * the shutdown signal.
-                     */
-                    probed = 10;
-                    while (w->is_running && probed > 0) {
-                        apr_sleep(AP_WD_TM_INTERVAL);
-                        probed--;
-                        if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpmq_s) != APR_SUCCESS) {
-                            w->is_running = 0;
-                            break;
-                        }
-                        if (mpmq_s == AP_MPMQ_STOPPING) {
-                            w->is_running = 0;
-                            break;
-                        }
-                    }
-                }
-                locked = 1;
-                break;
-            }
-            probed = 1;
-            apr_sleep(AP_WD_TM_SLICE);
-        }
-    }
-    if (w->is_running) {
-        watchdog_list_t *wl = w->callbacks;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
-                     "%sWatchdog (%s) running",
-                     w->singleton ? "Singleton" : "", w->name);
-        apr_time_clock_hires(w->pool);
-        if (wl) {
-            apr_pool_t *ctx = NULL;
-            apr_pool_create(&ctx, w->pool);
-            while (wl && w->is_running) {
-                /* Execute watchdog callback */
-                wl->status = (*wl->callback_fn)(AP_WATCHDOG_STATE_STARTING,
-                                                (void *)wl->data, ctx);
-                wl = wl->next;
-            }
-            apr_pool_destroy(ctx);
-        }
-        else {
-            ap_run_watchdog_init(wd_server_conf->s, w->name, w->pool);
-            inited = 1;
-        }
+    /* the reverse of pre_config, we want this only the first time around */
+    if (restart_num++ == 0) {
+        startup = 1;
     }
 
-    /* Main execution loop */
-    while (w->is_running) {
-        apr_pool_t *ctx = NULL;
-        apr_time_t curr;
-        watchdog_list_t *wl = w->callbacks;
-
-        apr_sleep(AP_WD_TM_SLICE);
-        if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpmq_s) != APR_SUCCESS) {
-            w->is_running = 0;
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
         }
-        if (mpmq_s == AP_MPMQ_STOPPING) {
-            w->is_running = 0;
-        }
-        if (!w->is_running) {
-            break;
-        }
-        curr = apr_time_now() - AP_WD_TM_SLICE;
-        while (wl && w->is_running) {
-            if (wl->status == APR_SUCCESS) {
-                wl->step += (apr_time_now() - curr);
-                if (wl->step >= wl->interval) {
-                    if (!ctx)
-                        apr_pool_create(&ctx, w->pool);
-                    wl->step = 0;
-                    /* Execute watchdog callback */
-                    wl->status = (*wl->callback_fn)(AP_WATCHDOG_STATE_RUNNING,
-                                                    (void *)wl->data, ctx);
-                    if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpmq_s) != APR_SUCCESS) {
-                        w->is_running = 0;
-                    }
-                    if (mpmq_s == AP_MPMQ_STOPPING) {
-                        w->is_running = 0;
-                    }
-                }
-            }
-            wl = wl->next;
-        }
-        if (w->is_running && w->callbacks == NULL) {
-            /* This is hook mode watchdog
-             * running on WatchogInterval
-             */
-            w->step += (apr_time_now() - curr);
-            if (w->step >= wd_interval) {
-                if (!ctx)
-                    apr_pool_create(&ctx, w->pool);
-                w->step = 0;
-                /* Run watchdog step hook */
-                ap_run_watchdog_step(wd_server_conf->s, w->name, ctx);
-            }
-        }
-        if (ctx)
-            apr_pool_destroy(ctx);
-        if (!w->is_running) {
-            break;
-        }
+        server_limit = MAX_SERVER_LIMIT;
     }
-    if (inited) {
-        /* Run the watchdog exit hooks.
-         * If this was singleton watchdog the init hook
-         * might never been called, so skip the exit hook
-         * in that case as well.
-         */
-        ap_run_watchdog_exit(wd_server_conf->s, w->name, w->pool);
-    }
-    else {
-        watchdog_list_t *wl = w->callbacks;
-        while (wl) {
-            if (wl->status == APR_SUCCESS) {
-                /* Execute watchdog callback with STOPPING state */
-                (*wl->callback_fn)(AP_WATCHDOG_STATE_STOPPING,
-                                   (void *)wl->data, w->pool);
-            }
-            wl = wl->next;
+    else if (server_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);
         }
+        server_limit = 1;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
-                 "%sWatchdog (%s) stopping",
-                 w->singleton ? "Singleton" : "", w->name);
 
-    if (locked)
-        apr_proc_mutex_unlock(w->mutex);
-    apr_thread_exit(w->thread, APR_SUCCESS);
+    /* you cannot change ServerLimit across a restart; ignore
+     * any such attempts
+     */
+    if (!retained->first_server_limit) {
+        retained->first_server_limit = server_limit;
+    }
+    else if (server_limit != retained->first_server_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ServerLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     server_limit, retained->first_server_limit);
+        server_limit = retained->first_server_limit;
+    }
 
-    return NULL;
+    if (thread_limit > MAX_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadLimit of %d exceeds compile-time "
+                         "limit of", thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         thread_limit, MAX_THREAD_LIMIT);
+        }
+        thread_limit = MAX_THREAD_LIMIT;
+    }
+    else if (thread_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadLimit of %d not allowed, "
+                         "increasing to 1.", thread_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadLimit of %d not allowed, increasing to 1",
+                         thread_limit);
+        }
+        thread_limit = 1;
+    }
+
+    /* you cannot change ThreadLimit across a restart; ignore
+     * any such attempts
+     */
+    if (!retained->first_thread_limit) {
+        retained->first_thread_limit = thread_limit;
+    }
+    else if (thread_limit != retained->first_thread_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ThreadLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     thread_limit, retained->first_thread_limit);
+        thread_limit = retained->first_thread_limit;
+    }
+
+    if (threads_per_child > thread_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of", threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         thread_limit, thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ThreadLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of %d, decreasing to match",
+                         threads_per_child, thread_limit);
+        }
+        threads_per_child = thread_limit;
+    }
+    else if (threads_per_child < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d not allowed, "
+                         "increasing to 1.", threads_per_child);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         threads_per_child);
+        }
+        threads_per_child = 1;
+    }
+
+    if (max_clients < threads_per_child) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d is less than "
+                         "ThreadsPerChild of", max_clients);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d, increasing to %d.  MaxClients must be at "
+                         "least as large",
+                         threads_per_child, threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " as the number of threads in a single server.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d is less than ThreadsPerChild "
+                         "of %d, increasing to match",
+                         max_clients, threads_per_child);
+        }
+        max_clients = threads_per_child;
+    }
+
+    ap_daemons_limit = max_clients / threads_per_child;
+
+    if (max_clients % threads_per_child) {
+        int tmp_max_clients = ap_daemons_limit * threads_per_child;
+
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d is not an integer "
+                         "multiple of", max_clients);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d,", threads_per_child,
+                         tmp_max_clients);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " for a maximum of %d servers.",
+                         ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d is not an integer multiple of "
+                         "ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d", max_clients, threads_per_child,
+                         tmp_max_clients);
+        }
+        max_clients = tmp_max_clients;
+    }
+
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d would require %d "
+                         "servers and ", max_clients, ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " would exceed ServerLimit of %d, decreasing to %d.",
+                         server_limit, server_limit * threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d would require %d servers and "
+                         "exceed ServerLimit of %d, decreasing to %d",
+                         max_clients, ap_daemons_limit, server_limit,
+                         server_limit * threads_per_child);
+        }
+        ap_daemons_limit = server_limit;
+    }
+
+    /* ap_daemons_to_start > ap_daemons_limit checked in worker_run() */
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
+
+    if (min_spare_threads < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", min_spare_threads);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         min_spare_threads);
+        }
+        min_spare_threads = 1;
+    }
+
+    /* max_spare_threads < min_spare_threads + threads_per_child
+     * checked in worker_run()
+     */
+
+    return OK;
 }

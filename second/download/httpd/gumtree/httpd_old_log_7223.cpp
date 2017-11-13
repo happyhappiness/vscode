@@ -1,1 +1,1 @@
-fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");
+fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");

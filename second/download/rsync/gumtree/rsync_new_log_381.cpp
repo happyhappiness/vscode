@@ -1,1 +1,1 @@
-rprintf(FINFO,"add_exclude(%s)\n",pattern);
+fprintf(FINFO,"recv_files phase=%d\n",phase);

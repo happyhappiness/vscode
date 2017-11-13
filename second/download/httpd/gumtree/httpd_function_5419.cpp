@@ -1,54 +1,59 @@
-apr_status_t h2_conn_io_read(h2_conn_io *io,
-                             apr_read_type_e block,
-                             h2_conn_io_on_read_cb on_read_cb,
-                             void *puser)
+int ap_process_child_status(apr_proc_t *pid, apr_exit_why_e why, int status)
 {
-    apr_status_t status;
-    int done = 0;
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
-                  "h2_conn_io: try read, block=%d", block);
-    
-    if (!APR_BRIGADE_EMPTY(io->input)) {
-        /* Seems something is left from a previous read, lets
-         * satisfy our caller with the data we already have. */
-        status = h2_conn_io_bucket_read(io, block, on_read_cb, puser, &done);
-        apr_brigade_cleanup(io->input);
-        if (status != APR_SUCCESS || done) {
+    int signum = status;
+    const char *sigdesc;
+
+    /* Child died... if it died due to a fatal error,
+     * we should simply bail out.  The caller needs to
+     * check for bad rc from us and exit, running any
+     * appropriate cleanups.
+     *
+     * If the child died due to a resource shortage,
+     * the parent should limit the rate of forking
+     */
+    if (APR_PROC_CHECK_EXIT(why)) {
+        if (status == APEXIT_CHILDSICK) {
             return status;
         }
+
+        if (status == APEXIT_CHILDFATAL) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT,
+                         0, ap_server_conf,
+                         "Child %" APR_PID_T_FMT
+                         " returned a Fatal error... Apache is exiting!",
+                         pid->pid);
+            return APEXIT_CHILDFATAL;
+        }
+
+        return 0;
     }
 
-    /* We only do a blocking read when we have no streams to process. So,
-     * in httpd scoreboard lingo, we are in a KEEPALIVE connection state.
-     * When reading non-blocking, we do have streams to process and update
-     * child with NULL request. That way, any current request information
-     * in the scoreboard is preserved.
-     */
-    if (block == APR_BLOCK_READ) {
-        ap_update_child_status_from_conn(io->connection->sbh, 
-                                         SERVER_BUSY_KEEPALIVE, 
-                                         io->connection);
-    }
-    else {
-        ap_update_child_status(io->connection->sbh, SERVER_BUSY_READ, NULL);
-    }
+    if (APR_PROC_CHECK_SIGNALED(why)) {
+        sigdesc = apr_signal_description_get(signum);
 
-    /* TODO: replace this with a connection filter itself, so that we
-     * no longer need to transfer incoming buckets to our own brigade. 
-     */
-    status = ap_get_brigade(io->connection->input_filters,
-                            io->input, AP_MODE_READBYTES,
-                            block, 64 * 4096);
-    switch (status) {
-        case APR_SUCCESS:
-            return h2_conn_io_bucket_read(io, block, on_read_cb, puser, &done);
-        case APR_EOF:
-        case APR_EAGAIN:
+        switch (signum) {
+        case SIGTERM:
+        case SIGHUP:
+        case AP_SIG_GRACEFUL:
+        case SIGKILL:
             break;
+
         default:
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, io->connection,
-                          "h2_conn_io: error reading");
-            break;
+            if (APR_PROC_CHECK_CORE_DUMP(why)) {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                             0, ap_server_conf,
+                             "child pid %ld exit signal %s (%d), "
+                             "possible coredump in %s",
+                             (long)pid->pid, sigdesc, signum,
+                             ap_coredump_dir);
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                             0, ap_server_conf,
+                             "child pid %ld exit signal %s (%d)",
+                             (long)pid->pid, sigdesc, signum);
+            }
+        }
     }
-    return status;
+    return 0;
 }

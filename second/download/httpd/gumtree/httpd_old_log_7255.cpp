@@ -1,3 +1,3 @@
 apr_file_printf(errfile,
-            "On other systems than Windows and NetWare the '-p' flag will "
-            "probably not work." NL);
+            "The SHA algorithm does not use a salt and is less secure than "
+            "the MD5 algorithm." NL);

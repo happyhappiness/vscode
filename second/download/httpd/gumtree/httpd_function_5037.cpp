@@ -1,38 +1,40 @@
-static const char *check_macro_contents(apr_pool_t * pool,
-                                        const ap_macro_t * macro)
+static void process_timeout_queue(struct timeout_queue *q,
+                                  apr_time_t timeout_time,
+                                  int (*func)(event_conn_state_t *))
 {
-    int nelts = macro->arguments->nelts;
-    char **names = (char **) macro->arguments->elts;
-    apr_array_header_t *used;
-    int i;
-    const char *errmsg;
-
-    if (macro->contents->nelts == 0) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
-                     "macro '%s' (%s): empty contents!",
-                     macro->name, macro->location);
-        return NULL;            /* no need to further warnings... */
+    int count = 0;
+    event_conn_state_t *first, *cs, *last;
+    apr_status_t rv;
+    if (!q->count) {
+        return;
     }
+    AP_DEBUG_ASSERT(!APR_RING_EMPTY(&q->head, event_conn_state_t, timeout_list));
 
-    used = apr_array_make(pool, nelts, sizeof(char));
-
-    for (i = 0; i < nelts; i++) {
-        used->elts[i] = 0;
-    }
-
-    errmsg = process_content(pool, macro, macro->arguments, used, NULL);
-
-    if (errmsg) {
-        return errmsg;
-    }
-
-    for (i = 0; i < nelts; i++) {
-        if (!used->elts[i]) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
-                         "macro '%s' (%s): argument '%s' (#%d) never used",
-                         macro->name, macro->location, names[i], i + 1);
+    cs = first = APR_RING_FIRST(&q->head);
+    while (cs != APR_RING_SENTINEL(&q->head, event_conn_state_t, timeout_list)
+           && cs->expiration_time < timeout_time) {
+        last = cs;
+        rv = apr_pollset_remove(event_pollset, &cs->pfd);
+        if (rv != APR_SUCCESS && !APR_STATUS_IS_NOTFOUND(rv)) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, cs->c, APLOGNO(00473)
+                          "apr_pollset_remove failed");
         }
+        cs = APR_RING_NEXT(cs, timeout_list);
+        count++;
     }
+    if (!count)
+        return;
 
-    return NULL;
+    APR_RING_UNSPLICE(first, last, timeout_list);
+    AP_DEBUG_ASSERT(q->count >= count);
+    q->count -= count;
+    apr_thread_mutex_unlock(timeout_mutex);
+    while (count) {
+        cs = APR_RING_NEXT(first, timeout_list);
+        TO_QUEUE_ELEM_INIT(first);
+        func(first);
+        first = cs;
+        count--;
+    }
+    apr_thread_mutex_lock(timeout_mutex);
 }

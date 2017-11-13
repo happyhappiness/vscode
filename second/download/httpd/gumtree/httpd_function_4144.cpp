@@ -1,32 +1,47 @@
-void ssl_init_Engine(server_rec *s, apr_pool_t *p)
+apr_status_t ajp_ilink_receive(apr_socket_t *sock, ajp_msg_t *msg)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    ENGINE *e;
+    apr_status_t status;
+    apr_size_t   hlen;
+    apr_size_t   blen;
 
-    if (mc->szCryptoDevice) {
-        if (!(e = ENGINE_by_id(mc->szCryptoDevice))) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to load Crypto Device API `%s'",
-                         mc->szCryptoDevice);
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-            ssl_die();
-        }
-
-        if (strEQ(mc->szCryptoDevice, "chil")) {
-            ENGINE_ctrl(e, ENGINE_CTRL_CHIL_SET_FORKCHECK, 1, 0, 0);
-        }
-
-        if (!ENGINE_set_default(e, ENGINE_METHOD_ALL)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to enable Crypto Device API `%s'",
-                         mc->szCryptoDevice);
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-            ssl_die();
-        }
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, 
-                     "Init: loaded Crypto Device API `%s'", 
-                     mc->szCryptoDevice);
-
-        ENGINE_free(e);
+    if (sock == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_ilink_receive(): NULL socket provided");
+        return AJP_EINVAL;
     }
+
+    hlen = msg->header_len;
+
+    status = ilink_read(sock, msg->buf, hlen);
+
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
+                     "ajp_ilink_receive() can't receive header");
+        return AJP_ENO_HEADER;
+    }
+
+    status = ajp_msg_check_header(msg, &blen);
+
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_ilink_receive() received bad header");
+        return AJP_EBAD_HEADER;
+    }
+
+    status = ilink_read(sock, msg->buf + hlen, blen);
+
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
+                     "ajp_ilink_receive() error while receiving message body "
+                     "of length %" APR_SIZE_T_FMT,
+                     hlen);
+        return AJP_EBAD_MESSAGE;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                 "ajp_ilink_receive() received packet len=%" APR_SIZE_T_FMT
+                 "type=%d",
+                  blen, (int)msg->buf[hlen]);
+
+    return APR_SUCCESS;
 }

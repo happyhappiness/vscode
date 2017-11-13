@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02477)
-                         "mod_proxy must be loaded for mod_proxy_http");
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
+                          APLOGNO(02954) 
+                          "h2_request: ignoring unknown pseudo header %s",
+                          buffer);

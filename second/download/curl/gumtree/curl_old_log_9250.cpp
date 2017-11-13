@@ -1,10 +1,10 @@
 fputs(
-"              Please note that if FILE protocol is disabled, there is  no  way\n"
-"              to  use  a local Metalink file at the time of this writing. Also\n"
-"              note  that  if  --metalink  and  --include  are  used  together,\n"
-"              --include  will be ignored. This is because including headers in\n"
-"              the response will break Metalink parser and if the  headers  are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
+"              valid email address to send the mail to. (Added in 7.20.0)\n"
 "\n"
+"              When  performing  an  address  verification  (VRFY command), the\n"
+"              recipient should be specified as the user name or user name  and\n"
+"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
+"\n"
+"              When performing a mailing list expand (EXPN command), the recip-\n"
+"              ient should be specified using the mailing list  name,  such  as\n"
 , stdout);

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                     "h2_worker(%d): done", h2_worker_get_id(worker));
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             ap_server_conf, APLOGNO(00291)
+                             "long lost child came home! (pid %ld)",
+                             (long)pid.pid);

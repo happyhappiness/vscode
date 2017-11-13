@@ -1,75 +1,51 @@
-static void post_rotate(apr_pool_t *pool, struct logfile *newlog,
-                        rotate_config_t *config, rotate_status_t *status)
+static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
 {
-    apr_status_t rv;
-    char error[120];
-    apr_procattr_t *pattr;
-    const char *argv[4];
-    apr_proc_t proc;
+    piped_log *pl = data;
+    apr_status_t stats;
+    int mpm_state;
 
-    /* Handle link file, if configured. */
-    if (config->linkfile) {
-        apr_file_remove(config->linkfile, newlog->pool);
-        if (config->verbose) {
-            fprintf(stderr,"Linking %s to %s\n", newlog->name, config->linkfile);
+    switch (reason) {
+    case APR_OC_REASON_DEATH:
+    case APR_OC_REASON_LOST:
+        pl->pid = NULL; /* in case we don't get it going again, this
+                         * tells other logic not to try to kill it
+                         */
+        apr_proc_other_child_unregister(pl);
+        stats = ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state);
+        if (stats != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "can't query MPM state; not restarting "
+                         "piped log program '%s'",
+                         pl->program);
         }
-        rv = apr_file_link(newlog->name, config->linkfile);
-        if (rv != APR_SUCCESS) {
-            char error[120];
-            apr_strerror(rv, error, sizeof error);
-            fprintf(stderr, "Error linking file %s to %s (%s)\n",
-                    newlog->name, config->linkfile, error);
-            exit(2);
+        else if (mpm_state != AP_MPMQ_STOPPING) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "piped log program '%s' failed unexpectedly",
+                         pl->program);
+            if ((stats = piped_log_spawn(pl)) != APR_SUCCESS) {
+                /* what can we do?  This could be the error log we're having
+                 * problems opening up... */
+                char buf[120];
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "piped_log_maintenance: unable to respawn '%s': %s",
+                             pl->program, apr_strerror(stats, buf, sizeof(buf)));
+            }
         }
-    }
+        break;
 
-    if (!config->postrotate_prog) {
-        /* Nothing more to do. */
-        return;
-    }
+    case APR_OC_REASON_UNWRITABLE:
+        /* We should not kill off the pipe here, since it may only be full.
+         * If it really is locked, we should kill it off manually. */
+    break;
 
-    /* Collect any zombies from a previous run, but don't wait. */
-    while (apr_proc_wait_all_procs(&proc, NULL, NULL, APR_NOWAIT, pool) == APR_CHILD_DONE)
-        /* noop */;
+    case APR_OC_REASON_RESTART:
+        if (pl->pid != NULL) {
+            apr_proc_kill(pl->pid, SIGTERM);
+            pl->pid = NULL;
+        }
+        break;
 
-    if ((rv = apr_procattr_create(&pattr, pool)) != APR_SUCCESS) {
-        fprintf(stderr,
-                "post_rotate: apr_procattr_create failed for '%s': %s\n",
-                config->postrotate_prog,
-                apr_strerror(rv, error, sizeof(error)));
-        return;
-    }
-
-    rv = apr_procattr_error_check_set(pattr, 1);
-    if (rv == APR_SUCCESS)
-        rv = apr_procattr_cmdtype_set(pattr, APR_PROGRAM_ENV);
-
-    if (rv != APR_SUCCESS) {
-        fprintf(stderr,
-                "post_rotate: could not set up process attributes for '%s': %s\n",
-                config->postrotate_prog,
-                apr_strerror(rv, error, sizeof(error)));
-        return;
-    }
-
-    argv[0] = config->postrotate_prog;
-    argv[1] = newlog->name;
-    if (status->current.name) {
-        argv[2] = status->current.name;
-        argv[3] = NULL;
-    }
-    else {
-        argv[2] = NULL;
-    }
-
-    if (config->verbose)
-        fprintf(stderr, "Calling post-rotate program: %s\n", argv[0]);
-
-    rv = apr_proc_create(&proc, argv[0], argv, NULL, pattr, pool);
-    if (rv != APR_SUCCESS) {
-        fprintf(stderr, "Could not spawn post-rotate process '%s': %s\n",
-                config->postrotate_prog,
-                apr_strerror(rv, error, sizeof(error)));
-        return;
+    case APR_OC_REASON_UNREGISTER:
+        break;
     }
 }

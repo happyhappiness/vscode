@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(00111)
-                                     "Config variable ${%s} is not defined",
-                                     name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01039)
+                      "an error occurred creating a new connection to %pI (%s)",
+                      connect_addr, connectname);

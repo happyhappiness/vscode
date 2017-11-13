@@ -1,1 +1,1 @@
-die(_("could not lookup name for submodule '%s'"), path);
+packet_write_fmt(1, "ACK %s\n", last_hex);

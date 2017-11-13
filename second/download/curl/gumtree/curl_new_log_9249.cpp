@@ -1,10 +1,9 @@
 fputs(
-"              and make use of the mirrors listed within for failover if  there\n"
-"              are  errors (such as the file or server not being available). It\n"
-"              will also verify the hash of the file after  the  download  com-\n"
-"              pletes.  The Metalink file itself is downloaded and processed in\n"
-"              memory and not stored in the local file system.\n"
+"              Specify the maximum size (in bytes) of a file  to  download.  If\n"
+"              the  file requested is larger than this value, the transfer will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"              Example to use a remote Metalink file:\n"
-"\n"
+"              NOTE: The file size is not always known prior to  download,  and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
 , stdout);

@@ -1,2 +1,1 @@
-error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(saved_errno));
+die("unable to read %s", sha1_to_hex(entry->idx.sha1));

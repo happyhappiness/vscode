@@ -1,1 +1,2 @@
-out_of_memory("add_delete_entry");
+rprintf(FINFO,"send_files mapped %s of size %d\n",
+			  fname,(int)st.st_size);

@@ -1,67 +1,52 @@
-static int start_daemon(int fd)
+static struct sum_struct *generate_sums(struct map_struct *buf,OFF_T len,int n)
 {
-	char line[200];
-	char *motd;
-	int i = -1;
-	extern char *config_file;
-	extern int remote_version;
+	int i;
+	struct sum_struct *s;
+	int count;
+	int block_len = n;
+	int remainder = (len%block_len);
+	OFF_T offset = 0;
 
-	if (!lp_load(config_file, 0)) {
-		exit_cleanup(RERR_SYNTAX);
+	count = (len+(block_len-1))/block_len;
+
+	s = (struct sum_struct *)malloc(sizeof(*s));
+	if (!s) out_of_memory("generate_sums");
+
+	s->count = count;
+	s->remainder = remainder;
+	s->n = n;
+	s->flength = len;
+
+	if (count==0) {
+		s->sums = NULL;
+		return s;
 	}
 
-	set_socket_options(fd,"SO_KEEPALIVE");
-	set_socket_options(fd,lp_socket_options());
-	set_nonblocking(fd);
+	if (verbose > 3)
+		rprintf(FINFO,"count=%d rem=%d n=%d flength=%d\n",
+			s->count,s->remainder,s->n,(int)s->flength);
 
-	io_printf(fd,"@RSYNCD: %d\n", PROTOCOL_VERSION);
+	s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
+	if (!s->sums) out_of_memory("generate_sums");
+  
+	for (i=0;i<count;i++) {
+		int n1 = MIN(len,n);
+		char *map = map_ptr(buf,offset,n1);
 
-	motd = lp_motd_file();
-	if (motd && *motd) {
-		FILE *f = fopen(motd,"r");
-		while (f && !feof(f)) {
-			int len = fread(line, 1, sizeof(line)-1, f);
-			if (len > 0) {
-				line[len] = 0;
-				io_printf(fd,"%s", line);
-			}
-		}
-		if (f) fclose(f);
-		io_printf(fd,"\n");
+		s->sums[i].sum1 = get_checksum1(map,n1);
+		get_checksum2(map,n1,s->sums[i].sum2);
+
+		s->sums[i].offset = offset;
+		s->sums[i].len = n1;
+		s->sums[i].i = i;
+
+		if (verbose > 3)
+			rprintf(FINFO,"chunk[%d] offset=%d len=%d sum1=%08x\n",
+				i,(int)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
+
+		len -= n1;
+		offset += n1;
 	}
 
-	if (!read_line(fd, line, sizeof(line)-1)) {
-		return -1;
-	}
-
-	if (sscanf(line,"@RSYNCD: %d", &remote_version) != 1) {
-		io_printf(fd,"@ERROR: protocol startup error\n");
-		return -1;
-	}	
-
-	while (i == -1) {
-		line[0] = 0;
-		if (!read_line(fd, line, sizeof(line)-1)) {
-			return -1;
-		}
-
-		if (!*line || strcmp(line,"#list")==0) {
-			send_listing(fd);
-			return -1;
-		} 
-
-		if (*line == '#') {
-			/* it's some sort of command that I don't understand */
-			io_printf(fd,"@ERROR: Unknown command '%s'\n", line);
-			return -1;
-		}
-
-		i = lp_number(line);
-		if (i == -1) {
-			io_printf(fd,"@ERROR: Unknown module '%s'\n", line);
-			return -1;
-		}
-	}
-
-	return rsync_module(fd, i);
+	return s;
 }

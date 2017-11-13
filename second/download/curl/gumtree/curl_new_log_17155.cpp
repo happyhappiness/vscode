@@ -1,10 +1,10 @@
 puts(
-"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
-"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
-"  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
-"  path the \"cookie\" should be used for (by specifying \"path=value\"), when the\n"
-"  cookie should expire (\"expire=DATE\"), for what domain to use it\n"
-"  (\"domain=NAME\") and if it should be used on secure connections only\n"
-"  (\"secure\").\n"
+"  about specific files/documents. To get curl to show detailed information\n"
+"  about a single file, you should use -I/--head option. It displays all\n"
+"  available info on a single file for HTTP and FTP. The HTTP information is a\n"
+"  lot more extensive.\n"
 "\n"
+"  For HTTP, you can get the header information (the same as -I would show)\n"
+"  shown before the data by using -i/--include. Curl understands the\n"
+"  -D/--dump-header option when getting files from both FTP and HTTP, and it\n"
 );

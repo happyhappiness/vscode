@@ -1,154 +1,83 @@
-static authn_status authn_ldap_check_password(request_rec *r, const char *user,
-                                              const char *password)
+static int h2_post_config(apr_pool_t *p, apr_pool_t *plog,
+                          apr_pool_t *ptemp, server_rec *s)
 {
-    char filtbuf[FILTER_LENGTH];
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
-
-    util_ldap_connection_t *ldc = NULL;
-    int result = 0;
-    int remote_user_attribute_set = 0;
-    const char *dn = NULL;
-    const char *utfpassword;
-
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)apr_pcalloc(r->pool, sizeof(authn_ldap_request_t));
-    ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-
-/*
-    if (!sec->enabled) {
-        return AUTH_USER_NOT_FOUND;
-    }
-*/
-
-    /*
-     * Basic sanity checks before any LDAP operations even happen.
-     */
-    if (!sec->have_ldap_url) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02558) 
-                      "no AuthLDAPURL");
-
-        return AUTH_GENERAL_ERROR;
-    }
-
-    /* There is a good AuthLDAPURL, right? */
-    if (sec->host) {
-        const char *binddn = sec->binddn;
-        const char *bindpw = sec->bindpw;
-        if (sec->initial_bind_as_user) {
-            bindpw = password;
-            binddn = ldap_determine_binddn(r, user);
-        }
-
-        ldc = util_ldap_connection_find(r, sec->host, sec->port,
-                                       binddn, bindpw,
-                                       sec->deref, sec->secure);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01690)
-                      "auth_ldap authenticate: no sec->host - weird...?");
-        return AUTH_GENERAL_ERROR;
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01691)
-                  "auth_ldap authenticate: using URL %s", sec->url);
-
-    /* Get the password that the client sent */
-    if (password == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01692)
-                      "auth_ldap authenticate: no password specified");
-        util_ldap_connection_close(ldc);
-        return AUTH_GENERAL_ERROR;
-    }
-
-    if (user == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01693)
-                      "auth_ldap authenticate: no user specified");
-        util_ldap_connection_close(ldc);
-        return AUTH_GENERAL_ERROR;
-    }
-
-    /* build the username filter */
-    authn_ldap_build_filter(filtbuf, r, user, NULL, sec);
-
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                      "auth_ldap authenticate: final authn filter is %s", filtbuf);
-
-    /* convert password to utf-8 */
-    utfpassword = authn_ldap_xlate_password(r, password);
-
-    /* do the user search */
-    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
-                                         sec->attributes, filtbuf, utfpassword,
-                                         &dn, &(req->vals));
-    util_ldap_connection_close(ldc);
-
-    /* handle bind failure */
-    if (result != LDAP_SUCCESS) {
-        if (!sec->bind_authoritative) {
-           ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01694)
-                      "auth_ldap authenticate: user %s authentication failed; "
-                      "URI %s [%s][%s] (not authoritative)",
-                      user, r->uri, ldc->reason, ldap_err2string(result));
-           return AUTH_USER_NOT_FOUND;
-        }
-
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01695)
-                      "auth_ldap authenticate: "
-                      "user %s authentication failed; URI %s [%s][%s]",
-                      user, r->uri, ldc->reason, ldap_err2string(result));
-
-        /* talking to a primitive LDAP server (like RACF-over-LDAP) that doesn't return specific errors */
-        if (!strcasecmp(sec->filter, "none") && LDAP_OTHER == result) { 
-            return AUTH_USER_NOT_FOUND;
-        }
-
-        return (LDAP_NO_SUCH_OBJECT == result) ? AUTH_USER_NOT_FOUND
-#ifdef LDAP_SECURITY_ERROR
-                 : (LDAP_SECURITY_ERROR(result)) ? AUTH_DENIED
-#else
-                 : (LDAP_INAPPROPRIATE_AUTH == result) ? AUTH_DENIED
-                 : (LDAP_INVALID_CREDENTIALS == result) ? AUTH_DENIED
-#ifdef LDAP_INSUFFICIENT_ACCESS
-                 : (LDAP_INSUFFICIENT_ACCESS == result) ? AUTH_DENIED
+    void *data = NULL;
+    const char *mod_h2_init_key = "mod_http2_init_counter";
+    nghttp2_info *ngh2;
+    apr_status_t status;
+    
+    (void)plog;(void)ptemp;
+#ifdef H2_NG2_CHANGE_PRIO
+    myfeats.change_prio = 1;
 #endif
-#ifdef LDAP_INSUFFICIENT_RIGHTS
-                 : (LDAP_INSUFFICIENT_RIGHTS == result) ? AUTH_DENIED
+#ifdef H2_OPENSSL
+    myfeats.sha256 = 1;
 #endif
+#ifdef H2_NG2_INVALID_HEADER_CB
+    myfeats.inv_headers = 1;
 #endif
-#ifdef LDAP_CONSTRAINT_VIOLATION
-    /* At least Sun Directory Server sends this if a user is
-     * locked. This is not covered by LDAP_SECURITY_ERROR.
-     */
-                 : (LDAP_CONSTRAINT_VIOLATION == result) ? AUTH_DENIED
+#ifdef H2_NG2_LOCAL_WIN_SIZE
+    myfeats.dyn_windows = 1;
 #endif
-                 : AUTH_GENERAL_ERROR;
+    
+    apr_pool_userdata_get(&data, mod_h2_init_key, s->process->pool);
+    if ( data == NULL ) {
+        ap_log_error( APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03089)
+                     "initializing post config dry run");
+        apr_pool_userdata_set((const void *)1, mod_h2_init_key,
+                              apr_pool_cleanup_null, s->process->pool);
+        return APR_SUCCESS;
     }
-
-    /* mark the user and DN */
-    req->dn = apr_pstrdup(r->pool, dn);
-    req->user = apr_pstrdup(r->pool, user);
-    req->password = apr_pstrdup(r->pool, password);
-    if (sec->user_is_dn) {
-        r->user = req->dn;
+    
+    ngh2 = nghttp2_version(0);
+    ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
+                 "mod_http2 (v%s, feats=%s%s%s%s, nghttp2 %s), initializing...",
+                 MOD_HTTP2_VERSION, 
+                 myfeats.change_prio? "CHPRIO"  : "", 
+                 myfeats.sha256?      "+SHA256" : "",
+                 myfeats.inv_headers? "+INVHD"  : "",
+                 myfeats.dyn_windows? "+DWINS"  : "",
+                 ngh2?                ngh2->version_str : "unknown");
+    
+    switch (h2_conn_mpm_type()) {
+        case H2_MPM_SIMPLE:
+        case H2_MPM_MOTORZ:
+        case H2_MPM_NETWARE:
+        case H2_MPM_WINNT:
+            /* not sure we need something extra for those. */
+            break;
+        case H2_MPM_EVENT:
+        case H2_MPM_WORKER:
+            /* all fine, we know these ones */
+            break;
+        case H2_MPM_PREFORK:
+            /* ok, we now know how to handle that one */
+            break;
+        case H2_MPM_UNKNOWN:
+            /* ??? */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03091)
+                         "post_config: mpm type unknown");
+            break;
     }
-
-    /* add environment variables */
-    remote_user_attribute_set = set_request_vars(r, LDAP_AUTHN);
-
-    /* sanity check */
-    if (sec->remote_user_attribute && !remote_user_attribute_set) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01696)
-                  "auth_ldap authenticate: "
-                  "REMOTE_USER was to be set with attribute '%s', "
-                  "but this attribute was not requested for in the "
-                  "LDAP query for the user. REMOTE_USER will fall "
-                  "back to username or DN as appropriate.",
-                  sec->remote_user_attribute);
+    
+    if (!h2_mpm_supported() && !mpm_warned) {
+        mpm_warned = 1;
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(10034)
+                     "The mpm module (%s) is not supported by mod_http2. The mpm determines "
+                     "how things are processed in your server. HTTP/2 has more demands in "
+                     "this regard and the currently selected mpm will just not do. "
+                     "This is an advisory warning. Your server will continue to work, but "
+                     "the HTTP/2 protocol will be inactive.", 
+                     h2_conn_mpm_name());
     }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01697)
-                  "auth_ldap authenticate: accepting %s", user);
-
-    return AUTH_GRANTED;
+    
+    status = h2_h2_init(p, s);
+    if (status == APR_SUCCESS) {
+        status = h2_switch_init(p, s);
+    }
+    if (status == APR_SUCCESS) {
+        status = h2_task_init(p, s);
+    }
+    
+    return status;
 }

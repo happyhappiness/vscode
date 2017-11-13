@@ -1,12 +1,12 @@
-int io_start_buffering_out(int f_out)
+int io_start_buffering_in(int f_in)
 {
-	if (iobuf_out) {
-		assert(f_out == iobuf_f_out);
+	if (iobuf_in) {
+		assert(f_in == iobuf_f_in);
 		return 0;
 	}
-	if (!(iobuf_out = new_array(char, IO_BUFFER_SIZE)))
-		out_of_memory("io_start_buffering_out");
-	iobuf_out_cnt = 0;
-	iobuf_f_out = f_out;
+	iobuf_in_siz = 2 * IO_BUFFER_SIZE;
+	if (!(iobuf_in = new_array(char, iobuf_in_siz)))
+		out_of_memory("io_start_buffering_in");
+	iobuf_f_in = f_in;
 	return 1;
 }

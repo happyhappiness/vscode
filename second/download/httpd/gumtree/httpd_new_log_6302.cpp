@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                          "h2_stream(%ld-%d): consumed %ld bytes, window now %d/%d",
-                          session->id, stream->id, (long)amount, 
-                          cur_size, stream->in_window_size);
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(03142)
+                             "apr_thread_create: unable to create worker thread");

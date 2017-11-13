@@ -1,78 +1,75 @@
-static int rerere_forget_one_path(const char *path, struct string_list *rr)
+static void copy_templates_1(char *path, int baselen,
+			     char *template, int template_baselen,
+			     DIR *dir)
 {
-	const char *filename;
-	struct rerere_id *id;
-	unsigned char sha1[20];
-	int ret;
-	struct string_list_item *item;
+	struct dirent *de;
 
-	/*
-	 * Recreate the original conflict from the stages in the
-	 * index and compute the conflict ID
+	/* Note: if ".git/hooks" file exists in the repository being
+	 * re-initialized, /etc/core-git/templates/hooks/update would
+	 * cause "git init" to fail here.  I think this is sane but
+	 * it means that the set of templates we ship by default, along
+	 * with the way the namespace under .git/ is organized, should
+	 * be really carefully chosen.
 	 */
-	ret = handle_cache(path, sha1, NULL);
-	if (ret < 1)
-		return error("Could not parse conflict hunks in '%s'", path);
+	safe_create_dir(path, 1);
+	while ((de = readdir(dir)) != NULL) {
+		struct stat st_git, st_template;
+		int namelen;
+		int exists = 0;
 
-	/* Nuke the recorded resolution for the conflict */
-	id = new_rerere_id(sha1);
-
-	for (id->variant = 0;
-	     id->variant < id->collection->status_nr;
-	     id->variant++) {
-		mmfile_t cur = { NULL, 0 };
-		mmbuffer_t result = {NULL, 0};
-		int cleanly_resolved;
-
-		if (!has_rerere_resolution(id))
+		if (de->d_name[0] == '.')
 			continue;
-
-		handle_cache(path, sha1, rerere_path(id, "thisimage"));
-		if (read_mmfile(&cur, rerere_path(id, "thisimage"))) {
-			free(cur.ptr);
-			error("Failed to update conflicted state in '%s'", path);
-			goto fail_exit;
+		namelen = strlen(de->d_name);
+		if ((PATH_MAX <= baselen + namelen) ||
+		    (PATH_MAX <= template_baselen + namelen))
+			die(_("insanely long template name %s"), de->d_name);
+		memcpy(path + baselen, de->d_name, namelen+1);
+		memcpy(template + template_baselen, de->d_name, namelen+1);
+		if (lstat(path, &st_git)) {
+			if (errno != ENOENT)
+				die_errno(_("cannot stat '%s'"), path);
 		}
-		cleanly_resolved = !try_merge(id, path, &cur, &result);
-		free(result.ptr);
-		free(cur.ptr);
-		if (cleanly_resolved)
-			break;
-	}
-
-	if (id->collection->status_nr <= id->variant) {
-		error("no remembered resolution for '%s'", path);
-		goto fail_exit;
-	}
-
-	filename = rerere_path(id, "postimage");
-	if (unlink(filename)) {
-		if (errno == ENOENT)
-			error("no remembered resolution for %s", path);
 		else
-			error_errno("cannot unlink %s", filename);
-		goto fail_exit;
+			exists = 1;
+
+		if (lstat(template, &st_template))
+			die_errno(_("cannot stat template '%s'"), template);
+
+		if (S_ISDIR(st_template.st_mode)) {
+			DIR *subdir = opendir(template);
+			int baselen_sub = baselen + namelen;
+			int template_baselen_sub = template_baselen + namelen;
+			if (!subdir)
+				die_errno(_("cannot opendir '%s'"), template);
+			path[baselen_sub++] =
+				template[template_baselen_sub++] = '/';
+			path[baselen_sub] =
+				template[template_baselen_sub] = 0;
+			copy_templates_1(path, baselen_sub,
+					 template, template_baselen_sub,
+					 subdir);
+			closedir(subdir);
+		}
+		else if (exists)
+			continue;
+		else if (S_ISLNK(st_template.st_mode)) {
+			char lnk[256];
+			int len;
+			len = readlink(template, lnk, sizeof(lnk));
+			if (len < 0)
+				die_errno(_("cannot readlink '%s'"), template);
+			if (sizeof(lnk) <= len)
+				die(_("insanely long symlink %s"), template);
+			lnk[len] = 0;
+			if (symlink(lnk, path))
+				die_errno(_("cannot symlink '%s' '%s'"), lnk, path);
+		}
+		else if (S_ISREG(st_template.st_mode)) {
+			if (copy_file(path, template, st_template.st_mode))
+				die_errno(_("cannot copy '%s' to '%s'"), template,
+					  path);
+		}
+		else
+			error(_("ignoring template %s"), template);
 	}
-
-	/*
-	 * Update the preimage so that the user can resolve the
-	 * conflict in the working tree, run us again to record
-	 * the postimage.
-	 */
-	handle_cache(path, sha1, rerere_path(id, "preimage"));
-	fprintf(stderr, "Updated preimage for '%s'\n", path);
-
-	/*
-	 * And remember that we can record resolution for this
-	 * conflict when the user is done.
-	 */
-	item = string_list_insert(rr, path);
-	free_rerere_id(item);
-	item->util = id;
-	fprintf(stderr, "Forgot resolution for %s\n", path);
-	return 0;
-
-fail_exit:
-	free(id);
-	return -1;
 }

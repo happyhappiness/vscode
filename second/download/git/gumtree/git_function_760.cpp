@@ -1,41 +1,23 @@
-static void all_attrs_init(struct attr_hashmap *map, struct attr_check *check)
+static int rollback_is_safe(void)
 {
-	int i;
+	struct strbuf sb = STRBUF_INIT;
+	struct object_id expected_head, actual_head;
 
-	hashmap_lock(map);
-
-	if (map->map.size < check->all_attrs_nr)
-		die("BUG: interned attributes shouldn't be deleted");
-
-	/*
-	 * If the number of attributes in the global dictionary has increased
-	 * (or this attr_check instance doesn't have an initialized all_attrs
-	 * field), reallocate the provided attr_check instance's all_attrs
-	 * field and fill each entry with its corresponding git_attr.
-	 */
-	if (map->map.size != check->all_attrs_nr) {
-		struct attr_hash_entry *e;
-		struct hashmap_iter iter;
-		hashmap_iter_init(&map->map, &iter);
-
-		REALLOC_ARRAY(check->all_attrs, map->map.size);
-		check->all_attrs_nr = map->map.size;
-
-		while ((e = hashmap_iter_next(&iter))) {
-			const struct git_attr *a = e->value;
-			check->all_attrs[a->attr_nr].attr = a;
+	if (strbuf_read_file(&sb, git_path_abort_safety_file(), 0) >= 0) {
+		strbuf_trim(&sb);
+		if (get_oid_hex(sb.buf, &expected_head)) {
+			strbuf_release(&sb);
+			die(_("could not parse %s"), git_path_abort_safety_file());
 		}
+		strbuf_release(&sb);
 	}
+	else if (errno == ENOENT)
+		oidclr(&expected_head);
+	else
+		die_errno(_("could not read '%s'"), git_path_abort_safety_file());
 
-	hashmap_unlock(map);
+	if (get_oid("HEAD", &actual_head))
+		oidclr(&actual_head);
 
-	/*
-	 * Re-initialize every entry in check->all_attrs.
-	 * This re-initialization can live outside of the locked region since
-	 * the attribute dictionary is no longer being accessed.
-	 */
-	for (i = 0; i < check->all_attrs_nr; i++) {
-		check->all_attrs[i].value = ATTR__UNKNOWN;
-		check->all_attrs[i].macro = NULL;
-	}
+	return !oidcmp(&actual_head, &expected_head);
 }

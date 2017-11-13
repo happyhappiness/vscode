@@ -1,1 +1,1 @@
-die("The commit %s is corrupt", oid_to_hex(&b->oid));
+die("unable to join lazy_name_thread");

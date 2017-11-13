@@ -1,1 +1,1 @@
-fprintf(rpt, "  tip commit  : %s\n", oid_to_hex(&b->oid));
+die(_("remote error: %s"), arg);

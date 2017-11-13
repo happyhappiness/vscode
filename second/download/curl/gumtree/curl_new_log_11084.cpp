@@ -1,10 +1,11 @@
 fputs(
-"              http_connect   The  numerical  code  that  was found in the last\n"
-"                             response  (from  a  proxy)  to  a  curl   CONNECT\n"
-"                             request. (Added in 7.12.4)\n"
+"              starting with '>' means \"header data\" sent by  curl,  '<'  means\n"
+"              \"header  data\"  received by curl that is hidden in normal cases,\n"
+"              and a line starting with '*' means additional info  provided  by\n"
+"              curl.\n"
 "\n"
-"              local_ip       The  IP  address  of  the  local  end of the most\n"
-"                             recently done connection - can be either IPv4  or\n"
-"                             IPv6 (Added in 7.29.0)\n"
+"              Note  that  if  you  only  want  HTTP headers in the output, -i,\n"
+"              --include might be the option you're looking for.\n"
 "\n"
+"              If you think this option still doesn't give you enough  details,\n"
 , stdout);

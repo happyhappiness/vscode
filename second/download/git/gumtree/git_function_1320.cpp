@@ -1,25 +1,25 @@
-static int add_recent_loose(const unsigned char *sha1,
-			    const char *path, void *data)
+static struct child_process *git_proxy_connect(int fd[2], char *host)
 {
-	struct stat st;
-	struct object *obj = lookup_object(sha1);
+	const char *port = STR(DEFAULT_GIT_PORT);
+	struct child_process *proxy;
 
-	if (obj && obj->flags & SEEN)
-		return 0;
+	get_host_and_port(&host, &port);
 
-	if (stat(path, &st) < 0) {
-		/*
-		 * It's OK if an object went away during our iteration; this
-		 * could be due to a simultaneous repack. But anything else
-		 * we should abort, since we might then fail to mark objects
-		 * which should not be pruned.
-		 */
-		if (errno == ENOENT)
-			return 0;
-		return error("unable to stat %s: %s",
-			     sha1_to_hex(sha1), strerror(errno));
-	}
+	if (looks_like_command_line_option(host))
+		die("strange hostname '%s' blocked", host);
+	if (looks_like_command_line_option(port))
+		die("strange port '%s' blocked", port);
 
-	add_recent_object(sha1, st.st_mtime, data);
-	return 0;
+	proxy = xmalloc(sizeof(*proxy));
+	child_process_init(proxy);
+	argv_array_push(&proxy->args, git_proxy_command);
+	argv_array_push(&proxy->args, host);
+	argv_array_push(&proxy->args, port);
+	proxy->in = -1;
+	proxy->out = -1;
+	if (start_command(proxy))
+		die("cannot start proxy %s", git_proxy_command);
+	fd[0] = proxy->out; /* read from proxy stdout */
+	fd[1] = proxy->in;  /* write to proxy stdin */
+	return proxy;
 }

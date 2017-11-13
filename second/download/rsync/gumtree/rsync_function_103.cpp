@@ -1,55 +1,137 @@
-struct file_list *recv_file_list(int f)
-{
-  struct file_list *flist;
-  unsigned char flags;
+void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
+{  
+  int fd;
+  struct stat st;
+  char *buf;
+  struct sum_struct *s;
+  char sum[SUM_LENGTH];
+  int statret;
 
   if (verbose > 2)
-    fprintf(stderr,"recv_file_list starting\n");
+    fprintf(stderr,"recv_generator(%s)\n",fname);
 
-  flist = (struct file_list *)malloc(sizeof(flist[0]));
-  if (!flist)
-    goto oom;
+  statret = lstat(fname,&st);
 
-  flist->count=0;
-  flist->malloced=100;
-  flist->files = (struct file_struct *)malloc(sizeof(flist->files[0])*
-					      flist->malloced);
-  if (!flist->files)
-    goto oom;
-
-
-  for (flags=read_byte(f); flags; flags=read_byte(f)) {
-    int i = flist->count;
-
-    if (i >= flist->malloced) {
-      flist->malloced += 100;
-      flist->files =(struct file_struct *)realloc(flist->files,
-						  sizeof(flist->files[0])*
-						  flist->malloced);
-      if (!flist->files)
-	goto oom;
+#if SUPPORT_LINKS
+  if (preserve_links && S_ISLNK(flist->files[i].mode)) {
+    char lnk[MAXPATHLEN];
+    int l;
+    if (statret == 0) {
+      l = readlink(fname,lnk,MAXPATHLEN-1);
+      if (l > 0) {
+	lnk[l] = 0;
+	if (strcmp(lnk,flist->files[i].link) == 0) {
+	  if (verbose > 1) 
+	    fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);
+	  return;
+	}
+      }
     }
+    if (!dry_run) unlink(fname);
+    if (!dry_run && symlink(flist->files[i].link,fname) != 0) {
+      fprintf(stderr,"link %s -> %s : %s\n",
+	      fname,flist->files[i].link,strerror(errno));
+    } else {
+      if (verbose) 
+	fprintf(am_server?stderr:stdout,"%s -> %s\n",fname,flist->files[i].link);
+    }
+    return;
+  }
+#endif
 
-    receive_file_entry(&flist->files[i],flags,f);
+#ifdef HAVE_MKNOD
+  if (preserve_devices && IS_DEVICE(flist->files[i].mode)) {
+    if (statret != 0 || 
+	st.st_mode != flist->files[i].mode ||
+	st.st_rdev != flist->files[i].dev) {	
+      if (!dry_run) unlink(fname);
+      if (verbose > 2)
+	fprintf(stderr,"mknod(%s,0%o,0x%x)\n",
+		fname,(int)flist->files[i].mode,(int)flist->files[i].dev);
+      if (!dry_run && 
+	  mknod(fname,flist->files[i].mode,flist->files[i].dev) != 0) {
+	fprintf(stderr,"mknod %s : %s\n",fname,strerror(errno));
+      } else {
+	set_perms(fname,&flist->files[i],NULL,0);
+	if (verbose)
+	  fprintf(am_server?stderr:stdout,"%s\n",fname);
+      }
+    } else {
+      set_perms(fname,&flist->files[i],&st,1);
+    }
+    return;
+  }
+#endif
 
-    if (S_ISREG(flist->files[i].mode))
-      total_size += flist->files[i].length;
-
-    flist->count++;
-
-    if (verbose > 2)
-      fprintf(stderr,"recv_file_name(%s)\n",flist->files[i].name);
+  if (!S_ISREG(flist->files[i].mode)) {
+    fprintf(stderr,"skipping non-regular file %s\n",fname);
+    return;
   }
 
+  if (statret == -1) {
+    if (errno == ENOENT) {
+      write_int(f_out,i);
+      if (!dry_run) send_sums(NULL,f_out);
+    } else {
+      if (verbose > 1)
+	fprintf(stderr,"recv_generator failed to open %s\n",fname);
+    }
+    return;
+  }
 
-  if (verbose > 2)
-    fprintf(stderr,"received %d names\n",flist->count);
+  if (!S_ISREG(st.st_mode)) {
+    fprintf(stderr,"%s : not a regular file\n",fname);
+    return;
+  }
 
-  clean_flist(flist);
+  if (update_only && st.st_mtime >= flist->files[i].modtime) {
+    if (verbose > 1)
+      fprintf(stderr,"%s is newer\n",fname);
+    return;
+  }
 
-  return flist;
+  if (always_checksum && S_ISREG(st.st_mode)) {
+    file_checksum(fname,sum,st.st_size);
+  }
 
-oom:
-    out_of_memory("recv_file_list");
-    return NULL; /* not reached */
+  if (st.st_size == flist->files[i].length &&
+      ((!ignore_times && st.st_mtime == flist->files[i].modtime) ||
+       (always_checksum && S_ISREG(st.st_mode) && 	  
+	memcmp(sum,flist->files[i].sum,csum_length) == 0))) {
+    set_perms(fname,&flist->files[i],&st,1);
+    return;
+  }
+
+  if (dry_run) {
+    write_int(f_out,i);
+    return;
+  }
+
+  /* open the file */  
+  fd = open(fname,O_RDONLY);
+
+  if (fd == -1) {
+    fprintf(stderr,"failed to open %s : %s\n",fname,strerror(errno));
+    return;
+  }
+
+  if (st.st_size > 0) {
+    buf = map_file(fd,st.st_size);
+  } else {
+    buf = NULL;
+  }
+
+  if (verbose > 3)
+    fprintf(stderr,"mapped %s of size %d\n",fname,(int)st.st_size);
+
+  s = generate_sums(buf,st.st_size,block_size);
+
+  write_int(f_out,i);
+  send_sums(s,f_out);
+  write_flush(f_out);
+
+  close(fd);
+  unmap_file(buf,st.st_size);
+
+  free_sums(s);
 }

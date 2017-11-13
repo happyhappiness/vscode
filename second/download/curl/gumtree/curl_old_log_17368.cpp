@@ -1,11 +1,10 @@
 puts(
-"  use a non-existing file to trigger the cookie awareness like:\n"
+"  about specific files/documents. To get curl to show detailed information\n"
+"  about a single file, you should use -I/--head option. It displays all\n"
+"  available info on a single file for HTTP and FTP. The HTTP information is a\n"
+"  lot more extensive.\n"
 "\n"
-"        curl -L -b empty.txt www.example.com\n"
-"\n"
-"  The file to read cookies from must be formatted using plain HTTP headers OR\n"
-"  as netscape's cookie file. Curl will determine what kind it is based on the\n"
-"  file contents.  In the above command, curl will parse the header and store\n"
-"  the cookies received from www.example.com.  curl will send to the server the\n"
-"  stored cookies which match the request as it follows the location.  The\n"
+"  For HTTP, you can get the header information (the same as -I would show)\n"
+"  shown before the data by using -i/--include. Curl understands the\n"
+"  -D/--dump-header option when getting files from both FTP and HTTP, and it\n"
 );

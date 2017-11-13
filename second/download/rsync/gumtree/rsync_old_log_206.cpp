@@ -1,2 +1,1 @@
-fprintf(FERROR,"Error reading %d bytes : %s\n",
-	      len,ret==-1?strerror(errno):"EOF");
+fprintf(stderr,"mapped %s of size %d\n",fname,(int)st.st_size);

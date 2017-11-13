@@ -77,6 +77,7 @@ class SrcmlApi:
         self.log = []
         self.control_node = None
         self.control = []
+        self.control_depenedence_loc = []
         # initiate logs and calls/types info
         self.logs = []
         self.calls = set()
@@ -100,7 +101,7 @@ class SrcmlApi:
             if location == log_location:
                 self.log_node = call
                 # get info for log node(call --name --argumentlist)
-                self.log = self._get_info_for_node(self.log_node[1])
+                self.log, temp_loc = self._get_info_for_node(self.log_node[1])
                 # self.log.sort()
                 return True
         return False
@@ -120,6 +121,14 @@ class SrcmlApi:
         @ involve get control info for log, getter\n
         """
         return self.control
+
+    def get_control_depenedence_loc(self):
+        """
+        @ param [call after: self.set_control_dependence()]\n
+        @ return self.control_depenedence_loc\n
+        @ involve get control dependence locations for log, getter\n
+        """
+        return set(self.control_depenedence_loc)
 
     def set_control_dependence(self):
         """
@@ -161,8 +170,11 @@ class SrcmlApi:
                             # break
                 # get info(function, decl) for control dependence
                 self.control = []
+                self.control_depenedence_loc = []
                 for temp_node in self.control_node:
-                    self.control += self._get_info_for_node(temp_node)
+                    control_info, control_loc = self._get_info_for_node(temp_node)
+                    self.control += control_info
+                    self.control_depenedence_loc += control_loc
                 return True
 
         return False
@@ -193,7 +205,7 @@ class SrcmlApi:
                 if check == []:
                     continue
                 # variable (argumentlist)
-                variable = self._get_info_for_node(call_node[1])
+                variable, temp_loc = self._get_info_for_node(call_node[1])
                 self.logs.append([loc, log, json.dumps(check), json.dumps(variable)])
             # call info
             self.calls.add(name)
@@ -239,13 +251,16 @@ class SrcmlApi:
         @ involve get and analyze dependent info for given node(call info + name dependence)\n
         """
         # filter out the one with log statement changes
-        name_nodes, node_info = self._get_pure_name_nodes(node)
+        name_nodes, node_info, loc_info = self._get_pure_name_nodes(node)
         for name_node in name_nodes:
             name_line = int(self._get_location(name_node))
             depended_nodes = self._get_depended_nodes(name_node)
             type_info = None
             arg_info = None
             return_info = None
+            type_loc = None
+            arg_loc = None
+            return_loc = None
             # iterate from name node
             depended_lines = depended_nodes.keys()
             depended_lines.sort(key=lambda d:abs(int(d)-name_line))
@@ -267,25 +282,34 @@ class SrcmlApi:
                 # level 1
                 if depended_type == my_constant.VAR_FUNC_RETURN:
                     return_info = info + my_constant.FlAG_FUNC_RETURN
+                    return_loc = depended_line
                     break
                 elif depended_type == my_constant.VAR_FUNC_ARG_RETURN:
                     return_info = info + my_constant.FlAG_FUNC_ARG_RETURN
+                    return_loc = depended_line
                     break
                 # record nearest arg and decl
                 elif depended_type == my_constant.VAR_TYPE and type_info is None:
                     type_info = info + my_constant.FlAG_TYPE
+                    type_loc = depended_line
                 elif depended_type == my_constant.VAR_FUNC_ARG and arg_info is None:
                     arg_info = info + my_constant.FlAG_FUNC_ARG
+                    arg_loc = depended_line
             # return > arg > var type
             if return_info is not None:
                 info = return_info
+                loc = return_loc
             elif arg_info is not None:
                 info = arg_info
+                loc = arg_loc
             else:
                 info = type_info
+                loc = type_loc
             node_info.append(info)
+            if info is not None:
+                loc_info.append(loc - 1)
 
-        return node_info
+        return node_info, loc_info
 
     def _get_depended_nodes(self, node):
         """
@@ -360,7 +384,7 @@ class SrcmlApi:
     def _get_pure_name_nodes(self, node):
         """
         @ param node(not none)\n
-        @ return pure name node (no median call, has text), call info\n
+        @ return pure name node (no median call, has text), call info and loc info\n
         @ involve get name nodes without expanding call, call info add\n
         """
         name_nodes = []
@@ -379,12 +403,15 @@ class SrcmlApi:
 
         # add call info for call descendants
         call_info = []
+        loc_info = []
         for call_node in node.iterdescendants(tag=self.call_tag):
             # call --name --argument list ----argument
             info = self._get_text_for_nested_name(call_node[0])
             if info not in self.log_functions and info not in self.log_functions_extend:
                 call_info.append(info + my_constant.FlAG_FUNC_RETURN)
-        return name_nodes, call_info
+                # add location for call, index from 0
+                loc_info.append(self._get_location_for_nested_node(call_node[0]) - 1)
+        return name_nodes, call_info, loc_info
 
     def _is_case_for_node(self, case_node, node):
         """
@@ -578,10 +605,10 @@ if __name__ == "__main__":
     # input function cpp file
     # srcml_api = SrcmlApi('second/download/git/repos/git-2.6.7/commit.c', is_function=False)
     # print srcml_api.get_functions(0, "_test")
-    # srcml_api = SrcmlApi('second/download/git/gumtree/git_repos_function_4242_git-2.7.6.cpp', is_function=True)
-    # print srcml_api.get_logs_calls_types()
-    srcml_api = SrcmlApi('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2380_httpd-2.2.34.cpp', True)
-    if srcml_api.set_log_loc(36):
-        if srcml_api.set_control_dependence():
-            print srcml_api.get_control_info()
-            print srcml_api.get_log_info()
+    srcml_api = SrcmlApi('second/download/git/gumtree/git_repos_function_4004_git-2.1.4.cpp', is_function=True)
+    print srcml_api.get_logs_calls_types()
+    # srcml_api = SrcmlApi('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2380_httpd-2.2.34.cpp', True)
+    # if srcml_api.set_log_loc(36):
+    #     if srcml_api.set_control_dependence():
+    #         print srcml_api.get_control_info()
+    #         print srcml_api.get_log_info()

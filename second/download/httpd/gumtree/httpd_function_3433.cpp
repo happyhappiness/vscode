@@ -1,92 +1,35 @@
-static int uldap_connection_open(request_rec *r,
-                                 util_ldap_connection_t *ldc)
+static int cache_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 {
-    int rc = 0;
-    int failures = 0;
-    int new_connection = 0;
-    util_ldap_state_t *st;
+    request_rec *r = f->r;
+    cache_request_rec *cache;
 
-    /* sanity check for NULL */
-    if (!ldc) {
-        return -1;
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
+                                                       &cache_module);
+
+    if (!cache) {
+        /* user likely configured CACHE_OUT manually; they should use mod_cache
+         * configuration to do that */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "CACHE_OUT enabled unexpectedly");
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, bb);
     }
 
-    /* If the connection is already bound, return
-    */
-    if (ldc->bound)
-    {
-        ldc->reason = "LDAP: connection open successful (already bound)";
-        return LDAP_SUCCESS;
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: running CACHE_OUT filter");
 
-    /* create the ldap session handle
-    */
-    if (NULL == ldc->ldap)
-    {
-       new_connection = 1;
-       rc = uldap_connection_init( r, ldc );
-       if (LDAP_SUCCESS != rc)
-       {
-           return rc;
-       }
-    }
+    /* restore status of cached response */
+    /* XXX: This exposes a bug in mem_cache, since it does not
+     * restore the status into it's handle. */
+    r->status = cache->handle->cache_obj->info.status;
 
+    /* recall_headers() was called in cache_select() */
+    cache->provider->recall_body(cache->handle, r->pool, bb);
 
-    st = (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
-                                                   &ldap_module);
+    /* This filter is done once it has served up its content */
+    ap_remove_output_filter(f);
 
-    /* loop trying to bind up to 10 times if LDAP_SERVER_DOWN error is
-     * returned. If LDAP_TIMEOUT is returned on the first try, maybe the
-     * connection was idle for a long time and has been dropped by a firewall.
-     * In this case close the connection immediately and try again.
-     *
-     * On Success or any other error, break out of the loop.
-     *
-     * NOTE: Looping is probably not a great idea. If the server isn't
-     * responding the chances it will respond after a few tries are poor.
-     * However, the original code looped and it only happens on
-     * the error condition.
-     */
-    for (failures=0; failures<10; failures++)
-    {
-        rc = uldap_simple_bind(ldc, (char *)ldc->binddn, (char *)ldc->bindpw,
-                               st->opTimeout);
-        if ((AP_LDAP_IS_SERVER_DOWN(rc) && failures == 5) ||
-            (rc == LDAP_TIMEOUT && failures == 0))
-        {
-            if (rc == LDAP_TIMEOUT && !new_connection) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "ldap_simple_bind() timed out on reused "
-                              "connection, dropped by firewall?");
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "attempt to re-init the connection");
-            uldap_connection_unbind( ldc );
-            rc = uldap_connection_init( r, ldc );
-            if (LDAP_SUCCESS != rc)
-            {
-                break;
-            }
-        }
-        else if (!AP_LDAP_IS_SERVER_DOWN(rc)) {
-            break;
-        }
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                      "ldap_simple_bind() failed with server down "
-                      "(try %d)", failures + 1);
-    }
-
-    /* free the handle if there was an error
-    */
-    if (LDAP_SUCCESS != rc)
-    {
-        uldap_connection_unbind(ldc);
-        ldc->reason = "LDAP: ldap_simple_bind() failed";
-    }
-    else {
-        ldc->bound = 1;
-        ldc->reason = "LDAP: connection open successful";
-    }
-
-    return(rc);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: serving %s", r->uri);
+    return ap_pass_brigade(f->next, bb);
 }

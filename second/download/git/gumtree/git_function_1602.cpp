@@ -1,91 +1,134 @@
-static int delete_branches(int argc, const char **argv, int force, int kinds,
-			   int quiet)
+static int get_cmd_result(struct imap_store *ctx, struct imap_cmd *tcmd)
 {
-	struct commit *head_rev = NULL;
-	unsigned char sha1[20];
-	char *name = NULL;
-	const char *fmt;
-	int i;
-	int ret = 0;
-	int remote_branch = 0;
-	struct strbuf bname = STRBUF_INIT;
+	struct imap *imap = ctx->imap;
+	struct imap_cmd *cmdp, **pcmdp, *ncmdp;
+	char *cmd, *arg, *arg1, *p;
+	int n, resp, resp2, tag;
 
-	switch (kinds) {
-	case REF_REMOTE_BRANCH:
-		fmt = "refs/remotes/%s";
-		/* For subsequent UI messages */
-		remote_branch = 1;
+	for (;;) {
+		if (buffer_gets(&imap->buf, &cmd))
+			return RESP_BAD;
 
-		force = 1;
-		break;
-	case REF_LOCAL_BRANCH:
-		fmt = "refs/heads/%s";
-		break;
-	default:
-		die(_("cannot use -a with -d"));
+		arg = next_arg(&cmd);
+		if (*arg == '*') {
+			arg = next_arg(&cmd);
+			if (!arg) {
+				fprintf(stderr, "IMAP error: unable to parse untagged response\n");
+				return RESP_BAD;
+			}
+
+			if (!strcmp("NAMESPACE", arg)) {
+				/* rfc2342 NAMESPACE response. */
+				skip_list(&cmd); /* Personal mailboxes */
+				skip_list(&cmd); /* Others' mailboxes */
+				skip_list(&cmd); /* Shared mailboxes */
+			} else if (!strcmp("OK", arg) || !strcmp("BAD", arg) ||
+				   !strcmp("NO", arg) || !strcmp("BYE", arg)) {
+				if ((resp = parse_response_code(ctx, NULL, cmd)) != RESP_OK)
+					return resp;
+			} else if (!strcmp("CAPABILITY", arg)) {
+				parse_capability(imap, cmd);
+			} else if ((arg1 = next_arg(&cmd))) {
+				; /*
+				   * Unhandled response-data with at least two words.
+				   * Ignore it.
+				   *
+				   * NEEDSWORK: Previously this case handled '<num> EXISTS'
+				   * and '<num> RECENT' but as a probably-unintended side
+				   * effect it ignores other unrecognized two-word
+				   * responses.  imap-send doesn't ever try to read
+				   * messages or mailboxes these days, so consider
+				   * eliminating this case.
+				   */
+			} else {
+				fprintf(stderr, "IMAP error: unable to parse untagged response\n");
+				return RESP_BAD;
+			}
+		} else if (!imap->in_progress) {
+			fprintf(stderr, "IMAP error: unexpected reply: %s %s\n", arg, cmd ? cmd : "");
+			return RESP_BAD;
+		} else if (*arg == '+') {
+			/* This can happen only with the last command underway, as
+			   it enforces a round-trip. */
+			cmdp = (struct imap_cmd *)((char *)imap->in_progress_append -
+			       offsetof(struct imap_cmd, next));
+			if (cmdp->cb.data) {
+				n = socket_write(&imap->buf.sock, cmdp->cb.data, cmdp->cb.dlen);
+				free(cmdp->cb.data);
+				cmdp->cb.data = NULL;
+				if (n != (int)cmdp->cb.dlen)
+					return RESP_BAD;
+			} else if (cmdp->cb.cont) {
+				if (cmdp->cb.cont(ctx, cmdp, cmd))
+					return RESP_BAD;
+			} else {
+				fprintf(stderr, "IMAP error: unexpected command continuation request\n");
+				return RESP_BAD;
+			}
+			if (socket_write(&imap->buf.sock, "\r\n", 2) != 2)
+				return RESP_BAD;
+			if (!cmdp->cb.cont)
+				imap->literal_pending = 0;
+			if (!tcmd)
+				return DRV_OK;
+		} else {
+			tag = atoi(arg);
+			for (pcmdp = &imap->in_progress; (cmdp = *pcmdp); pcmdp = &cmdp->next)
+				if (cmdp->tag == tag)
+					goto gottag;
+			fprintf(stderr, "IMAP error: unexpected tag %s\n", arg);
+			return RESP_BAD;
+		gottag:
+			if (!(*pcmdp = cmdp->next))
+				imap->in_progress_append = pcmdp;
+			imap->num_in_progress--;
+			if (cmdp->cb.cont || cmdp->cb.data)
+				imap->literal_pending = 0;
+			arg = next_arg(&cmd);
+			if (!strcmp("OK", arg))
+				resp = DRV_OK;
+			else {
+				if (!strcmp("NO", arg)) {
+					if (cmdp->cb.create && cmd && (cmdp->cb.trycreate || !memcmp(cmd, "[TRYCREATE]", 11))) { /* SELECT, APPEND or UID COPY */
+						p = strchr(cmdp->cmd, '"');
+						if (!issue_imap_cmd(ctx, NULL, "CREATE \"%.*s\"", (int)(strchr(p + 1, '"') - p + 1), p)) {
+							resp = RESP_BAD;
+							goto normal;
+						}
+						/* not waiting here violates the spec, but a server that does not
+						   grok this nonetheless violates it too. */
+						cmdp->cb.create = 0;
+						if (!(ncmdp = issue_imap_cmd(ctx, &cmdp->cb, "%s", cmdp->cmd))) {
+							resp = RESP_BAD;
+							goto normal;
+						}
+						free(cmdp->cmd);
+						free(cmdp);
+						if (!tcmd)
+							return 0;	/* ignored */
+						if (cmdp == tcmd)
+							tcmd = ncmdp;
+						continue;
+					}
+					resp = RESP_NO;
+				} else /*if (!strcmp("BAD", arg))*/
+					resp = RESP_BAD;
+				fprintf(stderr, "IMAP command '%s' returned response (%s) - %s\n",
+					 memcmp(cmdp->cmd, "LOGIN", 5) ?
+							cmdp->cmd : "LOGIN <user> <pass>",
+							arg, cmd ? cmd : "");
+			}
+			if ((resp2 = parse_response_code(ctx, &cmdp->cb, cmd)) > resp)
+				resp = resp2;
+		normal:
+			if (cmdp->cb.done)
+				cmdp->cb.done(ctx, cmdp, resp);
+			free(cmdp->cb.data);
+			free(cmdp->cmd);
+			free(cmdp);
+			if (!tcmd || tcmd == cmdp)
+				return resp;
+		}
 	}
-
-	if (!force) {
-		head_rev = lookup_commit_reference(head_sha1);
-		if (!head_rev)
-			die(_("Couldn't look up commit object for HEAD"));
-	}
-	for (i = 0; i < argc; i++, strbuf_release(&bname)) {
-		const char *target;
-		int flags = 0;
-
-		strbuf_branchname(&bname, argv[i]);
-		if (kinds == REF_LOCAL_BRANCH && !strcmp(head, bname.buf)) {
-			error(_("Cannot delete the branch '%s' "
-			      "which you are currently on."), bname.buf);
-			ret = 1;
-			continue;
-		}
-
-		free(name);
-
-		name = mkpathdup(fmt, bname.buf);
-		target = resolve_ref_unsafe(name,
-					    RESOLVE_REF_READING
-					    | RESOLVE_REF_NO_RECURSE
-					    | RESOLVE_REF_ALLOW_BAD_NAME,
-					    sha1, &flags);
-		if (!target) {
-			error(remote_branch
-			      ? _("remote branch '%s' not found.")
-			      : _("branch '%s' not found."), bname.buf);
-			ret = 1;
-			continue;
-		}
-
-		if (!(flags & (REF_ISSYMREF|REF_ISBROKEN)) &&
-		    check_branch_commit(bname.buf, name, sha1, head_rev, kinds,
-					force)) {
-			ret = 1;
-			continue;
-		}
-
-		if (delete_ref(name, sha1, REF_NODEREF)) {
-			error(remote_branch
-			      ? _("Error deleting remote branch '%s'")
-			      : _("Error deleting branch '%s'"),
-			      bname.buf);
-			ret = 1;
-			continue;
-		}
-		if (!quiet) {
-			printf(remote_branch
-			       ? _("Deleted remote branch %s (was %s).\n")
-			       : _("Deleted branch %s (was %s).\n"),
-			       bname.buf,
-			       (flags & REF_ISBROKEN) ? "broken"
-			       : (flags & REF_ISSYMREF) ? target
-			       : find_unique_abbrev(sha1, DEFAULT_ABBREV));
-		}
-		delete_branch_config(bname.buf);
-	}
-
-	free(name);
-
-	return(ret);
+	/* not reached */
 }

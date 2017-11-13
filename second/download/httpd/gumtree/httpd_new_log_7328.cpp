@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "apr_xlate_open(): %pm (%d)\n",
-                &rv, rv);
+apr_file_printf(errfile, "Could not open passwd file %s for writing: %pm\n",
+                    argv[2], &rv);

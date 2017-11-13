@@ -1,10 +1,10 @@
 fputs(
-"       --ciphers <list of ciphers>\n"
-"              (SSL) Specifies which ciphers to use in the connection. The list\n"
-"              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
-"              list           details           on           this          URL:\n"
-"              http://www.openssl.org/docs/apps/ciphers.html\n"
+"              ate).\n"
 "\n"
-"              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
-"              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
+"       -c, --cookie-jar <file name>\n"
+"              (HTTP)  Specify to which file you want curl to write all cookies\n"
+"              after a completed operation. Curl writes all cookies  previously\n"
+"              read  from a specified file as well as all cookies received from\n"
+"              remote server(s). If no cookies are known, no file will be writ-\n"
+"              ten.  The  file  will  be written using the Netscape cookie file\n"
 , stdout);

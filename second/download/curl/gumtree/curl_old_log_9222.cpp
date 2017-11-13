@@ -1,9 +1,11 @@
 fputs(
-"              equals character between the option and its parameter.\n"
+"              Typical browsers always discard  session  cookies  when  they're\n"
+"              closed down.\n"
 "\n"
-"              If the parameter is to contain whitespace, the parameter must be\n"
-"              enclosed within quotes.  Within  double  quotes,  the  following\n"
-"              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
-"              backslash preceding any other letter is ignored.  If  the  first\n"
-"              column of a config line is a '#' character, the rest of the line\n"
+"       -J, --remote-header-name\n"
+"              (HTTP) This option tells the -O, --remote-name option to use the\n"
+"              server-specified   Content-Disposition   filename   instead   of\n"
+"              extracting a filename from the URL.\n"
+"\n"
+"              There's  no  attempt to decode %-sequences (yet) in the provided\n"
 , stdout);

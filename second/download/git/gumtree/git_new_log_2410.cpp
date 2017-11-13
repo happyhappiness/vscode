@@ -1,1 +1,1 @@
-warning_errno("unable to %s %s", op, file);
+printf(" %s", oid_to_hex(&children->item->object.oid));

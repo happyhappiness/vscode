@@ -1,1 +1,1 @@
-fprintf(FERROR, "inflateIncomp returned %d\n", r);
+fprintf(FINFO,"recv_files(%s)\n",fname);

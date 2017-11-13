@@ -1,34 +1,41 @@
-static apr_status_t out_open(h2_mplx *m, int stream_id, h2_response *response)
-{
-    apr_status_t status = APR_SUCCESS;
-    h2_task *task = h2_ihash_get(m->tasks, stream_id);
-    h2_stream *stream = h2_ihash_get(m->streams, stream_id);
-    
-    if (!task || !stream) {
-        return APR_ECONNABORTED;
+static apr_status_t bucketeer_buffer(h2_conn_io *io) {
+    const char *data = io->buffer;
+    apr_size_t remaining = io->buflen;
+    apr_bucket *b;
+    int bcount, i;
+
+    if (io->write_size > WRITE_SIZE_INITIAL 
+        && (io->cooldown_usecs > 0)
+        && (apr_time_now() - io->last_write) >= io->cooldown_usecs) {
+        /* long time not written, reset write size */
+        io->write_size = WRITE_SIZE_INITIAL;
+        io->bytes_written = 0;
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
+                      "h2_conn_io(%ld): timeout write size reset to %ld", 
+                      (long)io->connection->id, (long)io->write_size);
+    }
+    else if (io->write_size < WRITE_SIZE_MAX 
+             && io->bytes_written >= io->warmup_size) {
+        /* connection is hot, use max size */
+        io->write_size = WRITE_SIZE_MAX;
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
+                      "h2_conn_io(%ld): threshold reached, write size now %ld", 
+                      (long)io->connection->id, (long)io->write_size);
     }
     
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                  "h2_mplx(%s): open response: %d, rst=%d",
-                  task->id, response->http_status, response->rst_error);
-    
-    h2_task_set_response(task, response);
-    
-    if (task->output.beam) {
-        h2_beam_buffer_size_set(task->output.beam, m->stream_max_mem);
-        h2_beam_timeout_set(task->output.beam, m->stream_timeout);
-        h2_beam_on_consumed(task->output.beam, stream_output_consumed, task);
-        m->tx_handles_reserved -= h2_beam_get_files_beamed(task->output.beam);
-        h2_beam_on_file_beam(task->output.beam, can_beam_file, m);
-        h2_beam_mutex_set(task->output.beam, beam_enter, task->cond, m);
+    bcount = (int)(remaining / io->write_size);
+    for (i = 0; i < bcount; ++i) {
+        b = apr_bucket_transient_create(data, io->write_size, 
+                                        io->output->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(io->output, b);
+        data += io->write_size;
+        remaining -= io->write_size;
     }
     
-    h2_ihash_add(m->sready, stream);
-    if (response && response->http_status < 300) {
-        /* we might see some file buckets in the output, see
-         * if we have enough handles reserved. */
-        check_tx_reservation(m);
+    if (remaining > 0) {
+        b = apr_bucket_transient_create(data, remaining, 
+                                        io->output->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(io->output, b);
     }
-    have_out_data_for(m, stream_id);
-    return status;
+    return APR_SUCCESS;
 }

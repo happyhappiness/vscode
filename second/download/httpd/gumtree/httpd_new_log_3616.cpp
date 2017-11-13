@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, main_server, APLOGNO(01565)
-                         "using low-order bits of IPv6 address "
-                         "as if they were unique");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00602)
+                                  "Within the DAV:activity-set element, the "
+                                  "DAV:new element must be used, or at least "
+                                  "one DAV:href must be specified.");

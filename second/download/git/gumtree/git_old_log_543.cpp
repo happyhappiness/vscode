@@ -1,1 +1,1 @@
-wt_status_print_other(s, &s->untracked, _("Untracked files"), "add");
+die("invalid commit %s", sha1_to_hex(result_sha1));

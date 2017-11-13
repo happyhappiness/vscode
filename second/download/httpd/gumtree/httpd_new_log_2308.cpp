@@ -1,2 +1,3 @@
-fprintf(stderr,
-            "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv0);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         ap_threads_per_child);

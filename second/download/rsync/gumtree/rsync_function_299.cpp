@@ -1,28 +1,49 @@
-static int do_recv(int f_in,int f_out,struct file_list *flist,char *local_name)
+int copy_file(char *source, char *dest, mode_t mode)
 {
-  int pid;
-  int status=0;
-  int recv_pipe[2];
+	int ifd;
+	int ofd;
+	char buf[1024 * 8];
+	int len;   /* Number of bytes read into `buf'. */
 
-  if (preserve_hard_links)
-    init_hard_links(flist);
+	ifd = open(source, O_RDONLY);
+	if (ifd == -1) {
+		fprintf(FERROR,"open %s: %s\n",
+			source,strerror(errno));
+		return -1;
+	}
 
-  if (pipe(recv_pipe) < 0) {
-    fprintf(FERROR,"pipe failed in do_recv\n");
-    exit(1);
-  }
-  
+	if (unlink(dest) && errno != ENOENT) {
+		fprintf(FERROR,"unlink %s: %s\n",
+			dest,strerror(errno));
+		return -1;
+	}
 
-  if ((pid=fork()) == 0) {
-    recv_files(f_in,flist,local_name,recv_pipe[1]);
-    if (verbose > 2)
-      fprintf(FERROR,"receiver read %d\n",read_total());
-    exit_cleanup(0);
-  }
+	ofd = open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode);
+	if (ofd < 0) {
+		fprintf(FERROR,"open %s: %s\n",
+			dest,strerror(errno));
+		close(ifd);
+		return -1;
+	}
 
-  generate_files(f_out,flist,local_name,recv_pipe[0]);
+	while ((len = safe_read(ifd, buf, sizeof(buf))) > 0) {
+		if (full_write(ofd, buf, len) < 0) {
+			fprintf(FERROR,"write %s: %s\n",
+				dest,strerror(errno));
+			close(ifd);
+			close(ofd);
+			return -1;
+		}
+	}
 
-  waitpid(pid, &status, 0);
+	close(ifd);
+	close(ofd);
 
-  return status;
+	if (len < 0) {
+		fprintf(FERROR,"read %s: %s\n",
+			source,strerror(errno));
+		return -1;
+	}
+
+	return 0;
 }

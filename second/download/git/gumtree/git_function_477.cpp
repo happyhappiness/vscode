@@ -1,19 +1,14 @@
-static void save_todo(struct commit_list *todo_list, struct replay_opts *opts)
+static void use(int bytes)
 {
-	static struct lock_file todo_lock;
-	struct strbuf buf = STRBUF_INIT;
-	int fd;
+	if (bytes > len)
+		die("used more bytes than were available");
+	len -= bytes;
+	offset += bytes;
 
-	fd = hold_lock_file_for_update(&todo_lock, git_path_todo_file(), LOCK_DIE_ON_ERROR);
-	if (format_todo(&buf, todo_list, opts) < 0)
-		die(_("Could not format %s."), git_path_todo_file());
-	if (write_in_full(fd, buf.buf, buf.len) < 0) {
-		strbuf_release(&buf);
-		die_errno(_("Could not write to %s"), git_path_todo_file());
-	}
-	if (commit_lock_file(&todo_lock) < 0) {
-		strbuf_release(&buf);
-		die(_("Error wrapping up %s."), git_path_todo_file());
-	}
-	strbuf_release(&buf);
+	/* make sure off_t is sufficiently large not to wrap */
+	if (signed_add_overflows(consumed_bytes, bytes))
+		die("pack too large for current definition of off_t");
+	consumed_bytes += bytes;
+	if (max_input_size && consumed_bytes > max_input_size)
+		die(_("pack exceeds maximum allowed size"));
 }

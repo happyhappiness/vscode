@@ -1,1 +1,1 @@
-fprintf(FINFO,"deleting directory %s\n",f_name(f));
+fprintf(FINFO, "sum=%.8x k=%d\n", sum, k);

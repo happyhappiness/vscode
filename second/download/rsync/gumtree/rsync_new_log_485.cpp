@@ -1,1 +1,0 @@
-rprintf(FINFO,"built hash table\n");

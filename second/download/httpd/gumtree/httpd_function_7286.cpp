@@ -56,6 +56,13 @@ static apr_status_t deflate_in_filter(ap_filter_t *f,
             return rv;
         }
 
+        /* zero length body? step aside */
+        bkt = APR_BRIGADE_FIRST(ctx->bb);
+        if (APR_BUCKET_IS_EOS(bkt)) {
+            ap_remove_input_filter(f);
+            return ap_get_brigade(f->next, bb, mode, block, readbytes);
+        }
+
         apr_table_unset(r->headers_in, "Content-Length");
         apr_table_unset(r->headers_in, "Content-MD5");
 
@@ -116,12 +123,19 @@ static apr_status_t deflate_in_filter(ap_filter_t *f,
             const char *data;
             apr_size_t len;
 
-            /* If we actually see the EOS, that means we screwed up! */
             if (APR_BUCKET_IS_EOS(bkt)) {
-                inflateEnd(&ctx->stream);
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01390)
-                              "Encountered EOS bucket in inflate filter (bug?)");
-                return APR_EGENERAL;
+                if (!ctx->done) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(
+                            APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02481) "Encountered premature end-of-stream while inflating");
+                    return APR_EGENERAL;
+                }
+
+                /* Move everything to the returning brigade. */
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
+                ap_remove_input_filter(f);
+                break;
             }
 
             if (APR_BUCKET_IS_FLUSH(bkt)) {
@@ -148,6 +162,13 @@ static apr_status_t deflate_in_filter(ap_filter_t *f,
                 APR_BUCKET_REMOVE(bkt);
                 APR_BRIGADE_CONCAT(bb, ctx->bb);
                 break;
+            }
+
+            /* sanity check - data after completed compressed body and before eos? */
+            if (ctx->done) {
+                ap_log_rerror(
+                        APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02482) "Encountered extra data after compressed data");
+                return APR_EGENERAL;
             }
 
             /* read */
@@ -187,7 +208,7 @@ static apr_status_t deflate_in_filter(ap_filter_t *f,
                 }
             }
             if (zRC == Z_STREAM_END) {
-                apr_bucket *tmp_heap, *eos;
+                apr_bucket *tmp_heap;
 
                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
                               "Zlib: Inflated %ld to %ld : URL %s",
@@ -234,9 +255,7 @@ static apr_status_t deflate_in_filter(ap_filter_t *f,
 
                 inflateEnd(&ctx->stream);
 
-                eos = apr_bucket_eos_create(f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, eos);
-                break;
+                ctx->done = 1;
             }
 
         }

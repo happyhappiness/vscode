@@ -1,10 +1,9 @@
 fputs(
-"              NOTE:  The  file size is not always known prior to download, and\n"
-"              for such files this option has no effect even if the file trans-\n"
-"              fer  ends  up  being larger than this given limit. This concerns\n"
-"              both FTP and HTTP transfers.\n"
+"              Maximum  time  in  seconds that you allow the whole operation to\n"
+"              take.  This is useful for preventing your batch jobs from  hang-\n"
+"              ing  for  hours due to slow networks or links going down.  Since\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
+"              out will decrease in accuracy as the specified timeout increases\n"
+"              in decimal precision.  See also the --connect-timeout option.\n"
 "\n"
-"       --mail-rcpt <address>\n"
-"              (SMTP) Specify a single address, user name or mailing list name.\n"
-"              When performing a mail transfer, the recipient should specify  a\n"
 , stdout);

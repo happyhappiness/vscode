@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00561)
-                              "Request header exceeds LimitRequestFieldSize%s"
-                              "%.*s",
-                              *field ? ": " : "",
-                              field_name_len(field), field);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03401)
+                          "h2_session(%ld): conn error -> shutdown", session->id);

@@ -1,147 +1,261 @@
-static authn_status authn_ldap_check_password(request_rec *r, const char *user,
-                                              const char *password)
+static void test(void)
 {
-    int failures = 0;
-    char filtbuf[FILTER_LENGTH];
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    apr_time_t stoptime;
+    apr_int16_t rtnev;
+    apr_status_t rv;
+    int i;
+    apr_status_t status;
+    int snprintf_res = 0;
+#ifdef NOT_ASCII
+    apr_size_t inbytes_left, outbytes_left;
+#endif
 
-    util_ldap_connection_t *ldc = NULL;
-    int result = 0;
-    int remote_user_attribute_set = 0;
-    const char *dn = NULL;
-    const char *utfpassword;
-
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)apr_pcalloc(r->pool, sizeof(authn_ldap_request_t));
-    ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-
-/*
-    if (!sec->enabled) {
-        return AUTH_USER_NOT_FOUND;
-    }
-*/
-
-    /*
-     * Basic sanity checks before any LDAP operations even happen.
-     */
-    if (!sec->have_ldap_url) {
-        return AUTH_GENERAL_ERROR;
-    }
-
-start_over:
-
-    /* There is a good AuthLDAPURL, right? */
-    if (sec->host) {
-        const char *binddn = sec->binddn;
-        const char *bindpw = sec->bindpw;
-        if (sec->initial_bind_as_user) {
-            bindpw = password;
-            binddn = ldap_determine_binddn(r, user);
-        }
-
-        ldc = util_ldap_connection_find(r, sec->host, sec->port,
-                                       binddn, bindpw,
-                                       sec->deref, sec->secure);
+    if (isproxy) {
+        connecthost = apr_pstrdup(cntxt, proxyhost);
+        connectport = proxyport;
     }
     else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no sec->host - weird...?", getpid());
-        return AUTH_GENERAL_ERROR;
+        connecthost = apr_pstrdup(cntxt, hostname);
+        connectport = port;
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: using URL %s", getpid(), sec->url);
-
-    /* Get the password that the client sent */
-    if (password == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no password specified", getpid());
-        util_ldap_connection_close(ldc);
-        return AUTH_GENERAL_ERROR;
+    if (!use_html) {
+        printf("Benchmarking %s ", hostname);
+    if (isproxy)
+        printf("[through %s:%d] ", proxyhost, proxyport);
+    printf("(be patient)%s",
+           (heartbeatres ? "\n" : "..."));
+    fflush(stdout);
     }
 
-    if (user == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no user specified", getpid());
-        util_ldap_connection_close(ldc);
-        return AUTH_GENERAL_ERROR;
+    con = calloc(concurrency, sizeof(struct connection));
+
+    /*
+     * XXX: a way to calculate the stats without requiring O(requests) memory
+     * XXX: would be nice.
+     */
+    stats = calloc(requests, sizeof(struct data));
+    if (stats == NULL) {
+    	err("Cannot allocate memory for result statistics");
     }
 
-    /* build the username filter */
-    authn_ldap_build_filter(filtbuf, r, user, NULL, sec);
+    if ((status = apr_pollset_create(&readbits, concurrency, cntxt,
+                                     APR_POLLSET_NOCOPY)) != APR_SUCCESS) {
+        apr_err("apr_pollset_create failed", status);
+    }
 
-    /* convert password to utf-8 */
-    utfpassword = authn_ldap_xlate_password(r, password);
+    /* add default headers if necessary */
+    if (!opt_host) {
+        /* Host: header not overridden, add default value to hdrs */
+        hdrs = apr_pstrcat(cntxt, hdrs, "Host: ", host_field, colonhost, "\r\n", NULL);
+    }
+    else {
+        /* Header overridden, no need to add, as it is already in hdrs */
+    }
 
-    /* do the user search */
-    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
-                                         sec->attributes, filtbuf, utfpassword,
-                                         &dn, &(req->vals));
-    util_ldap_connection_close(ldc);
+    if (!opt_useragent) {
+        /* User-Agent: header not overridden, add default value to hdrs */
+        hdrs = apr_pstrcat(cntxt, hdrs, "User-Agent: ApacheBench/", AP_AB_BASEREVISION, "\r\n", NULL);
+    }
+    else {
+        /* Header overridden, no need to add, as it is already in hdrs */
+    }
 
-    /* sanity check - if server is down, retry it up to 5 times */
-    if (AP_LDAP_IS_SERVER_DOWN(result)) {
-        if (failures++ <= 5) {
-            goto start_over;
+    if (!opt_accept) {
+        /* Accept: header not overridden, add default value to hdrs */
+        hdrs = apr_pstrcat(cntxt, hdrs, "Accept: */*\r\n", NULL);
+    }
+    else {
+        /* Header overridden, no need to add, as it is already in hdrs */
+    }
+
+    /* setup request */
+    if (!send_body) {
+        snprintf_res = apr_snprintf(request, sizeof(_request),
+            "%s %s HTTP/1.0\r\n"
+            "%s" "%s" "%s"
+            "%s" "\r\n",
+            method_str[method],
+            (isproxy) ? fullurl : path,
+            keepalive ? "Connection: Keep-Alive\r\n" : "",
+            cookie, auth, hdrs);
+    }
+    else {
+        snprintf_res = apr_snprintf(request,  sizeof(_request),
+            "%s %s HTTP/1.0\r\n"
+            "%s" "%s" "%s"
+            "Content-length: %" APR_SIZE_T_FMT "\r\n"
+            "Content-type: %s\r\n"
+            "%s"
+            "\r\n",
+            method_str[method],
+            (isproxy) ? fullurl : path,
+            keepalive ? "Connection: Keep-Alive\r\n" : "",
+            cookie, auth,
+            postlen,
+            (content_type[0]) ? content_type : "text/plain", hdrs);
+    }
+    if (snprintf_res >= sizeof(_request)) {
+        err("Request too long\n");
+    }
+
+    if (verbosity >= 2)
+        printf("INFO: %s header == \n---\n%s\n---\n", 
+               method_str[method], request);
+
+    reqlen = strlen(request);
+
+    /*
+     * Combine headers and (optional) post file into one continuous buffer
+     */
+    if (send_body) {
+        char *buff = malloc(postlen + reqlen + 1);
+        if (!buff) {
+            fprintf(stderr, "error creating request buffer: out of memory\n");
+            return;
         }
+        strcpy(buff, request);
+        memcpy(buff + reqlen, postdata, postlen);
+        request = buff;
     }
 
-    /* handle bind failure */
-    if (result != LDAP_SUCCESS) {
-        if (!sec->bind_authoritative) {
-           ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
-                      "user %s authentication failed; URI %s [%s][%s] (not authoritative)",
-                      getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
-           return AUTH_USER_NOT_FOUND;
+#ifdef NOT_ASCII
+    inbytes_left = outbytes_left = reqlen;
+    status = apr_xlate_conv_buffer(to_ascii, request, &inbytes_left,
+                   request, &outbytes_left);
+    if (status || inbytes_left || outbytes_left) {
+        fprintf(stderr, "only simple translation is supported (%d/%"
+                        APR_SIZE_T_FMT "/%" APR_SIZE_T_FMT ")\n",
+                        status, inbytes_left, outbytes_left);
+        exit(1);
+    }
+#endif              /* NOT_ASCII */
+
+    /* This only needs to be done once */
+    if ((rv = apr_sockaddr_info_get(&destsa, connecthost, APR_UNSPEC, connectport, 0, cntxt))
+       != APR_SUCCESS) {
+        char buf[120];
+        apr_snprintf(buf, sizeof(buf),
+                 "apr_sockaddr_info_get() for %s", connecthost);
+        apr_err(buf, rv);
+    }
+
+    /* ok - lets start */
+    start = lasttime = apr_time_now();
+    stoptime = tlimit ? (start + apr_time_from_sec(tlimit)) : AB_MAX;
+
+#ifdef SIGINT 
+    /* Output the results if the user terminates the run early. */
+    apr_signal(SIGINT, output_results);
+#endif
+
+    /* initialise lots of requests */
+    for (i = 0; i < concurrency; i++) {
+        con[i].socknum = i;
+        start_connect(&con[i]);
+    }
+
+    do {
+        apr_int32_t n;
+        const apr_pollfd_t *pollresults;
+
+        n = concurrency;
+        do {
+            status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+        } while (APR_STATUS_IS_EINTR(status));
+        if (status != APR_SUCCESS)
+            apr_err("apr_poll", status);
+
+        if (!n) {
+            err("\nServer timed out\n\n");
         }
 
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
-                      "user %s authentication failed; URI %s [%s][%s]",
-                      getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
+        for (i = 0; i < n; i++) {
+            const apr_pollfd_t *next_fd = &(pollresults[i]);
+            struct connection *c;
 
-        return (LDAP_NO_SUCH_OBJECT == result) ? AUTH_USER_NOT_FOUND
-#ifdef LDAP_SECURITY_ERROR
-                 : (LDAP_SECURITY_ERROR(result)) ? AUTH_DENIED
-#else
-                 : (LDAP_INAPPROPRIATE_AUTH == result) ? AUTH_DENIED
-                 : (LDAP_INVALID_CREDENTIALS == result) ? AUTH_DENIED
-#ifdef LDAP_INSUFFICIENT_ACCESS
-                 : (LDAP_INSUFFICIENT_ACCESS == result) ? AUTH_DENIED
+            c = next_fd->client_data;
+
+            /*
+             * If the connection isn't connected how can we check it?
+             */
+            if (c->state == STATE_UNCONNECTED)
+                continue;
+
+            rtnev = next_fd->rtnevents;
+
+#ifdef USE_SSL
+            if (c->state == STATE_CONNECTED && c->ssl && SSL_in_init(c->ssl)) {
+                ssl_proceed_handshake(c);
+                continue;
+            }
 #endif
-#ifdef LDAP_INSUFFICIENT_RIGHTS
-                 : (LDAP_INSUFFICIENT_RIGHTS == result) ? AUTH_DENIED
+
+            /*
+             * Notes: APR_POLLHUP is set after FIN is received on some
+             * systems, so treat that like APR_POLLIN so that we try to read
+             * again.
+             *
+             * Some systems return APR_POLLERR with APR_POLLHUP.  We need to
+             * call read_connection() for APR_POLLHUP, so check for
+             * APR_POLLHUP first so that a closed connection isn't treated
+             * like an I/O error.  If it is, we never figure out that the
+             * connection is done and we loop here endlessly calling
+             * apr_poll().
+             */
+            if ((rtnev & APR_POLLIN) || (rtnev & APR_POLLPRI) || (rtnev & APR_POLLHUP))
+                read_connection(c);
+            if ((rtnev & APR_POLLERR) || (rtnev & APR_POLLNVAL)) {
+                bad++;
+                err_except++;
+                /* avoid apr_poll/EINPROGRESS loop on HP-UX, let recv discover ECONNREFUSED */
+                if (c->state == STATE_CONNECTING) { 
+                    read_connection(c);
+                }
+                else { 
+                    start_connect(c);
+                }
+                continue;
+            }
+            if (rtnev & APR_POLLOUT) {
+                if (c->state == STATE_CONNECTING) {
+                    rv = apr_socket_connect(c->aprsock, destsa);
+                    if (rv != APR_SUCCESS) {
+                        set_conn_state(c, STATE_UNCONNECTED);
+                        apr_socket_close(c->aprsock);
+                        err_conn++;
+                        if (bad++ > 10) {
+                            fprintf(stderr,
+                                    "\nTest aborted after 10 failures\n\n");
+                            apr_err("apr_socket_connect()", rv);
+                        }
+                        start_connect(c);
+                        continue;
+                    }
+                    else {
+                        set_conn_state(c, STATE_CONNECTED);
+#ifdef USE_SSL
+                        if (c->ssl)
+                            ssl_proceed_handshake(c);
+                        else
 #endif
-#endif
-                 : AUTH_GENERAL_ERROR;
-    }
+                        write_request(c);
+                    }
+                }
+                else {
+                    write_request(c);
+                }
+            }
+        }
+    } while (lasttime < stoptime && done < requests);
+    
+    if (heartbeatres)
+        fprintf(stderr, "Finished %d requests\n", done);
+    else
+        printf("..done\n");
 
-    /* mark the user and DN */
-    req->dn = apr_pstrdup(r->pool, dn);
-    req->user = apr_pstrdup(r->pool, user);
-    req->password = apr_pstrdup(r->pool, password);
-    if (sec->user_is_dn) {
-        r->user = req->dn;
-    }
-
-    /* add environment variables */
-    remote_user_attribute_set = set_request_vars(r, LDAP_AUTHN);
-
-    /* sanity check */
-    if (sec->remote_user_attribute && !remote_user_attribute_set) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
-                  "REMOTE_USER was to be set with attribute '%s', "
-                  "but this attribute was not requested for in the "
-                  "LDAP query for the user. REMOTE_USER will fall "
-                  "back to username or DN as appropriate.", getpid(),
-                  sec->remote_user_attribute);
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: accepting %s", getpid(), user);
-
-    return AUTH_GRANTED;
+    if (use_html)
+        output_html_results();
+    else
+        output_results(0);
 }

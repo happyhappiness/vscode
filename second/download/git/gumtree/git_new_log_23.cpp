@@ -1,1 +1,1 @@
-warning(_("--depth is ignored in local clones; use file:// instead."));
+die("internal error in blame::origin_decref");

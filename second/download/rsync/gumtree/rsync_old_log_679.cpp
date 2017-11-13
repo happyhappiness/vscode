@@ -1,1 +1,1 @@
-out_of_memory("add_exclude_line");
+io_printf(fd,"@RSYNCD: %d\n", PROTOCOL_VERSION);

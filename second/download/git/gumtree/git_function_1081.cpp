@@ -1,34 +1,19 @@
-static int pcre2match(struct grep_pat *p, const char *line, const char *eol,
-		regmatch_t *match, int eflags)
+static void refname_atom_parser_internal(struct refname_atom *atom,
+					 const char *arg, const char *name)
 {
-	int ret, flags = 0;
-	PCRE2_SIZE *ovector;
-	PCRE2_UCHAR errbuf[256];
-
-	if (eflags & REG_NOTBOL)
-		flags |= PCRE2_NOTBOL;
-
-	if (p->pcre2_jit_on)
-		ret = pcre2_jit_match(p->pcre2_pattern, (unsigned char *)line,
-				      eol - line, 0, flags, p->pcre2_match_data,
-				      NULL);
-	else
-		ret = pcre2_match(p->pcre2_pattern, (unsigned char *)line,
-				  eol - line, 0, flags, p->pcre2_match_data,
-				  NULL);
-
-	if (ret < 0 && ret != PCRE2_ERROR_NOMATCH) {
-		pcre2_get_error_message(ret, errbuf, sizeof(errbuf));
-		die("%s failed with error code %d: %s",
-		    (p->pcre2_jit_on ? "pcre2_jit_match" : "pcre2_match"), ret,
-		    errbuf);
-	}
-	if (ret > 0) {
-		ovector = pcre2_get_ovector_pointer(p->pcre2_match_data);
-		ret = 0;
-		match->rm_so = (int)ovector[0];
-		match->rm_eo = (int)ovector[1];
-	}
-
-	return ret;
+	if (!arg)
+		atom->option = R_NORMAL;
+	else if (!strcmp(arg, "short"))
+		atom->option = R_SHORT;
+	else if (skip_prefix(arg, "lstrip=", &arg) ||
+		 skip_prefix(arg, "strip=", &arg)) {
+		atom->option = R_LSTRIP;
+		if (strtol_i(arg, 10, &atom->lstrip))
+			die(_("Integer value expected refname:lstrip=%s"), arg);
+	} else if (skip_prefix(arg, "rstrip=", &arg)) {
+		atom->option = R_RSTRIP;
+		if (strtol_i(arg, 10, &atom->rstrip))
+			die(_("Integer value expected refname:rstrip=%s"), arg);
+	} else
+		die(_("unrecognized %%(%s) argument: %s"), name, arg);
 }

@@ -1,59 +1,77 @@
-static apr_status_t remove_directory(apr_pool_t *pool, const char *dir)
+apr_array_header_t *ssl_ext_list(apr_pool_t *p, conn_rec *c, int peer,
+                                 const char *extension)
 {
-    apr_status_t rv;
-    apr_dir_t *dirp;
-    apr_finfo_t dirent;
+    SSLConnRec *sslconn = myConnConfig(c);
+    SSL *ssl = NULL;
+    apr_array_header_t *array = NULL;
+    X509 *xs = NULL;
+    ASN1_OBJECT *oid = NULL;
+    int count = 0, j;
 
-    rv = apr_dir_open(&dirp, dir, pool);
-    if (rv == APR_ENOENT) {
-        return rv;
+    if (!sslconn || !sslconn->ssl || !extension) {
+        return NULL;
     }
-    if (rv != APR_SUCCESS) {
-        char errmsg[120];
-        apr_file_printf(errfile, "Could not open directory %s: %s" APR_EOL_STR,
-                dir, apr_strerror(rv, errmsg, sizeof errmsg));
-        return rv;
+    ssl = sslconn->ssl;
+
+    /* We accept the "extension" string to be converted as
+     * a long name (nsComment), short name (DN) or
+     * numeric OID (1.2.3.4).
+     */
+    oid = OBJ_txt2obj(extension, 0);
+    if (!oid) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "could not parse OID '%s'", extension);
+        ERR_clear_error();
+        return NULL;
     }
 
-    while (apr_dir_read(&dirent, APR_FINFO_DIRENT | APR_FINFO_TYPE, dirp)
-            == APR_SUCCESS) {
-        if (dirent.filetype == APR_DIR) {
-            if (strcmp(dirent.name, ".") && strcmp(dirent.name, "..")) {
-                rv = remove_directory(pool, apr_pstrcat(pool, dir, "/",
-                        dirent.name, NULL));
-                /* tolerate the directory not being empty, the cache may have
-                 * attempted to recreate the directory in the mean time.
-                 */
-                if (APR_SUCCESS != rv && APR_ENOTEMPTY != rv) {
-                    break;
-                }
+    xs = peer ? SSL_get_peer_certificate(ssl) : SSL_get_certificate(ssl);
+    if (xs == NULL) {
+        return NULL;
+    }
+
+    count = X509_get_ext_count(xs);
+    /* Create an array large enough to accomodate every extension. This is
+     * likely overkill, but safe.
+     */
+    array = apr_array_make(p, count, sizeof(char *));
+    for (j = 0; j < count; j++) {
+        X509_EXTENSION *ext = X509_get_ext(xs, j);
+
+        if (OBJ_cmp(ext->object, oid) == 0) {
+            BIO *bio = BIO_new(BIO_s_mem());
+
+            /* We want to obtain a string representation of the extensions
+             * value and add it to the array we're building.
+             * X509V3_EXT_print() doesn't know about all the possible
+             * data types, but the value is stored as an ASN1_OCTET_STRING
+             * allowing us a fallback in case of X509V3_EXT_print
+             * not knowing how to handle the data.
+             */
+            if (X509V3_EXT_print(bio, ext, 0, 0) == 1 ||
+                dump_extn_value(bio, X509_EXTENSION_get_data(ext)) == 1) {
+                BUF_MEM *buf;
+                char **ptr = apr_array_push(array);
+                BIO_get_mem_ptr(bio, &buf);
+                *ptr = apr_pstrmemdup(p, buf->data, buf->length);
+            } else {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "Found an extension '%s', but failed to "
+                              "create a string from it", extension);
             }
-        } else {
-            const char *file = apr_pstrcat(pool, dir, "/", dirent.name, NULL);
-            rv = apr_file_remove(file, pool);
-            if (APR_SUCCESS != rv) {
-                char errmsg[120];
-                apr_file_printf(errfile,
-                        "Could not remove file '%s': %s" APR_EOL_STR, file,
-                        apr_strerror(rv, errmsg, sizeof errmsg));
-                break;
-            }
+            BIO_vfree(bio);
         }
     }
 
-    apr_dir_close(dirp);
+    if (array->nelts == 0)
+        array = NULL;
 
-    if (rv == APR_SUCCESS) {
-        rv = apr_dir_remove(dir, pool);
-        if (APR_ENOTEMPTY == rv) {
-            rv = APR_SUCCESS;
-        }
-        if (rv != APR_SUCCESS) {
-            char errmsg[120];
-            apr_file_printf(errfile, "Could not remove directory %s: %s" APR_EOL_STR,
-                    dir, apr_strerror(rv, errmsg, sizeof errmsg));
-        }
+    if (peer) {
+        /* only SSL_get_peer_certificate raises the refcount */
+        X509_free(xs);
     }
 
-    return rv;
+    ASN1_OBJECT_free(oid);
+    ERR_clear_error();
+    return array;
 }

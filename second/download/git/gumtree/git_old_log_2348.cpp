@@ -1,1 +1,1 @@
-warning("cannot get host name: %s", strerror(errno));
+fprintf(f, "%s\n", sha1_to_hex(obj->sha1));

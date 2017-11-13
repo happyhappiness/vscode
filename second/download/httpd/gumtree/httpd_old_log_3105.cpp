@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv2, s,
-                          "DBD: Failed to create thread mutex");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
+                  "Digest: cleaning up shared memory");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00299)
-                             "apr_proc_detach failed");
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_TRACE3, rv, l->pool,
+                      "Mutex %s:%d released!", l->file, l->line);

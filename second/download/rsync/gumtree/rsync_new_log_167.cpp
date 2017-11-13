@@ -1,1 +1,1 @@
-fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"done hash search\n");

@@ -1,1 +1,2 @@
-error("could not lock config file %s: %s", config_filename, strerror(errno));
+fprintf(stderr, "%s %s... %s\n", msg,
+		find_unique_abbrev(commit->object.sha1, DEFAULT_ABBREV), sb.buf);

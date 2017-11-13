@@ -1,4 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                     "Attempt to obtain a cache lock for stale "
-                     "cached URL failed, revalidating entry anyway: %s",
-                     r->unparsed_uri);
+printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");

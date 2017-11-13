@@ -1,1 +1,1 @@
-fprintf(f,"-c, --checksum           always checksum\n");
+fprintf(FINFO,"done\n");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00368)
-                     "GetModuleFileName failed");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c, APLOGNO(01920)
+                      "cannot handle OCSP responder URI '%s'", s);

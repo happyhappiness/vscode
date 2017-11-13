@@ -1,2 +1,2 @@
-error(_("Cannot get commit message for %s"),
-			sha1_to_hex(commit->object.sha1));
+printf("There are only 'skip'ped commits left to test.\n"
+	       "The first bad commit could be any of:\n");

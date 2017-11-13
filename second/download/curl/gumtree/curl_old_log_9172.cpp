@@ -1,11 +1,10 @@
 fputs(
-"              NOTE that the file specified with -b, --cookie is only  used  as\n"
-"              input.  No cookies will be stored in the file. To store cookies,\n"
-"              use the -c, --cookie-jar option or you could even save the  HTTP\n"
-"              headers to a file using -D, --dump-header!\n"
-"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -B, --use-ascii\n"
-"              (FTP/LDAP)  Enable  ASCII  transfer.  For  FTP, this can also be\n"
+"       --anyauth\n"
+"              (HTTP) Tells curl to figure out authentication method by itself,\n"
+"              and use the most secure one the remote site claims  to  support.\n"
+"              This is done by first doing a request and checking the response-\n"
+"              headers, thus possibly inducing  an  extra  network  round-trip.\n"
+"              This  is  used  instead  of  setting  a  specific authentication\n"
 , stdout);

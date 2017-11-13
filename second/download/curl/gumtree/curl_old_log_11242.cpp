@@ -1,12 +1,8 @@
 fputs(
-"              tificate  has  been  revoked, or no response at all is received,\n"
-"              the verification fails.\n"
-"\n"
-"              This is currently only implemented in the  OpenSSL,  GnuTLS  and\n"
-"              NSS backends.  (Added in 7.41.0)\n"
-"\n"
-"       --false-start\n"
-"\n"
-"              (SSL)  Tells  curl  to use false start during the TLS handshake.\n"
-"              False start is a mode where a  TLS  client  will  start  sending\n"
+"  from sites that require valid certificates. The only drawback is that the\n"
+"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
+"  store certificates with, but it is not used by the most commonly used\n"
+"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
+"  want curl to use the certificates you use with your (favourite) browser, you\n"
+"  may need to download/compile a converter that can convert your browser's\n"
 , stdout);

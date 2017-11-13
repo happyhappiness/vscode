@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02402)
-                             "re-grabbing shm[%d] (0x%pp) for worker: %s", i, (void *)shm,
-                             ap_proxy_worker_name(conf->pool, worker));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02603)
+                                 "create found %s in global list", fname);

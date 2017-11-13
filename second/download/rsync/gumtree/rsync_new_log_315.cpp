@@ -1,1 +1,1 @@
-fprintf(FINFO,"sending file_sum\n");
+out_of_memory("md4 sum");

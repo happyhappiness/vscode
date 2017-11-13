@@ -1,11 +1,10 @@
 fputs(
-"              file name refer to -J, --remote-header-name which can be used in\n"
-"              addition to this option. If the server chooses a file  name  and\n"
-"              that name already exists it will not be overwritten.\n"
+"              Added in 7.16.2.\n"
 "\n"
-"              There is no URL decoding done on the file name. If it has %20 or\n"
-"              other URL encoded parts of the name, they will end up  as-is  as\n"
-"              file name.\n"
-"\n"
-"              You  may use this option as many times as the number of URLs you\n"
+"       -e, --referer <URL>\n"
+"              (HTTP) Sends the \"Referrer Page\" information to the HTTP server.\n"
+"              This can also be set with the -H, --header flag of course.  When\n"
+"              used  with  -L,  --location  you  can  append \";auto\" to the -e,\n"
+"              --referer URL to make curl automatically set  the  previous  URL\n"
+"              when  it  follows  a Location: header. The \";auto\" string can be\n"
 , stdout);

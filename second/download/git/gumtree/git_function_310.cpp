@@ -1,44 +1,48 @@
-static int add_possible_reference_from_superproject(
-		struct alternate_object_database *alt, void *sas_cb)
+static void build_fake_ancestor(struct patch *list, const char *filename)
 {
-	struct submodule_alternate_setup *sas = sas_cb;
+	struct patch *patch;
+	struct index_state result = { NULL };
+	static struct lock_file lock;
 
-	/*
-	 * If the alternate object store is another repository, try the
-	 * standard layout with .git/modules/<name>/objects
+	/* Once we start supporting the reverse patch, it may be
+	 * worth showing the new sha1 prefix, but until then...
 	 */
-	if (ends_with(alt->path, ".git/objects")) {
-		char *sm_alternate;
-		struct strbuf sb = STRBUF_INIT;
-		struct strbuf err = STRBUF_INIT;
-		strbuf_add(&sb, alt->path, strlen(alt->path) - strlen("objects"));
+	for (patch = list; patch; patch = patch->next) {
+		unsigned char sha1[20];
+		struct cache_entry *ce;
+		const char *name;
 
-		/*
-		 * We need to end the new path with '/' to mark it as a dir,
-		 * otherwise a submodule name containing '/' will be broken
-		 * as the last part of a missing submodule reference would
-		 * be taken as a file name.
-		 */
-		strbuf_addf(&sb, "modules/%s/", sas->submodule_name);
+		name = patch->old_name ? patch->old_name : patch->new_name;
+		if (0 < patch->is_new)
+			continue;
 
-		sm_alternate = compute_alternate_path(sb.buf, &err);
-		if (sm_alternate) {
-			string_list_append(sas->reference, xstrdup(sb.buf));
-			free(sm_alternate);
-		} else {
-			switch (sas->error_mode) {
-			case SUBMODULE_ALTERNATE_ERROR_DIE:
-				die(_("submodule '%s' cannot add alternate: %s"),
-				    sas->submodule_name, err.buf);
-			case SUBMODULE_ALTERNATE_ERROR_INFO:
-				fprintf(stderr, _("submodule '%s' cannot add alternate: %s"),
-					sas->submodule_name, err.buf);
-			case SUBMODULE_ALTERNATE_ERROR_IGNORE:
-				; /* nothing */
-			}
-		}
-		strbuf_release(&sb);
+		if (S_ISGITLINK(patch->old_mode)) {
+			if (!preimage_sha1_in_gitlink_patch(patch, sha1))
+				; /* ok, the textual part looks sane */
+			else
+				die("sha1 information is lacking or useless for submodule %s",
+				    name);
+		} else if (!get_sha1_blob(patch->old_sha1_prefix, sha1)) {
+			; /* ok */
+		} else if (!patch->lines_added && !patch->lines_deleted) {
+			/* mode-only change: update the current */
+			if (get_current_sha1(patch->old_name, sha1))
+				die("mode change for %s, which is not "
+				    "in current HEAD", name);
+		} else
+			die("sha1 information is lacking or useless "
+			    "(%s).", name);
+
+		ce = make_cache_entry(patch->old_mode, sha1, name, 0, 0);
+		if (!ce)
+			die(_("make_cache_entry failed for path '%s'"), name);
+		if (add_index_entry(&result, ce, ADD_CACHE_OK_TO_ADD))
+			die ("Could not add %s to temporary index", name);
 	}
 
-	return 0;
+	hold_lock_file_for_update(&lock, filename, LOCK_DIE_ON_ERROR);
+	if (write_locked_index(&result, &lock, COMMIT_LOCK))
+		die ("Could not write temporary index to %s", filename);
+
+	discard_index(&result);
 }

@@ -1,90 +1,90 @@
-static apr_status_t store_body(cache_handle_t *h, request_rec *r,
-                               apr_bucket_brigade *bb)
+int ap_signal_server(int *exit_status, apr_pool_t *pconf)
 {
-    apr_bucket *e;
     apr_status_t rv;
-    disk_cache_object_t *dobj = (disk_cache_object_t *) h->cache_obj->vobj;
-    disk_cache_conf *conf = ap_get_module_config(r->server->module_config,
-                                                 &disk_cache_module);
+    pid_t otherpid;
+    int running = 0;
+    int have_pid_file = 0;
+    const char *status;
 
-    /* We write to a temp file and then atomically rename the file over
-     * in file_cache_el_final().
-     */
-    if (!dobj->tfd) {
-        rv = apr_file_mktemp(&dobj->tfd, dobj->tempfile,
-                             APR_CREATE | APR_WRITE | APR_BINARY |
-                             APR_BUFFERED | APR_EXCL, r->pool);
-        if (rv != APR_SUCCESS) {
-            return rv;
+    *exit_status = 0;
+
+    rv = ap_read_pid(pconf, ap_pid_fname, &otherpid);
+    if (rv != APR_SUCCESS) {
+        if (rv != APR_ENOENT) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rv, NULL,
+                         "Error retrieving pid file %s", ap_pid_fname);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "Remove it before continuing if it is corrupted.");
+            *exit_status = 1;
+            return 1;
         }
-        dobj->file_size = 0;
+        status = "httpd (no pid file) not running";
     }
-
-    for (e = APR_BRIGADE_FIRST(bb);
-         e != APR_BRIGADE_SENTINEL(bb);
-         e = APR_BUCKET_NEXT(e))
-    {
-        const char *str;
-        apr_size_t length, written;
-        rv = apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "cache_disk: Error when reading bucket for URL %s",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return rv;
+    else {
+        have_pid_file = 1;
+        if (kill(otherpid, 0) == 0) {
+            running = 1;
+            status = apr_psprintf(pconf,
+                                  "httpd (pid %" APR_PID_T_FMT ") already "
+                                  "running", otherpid);
         }
-        rv = apr_file_write_full(dobj->tfd, str, length, &written);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "cache_disk: Error when writing cache file for URL %s",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return rv;
-        }
-        dobj->file_size += written;
-        if (dobj->file_size > conf->maxfs) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache_disk: URL %s failed the size check "
-                         "(%" APR_OFF_T_FMT ">%" APR_SIZE_T_FMT ")",
-                         h->cache_obj->key, dobj->file_size, conf->maxfs);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
+        else {
+            status = apr_psprintf(pconf,
+                                  "httpd (pid %" APR_PID_T_FMT "?) not running",
+                                  otherpid);
         }
     }
 
-    /* Was this the final bucket? If yes, close the temp file and perform
-     * sanity checks.
-     */
-    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
-        if (r->connection->aborted || r->no_cache) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "disk_cache: Discarding body for URL %s "
-                         "because connection has been aborted.",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
+    if (!strcmp(dash_k_arg, "start")) {
+        if (running) {
+            printf("%s\n", status);
+            return 1;
         }
-        if (dobj->file_size < conf->minfs) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache_disk: URL %s failed the size check "
-                         "(%" APR_OFF_T_FMT "<%" APR_SIZE_T_FMT ")",
-                         h->cache_obj->key, dobj->file_size, conf->minfs);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
-        }
-
-        /* All checks were fine. Move tempfile to final destination */
-        /* Link to the perm file, and close the descriptor */
-        file_cache_el_final(dobj, r);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "disk_cache: Body for URL %s cached.",  dobj->name);
     }
 
-    return APR_SUCCESS;
+    if (!strcmp(dash_k_arg, "stop")) {
+        if (!running) {
+            printf("%s\n", status);
+        }
+        else {
+            send_signal(otherpid, SIGTERM);
+        }
+        return 1;
+    }
+
+    if (!strcmp(dash_k_arg, "restart")) {
+        if (!running) {
+            printf("httpd not running, trying to start\n");
+        }
+        else {
+            *exit_status = send_signal(otherpid, SIGHUP);
+            return 1;
+        }
+    }
+
+    if (!strcmp(dash_k_arg, "graceful")) {
+        if (!running) {
+            printf("httpd not running, trying to start\n");
+        }
+        else {
+            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL);
+            return 1;
+        }
+    }
+
+    if (!strcmp(dash_k_arg, "graceful-stop")) {
+#ifdef AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN
+        if (!running) {
+            printf("%s\n", status);
+        }
+        else {
+            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL_STOP);
+        }
+#else
+        printf("httpd MPM \"" MPM_NAME "\" does not support graceful-stop\n");
+#endif
+        return 1;
+    }
+
+    return 0;
 }

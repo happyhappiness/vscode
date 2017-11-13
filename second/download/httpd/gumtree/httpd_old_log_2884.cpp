@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
-                     "ISAPI: invalid module path, skipping %s", filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "shared memory segment too small");

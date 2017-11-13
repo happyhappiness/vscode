@@ -1,25 +1,40 @@
-static apr_status_t ap_headers_early(request_rec *r)
+static void hm_processmsg(hm_ctx_t *ctx, apr_pool_t *p,
+                                  apr_sockaddr_t *from, char *buf, int len)
 {
-    headers_conf *dirconf = ap_get_module_config(r->per_dir_config,
-                                                 &headers_module);
+    apr_table_t *tbl;
 
-    /* do the fixup */
-    if (dirconf->fixup_in->nelts) {
-        if (!do_headers_fixup(r, r->headers_in, dirconf->fixup_in, 1))
-            goto err;
+    buf[len] = '\0';
+
+    tbl = apr_table_make(p, 10);
+
+    qs_to_table(buf, tbl, p);
+
+    if (apr_table_get(tbl, "v") != NULL &&
+        apr_table_get(tbl, "busy") != NULL &&
+        apr_table_get(tbl, "ready") != NULL) {
+        char *ip;
+        int port = 80;
+        hm_server_t *s;
+        /* TODO: REMOVE ME BEFORE PRODUCTION (????) */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s,
+                     "Heartmonitor: %pI busy=%s ready=%s", from,
+                     apr_table_get(tbl, "busy"), apr_table_get(tbl, "ready"));
+
+        apr_sockaddr_ip_get(&ip, from);
+
+        if (apr_table_get(tbl, "port") != NULL)
+            port = atoi(apr_table_get(tbl, "port"));
+           
+        s = hm_get_server(ctx, ip, port);
+
+        s->busy = atoi(apr_table_get(tbl, "busy"));
+        s->ready = atoi(apr_table_get(tbl, "ready"));
+        s->seen = apr_time_now();
     }
-    if (dirconf->fixup_err->nelts) {
-        if (!do_headers_fixup(r, r->err_headers_out, dirconf->fixup_err, 1))
-            goto err;
-    }
-    if (dirconf->fixup_out->nelts) {
-        if (!do_headers_fixup(r, r->headers_out, dirconf->fixup_out, 1))
-            goto err;
+    else {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ctx->s,
+                     "Heartmonitor: malformed message from %pI",
+                     from);
     }
 
-    return DECLINED;
-err:
-    ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01504)
-                  "Regular expression replacement failed (replacement too long?)");
-    return HTTP_INTERNAL_SERVER_ERROR;
 }

@@ -1,11 +1,11 @@
 fputs(
-"              ignored by some SSH servers (including OpenSSH).\n"
+"              libcurl was built with an SSL library that supports NPN. NPN  is\n"
+"              used  by a libcurl that supports HTTP 2 to negotiate HTTP 2 sup-\n"
+"              port with the server during https sessions.\n"
 "\n"
-"       -A, --user-agent <agent string>\n"
-"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
-"              Some  badly  done  CGIs  fail  if  this  field  isn't   set   to\n"
-"              \"Mozilla/4.0\".  To  encode  blanks  in  the string, surround the\n"
-"              string with single quote marks. This can also be  set  with  the\n"
-"              -H, --header option of course.\n"
+"              (Added in 7.36.0)\n"
 "\n"
+"       --no-alpn\n"
+"              Disable the ALPN TLS extension. ALPN is enabled  by  default  if\n"
+"              libcurl  was  built with an SSL library that supports ALPN. ALPN\n"
 , stdout);

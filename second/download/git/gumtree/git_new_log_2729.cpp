@@ -1,2 +1,1 @@
-die(_("parse_object_buffer failed on %s for %s"),
-		    sha1_to_hex(tagged), ref->refname);
+warning(_("ignoring ref with broken name %s"), refname);

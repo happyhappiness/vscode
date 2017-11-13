@@ -1,19 +1,42 @@
-static void ssl_dyn_destroy_function(struct CRYPTO_dynlock_value *l, 
-                          const char *file, int line)
+static apr_status_t strict_hostname_check(request_rec *r, char *host)
 {
-    apr_status_t rv;
+    char *ch;
+    int is_dotted_decimal = 1, leading_zeroes = 0, dots = 0;
 
-    ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
-                  "Destroying dynamic lock %s:%d", l->file, l->line);
-    rv = apr_thread_mutex_destroy(l->mutex);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(file, line, APLOG_ERR, rv, l->pool, 
-                      "Failed to destroy mutex for dynamic lock %s:%d", 
-                      l->file, l->line);
+    for (ch = host; *ch; ch++) {
+        if (apr_isalpha(*ch) || *ch == '-') {
+            is_dotted_decimal = 0;
+        }
+        else if (ch[0] == '.') {
+            dots++;
+            if (ch[1] == '0' && apr_isdigit(ch[2]))
+                leading_zeroes = 1;
+        }
+        else if (!apr_isdigit(*ch)) {
+           /* also takes care of multiple Host headers by denying commas */
+            goto bad;
+        }
     }
+    if (is_dotted_decimal) {
+        if (host[0] == '.' || (host[0] == '0' && apr_isdigit(host[1])))
+            leading_zeroes = 1;
+        if (leading_zeroes || dots != 3) {
+            /* RFC 3986 7.4 */
+            goto bad;
+        }
+    }
+    else {
+        /* The top-level domain must start with a letter (RFC 1123 2.1) */
+        while (ch > host && *ch != '.')
+            ch--;
+        if (ch[0] == '.' && ch[1] != '\0' && !apr_isalpha(ch[1]))
+            goto bad;
+    }
+    return APR_SUCCESS;
 
-    /* Trust that whomever owned the CRYPTO_dynlock_value we were
-     * passed has no future use for it...
-     */
-    apr_pool_destroy(l->pool);
+bad:
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[strict] Invalid host name '%s'%s%.6s",
+                  host, *ch ? ", problem near: " : "", ch);
+    return APR_EINVAL;
 }

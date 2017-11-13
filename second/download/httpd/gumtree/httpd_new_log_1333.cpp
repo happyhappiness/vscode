@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "Init: Skipping generating temporary "
-                     "%d bit DH parameters in FIPS mode", bits);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "access to %s failed; stat of '%s' failed.",
+                                  r->uri, r->filename);

@@ -1,26 +1,24 @@
-static void prune_dir(int i, DIR *dir, struct strbuf *pathname, int opts)
+static struct commit *find_single_final(struct rev_info *revs,
+					const char **name_p)
 {
-	struct dirent *de;
-	char hex[40];
-	int top_len = pathname->len;
+	int i;
+	struct commit *found = NULL;
+	const char *name = NULL;
 
-	sprintf(hex, "%02x", i);
-	while ((de = readdir(dir)) != NULL) {
-		unsigned char sha1[20];
-		if (strlen(de->d_name) != 38)
+	for (i = 0; i < revs->pending.nr; i++) {
+		struct object *obj = revs->pending.objects[i].item;
+		if (obj->flags & UNINTERESTING)
 			continue;
-		memcpy(hex + 2, de->d_name, 38);
-		if (get_sha1_hex(hex, sha1))
-			continue;
-		if (!has_sha1_pack(sha1))
-			continue;
-
-		strbuf_add(pathname, de->d_name, 38);
-		if (opts & PRUNE_PACKED_DRY_RUN)
-			printf("rm -f %s\n", pathname->buf);
-		else
-			unlink_or_warn(pathname->buf);
-		display_progress(progress, i + 1);
-		strbuf_setlen(pathname, top_len);
+		obj = deref_tag(obj, NULL, 0);
+		if (obj->type != OBJ_COMMIT)
+			die("Non commit %s?", revs->pending.objects[i].name);
+		if (found)
+			die("More than one commit to dig from %s and %s?",
+			    revs->pending.objects[i].name, name);
+		found = (struct commit *)obj;
+		name = revs->pending.objects[i].name;
 	}
+	if (name_p)
+		*name_p = name;
+	return found;
 }

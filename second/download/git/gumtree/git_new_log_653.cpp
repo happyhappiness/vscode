@@ -1,1 +1,1 @@
-error(_("no commits parsed."));
+strbuf_addf(&buf, "%s/", get_object_directory());

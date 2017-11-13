@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "Digest: "
-                              "applying AuthDigestEnableQueryStringHack "
-                              "to uri <%s>", resp->raw_request_uri);
+ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf,
+                         "No active workers found..."
+                         " Apache is exiting!");

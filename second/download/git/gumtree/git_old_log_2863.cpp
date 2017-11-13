@@ -1,0 +1,1 @@
+error("cannot opendir %s (%s)", name, strerror(errno));

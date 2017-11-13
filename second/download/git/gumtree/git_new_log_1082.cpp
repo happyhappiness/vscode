@@ -1,1 +1,1 @@
-die("cannot use Perl-compatible regexes when not compiled with USE_LIBPCRE");
+die(_("Integer value expected refname:rstrip=%s"), arg);

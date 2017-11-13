@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c, 
-                          "h2_mplx(%ld-%d): marking stream as done.", 
-                          m->id, stream_id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00036)
+                              "access to %s failed", r->uri);

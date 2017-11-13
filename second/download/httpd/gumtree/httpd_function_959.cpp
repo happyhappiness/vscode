@@ -1,94 +1,71 @@
-int main(void)
+static int ap_listen_open(apr_pool_t *pool, apr_port_t port)
 {
-int i;
-const unsigned char *tables = pcre_maketables();
+    ap_listen_rec *lr;
+    ap_listen_rec *next;
+    int num_open;
+    const char *userdata_key = "ap_listen_open";
+    void *data;
 
-printf(
-  "/*************************************************\n"
-  "*      Perl-Compatible Regular Expressions       *\n"
-  "*************************************************/\n\n"
-  "/* This file is automatically written by the dftables auxiliary \n"
-  "program. If you edit it by hand, you might like to edit the Makefile to \n"
-  "prevent its ever being regenerated.\n\n"
-  "This file is #included in the compilation of pcre.c to build the default\n"
-  "character tables which are used when no tables are passed to the compile\n"
-  "function. */\n\n"
-  "static unsigned char pcre_default_tables[] = {\n\n"
-  "/* This table is a lower casing table. */\n\n");
-
-printf("  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0) printf("\n  ");
-  printf("%3d", *tables++);
-  if (i != 255) printf(",");
-  }
-printf(",\n\n");
-
-printf("/* This table is a case flipping table. */\n\n");
-
-printf("  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0) printf("\n  ");
-  printf("%3d", *tables++);
-  if (i != 255) printf(",");
-  }
-printf(",\n\n");
-
-printf(
-  "/* This table contains bit maps for various character classes.\n"
-  "Each map is 32 bytes long and the bits run from the least\n"
-  "significant end of each byte. The classes that have their own\n"
-  "maps are: space, xdigit, digit, upper, lower, word, graph\n"
-  "print, punct, and cntrl. Other classes are built from combinations. */\n\n");
-
-printf("  ");
-for (i = 0; i < cbit_length; i++)
-  {
-  if ((i & 7) == 0 && i != 0)
-    {
-    if ((i & 31) == 0) printf("\n");
-    printf("\n  ");
+    /* Don't allocate a default listener.  If we need to listen to a
+     * port, then the user needs to have a Listen directive in their
+     * config file.
+     */
+    num_open = 0;
+    for (lr = ap_listeners; lr; lr = lr->next) {
+        if (lr->active) {
+            ++num_open;
+        }
+        else {
+            if (make_sock(pool, lr) == APR_SUCCESS) {
+                ++num_open;
+                lr->active = 1;
+            }
+            else {
+                /* fatal error */
+                return -1;
+            }
+        }
     }
-  printf("0x%02x", *tables++);
-  if (i != cbit_length - 1) printf(",");
-  }
-printf(",\n\n");
 
-printf(
-  "/* This table identifies various classes of character by individual bits:\n"
-  "  0x%02x   white space character\n"
-  "  0x%02x   letter\n"
-  "  0x%02x   decimal digit\n"
-  "  0x%02x   hexadecimal digit\n"
-  "  0x%02x   alphanumeric or '_'\n"
-  "  0x%02x   regular expression metacharacter or binary zero\n*/\n\n",
-  ctype_space, ctype_letter, ctype_digit, ctype_xdigit, ctype_word,
-  ctype_meta);
-
-printf("  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0)
-    {
-    printf(" /* ");
-    if (isprint(i-8)) printf(" %c -", i-8);
-      else printf("%3d-", i-8);
-    if (isprint(i-1)) printf(" %c ", i-1);
-      else printf("%3d", i-1);
-    printf(" */\n  ");
+    /* close the old listeners */
+    for (lr = old_listeners; lr; lr = next) {
+        apr_socket_close(lr->sd);
+        lr->active = 0;
+        next = lr->next;
     }
-  printf("0x%02x", *tables++);
-  if (i != 255) printf(",");
-  }
+    old_listeners = NULL;
 
-printf("};/* ");
-if (isprint(i-8)) printf(" %c -", i-8);
-  else printf("%3d-", i-8);
-if (isprint(i-1)) printf(" %c ", i-1);
-  else printf("%3d", i-1);
-printf(" */\n\n/* End of chartables.c */\n");
+#if AP_NONBLOCK_WHEN_MULTI_LISTEN
+    /* if multiple listening sockets, make them non-blocking so that
+     * if select()/poll() reports readability for a reset connection that
+     * is already forgotten about by the time we call accept, we won't
+     * be hung until another connection arrives on that port
+     */
+    if (ap_listeners && ap_listeners->next) {
+        for (lr = ap_listeners; lr; lr = lr->next) {
+            apr_status_t status;
 
-return 0;
+            status = apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
+            if (status != APR_SUCCESS) {
+                ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
+                              "ap_listen_open: unable to make socket non-blocking");
+                return -1;
+            }
+        }
+    }
+#endif /* AP_NONBLOCK_WHEN_MULTI_LISTEN */
+
+    /* we come through here on both passes of the open logs phase
+     * only register the cleanup once... otherwise we try to close
+     * listening sockets twice when cleaning up prior to exec
+     */
+    apr_pool_userdata_get(&data, userdata_key, pool);
+    if (!data) {
+        apr_pool_userdata_set((const void *)1, userdata_key,
+                              apr_pool_cleanup_null, pool);
+        apr_pool_cleanup_register(pool, NULL, apr_pool_cleanup_null,
+                                  close_listeners_on_exec);
+    }
+
+    return num_open ? 0 : -1;
 }

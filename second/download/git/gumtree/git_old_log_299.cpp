@@ -1,1 +1,1 @@
-error("no matching refs with %s", av);
+die(_("invalid path '%s'"), old_name);

@@ -1,1 +1,1 @@
-fprintf(FERROR,"chdir %s : %s\n",dir,strerror(errno));
+fprintf(FERROR,"skipping directory %s\n",fname);

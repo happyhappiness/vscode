@@ -1,14 +1,28 @@
-static void chmod_pathspec(struct pathspec *pathspec, int force_mode)
+static void standard_options(struct transport *t)
 {
-	int i;
+	char buf[16];
+	int n;
+	int v = t->verbose;
 
-	for (i = 0; i < active_nr; i++) {
-		struct cache_entry *ce = active_cache[i];
+	set_helper_option(t, "progress", t->progress ? "true" : "false");
 
-		if (pathspec && !ce_path_match(ce, pathspec, NULL))
-			continue;
+	n = snprintf(buf, sizeof(buf), "%d", v + 1);
+	if (n >= sizeof(buf))
+		die("impossibly large verbosity value");
+	set_helper_option(t, "verbosity", buf);
 
-		if (chmod_cache_entry(ce, force_mode) < 0)
-			fprintf(stderr, "cannot chmod '%s'", ce->name);
+	switch (t->family) {
+	case TRANSPORT_FAMILY_ALL:
+		/*
+		 * this is already the default,
+		 * do not break old remote helpers by setting "all" here
+		 */
+		break;
+	case TRANSPORT_FAMILY_IPV4:
+		set_helper_option(t, "family", "ipv4");
+		break;
+	case TRANSPORT_FAMILY_IPV6:
+		set_helper_option(t, "family", "ipv6");
+		break;
 	}
 }

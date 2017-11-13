@@ -1,1 +1,1 @@
-die_errno("Could not change back to '%s'", cwd.buf);
+die_errno(_("open /dev/null failed"));

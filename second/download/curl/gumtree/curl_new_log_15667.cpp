@@ -1,9 +1,8 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -m, --max-time <time>\n"
-"              Maximum time in seconds that you allow the  whole  operation  to\n"
-"              take.   This is useful for preventing your batch jobs from hang-\n"
-"              ing for hours due to slow networks or links going  down.   Since\n"
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
+"              3XX  response code), this option will make curl redo the request\n"
+"              on the new place. If used together with  -i,  --include  or  -I,\n"
+"              --head,  headers  from  all  requested pages will be shown. When\n"
+"              authentication is used, curl only sends its credentials  to  the\n"
+"              initial  host.  If a redirect takes curl to a different host, it\n"
+"              won't be able to intercept the user+password. See  also  --loca-\n"
 , stdout);

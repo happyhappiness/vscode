@@ -1,25 +1,20 @@
-static void strip_submodule_slash_expensive(struct pathspec_item *item)
+static int read_and_refresh_cache(struct replay_opts *opts)
 {
-	int i;
-
-	for (i = 0; i < active_nr; i++) {
-		struct cache_entry *ce = active_cache[i];
-		int ce_len = ce_namelen(ce);
-
-		if (!S_ISGITLINK(ce->ce_mode))
-			continue;
-
-		if (item->len <= ce_len || item->match[ce_len] != '/' ||
-		    memcmp(ce->name, item->match, ce_len))
-			continue;
-
-		if (item->len == ce_len + 1) {
-			/* strip trailing slash */
-			item->len--;
-			item->match[item->len] = '\0';
-		} else {
-			die(_("Pathspec '%s' is in submodule '%.*s'"),
-			    item->original, ce_len, ce->name);
+	static struct lock_file index_lock;
+	int index_fd = hold_locked_index(&index_lock, 0);
+	if (read_index_preload(&the_index, NULL) < 0) {
+		rollback_lock_file(&index_lock);
+		return error(_("git %s: failed to read the index"),
+			_(action_name(opts)));
+	}
+	refresh_index(&the_index, REFRESH_QUIET|REFRESH_UNMERGED, NULL, NULL, NULL);
+	if (the_index.cache_changed && index_fd >= 0) {
+		if (write_locked_index(&the_index, &index_lock, COMMIT_LOCK)) {
+			rollback_lock_file(&index_lock);
+			return error(_("git %s: failed to refresh the index"),
+				_(action_name(opts)));
 		}
 	}
+	rollback_lock_file(&index_lock);
+	return 0;
 }

@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00172) "killpg SIGHUP");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01891)
+                "No SSL Certificate set [hint: SSLCertificateFile]");

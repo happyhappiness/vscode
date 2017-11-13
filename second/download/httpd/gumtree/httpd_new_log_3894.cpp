@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01075)
-                      "Error dispatching request to %s:", server_portstr);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01598)
+                     "mod_mime: analyze_ct: cannot get media type from '%s'",
+                     (const char *) mp);

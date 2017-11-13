@@ -1,1 +1,1 @@
-fprintf(stderr, "   -c   Create a new database.\n");
+fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");

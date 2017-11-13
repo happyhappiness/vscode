@@ -1,1 +1,1 @@
-printf ("\nCompilation CFLAGS: %s\n", cc_cflags);
+printf ("\nConfigure options: %s\n", configure_options);

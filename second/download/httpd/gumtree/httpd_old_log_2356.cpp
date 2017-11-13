@@ -1,1 +1,0 @@
-printf("Keep-Alive requests:    %ld\n", doneka);

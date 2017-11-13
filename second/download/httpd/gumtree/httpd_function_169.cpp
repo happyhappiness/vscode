@@ -1,199 +1,121 @@
-static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
-                                 apr_pool_t *ptemp, server_rec *s)
+static const char *mod_auth_ldap_parse_url(cmd_parms *cmd, 
+                                    void *config,
+                                    const char *url)
 {
-    int rc = LDAP_SUCCESS;
-    apr_status_t result;
-    char buf[MAX_STRING_LEN];
+    int result;
+    apr_ldap_url_desc_t *urld;
 
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
+    mod_auth_ldap_config_t *sec = config;
 
-#if APR_HAS_SHARED_MEMORY
-    server_rec *s_vhost;
-    util_ldap_state_t *st_vhost;
-    
-    /* initializing cache if file is here and we already don't have shm addr*/
-    if (st->cache_file && !st->cache_shm) {
-#endif
-        result = util_ldap_cache_init(p, st);
-        apr_strerror(result, buf, sizeof(buf));
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
-                     "LDAP cache init: %s", buf);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+	         cmd->server, "[%d] auth_ldap url parse: `%s'", 
+	         getpid(), url);
 
-#if APR_HAS_SHARED_MEMORY
-        /* merge config in all vhost */
-        s_vhost = s->next;
-        while (s_vhost) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
-                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
+    result = apr_ldap_url_parse(url, &(urld));
+    if (result != LDAP_SUCCESS) {
+        switch (result) {
+        case LDAP_URL_ERR_NOTLDAP:
+            return "LDAP URL does not begin with ldap://";
+        case LDAP_URL_ERR_NODN:
+            return "LDAP URL does not have a DN";
+        case LDAP_URL_ERR_BADSCOPE:
+            return "LDAP URL has an invalid scope";
+        case LDAP_URL_ERR_MEM:
+            return "Out of memory parsing LDAP URL";
+        default:
+            return "Could not parse LDAP URL";
+        }
+    }
+    sec->url = apr_pstrdup(cmd->pool, url);
 
-            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
-            st_vhost->cache_shm = st->cache_shm;
-            st_vhost->cache_rmm = st->cache_rmm;
-            st_vhost->cache_file = st->cache_file;
-            s_vhost = s_vhost->next;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+	         cmd->server, "[%d] auth_ldap url parse: Host: %s", getpid(), urld->lud_host);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+	         cmd->server, "[%d] auth_ldap url parse: Port: %d", getpid(), urld->lud_port);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+	         cmd->server, "[%d] auth_ldap url parse: DN: %s", getpid(), urld->lud_dn);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+	         cmd->server, "[%d] auth_ldap url parse: attrib: %s", getpid(), urld->lud_attrs? urld->lud_attrs[0] : "(null)");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+	         cmd->server, "[%d] auth_ldap url parse: scope: %s", getpid(), 
+	         (urld->lud_scope == LDAP_SCOPE_SUBTREE? "subtree" : 
+		 urld->lud_scope == LDAP_SCOPE_BASE? "base" : 
+		 urld->lud_scope == LDAP_SCOPE_ONELEVEL? "onelevel" : "unknown"));
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+	         cmd->server, "[%d] auth_ldap url parse: filter: %s", getpid(), urld->lud_filter);
+
+    /* Set all the values, or at least some sane defaults */
+    if (sec->host) {
+        char *p = apr_palloc(cmd->pool, strlen(sec->host) + strlen(urld->lud_host) + 2);
+        strcpy(p, urld->lud_host);
+        strcat(p, " ");
+        strcat(p, sec->host);
+        sec->host = p;
+    }
+    else {
+        sec->host = urld->lud_host? apr_pstrdup(cmd->pool, urld->lud_host) : "localhost";
+    }
+    sec->basedn = urld->lud_dn? apr_pstrdup(cmd->pool, urld->lud_dn) : "";
+    if (urld->lud_attrs && urld->lud_attrs[0]) {
+        int i = 1;
+        while (urld->lud_attrs[i]) {
+            i++;
+        }
+        sec->attributes = apr_pcalloc(cmd->pool, sizeof(char *) * (i+1));
+        i = 0;
+        while (urld->lud_attrs[i]) {
+            sec->attributes[i] = apr_pstrdup(cmd->pool, urld->lud_attrs[i]);
+            i++;
+        }
+        sec->attribute = sec->attributes[0];
+    }
+    else {
+        sec->attribute = "uid";
+    }
+
+    sec->scope = urld->lud_scope == LDAP_SCOPE_ONELEVEL ?
+        LDAP_SCOPE_ONELEVEL : LDAP_SCOPE_SUBTREE;
+
+    if (urld->lud_filter) {
+        if (urld->lud_filter[0] == '(') {
+            /* 
+	     * Get rid of the surrounding parens; later on when generating the
+	     * filter, they'll be put back.
+             */
+            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter+1);
+            sec->filter[strlen(sec->filter)-1] = '\0';
+        }
+        else {
+            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter);
         }
     }
     else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
+        sec->filter = "objectclass=*";
     }
+    if (strncmp(url, "ldaps", 5) == 0) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+		     cmd->server, "[%d] auth_ldap parse url: requesting secure LDAP", getpid());
+#ifdef APU_HAS_LDAP_STARTTLS
+        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
+        sec->starttls = 1;
+#else
+#ifdef APU_HAS_LDAP_NETSCAPE_SSL
+        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
+        sec->netscapessl = 1;
+#else
+        return "Secure LDAP (ldaps://) not supported. Rebuild APR-Util";
 #endif
-    
-    /* log the LDAP SDK used 
-     */
-    #if APR_HAS_NETSCAPE_LDAPSDK 
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Netscape LDAP SDK" );
-
-    #elif APR_HAS_NOVELL_LDAPSDK
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Novell LDAP SDK" );
-
-    #elif APR_HAS_OPENLDAP_LDAPSDK
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with OpenLDAP LDAP SDK" );
-
-    #elif APR_HAS_MICROSOFT_LDAPSDK
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Microsoft LDAP SDK" );
-    #else
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with unknown LDAP SDK" );
-
-    #endif /* APR_HAS_NETSCAPE_LDAPSDK */
-
-
-
-    apr_pool_cleanup_register(p, s, util_ldap_cleanup_module,
-                              util_ldap_cleanup_module); 
-
-    /* initialize SSL support if requested
-    */
-    if (st->cert_auth_file)
-    {
-        #if APR_HAS_LDAP_SSL /* compiled with ssl support */
-
-        #if APR_HAS_NETSCAPE_LDAPSDK 
-
-            /* Netscape sdk only supports a cert7.db file 
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_CERT7_DB)
-            {
-                rc = ldapssl_client_init(st->cert_auth_file, NULL);
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                         "LDAP: Invalid LDAPTrustedCAType directive - "
-                          "CERT7_DB_PATH type required");
-                rc = -1;
-            }
-
-        #elif APR_HAS_NOVELL_LDAPSDK
-        
-            /* Novell SDK supports DER or BASE64 files
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_DER  ||
-                st->cert_file_type == LDAP_CA_TYPE_BASE64 )
-            {
-                rc = ldapssl_client_init(NULL, NULL);
-                if (LDAP_SUCCESS == rc)
-                {
-                    if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
-                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
-                                                  LDAPSSL_CERT_FILETYPE_B64);
-                    else
-                        rc = ldapssl_add_trusted_cert(st->cert_auth_file, 
-                                                  LDAPSSL_CERT_FILETYPE_DER);
-
-                    if (LDAP_SUCCESS != rc)
-                        ldapssl_client_deinit();
-                }
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "DER_FILE or BASE64_FILE type required");
-                rc = -1;
-            }
-
-        #elif APR_HAS_OPENLDAP_LDAPSDK
-
-            /* OpenLDAP SDK supports BASE64 files
-            */
-            if (st->cert_file_type == LDAP_CA_TYPE_BASE64)
-            {
-                rc = ldap_set_option(NULL, LDAP_OPT_X_TLS_CACERTFILE, st->cert_auth_file);
-            }
-            else
-            {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "BASE64_FILE type required");
-                rc = -1;
-            }
-
-
-        #elif APR_HAS_MICROSOFT_LDAPSDK
-            
-            /* Microsoft SDK use the registry certificate store - always
-             * assume support is always available
-            */
-            rc = LDAP_SUCCESS;
-
-        #else
-            rc = -1;
-        #endif /* APR_HAS_NETSCAPE_LDAPSDK */
-
-        #else  /* not compiled with SSL Support */
-
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                     "LDAP: Not built with SSL support." );
-            rc = -1;
-
-        #endif /* APR_HAS_LDAP_SSL */
-
-        if (LDAP_SUCCESS == rc)
-        {
-            st->ssl_support = 1;
-        }
-        else
-        {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
-                         "LDAP: SSL initialization failed");
-            st->ssl_support = 0;
-        }
+#endif
     }
-      
-        /* The Microsoft SDK uses the registry certificate store -
-         * always assume support is available
-        */
-    #if APR_HAS_MICROSOFT_LDAPSDK
-        st->ssl_support = 1;
-    #endif
-    
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+		     cmd->server, "[%d] auth_ldap parse url: not requesting secure LDAP", getpid());
+        sec->netscapessl = 0;
+        sec->starttls = 0;
+        sec->port = urld->lud_port? urld->lud_port : LDAP_PORT;
+    }
 
-        /* log SSL status - If SSL isn't available it isn't necessarily
-         * an error because the modules asking for LDAP connections 
-         * may not ask for SSL support
-        */
-    if (st->ssl_support)
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support available" );
-    }
-    else
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support unavailable" );
-    }
-    
-    return(OK);
+    sec->have_ldap_url = 1;
+    apr_ldap_free_urldesc(urld);
+    return NULL;
 }

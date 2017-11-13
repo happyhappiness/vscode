@@ -1,3 +1,2 @@
-apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-        " (default)"
-        "." NL);
+apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+            " (8 chars max, insecure)." NL);

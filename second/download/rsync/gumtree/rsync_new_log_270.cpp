@@ -1,2 +1,1 @@
-fprintf(FERROR,"open %s: %s\n",
-			dest,strerror(errno));
+fprintf(FERROR,"select error: %s\n", strerror(errno));

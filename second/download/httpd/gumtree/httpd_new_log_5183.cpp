@@ -1,1 +1,3 @@
-decl_die(access_status, "check access", r);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00175)
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);

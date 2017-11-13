@@ -1,10 +1,9 @@
 fputs(
-"              socket.  The  socket  is  used to seed the random engine for SSL\n"
-"              connections. See also the --random-file option.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --expect100-timeout <seconds>\n"
-"              (HTTP) Maximum time in seconds that you allow curl to wait for a\n"
-"              100-continue  response  when curl emits an Expects: 100-continue\n"
-"              header in its request. By default curl  will  wait  one  second.\n"
-"              This  option accepts decimal values! When curl stops waiting, it\n"
+"       -E, --cert <certificate[:password]>\n"
+"              (SSL)  Tells  curl  to use the specified client certificate file\n"
+"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
+"              col.  The  certificate must be in PKCS#12 format if using Secure\n"
+"              Transport, or PEM format if using  any  other  engine.   If  the\n"
 , stdout);

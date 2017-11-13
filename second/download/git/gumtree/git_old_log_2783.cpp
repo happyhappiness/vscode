@@ -1,1 +1,1 @@
-die("not a gitdir '%s'", argv[i]);
+die("BUG: startup_info struct is not initialized.");

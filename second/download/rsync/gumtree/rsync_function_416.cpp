@@ -1,10 +1,30 @@
-void write_buf(int f,char *buf,int len)
+void add_exclude_list(char *pattern,char ***list)
 {
-  int ret;
-  if ((ret=writefd(f,buf,len)) != len) {
-    fprintf(FERROR,"write_buf failed : %s\n",
-	    ret==-1?strerror(errno):"EOF");
-    exit_cleanup(1);
+  int len=0;
+  if (list && *list)
+    for (; (*list)[len]; len++) ;
+
+  if (strcmp(pattern,"!") == 0) {
+    if (verbose > 2)
+      fprintf(FINFO,"clearing exclude list\n");
+    while ((len)--) 
+      free((*list)[len]);
+    free((*list));
+    *list = NULL;
+    return;
   }
-  total_written += len;
+
+  if (!*list) {
+    *list = (char **)malloc(sizeof(char *)*2);
+  } else {
+    *list = (char **)realloc(*list,sizeof(char *)*(len+2));
+  }
+
+  if (!*list || !((*list)[len] = strdup(pattern)))
+    out_of_memory("add_exclude");
+
+  if (verbose > 2)
+    fprintf(FINFO,"add_exclude(%s)\n",pattern);
+  
+  (*list)[len+1] = NULL;
 }

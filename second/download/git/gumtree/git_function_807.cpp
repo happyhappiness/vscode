@@ -1,141 +1,152 @@
-static const char *update(struct command *cmd, struct shallow_info *si)
+struct child_process *git_connect(int fd[2], const char *url,
+				  const char *prog, int flags)
 {
-	const char *name = cmd->ref_name;
-	struct strbuf namespaced_name_buf = STRBUF_INIT;
-	const char *namespaced_name, *ret;
-	unsigned char *old_sha1 = cmd->old_sha1;
-	unsigned char *new_sha1 = cmd->new_sha1;
+	char *hostandport, *path;
+	struct child_process *conn = &no_fork;
+	enum protocol protocol;
+	struct strbuf cmd = STRBUF_INIT;
 
-	/* only refs/... are allowed */
-	if (!starts_with(name, "refs/") || check_refname_format(name + 5, 0)) {
-		rp_error("refusing to create funny ref '%s' remotely", name);
-		return "funny refname";
-	}
+	/* Without this we cannot rely on waitpid() to tell
+	 * what happened to our children.
+	 */
+	signal(SIGCHLD, SIG_DFL);
 
-	strbuf_addf(&namespaced_name_buf, "%s%s", get_git_namespace(), name);
-	namespaced_name = strbuf_detach(&namespaced_name_buf, NULL);
+	protocol = parse_connect_url(url, &hostandport, &path);
+	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
+		printf("Diag: url=%s\n", url ? url : "NULL");
+		printf("Diag: protocol=%s\n", prot_name(protocol));
+		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
+		printf("Diag: path=%s\n", path ? path : "NULL");
+		conn = NULL;
+	} else if (protocol == PROTO_GIT) {
+		/*
+		 * Set up virtual host information based on where we will
+		 * connect, unless the user has overridden us in
+		 * the environment.
+		 */
+		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
+		if (target_host)
+			target_host = xstrdup(target_host);
+		else
+			target_host = xstrdup(hostandport);
 
-	if (is_ref_checked_out(namespaced_name)) {
-		switch (deny_current_branch) {
-		case DENY_IGNORE:
-			break;
-		case DENY_WARN:
-			rp_warning("updating the current branch");
-			break;
-		case DENY_REFUSE:
-		case DENY_UNCONFIGURED:
-			rp_error("refusing to update checked out branch: %s", name);
-			if (deny_current_branch == DENY_UNCONFIGURED)
-				refuse_unconfigured_deny();
-			return "branch is currently checked out";
-		case DENY_UPDATE_INSTEAD:
-			ret = update_worktree(new_sha1);
-			if (ret)
-				return ret;
-			break;
-		}
-	}
+		transport_check_allowed("git");
 
-	if (!is_null_sha1(new_sha1) && !has_sha1_file(new_sha1)) {
-		error("unpack should have generated %s, "
-		      "but I can't find it!", sha1_to_hex(new_sha1));
-		return "bad pack";
-	}
+		/* These underlying connection commands die() if they
+		 * cannot connect.
+		 */
+		if (git_use_proxy(hostandport))
+			conn = git_proxy_connect(fd, hostandport);
+		else
+			git_tcp_connect(fd, hostandport, flags);
+		/*
+		 * Separate original protocol components prog and path
+		 * from extended host header with a NUL byte.
+		 *
+		 * Note: Do not add any other headers here!  Doing so
+		 * will cause older git-daemon servers to crash.
+		 */
+		packet_write_fmt(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);
+		free(target_host);
+	} else {
+		conn = xmalloc(sizeof(*conn));
+		child_process_init(conn);
 
-	if (!is_null_sha1(old_sha1) && is_null_sha1(new_sha1)) {
-		if (deny_deletes && starts_with(name, "refs/heads/")) {
-			rp_error("denying ref deletion for %s", name);
-			return "deletion prohibited";
-		}
+		if (looks_like_command_line_option(path))
+			die("strange pathname '%s' blocked", path);
 
-		if (head_name && !strcmp(namespaced_name, head_name)) {
-			switch (deny_delete_current) {
-			case DENY_IGNORE:
-				break;
-			case DENY_WARN:
-				rp_warning("deleting the current branch");
-				break;
-			case DENY_REFUSE:
-			case DENY_UNCONFIGURED:
-			case DENY_UPDATE_INSTEAD:
-				if (deny_delete_current == DENY_UNCONFIGURED)
-					refuse_unconfigured_deny_delete_current();
-				rp_error("refusing to delete the current branch: %s", name);
-				return "deletion of the current branch prohibited";
-			default:
-				return "Invalid denyDeleteCurrent setting";
+		strbuf_addstr(&cmd, prog);
+		strbuf_addch(&cmd, ' ');
+		sq_quote_buf(&cmd, path);
+
+		/* remove repo-local variables from the environment */
+		conn->env = local_repo_env;
+		conn->use_shell = 1;
+		conn->in = conn->out = -1;
+		if (protocol == PROTO_SSH) {
+			const char *ssh;
+			int putty = 0, tortoiseplink = 0;
+			char *ssh_host = hostandport;
+			const char *port = NULL;
+			transport_check_allowed("ssh");
+			get_host_and_port(&ssh_host, &port);
+
+			if (!port)
+				port = get_port(ssh_host);
+
+			if (flags & CONNECT_DIAG_URL) {
+				printf("Diag: url=%s\n", url ? url : "NULL");
+				printf("Diag: protocol=%s\n", prot_name(protocol));
+				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+				printf("Diag: port=%s\n", port ? port : "NONE");
+				printf("Diag: path=%s\n", path ? path : "NULL");
+
+				free(hostandport);
+				free(path);
+				free(conn);
+				return NULL;
 			}
-		}
-	}
 
-	if (deny_non_fast_forwards && !is_null_sha1(new_sha1) &&
-	    !is_null_sha1(old_sha1) &&
-	    starts_with(name, "refs/heads/")) {
-		struct object *old_object, *new_object;
-		struct commit *old_commit, *new_commit;
+			if (looks_like_command_line_option(ssh_host))
+				die("strange hostname '%s' blocked", ssh_host);
 
-		old_object = parse_object(old_sha1);
-		new_object = parse_object(new_sha1);
+			ssh = get_ssh_command();
+			if (!ssh) {
+				const char *base;
+				char *ssh_dup;
 
-		if (!old_object || !new_object ||
-		    old_object->type != OBJ_COMMIT ||
-		    new_object->type != OBJ_COMMIT) {
-			error("bad sha1 objects for %s", name);
-			return "bad ref";
-		}
-		old_commit = (struct commit *)old_object;
-		new_commit = (struct commit *)new_object;
-		if (!in_merge_bases(old_commit, new_commit)) {
-			rp_error("denying non-fast-forward %s"
-				 " (you should pull first)", name);
-			return "non-fast-forward";
-		}
-	}
-	if (run_update_hook(cmd)) {
-		rp_error("hook declined to update %s", name);
-		return "hook declined";
-	}
+				/*
+				 * GIT_SSH is the no-shell version of
+				 * GIT_SSH_COMMAND (and must remain so for
+				 * historical compatibility).
+				 */
+				conn->use_shell = 0;
 
-	if (is_null_sha1(new_sha1)) {
-		struct strbuf err = STRBUF_INIT;
-		if (!parse_object(old_sha1)) {
-			old_sha1 = NULL;
-			if (ref_exists(name)) {
-				rp_warning("Allowing deletion of corrupt ref.");
-			} else {
-				rp_warning("Deleting a non-existent ref.");
-				cmd->did_not_exist = 1;
+				ssh = getenv("GIT_SSH");
+				if (!ssh)
+					ssh = "ssh";
+
+				ssh_dup = xstrdup(ssh);
+				base = basename(ssh_dup);
+
+				tortoiseplink = !strcasecmp(base, "tortoiseplink") ||
+					!strcasecmp(base, "tortoiseplink.exe");
+				putty = tortoiseplink ||
+					!strcasecmp(base, "plink") ||
+					!strcasecmp(base, "plink.exe");
+
+				free(ssh_dup);
 			}
+
+			argv_array_push(&conn->args, ssh);
+			if (flags & CONNECT_IPV4)
+				argv_array_push(&conn->args, "-4");
+			else if (flags & CONNECT_IPV6)
+				argv_array_push(&conn->args, "-6");
+			if (tortoiseplink)
+				argv_array_push(&conn->args, "-batch");
+			if (port) {
+				/* P is for PuTTY, p is for OpenSSH */
+				argv_array_push(&conn->args, putty ? "-P" : "-p");
+				argv_array_push(&conn->args, port);
+			}
+			argv_array_push(&conn->args, ssh_host);
+		} else {
+			transport_check_allowed("file");
 		}
-		if (ref_transaction_delete(transaction,
-					   namespaced_name,
-					   old_sha1,
-					   0, "push", &err)) {
-			rp_error("%s", err.buf);
-			strbuf_release(&err);
-			return "failed to delete";
-		}
-		strbuf_release(&err);
-		return NULL; /* good */
+		argv_array_push(&conn->args, cmd.buf);
+
+		if (start_command(conn))
+			die("unable to fork");
+
+		fd[0] = conn->out; /* read from child's stdout */
+		fd[1] = conn->in;  /* write to child's stdin */
+		strbuf_release(&cmd);
 	}
-	else {
-		struct strbuf err = STRBUF_INIT;
-		if (shallow_update && si->shallow_ref[cmd->index] &&
-		    update_shallow_ref(cmd, si))
-			return "shallow error";
-
-		if (ref_transaction_update(transaction,
-					   namespaced_name,
-					   new_sha1, old_sha1,
-					   0, "push",
-					   &err)) {
-			rp_error("%s", err.buf);
-			strbuf_release(&err);
-
-			return "failed to update ref";
-		}
-		strbuf_release(&err);
-
-		return NULL; /* good */
-	}
+	free(hostandport);
+	free(path);
+	return conn;
 }

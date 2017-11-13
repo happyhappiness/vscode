@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, status, s, APLOGNO(01758)
-                     "error generating secret");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r, APLOGNO(00694) "cache_select(): Vary header mismatch.");

@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                          "h2_h2(%ld): tls cipher is indetermined", (long)c->id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "request failed: URI too long (longer than %d)", r->server->limit_req_line);

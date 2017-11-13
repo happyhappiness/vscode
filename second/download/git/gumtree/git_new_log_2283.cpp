@@ -1,2 +1,2 @@
-die(_("A notes merge into %s is already in-progress at %s"),
-			    default_notes_ref(), wt->path);
+warning("unknown repository extension: %s",
+				unknown_extensions.items[i].string);

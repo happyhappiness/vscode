@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, 
-                      "h2_task(%s), serialized handling", ctx->task->id);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02679)
+                          "ServerSupportFunction "
+                          "HSE_REQ_CLOSE_CONNECTION "
+                          "is not supported: %s", r->filename);

@@ -1,1 +1,1 @@
-error("unable to lock %s for update", newrefname);
+warning("%s: symlink too long", p);

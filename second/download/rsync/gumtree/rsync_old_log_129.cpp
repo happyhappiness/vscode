@@ -1,2 +1,2 @@
-fprintf(stderr,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,sender,recurse);
+fprintf(stderr,"Error reading %d bytes : %s\n",
+	      4,ret==-1?strerror(errno):"EOF");

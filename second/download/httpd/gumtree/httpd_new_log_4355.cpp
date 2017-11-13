@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01927)
-                     "OCSP stapling response encode error??");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(01018)
+                          "error on %s - ap_get_brigade",
+                          name);

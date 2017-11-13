@@ -1,1 +1,3 @@
-die(_("--merged and --no-merged option are only allowed with -l"));
+error_buf(err,
+				 _("branch '%s' has no remote for pushing"),
+				 branch->name);

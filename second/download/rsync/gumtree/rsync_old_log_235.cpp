@@ -1,1 +1,1 @@
-fprintf(FERROR,"%s : not a regular file\n",fname);
+fprintf(f,"    --csum-length LENGTH set the checksum length\n");

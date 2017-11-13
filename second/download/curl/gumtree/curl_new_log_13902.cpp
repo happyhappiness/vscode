@@ -1,11 +1,11 @@
 fputs(
-"              acters, and the ';type=' string in the  value  have  no  special\n"
-"              meaning.  Use  this  in  preference to -F, --form if there's any\n"
-"              possibility that the string value may accidentally  trigger  the\n"
-"              '@' or '<' features of -F, --form.\n"
+"              Sets  a  range of environment variables, using the names the -w,\n"
+"              --write-out option supports, to allow easier extraction of  use-\n"
+"              ful information after having run curl.\n"
 "\n"
-"              See also -F, --form.\n"
+"              --environment  requires that the underlying libcurl was built to\n"
+"              support RISC OS.\n"
 "\n"
-"       -F, --form <name=content>\n"
-"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
+"       --expect100-timeout <seconds>\n"
+"              (HTTP) Maximum time in seconds that you allow curl to wait for a\n"
 , stdout);

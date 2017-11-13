@@ -1,1 +1,0 @@
-fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");

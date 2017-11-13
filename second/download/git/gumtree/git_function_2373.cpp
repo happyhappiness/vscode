@@ -1,22 +1,21 @@
-static void pp_cleanup(struct parallel_processes *pp)
+static void handle_content_type(struct strbuf *line)
 {
-	int i;
+	struct strbuf *boundary = xmalloc(sizeof(struct strbuf));
+	strbuf_init(boundary, line->len);
 
-	trace_printf("run_processes_parallel: done");
-	for (i = 0; i < pp->max_processes; i++) {
-		strbuf_release(&pp->children[i].err);
-		child_process_clear(&pp->children[i].process);
+	if (slurp_attr(line->buf, "boundary=", boundary)) {
+		strbuf_insert(boundary, 0, "--", 2);
+		if (++content_top > &content[MAX_BOUNDARIES]) {
+			fprintf(stderr, "Too many boundaries to handle\n");
+			exit(1);
+		}
+		*content_top = boundary;
+		boundary = NULL;
 	}
+	slurp_attr(line->buf, "charset=", &charset);
 
-	free(pp->children);
-	free(pp->pfd);
-
-	/*
-	 * When get_next_task added messages to the buffer in its last
-	 * iteration, the buffered output is non empty.
-	 */
-	fputs(pp->buffered_output.buf, stderr);
-	strbuf_release(&pp->buffered_output);
-
-	sigchain_pop_common();
+	if (boundary) {
+		strbuf_release(boundary);
+		free(boundary);
+	}
 }

@@ -1,1 +1,1 @@
-printf("Waiting:    " CONF_FMT_STRING, minwait, meanwait, maxwait);
+printf("Processing: " CONF_FMT_STRING, mind, meand, maxd);

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "Content-Encoding set to %s", r->content_encoding);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01307)
+                      "LDAP: SSL trusted mode - %s",
+                       mode);

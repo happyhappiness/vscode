@@ -1,1 +1,1 @@
-die("--stateless-rpc requires multi_ack_detailed");
+die("file %s has only %lu lines", path, lno);

@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                              "ServerSupport function "
-                              "HSE_REQ_SEND_RESPONSE_HEADER_EX "
-                              "ap_pass_brigade failed: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "shmcb_subcache_remove internal error");

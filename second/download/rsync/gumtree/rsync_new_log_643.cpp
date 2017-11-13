@@ -1,1 +1,1 @@
-io_printf(f_out, "@RSYNCD: %d\n", PROTOCOL_VERSION);
+fprintf(stderr,"ERROR: data in read buffer at mplx start\n");

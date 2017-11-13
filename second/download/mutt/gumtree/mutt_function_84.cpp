@@ -1,78 +1,71 @@
-int mutt_write_one_header (FILE *fp, const char *tag, const char *value,
-			   const char *pfx, int wraplen, int flags)
+void mutt_message_to_7bit (BODY *a, FILE *fp)
 {
-  char *p = (char *)value, *last, *line;
-  int max = 0, w, rc = -1;
-  int pfxw = mutt_strwidth (pfx);
-  char *v = safe_strdup (value);
+  char temp[_POSIX_PATH_MAX];
+  char *line = NULL;
+  FILE *fpin = NULL;
+  FILE *fpout = NULL;
+  struct stat sb;
 
-  if (!(flags & CH_DISPLAY) || option (OPTWEED))
-    v = unfold_header (v);
-
-  /* when not displaying, use sane wrap value */
-  if (!(flags & CH_DISPLAY))
+  if (!a->filename && fp)
+    fpin = fp;
+  else if (!a->filename || !(fpin = fopen (a->filename, "r")))
   {
-    if (WrapHeaders < 78 || WrapHeaders > 998)
-      wraplen = 78;
-    else
-      wraplen = WrapHeaders;
-  }
-  else if (wraplen <= 0 || wraplen > COLS)
-    wraplen = COLS;
-
-  if (tag)
+    mutt_error (_("Could not open %s"), a->filename ? a->filename : "(null)");
+    return;
+  } 
+  else
   {
-    /* if header is short enough, simply print it */
-    if (!(flags & CH_DISPLAY) && mutt_strwidth (tag) + 2 + pfxw +
-	mutt_strwidth (v) <= wraplen)
+    a->offset = 0;
+    if (stat (a->filename, &sb) == -1)
     {
-      dprint(4,(debugfile,"mwoh: buf[%s%s: %s] is short enough\n",
-		NONULL(pfx), tag, v));
-      if (fprintf (fp, "%s%s: %s\n", NONULL(pfx), tag, v) <= 0)
-	goto out;
-      rc = 0;
-      goto out;
+      mutt_perror ("stat");
+      fclose (fpin);
     }
-    else
-    {
-      rc = fold_one_header (fp, tag, v, pfx, wraplen, flags);
-      goto out;
-    }
+    a->length = sb.st_size;
   }
 
-  p = last = line = (char *)v;
-  while (p && *p)
+  mutt_mktemp (temp);
+  if (!(fpout = safe_fopen (temp, "w+")))
   {
-    p = strchr (p, '\n');
-
-    /* find maximum line width in current header */
-    if (p)
-      *p = 0;
-    if ((w = my_width (line, 0, flags)) > max)
-      max = w;
-    if (p)
-      *p = '\n';
-
-    if (!p)
-      break;
-
-    line = ++p;
-    if (*p != ' ' && *p != '\t')
-    {
-      if (write_one_header (fp, pfxw, max, wraplen, pfx, last, p, flags) < 0)
-	goto out;
-      last = p;
-      max = 0;
-    }
+    mutt_perror ("fopen");
+    goto cleanup;
   }
 
-  if (last && *last)
-    if (write_one_header (fp, pfxw, max, wraplen, pfx, last, p, flags) < 0)
-      goto out;
+  fseek (fpin, a->offset, 0);
+  a->parts = mutt_parse_messageRFC822 (fpin, a);
 
-  rc = 0;
+  transform_to_7bit (a->parts, fpin);
+  
+  mutt_copy_hdr (fpin, fpout, a->offset, a->offset + a->length, 
+		 CH_MIME | CH_NONEWLINE | CH_XMIT, NULL);
 
-out:
-  FREE (&v);
-  return rc;
+  fputs ("Mime-Version: 1.0\n", fpout);
+  mutt_write_mime_header (a->parts, fpout);
+  fputc ('\n', fpout);
+  mutt_write_mime_body (a->parts, fpout);
+  
+ cleanup:
+  safe_free ((void **) &line);
+
+  if (fpin && !fp)
+    fclose (fpin);
+  if (fpout)
+    fclose (fpout);
+  else
+    return;
+  
+  a->encoding = ENC7BIT;
+  a->d_filename = a->filename;
+  if (a->filename && a->unlink)
+    unlink (a->filename);
+  a->filename = safe_strdup (temp);
+  a->unlink = 1;
+  if(stat (a->filename, &sb) == -1) 
+  {
+    mutt_perror ("stat");
+    return;
+  }
+  a->length = sb.st_size;
+  mutt_free_body (&a->parts);
+  a->hdr->content = NULL;
 }

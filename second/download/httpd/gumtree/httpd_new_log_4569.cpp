@@ -1,4 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d,", threads_per_child,
-                         tmp_max_workers);
+ap_log_error(APLOG_MARK, loglevel, rv, s, APLOGNO(00957)
+                         "%s: attempt to connect to %pI (%s) failed",
+                         proxy_function,
+                         backend_addr,
+                         worker->s->hostname);

@@ -1,1 +1,1 @@
-ap_add_output_filter("FIXUP_HEADERS_ERR", NULL, r, r->connection);
+ap_register_output_filter ("UPGRADE_FILTER", ssl_io_filter_Upgrade, NULL, AP_FTYPE_PROTOCOL + 5);

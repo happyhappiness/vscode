@@ -1,1 +1,1 @@
-die(_("positive width expected with the %%(align) atom"));
+fputs(output, stderr);

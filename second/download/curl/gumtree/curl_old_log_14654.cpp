@@ -1,10 +1,12 @@
 fputs(
-"              to the server instead of LIST.\n"
+"              This option tells curl to resolve names to IPv6 addresses  only,\n"
+"              and not for example try IPv4.\n"
 "\n"
-"              Note: Some FTP servers list only  files  in  their  response  to\n"
-"              NLST; they do not include sub-directories and symbolic links.\n"
+"              See  also  --http1.1  and  --http2.  This  option  overrides -6,\n"
+"              --ipv6.\n"
 "\n"
-"              (POP3)  When  retrieving a specific email from POP3, this switch\n"
-"              forces a LIST command to be performed instead of RETR.  This  is\n"
-"              particularly  useful if the user wants to see if a specific mes-\n"
+"       -j, --junk-session-cookies\n"
+"              (HTTP) When curl is told to read cookies from a given file, this\n"
+"              option  will  make  it  discard all \"session cookies\". This will\n"
+"              basically have the same effect as if a new session  is  started.\n"
 , stdout);

@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03054)
-                              "h2_h2, error reading 24 bytes speculative");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00567)
+                          "request failed: error reading the headers");

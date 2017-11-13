@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf, APLOGNO(00219)
-                            "apr_socket_accept: (client socket)");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01844)
+                    "warning: crypto for '%s' was already initialised, "
+                    "using existing configuration", conf->library);

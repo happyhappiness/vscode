@@ -1,130 +1,185 @@
-int cmd_pull(int argc, const char **argv, const char *prefix)
+int cmd_tag(int argc, const char **argv, const char *prefix)
 {
-	const char *repo, **refspecs;
-	struct oid_array merge_heads = OID_ARRAY_INIT;
-	struct object_id orig_head, curr_head;
-	struct object_id rebase_fork_point;
-	int autostash;
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf ref = STRBUF_INIT;
+	unsigned char object[20], prev[20];
+	const char *object_ref, *tag;
+	struct create_tag_options opt;
+	char *cleanup_arg = NULL;
+	int create_reflog = 0;
+	int annotate = 0, force = 0;
+	int cmdmode = 0, create_tag_object = 0;
+	const char *msgfile = NULL, *keyid = NULL;
+	struct msg_arg msg = { 0, STRBUF_INIT };
+	struct ref_transaction *transaction;
+	struct strbuf err = STRBUF_INIT;
+	struct ref_filter filter;
+	static struct ref_sorting *sorting = NULL, **sorting_tail = &sorting;
+	const char *format = NULL;
+	int icase = 0;
+	struct option options[] = {
+		OPT_CMDMODE('l', "list", &cmdmode, N_("list tag names"), 'l'),
+		{ OPTION_INTEGER, 'n', NULL, &filter.lines, N_("n"),
+				N_("print <n> lines of each tag message"),
+				PARSE_OPT_OPTARG, NULL, 1 },
+		OPT_CMDMODE('d', "delete", &cmdmode, N_("delete tags"), 'd'),
+		OPT_CMDMODE('v', "verify", &cmdmode, N_("verify tags"), 'v'),
 
-	if (!getenv("GIT_REFLOG_ACTION"))
-		set_reflog_message(argc, argv);
+		OPT_GROUP(N_("Tag creation options")),
+		OPT_BOOL('a', "annotate", &annotate,
+					N_("annotated tag, needs a message")),
+		OPT_CALLBACK('m', "message", &msg, N_("message"),
+			     N_("tag message"), parse_msg_arg),
+		OPT_FILENAME('F', "file", &msgfile, N_("read message from file")),
+		OPT_BOOL('s', "sign", &opt.sign, N_("annotated and GPG-signed tag")),
+		OPT_STRING(0, "cleanup", &cleanup_arg, N_("mode"),
+			N_("how to strip spaces and #comments from message")),
+		OPT_STRING('u', "local-user", &keyid, N_("key-id"),
+					N_("use another key to sign the tag")),
+		OPT__FORCE(&force, N_("replace the tag if exists")),
+		OPT_BOOL(0, "create-reflog", &create_reflog, N_("create a reflog")),
 
-	argc = parse_options(argc, argv, prefix, pull_options, pull_usage, 0);
+		OPT_GROUP(N_("Tag listing options")),
+		OPT_COLUMN(0, "column", &colopts, N_("show tag list in columns")),
+		OPT_CONTAINS(&filter.with_commit, N_("print only tags that contain the commit")),
+		OPT_WITH(&filter.with_commit, N_("print only tags that contain the commit")),
+		OPT_MERGED(&filter, N_("print only tags that are merged")),
+		OPT_NO_MERGED(&filter, N_("print only tags that are not merged")),
+		OPT_CALLBACK(0 , "sort", sorting_tail, N_("key"),
+			     N_("field name to sort on"), &parse_opt_ref_sorting),
+		{
+			OPTION_CALLBACK, 0, "points-at", &filter.points_at, N_("object"),
+			N_("print only tags of the object"), 0, parse_opt_object_name
+		},
+		OPT_STRING(  0 , "format", &format, N_("format"), N_("format to use for the output")),
+		OPT_BOOL('i', "ignore-case", &icase, N_("sorting and filtering are case insensitive")),
+		OPT_END()
+	};
 
-	parse_repo_refspecs(argc, argv, &repo, &refspecs);
+	git_config(git_tag_config, sorting_tail);
 
-	if (!opt_ff)
-		opt_ff = xstrdup_or_null(config_get_ff());
+	memset(&opt, 0, sizeof(opt));
+	memset(&filter, 0, sizeof(filter));
+	filter.lines = -1;
 
-	if (opt_rebase < 0)
-		opt_rebase = config_get_rebase();
+	argc = parse_options(argc, argv, prefix, options, git_tag_usage, 0);
 
-	git_config(git_pull_config, NULL);
+	if (keyid) {
+		opt.sign = 1;
+		set_signing_key(keyid);
+	}
+	create_tag_object = (opt.sign || annotate || msg.given || msgfile);
 
-	if (read_cache_unmerged())
-		die_resolve_conflict("pull");
+	if (argc == 0 && !cmdmode)
+		cmdmode = 'l';
 
-	if (file_exists(git_path_merge_head()))
-		die_conclude_merge();
+	if ((create_tag_object || force) && (cmdmode != 0))
+		usage_with_options(git_tag_usage, options);
 
-	if (get_oid("HEAD", &orig_head))
-		oidclr(&orig_head);
-
-	if (!opt_rebase && opt_autostash != -1)
-		die(_("--[no-]autostash option is only valid with --rebase."));
-
-	autostash = config_autostash;
-	if (opt_rebase) {
-		if (opt_autostash != -1)
-			autostash = opt_autostash;
-
-		if (is_null_oid(&orig_head) && !is_cache_unborn())
-			die(_("Updating an unborn branch with changes added to the index."));
-
-		if (!autostash)
-			require_clean_work_tree(N_("pull with rebase"),
-				_("please commit or stash them."), 1, 0);
-
-		if (get_rebase_fork_point(&rebase_fork_point, repo, *refspecs))
-			oidclr(&rebase_fork_point);
+	finalize_colopts(&colopts, -1);
+	if (cmdmode == 'l' && filter.lines != -1) {
+		if (explicitly_enable_column(colopts))
+			die(_("--column and -n are incompatible"));
+		colopts = 0;
+	}
+	if (!sorting)
+		sorting = ref_default_sorting();
+	sorting->ignore_case = icase;
+	filter.ignore_case = icase;
+	if (cmdmode == 'l') {
+		int ret;
+		if (column_active(colopts)) {
+			struct column_options copts;
+			memset(&copts, 0, sizeof(copts));
+			copts.padding = 2;
+			run_column_filter(colopts, &copts);
+		}
+		filter.name_patterns = argv;
+		ret = list_tags(&filter, sorting, format);
+		if (column_active(colopts))
+			stop_column_filter();
+		return ret;
+	}
+	if (filter.lines != -1)
+		die(_("-n option is only allowed with -l."));
+	if (filter.with_commit)
+		die(_("--contains option is only allowed with -l."));
+	if (filter.points_at.nr)
+		die(_("--points-at option is only allowed with -l."));
+	if (filter.merge_commit)
+		die(_("--merged and --no-merged option are only allowed with -l"));
+	if (cmdmode == 'd')
+		return for_each_tag_name(argv, delete_tag, NULL);
+	if (cmdmode == 'v') {
+		if (format)
+			verify_ref_format(format);
+		return for_each_tag_name(argv, verify_tag, format);
 	}
 
-	if (run_fetch(repo, refspecs))
-		return 1;
-
-	if (opt_dry_run)
-		return 0;
-
-	if (get_oid("HEAD", &curr_head))
-		oidclr(&curr_head);
-
-	if (!is_null_oid(&orig_head) && !is_null_oid(&curr_head) &&
-			oidcmp(&orig_head, &curr_head)) {
-		/*
-		 * The fetch involved updating the current branch.
-		 *
-		 * The working tree and the index file are still based on
-		 * orig_head commit, but we are merging into curr_head.
-		 * Update the working tree to match curr_head.
-		 */
-
-		warning(_("fetch updated the current branch head.\n"
-			"fast-forwarding your working tree from\n"
-			"commit %s."), oid_to_hex(&orig_head));
-
-		if (checkout_fast_forward(&orig_head, &curr_head, 0))
-			die(_("Cannot fast-forward your working tree.\n"
-				"After making sure that you saved anything precious from\n"
-				"$ git diff %s\n"
-				"output, run\n"
-				"$ git reset --hard\n"
-				"to recover."), oid_to_hex(&orig_head));
-	}
-
-	get_merge_heads(&merge_heads);
-
-	if (!merge_heads.nr)
-		die_no_merge_candidates(repo, refspecs);
-
-	if (is_null_oid(&orig_head)) {
-		if (merge_heads.nr > 1)
-			die(_("Cannot merge multiple branches into empty head."));
-		return pull_into_void(merge_heads.oid, &curr_head);
-	}
-	if (opt_rebase && merge_heads.nr > 1)
-		die(_("Cannot rebase onto multiple branches."));
-
-	if (opt_rebase) {
-		int ret = 0;
-		if ((recurse_submodules == RECURSE_SUBMODULES_ON ||
-		     recurse_submodules == RECURSE_SUBMODULES_ON_DEMAND) &&
-		    submodule_touches_in_range(&rebase_fork_point, &curr_head))
-			die(_("cannot rebase with locally recorded submodule modifications"));
-		if (!autostash) {
-			struct commit_list *list = NULL;
-			struct commit *merge_head, *head;
-
-			head = lookup_commit_reference(&orig_head);
-			commit_list_insert(head, &list);
-			merge_head = lookup_commit_reference(&merge_heads.oid[0]);
-			if (is_descendant_of(merge_head, list)) {
-				/* we can fast-forward this without invoking rebase */
-				opt_ff = "--ff-only";
-				ret = run_merge();
+	if (msg.given || msgfile) {
+		if (msg.given && msgfile)
+			die(_("only one -F or -m option is allowed."));
+		if (msg.given)
+			strbuf_addbuf(&buf, &(msg.buf));
+		else {
+			if (!strcmp(msgfile, "-")) {
+				if (strbuf_read(&buf, 0, 1024) < 0)
+					die_errno(_("cannot read '%s'"), msgfile);
+			} else {
+				if (strbuf_read_file(&buf, msgfile, 1024) < 0)
+					die_errno(_("could not open or read '%s'"),
+						msgfile);
 			}
 		}
-		ret = run_rebase(&curr_head, merge_heads.oid, &rebase_fork_point);
-
-		if (!ret && (recurse_submodules == RECURSE_SUBMODULES_ON ||
-			     recurse_submodules == RECURSE_SUBMODULES_ON_DEMAND))
-			ret = rebase_submodules();
-
-		return ret;
-	} else {
-		int ret = run_merge();
-		if (!ret && (recurse_submodules == RECURSE_SUBMODULES_ON ||
-			     recurse_submodules == RECURSE_SUBMODULES_ON_DEMAND))
-			ret = update_submodules();
-		return ret;
 	}
+
+	tag = argv[0];
+
+	object_ref = argc == 2 ? argv[1] : "HEAD";
+	if (argc > 2)
+		die(_("too many params"));
+
+	if (get_sha1(object_ref, object))
+		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
+
+	if (strbuf_check_tag_ref(&ref, tag))
+		die(_("'%s' is not a valid tag name."), tag);
+
+	if (read_ref(ref.buf, prev))
+		hashclr(prev);
+	else if (!force)
+		die(_("tag '%s' already exists"), tag);
+
+	opt.message_given = msg.given || msgfile;
+
+	if (!cleanup_arg || !strcmp(cleanup_arg, "strip"))
+		opt.cleanup_mode = CLEANUP_ALL;
+	else if (!strcmp(cleanup_arg, "verbatim"))
+		opt.cleanup_mode = CLEANUP_NONE;
+	else if (!strcmp(cleanup_arg, "whitespace"))
+		opt.cleanup_mode = CLEANUP_SPACE;
+	else
+		die(_("Invalid cleanup mode %s"), cleanup_arg);
+
+	if (create_tag_object) {
+		if (force_sign_annotate && !annotate)
+			opt.sign = 1;
+		create_tag(object, tag, &buf, &opt, prev, object);
+	}
+
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_update(transaction, ref.buf, object, prev,
+				   create_reflog ? REF_FORCE_CREATE_REFLOG : 0,
+				   NULL, &err) ||
+	    ref_transaction_commit(transaction, &err))
+		die("%s", err.buf);
+	ref_transaction_free(transaction);
+	if (force && !is_null_sha1(prev) && hashcmp(prev, object))
+		printf(_("Updated tag '%s' (was %s)\n"), tag, find_unique_abbrev(prev, DEFAULT_ABBREV));
+
+	strbuf_release(&err);
+	strbuf_release(&buf);
+	strbuf_release(&ref);
+	return 0;
 }

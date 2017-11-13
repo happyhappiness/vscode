@@ -1,56 +1,30 @@
-static void __stdcall service_nt_main_fn(DWORD argc, LPSTR *argv)
+static int stream_print(void *ctx, h2_io *io)
 {
-    const char *ignored;
-    nt_service_ctx_t *ctx = &globdat;
-
-    /* args and service names live in the same pool */
-    mpm_service_set_name(mpm_new_argv->pool, &ignored, argv[0]);
-
-    memset(&ctx->ssStatus, 0, sizeof(ctx->ssStatus));
-    ctx->ssStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
-    ctx->ssStatus.dwCurrentState = SERVICE_START_PENDING;
-    ctx->ssStatus.dwCheckPoint = 1;
-
-    if (!(ctx->hServiceStatus = 
-              RegisterServiceCtrlHandlerExA(argv[0], service_nt_ctrl, ctx)))
-        {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 
-                     apr_get_os_error(), NULL, 
-                     APLOGNO(00365) "Failure registering service handler");
-        return;
+    h2_mplx *m = ctx;
+    if (io && io->request) {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-%d): %s %s %s -> %s %d"
+                      "[orph=%d/started=%d/done=%d/eos_in=%d/eos_out=%d]", 
+                      m->id, io->id, 
+                      io->request->method, io->request->authority, io->request->path,
+                      io->response? "http" : (io->rst_error? "reset" : "?"),
+                      io->response? io->response->http_status : io->rst_error,
+                      io->orphaned, io->worker_started, io->worker_done,
+                      io->eos_in, io->eos_out);
     }
-
-    /* Report status, no errors, and buy 3 more seconds */
-    ReportStatusToSCMgr(SERVICE_START_PENDING, 30000, ctx);
-
-    /* We need to append all the command arguments passed via StartService()
-     * to our running service... which just got here via the SCM...
-     * but we have no interest in argv[0] for the mpm_new_argv list.
-     */
-    if (argc > 1)
-    {
-        char **cmb_data;
-
-        mpm_new_argv->nalloc = mpm_new_argv->nelts + argc - 1;
-        cmb_data = malloc(mpm_new_argv->nalloc * sizeof(const char *));
-
-        /* mpm_new_argv remains first (of lower significance) */
-        memcpy (cmb_data, mpm_new_argv->elts,
-                mpm_new_argv->elt_size * mpm_new_argv->nelts);
-
-        /* Service args follow from StartService() invocation */
-        memcpy (cmb_data + mpm_new_argv->nelts, argv + 1,
-                mpm_new_argv->elt_size * (argc - 1));
-
-        /* The replacement arg list is complete */
-        mpm_new_argv->elts = (char *)cmb_data;
-        mpm_new_argv->nelts = mpm_new_argv->nalloc;
+    else if (io) {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-%d): NULL -> %s %d"
+                      "[orph=%d/started=%d/done=%d/eos_in=%d/eos_out=%d]", 
+                      m->id, io->id, 
+                      io->response? "http" : (io->rst_error? "reset" : "?"),
+                      io->response? io->response->http_status : io->rst_error,
+                      io->orphaned, io->worker_started, io->worker_done,
+                      io->eos_in, io->eos_out);
     }
-
-    /* Let the main thread continue now... but hang on to the
-     * signal_monitor event so we can take further action
-     */
-    SetEvent(ctx->service_init);
-
-    WaitForSingleObject(ctx->service_term, INFINITE);
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-NULL): NULL", m->id);
+    }
+    return 1;
 }

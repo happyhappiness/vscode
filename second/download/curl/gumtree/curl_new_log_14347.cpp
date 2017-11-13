@@ -1,11 +1,9 @@
 fputs(
-"              This  option  can  be  used multiple times to add/replace/remove\n"
-"              multiple headers.\n"
+"              When  used,  this  option  will make all data specified with -d,\n"
+"              --data, --data-binary or --data-urlencode to be used in an  HTTP\n"
+"              GET  request instead of the POST request that otherwise would be\n"
+"              used. The data will be appended to the URL with a '?' separator.\n"
+"              If used in combination with  -I,  --head,  the  POST  data  will\n"
+"              instead be appended to the URL with a HEAD request.\n"
 "\n"
-"       -h, --help\n"
-"              Usage help. This lists all current command line options  with  a\n"
-"              short description.\n"
-"       --hostpubmd5 <md5>\n"
-"              (SFTP  SCP)  Pass a string containing 32 hexadecimal digits. The\n"
-"              string should be the 128 bit MD5 checksum of the  remote  host's\n"
 , stdout);

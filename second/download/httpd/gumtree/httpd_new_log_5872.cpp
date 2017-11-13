@@ -1,5 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, APLOGNO(03348)
-                  "h2_task(%s): open response to %s %s %s",
-                  task->id, task->request->method, 
-                  task->request->authority, 
-                  task->request->path);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
+                  "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
+                  stream->session->id, stream->id, (long)*plen, *peos);

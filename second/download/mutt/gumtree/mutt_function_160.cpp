@@ -1,121 +1,31 @@
-static int show_sig_summary (unsigned long sum,
-                              gpgme_ctx_t ctx, gpgme_key_t key, int idx,
-                              STATE *s, gpgme_signature_t sig)
+static int dotlock_file (const char *path, int fd, int retry)
 {
-  int severe = 0;
+  int r;
+  int flags = DL_FL_USEPRIV | DL_FL_RETRY;
 
-  if ((sum & GPGME_SIGSUM_KEY_REVOKED))
-    {
-      state_attach_puts (_("Warning: One of the keys has been revoked\n"),s);
-      severe = 1;
-    }
+  if (retry) retry = 1;
 
-  if ((sum & GPGME_SIGSUM_KEY_EXPIRED))
+retry_lock:
+  if ((r = invoke_dotlock(path, fd, flags, retry)) == DL_EX_EXIST)
+  {
+    if (!option (OPTNOCURSES))
     {
-      time_t at = key->subkeys->expires ? key->subkeys->expires : 0;
-      if (at)
-        {
-          state_attach_puts (_("Warning: The key used to create the "
-                               "signature expired at: "), s);
-          print_time (at , s);
-          state_attach_puts ("\n", s);
-        }
-      else
-        state_attach_puts (_("Warning: At least one certification key "
-                             "has expired\n"), s);
-    }
-
-  if ((sum & GPGME_SIGSUM_SIG_EXPIRED))
-    {
-      gpgme_verify_result_t result;
-      gpgme_signature_t sig;
-      unsigned int i;
+      char msg[LONG_STRING];
       
-      result = gpgme_op_verify_result (ctx);
-
-      for (sig = result->signatures, i = 0; sig && (i < idx);
-           sig = sig->next, i++)
-        ;
-      
-      state_attach_puts (_("Warning: The signature expired at: "), s);
-      print_time (sig ? sig->exp_timestamp : 0, s);
-      state_attach_puts ("\n", s);
-    }
-
-  if ((sum & GPGME_SIGSUM_KEY_MISSING))
-    state_attach_puts (_("Can't verify due to a missing "
-                         "key or certificate\n"), s);
-
-  if ((sum & GPGME_SIGSUM_CRL_MISSING))
+      snprintf(msg, sizeof(msg), _("Lock count exceeded, remove lock for %s?"),
+	       path);
+      if(retry && mutt_yesorno(msg, M_YES) == M_YES)
+      {
+	flags |= DL_FL_FORCE;
+	retry--;
+	mutt_clear_error ();
+	goto retry_lock;
+      }
+    } 
+    else
     {
-      state_attach_puts (_("The CRL is not available\n"), s);
-      severe = 1;
+      mutt_error ( _("Can't dotlock %s.\n"), path);
     }
-
-  if ((sum & GPGME_SIGSUM_CRL_TOO_OLD))
-    {
-      state_attach_puts (_("Available CRL is too old\n"), s);
-      severe = 1;
-    }
-
-  if ((sum & GPGME_SIGSUM_BAD_POLICY))
-    state_attach_puts (_("A policy requirement was not met\n"), s);
-
-  if ((sum & GPGME_SIGSUM_SYS_ERROR))
-    {
-      const char *t0 = NULL, *t1 = NULL;
-      gpgme_verify_result_t result;
-      gpgme_signature_t sig;
-      unsigned int i;
-
-      state_attach_puts (_("A system error occurred"), s );
-
-      /* Try to figure out some more detailed system error information. */
-      result = gpgme_op_verify_result (ctx);
-      for (sig = result->signatures, i = 0; sig && (i < idx);
-           sig = sig->next, i++)
-        ;
-      if (sig)
-	{
-	  t0 = "";
-	  t1 = sig->wrong_key_usage ? "Wrong_Key_Usage" : "";
-	}
-
-      if (t0 || t1)
-        {
-          state_attach_puts (": ", s);
-          if (t0)
-              state_attach_puts (t0, s);
-          if (t1 && !(t0 && !strcmp (t0, t1)))
-            {
-              if (t0)
-                state_attach_puts (",", s);
-              state_attach_puts (t1, s);
-            }
-        }
-      state_attach_puts ("\n", s);
-    }
-
-#ifdef HAVE_GPGME_PKA_TRUST
-
-  if (option (OPTCRYPTUSEPKA))
-    {
-      if (sig->pka_trust == 1 && sig->pka_address)
-	{
-	  state_attach_puts (_("WARNING: PKA entry does not match "
-			       "signer's address: "), s);
-	  state_attach_puts (sig->pka_address, s);
-	  state_attach_puts ("\n", s);
-	}
-      else if (sig->pka_trust == 2 && sig->pka_address)
-	{
-	  state_attach_puts (_("PKA verified signer's address is: "), s);
-	  state_attach_puts (sig->pka_address, s);
-	  state_attach_puts ("\n", s);
-	}
-    }
-
-#endif
-
-  return severe;
+  }
+  return (r == DL_EX_OK ? 0 : -1);
 }

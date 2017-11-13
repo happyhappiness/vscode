@@ -1,1 +1,1 @@
-die("Bug: bad untracked_cache value: %d", untracked_cache);
+error("refname too long: %s", refs_heads_master);

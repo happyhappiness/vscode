@@ -1,65 +1,96 @@
-apr_status_t ap_fatal_signal_setup(server_rec *s, apr_pool_t *in_pconf)
+static int stapling_cb(SSL *ssl, void *arg)
 {
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
+    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
+    server_rec *s       = mySrvFromConn(conn);
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    SSLConnRec *sslconn = myConnConfig(conn);
+    modssl_ctx_t *mctx  = myCtxConfig(sslconn, sc);
+    certinfo *cinf = NULL;
+    OCSP_RESPONSE *rsp = NULL;
+    int rv;
+    BOOL ok;
 
-    sigemptyset(&sa.sa_mask);
+    if (sc->server->stapling_enabled != TRUE) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_cb: OCSP Stapling disabled");
+        return SSL_TLSEXT_ERR_NOACK;
+    }
 
-#if defined(SA_ONESHOT)
-    sa.sa_flags = SA_ONESHOT;
-#elif defined(SA_RESETHAND)
-    sa.sa_flags = SA_RESETHAND;
-#else
-    sa.sa_flags = 0;
-#endif
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_cb: OCSP Stapling callback called");
 
-    sa.sa_handler = sig_coredump;
-    if (sigaction(SIGSEGV, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGSEGV)");
-#ifdef SIGBUS
-    if (sigaction(SIGBUS, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGBUS)");
-#endif
-#ifdef SIGABORT
-    if (sigaction(SIGABORT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-    if (sigaction(SIGABRT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-    if (sigaction(SIGILL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
-#endif
-#ifdef SIGFPE
-    if (sigaction(SIGFPE, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGFPE)");
-#endif
+    cinf = stapling_get_cert_info(s, mctx, ssl);
+    if (cinf == NULL) {
+        return SSL_TLSEXT_ERR_NOACK;
+    }
 
-#else /* NO_USE_SIGACTION */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_cb: retrieved cached certificate data");
 
-    apr_signal(SIGSEGV, sig_coredump);
-#ifdef SIGBUS
-    apr_signal(SIGBUS, sig_coredump);
-#endif /* SIGBUS */
-#ifdef SIGABORT
-    apr_signal(SIGABORT, sig_coredump);
-#endif /* SIGABORT */
-#ifdef SIGABRT
-    apr_signal(SIGABRT, sig_coredump);
-#endif /* SIGABRT */
-#ifdef SIGILL
-    apr_signal(SIGILL, sig_coredump);
-#endif /* SIGILL */
-#ifdef SIGFPE
-    apr_signal(SIGFPE, sig_coredump);
-#endif /* SIGFPE */
+    /* Check to see if we already have a response for this certificate */
+    stapling_mutex_on(s);
 
-#endif /* NO_USE_SIGACTION */
+    rv = stapling_get_cached_response(s, &rsp, &ok, cinf, conn->pool);
+    if (rv == FALSE) {
+        stapling_mutex_off(s);
+        return SSL_TLSEXT_ERR_ALERT_FATAL;
+    }
 
-    pconf = in_pconf;
-    parent_pid = my_pid = getpid();
+    if (rsp) {
+        /* see if response is acceptable */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_cb: retrieved cached response");
+        rv = stapling_check_response(s, mctx, cinf, rsp, NULL);
+        if (rv == SSL_TLSEXT_ERR_ALERT_FATAL) {
+            OCSP_RESPONSE_free(rsp);
+            stapling_mutex_off(s);
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
+        }
+        else if (rv == SSL_TLSEXT_ERR_NOACK) {
+            /* Error in response. If this error was not present when it was
+             * stored (i.e. response no longer valid) then it can be
+             * renewed straight away.
+             *
+             * If the error *was* present at the time it was stored then we
+             * don't renew the response straight away we just wait for the
+             * cached response to expire.
+             */
+            if (ok) {
+                OCSP_RESPONSE_free(rsp);
+                rsp = NULL;
+            }
+            else if (!mctx->stapling_return_errors) {
+                OCSP_RESPONSE_free(rsp);
+                stapling_mutex_off(s);
+                return SSL_TLSEXT_ERR_NOACK;
+            }
+        }
+    }
 
-    return APR_SUCCESS;
+    if (rsp == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_cb: renewing cached response");
+        rv = stapling_renew_response(s, mctx, ssl, cinf, &rsp, conn->pool);
+
+        if (rv == FALSE) {
+            stapling_mutex_off(s);
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "stapling_cb: fatal error");
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
+        }
+    }
+    stapling_mutex_off(s);
+
+    if (rsp) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_cb: setting response");
+        if (!stapling_set_response(ssl, rsp))
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
+        return SSL_TLSEXT_ERR_OK;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_cb: no response available");
+
+    return SSL_TLSEXT_ERR_NOACK;
+
 }

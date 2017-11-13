@@ -1,1 +1,2 @@
-die("invalid shallow object %s", oid_to_hex(&oid));
+die("BUG: invalid status --porcelain=2 line %s",
+				    buf.buf);

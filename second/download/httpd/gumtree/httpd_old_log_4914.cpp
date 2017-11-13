@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR,
-                      0, r, "need AuthName: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
+                         "apr_socket_accept: (client socket)");

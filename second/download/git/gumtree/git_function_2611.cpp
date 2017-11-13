@@ -1,7 +1,22 @@
-static void show_children(struct rev_info *opt, struct commit *commit, int abbrev)
+int parse_tag(struct tag *item)
 {
-	struct commit_list *p = lookup_decoration(&opt->children, &commit->object);
-	for ( ; p; p = p->next) {
-		printf(" %s", find_unique_abbrev(p->item->object.oid.hash, abbrev));
+	enum object_type type;
+	void *data;
+	unsigned long size;
+	int ret;
+
+	if (item->object.parsed)
+		return 0;
+	data = read_sha1_file(item->object.sha1, &type, &size);
+	if (!data)
+		return error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));
+	if (type != OBJ_TAG) {
+		free(data);
+		return error("Object %s not a tag",
+			     sha1_to_hex(item->object.sha1));
 	}
+	ret = parse_tag_buffer(item, data, size);
+	free(data);
+	return ret;
 }

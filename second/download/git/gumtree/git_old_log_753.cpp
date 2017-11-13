@@ -1,1 +1,2 @@
-die("unable to auto-detect email address (got '%s')", email);
+fprintf(stderr, "Also look at %s\n",
+						target.buf);

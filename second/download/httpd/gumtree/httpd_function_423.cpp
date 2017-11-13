@@ -1,24 +1,15 @@
-static const char *util_ldap_set_connection_timeout(cmd_parms *cmd, void *dummy, const char *ttl)
+void util_ldap_dn_compare_node_display(request_rec *r, util_ald_cache_t *cache, void *n)
 {
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-						  &ldap_module);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    util_dn_compare_node_t *node = (util_dn_compare_node_t *)n;
+    char *buf;
 
-    if (err != NULL) {
-        return err;
-    }
+    buf = apr_psprintf(r->pool, 
+             "<tr valign='top'>"
+             "<td nowrap>%s</td>"
+             "<td nowrap>%s</td>"
+             "<tr>",
+         node->reqdn,
+         node->dn);
 
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    st->connectionTimeout = atol(ttl);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                      "[%d] ldap connection: Setting connection timeout to %ld seconds.", 
-                      getpid(), st->connectionTimeout);
-#else
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
-                     "LDAP: Connection timout option not supported by the LDAP SDK in use." );
-#endif
-
-    return NULL;
+    ap_rputs(buf, r);
 }

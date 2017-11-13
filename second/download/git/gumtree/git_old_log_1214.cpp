@@ -1,0 +1,1 @@
+die("no such path '%s' in HEAD", path);

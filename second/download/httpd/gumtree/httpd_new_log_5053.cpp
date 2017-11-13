@@ -1,2 +1,2 @@
-log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(02810),
-                               "attempt to include NPH CGI script");
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(00480)
+                     "apr_thread_create: unable to create worker thread");

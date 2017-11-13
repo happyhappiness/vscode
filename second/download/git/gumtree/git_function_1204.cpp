@@ -1,38 +1,25 @@
-static int s_update_ref(const char *action,
-			struct ref *ref,
-			int check_old)
+static void fill_origin_blob(struct diff_options *opt,
+			     struct origin *o, mmfile_t *file)
 {
-	char msg[1024];
-	char *rla = getenv("GIT_REFLOG_ACTION");
-	struct ref_transaction *transaction;
-	struct strbuf err = STRBUF_INIT;
-	int ret, df_conflict = 0;
+	if (!o->file.ptr) {
+		enum object_type type;
+		unsigned long file_size;
 
-	if (dry_run)
-		return 0;
-	if (!rla)
-		rla = default_rla.buf;
-	snprintf(msg, sizeof(msg), "%s: %s", rla, action);
+		num_read_blob++;
+		if (DIFF_OPT_TST(opt, ALLOW_TEXTCONV) &&
+		    textconv_object(o->path, o->mode, &o->blob_oid, 1, &file->ptr, &file_size))
+			;
+		else
+			file->ptr = read_sha1_file(o->blob_oid.hash, &type,
+						   &file_size);
+		file->size = file_size;
 
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_update(transaction, ref->name, ref->new_sha1,
-				   ref->old_sha1, 0, check_old, msg, &err))
-		goto fail;
-
-	ret = ref_transaction_commit(transaction, &err);
-	if (ret) {
-		df_conflict = (ret == TRANSACTION_NAME_CONFLICT);
-		goto fail;
+		if (!file->ptr)
+			die("Cannot read blob %s for path %s",
+			    oid_to_hex(&o->blob_oid),
+			    o->path);
+		o->file = *file;
 	}
-
-	ref_transaction_free(transaction);
-	strbuf_release(&err);
-	return 0;
-fail:
-	ref_transaction_free(transaction);
-	error("%s", err.buf);
-	strbuf_release(&err);
-	return df_conflict ? STORE_REF_ERROR_DF_CONFLICT
-			   : STORE_REF_ERROR_OTHER;
+	else
+		*file = o->file;
 }

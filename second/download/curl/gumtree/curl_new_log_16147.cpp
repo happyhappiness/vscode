@@ -1,1 +1,1 @@
-warnf(config->global, "curl_mime_init failed!\n");
+warnf(config->global, "Field content type not allowed here: %s\n", type);

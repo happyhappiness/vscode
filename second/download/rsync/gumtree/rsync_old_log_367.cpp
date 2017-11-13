@@ -1,1 +1,1 @@
-fprintf(FERROR,"out of memory in %s\n",str);
+fprintf(FERROR,"ERROR: %s is a directory\n",fname);

@@ -1,0 +1,17 @@
+fputs(
+"  you the actual data).\n"
+"\n"
+"        curl -v ftp://ftp.upload.com/\n"
+"\n"
+"  To get even more details and information on what curl does, try using the\n"
+"  --trace or --trace-ascii options with a given file name to log to, like\n"
+"  this:\n"
+"\n"
+"        curl --trace trace.txt www.haxx.se\n"
+"\n"
+"\n"
+"DETAILED INFORMATION\n"
+"\n"
+"  Different protocols provide different ways of getting detailed information\n"
+"  about specific files/documents. To get curl to show detailed information\n"
+, stdout);

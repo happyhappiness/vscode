@@ -1,98 +1,111 @@
-static apr_status_t dbd_construct(void **data_ptr,
-                                  void *params, apr_pool_t *pool)
+static int authenticate_basic_user(request_rec *r)
 {
-    dbd_group_t *group = params;
-    dbd_cfg_t *cfg = group->cfg;
-    apr_pool_t *rec_pool, *prepared_pool;
-    ap_dbd_t *rec;
-    apr_status_t rv;
-    const char *err = "";
+    auth_basic_config_rec *conf = ap_get_module_config(r->per_dir_config,
+                                                       &auth_basic_module);
+    const char *sent_user, *sent_pw, *current_auth;
+    int res;
+    authn_status auth_result;
+    authn_provider_list *current_provider;
 
-    rv = apr_pool_create(&rec_pool, pool);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
-                     "DBD: Failed to create memory pool");
-        return rv;
+    /* Are we configured to be Basic auth? */
+    current_auth = ap_auth_type(r);
+    if (!current_auth || strcasecmp(current_auth, "Basic")) {
+        return DECLINED;
     }
 
-    rec = apr_pcalloc(rec_pool, sizeof(ap_dbd_t));
+    /* We need an authentication realm. */
+    if (!ap_auth_name(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                      0, r, "need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-    rec->pool = rec_pool;
+    r->ap_auth_type = (char*)current_auth;
 
-    /* The driver is loaded at config time now, so this just checks a hash.
-     * If that changes, the driver DSO could be registered to unload against
-     * our pool, which is probably not what we want.  Error checking isn't
-     * necessary now, but in case that changes in the future ...
-     */
-    rv = apr_dbd_get_driver(rec->pool, cfg->name, &rec->driver);
-    if (rv != APR_SUCCESS) {
-        if (APR_STATUS_IS_ENOTIMPL(rv)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                         "DBD: driver for %s not available", cfg->name);
-        }
-        else if (APR_STATUS_IS_EDSOOPEN(rv)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                         "DBD: can't find driver for %s", cfg->name);
-        }
-        else if (APR_STATUS_IS_ESYMNOTFOUND(rv)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                         "DBD: driver for %s is invalid or corrupted",
-                         cfg->name);
+    res = get_basic_auth(r, &sent_user, &sent_pw);
+    if (res) {
+        return res;
+    }
+
+    current_provider = conf->providers;
+    do {
+        const authn_provider *provider;
+
+        /* For now, if a provider isn't set, we'll be nice and use the file
+         * provider.
+         */
+        if (!current_provider) {
+            provider = ap_lookup_provider(AUTHN_PROVIDER_GROUP,
+                                          AUTHN_DEFAULT_PROVIDER,
+                                          AUTHN_PROVIDER_VERSION);
+
+            if (!provider || !provider->check_password) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "No Authn provider configured");
+                auth_result = AUTH_GENERAL_ERROR;
+                break;
+            }
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, AUTHN_DEFAULT_PROVIDER);
         }
         else {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                         "DBD: mod_dbd not compatible with APR in get_driver");
+            provider = current_provider->provider;
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, current_provider->provider_name);
         }
-        apr_pool_destroy(rec->pool);
-        return rv;
-    }
 
-    rv = apr_dbd_open_ex(rec->driver, rec->pool, cfg->params, &rec->handle, &err);
-    if (rv != APR_SUCCESS) {
-        switch (rv) {
-        case APR_EGENERAL:
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                         "DBD: Can't connect to %s: %s", cfg->name, err);
+
+        auth_result = provider->check_password(r, sent_user, sent_pw);
+
+        apr_table_unset(r->notes, AUTHN_PROVIDER_NAME_NOTE);
+
+        /* Something occured. Stop checking. */
+        if (auth_result != AUTH_USER_NOT_FOUND) {
             break;
+        }
+
+        /* If we're not really configured for providers, stop now. */
+        if (!conf->providers) {
+            break;
+        }
+
+        current_provider = current_provider->next;
+    } while (current_provider);
+
+    if (auth_result != AUTH_GRANTED) {
+        int return_code;
+
+        /* If we're not authoritative, then any error is ignored. */
+        if (!(conf->authoritative) && auth_result != AUTH_DENIED) {
+            return DECLINED;
+        }
+
+        switch (auth_result) {
+        case AUTH_DENIED:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "user %s: authentication failure for \"%s\": "
+                      "Password Mismatch",
+                      sent_user, r->uri);
+            return_code = HTTP_UNAUTHORIZED;
+            break;
+        case AUTH_USER_NOT_FOUND:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "user %s not found: %s", sent_user, r->uri);
+            return_code = HTTP_UNAUTHORIZED;
+            break;
+        case AUTH_GENERAL_ERROR:
         default:
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                         "DBD: mod_dbd not compatible with APR in open");
+            /* We'll assume that the module has already said what its error
+             * was in the logs.
+             */
+            return_code = HTTP_INTERNAL_SERVER_ERROR;
             break;
         }
 
-        apr_pool_destroy(rec->pool);
-        return rv;
+        /* If we're returning 403, tell them to try again. */
+        if (return_code == HTTP_UNAUTHORIZED) {
+            note_basic_auth_failure(r);
+        }
+        return return_code;
     }
 
-    apr_pool_cleanup_register(rec->pool, rec, dbd_close,
-                              apr_pool_cleanup_null);
-
-    /* we use a sub-pool for the prepared statements for each connection so
-     * that they will be cleaned up first, before the connection is closed
-     */
-    rv = apr_pool_create(&prepared_pool, rec->pool);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
-                     "DBD: Failed to create memory pool");
-
-        apr_pool_destroy(rec->pool);
-        return rv;
-    }
-
-    rv = dbd_prepared_init(prepared_pool, cfg, rec);
-    if (rv != APR_SUCCESS) {
-        const char *errmsg = apr_dbd_error(rec->driver, rec->handle, rv);
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                     "DBD: failed to prepare SQL statements: %s",
-                     (errmsg ? errmsg : "[???]"));
-
-        apr_pool_destroy(rec->pool);
-        return rv;
-    }
-
-    dbd_run_post_connect(prepared_pool, cfg, rec);
-
-    *data_ptr = rec;
-
-    return APR_SUCCESS;
+    return OK;
 }

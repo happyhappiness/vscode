@@ -1,3 +1,1 @@
-die("cannot simplify commit %s (because of %s)",
-			    oid_to_hex(&commit->object.oid),
-			    oid_to_hex(&p->object.oid));
+die("unable to generate diffstat for %s", one->path);

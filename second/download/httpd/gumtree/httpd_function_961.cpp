@@ -1,113 +1,98 @@
-int main(int argc, char **argv)
+int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */, 
+                 apr_pool_t *ptemp, server_rec *s_main)
 {
-int i;
-FILE *f;
-const unsigned char *tables = pcre_maketables();
+    apr_pool_t *stderr_p;
+    server_rec *virt, *q;
+    int replace_stderr;
 
-if (argc != 2)
-  {
-  fprintf(stderr, "dftables: one filename argument is required\n");
-  return 1;
-  }
 
-f = fopen(argv[1], "w");
-if (f == NULL)
-  {
-  fprintf(stderr, "dftables: failed to open %s for writing\n", argv[1]);
-  return 1;
-  }
+    /* Register to throw away the read_handles list when we
+     * cleanup plog.  Upon fork() for the apache children,
+     * this read_handles list is closed so only the parent
+     * can relaunch a lost log child.  These read handles 
+     * are always closed on exec.
+     * We won't care what happens to our stderr log child 
+     * between log phases, so we don't mind losing stderr's 
+     * read_handle a little bit early.
+     */
+    apr_pool_cleanup_register(p, NULL, clear_handle_list,
+                              apr_pool_cleanup_null);
 
-/* There are two fprintf() calls here, because gcc in pedantic mode complains
-about the very long string otherwise. */
-
-fprintf(f,
-  "/*************************************************\n"
-  "*      Perl-Compatible Regular Expressions       *\n"
-  "*************************************************/\n\n"
-  "/* This file is automatically written by the dftables auxiliary \n"
-  "program. If you edit it by hand, you might like to edit the Makefile to \n"
-  "prevent its ever being regenerated.\n\n");
-fprintf(f,
-  "This file is #included in the compilation of pcre.c to build the default\n"
-  "character tables which are used when no tables are passed to the compile\n"
-  "function. */\n\n"
-  "static unsigned char pcre_default_tables[] = {\n\n"
-  "/* This table is a lower casing table. */\n\n");
-
-fprintf(f, "  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0) fprintf(f, "\n  ");
-  fprintf(f, "%3d", *tables++);
-  if (i != 255) fprintf(f, ",");
-  }
-fprintf(f, ",\n\n");
-
-fprintf(f, "/* This table is a case flipping table. */\n\n");
-
-fprintf(f, "  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0) fprintf(f, "\n  ");
-  fprintf(f, "%3d", *tables++);
-  if (i != 255) fprintf(f, ",");
-  }
-fprintf(f, ",\n\n");
-
-fprintf(f,
-  "/* This table contains bit maps for various character classes.\n"
-  "Each map is 32 bytes long and the bits run from the least\n"
-  "significant end of each byte. The classes that have their own\n"
-  "maps are: space, xdigit, digit, upper, lower, word, graph\n"
-  "print, punct, and cntrl. Other classes are built from combinations. */\n\n");
-
-fprintf(f, "  ");
-for (i = 0; i < cbit_length; i++)
-  {
-  if ((i & 7) == 0 && i != 0)
-    {
-    if ((i & 31) == 0) fprintf(f, "\n");
-    fprintf(f, "\n  ");
+    /* HERE we need a stdout log that outlives plog.
+     * We *presume* the parent of plog is a process 
+     * or global pool which spans server restarts.
+     * Create our stderr_pool as a child of the plog's
+     * parent pool.
+     */
+    apr_pool_create(&stderr_p, apr_pool_parent_get(p));
+    apr_pool_tag(stderr_p, "stderr_pool");
+    
+    if (open_error_log(s_main, 1, stderr_p) != OK) {
+        return DONE;
     }
-  fprintf(f, "0x%02x", *tables++);
-  if (i != cbit_length - 1) fprintf(f, ",");
-  }
-fprintf(f, ",\n\n");
 
-fprintf(f,
-  "/* This table identifies various classes of character by individual bits:\n"
-  "  0x%02x   white space character\n"
-  "  0x%02x   letter\n"
-  "  0x%02x   decimal digit\n"
-  "  0x%02x   hexadecimal digit\n"
-  "  0x%02x   alphanumeric or '_'\n"
-  "  0x%02x   regular expression metacharacter or binary zero\n*/\n\n",
-  ctype_space, ctype_letter, ctype_digit, ctype_xdigit, ctype_word,
-  ctype_meta);
-
-fprintf(f, "  ");
-for (i = 0; i < 256; i++)
-  {
-  if ((i & 7) == 0 && i != 0)
-    {
-    fprintf(f, " /* ");
-    if (isprint(i-8)) fprintf(f, " %c -", i-8);
-      else fprintf(f, "%3d-", i-8);
-    if (isprint(i-1)) fprintf(f, " %c ", i-1);
-      else fprintf(f, "%3d", i-1);
-    fprintf(f, " */\n  ");
+    replace_stderr = 1;
+    if (s_main->error_log) {
+        apr_status_t rv;
+        
+        /* Replace existing stderr with new log. */
+        apr_file_flush(s_main->error_log);
+        rv = apr_file_dup2(stderr_log, s_main->error_log, stderr_p);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main,
+                         "unable to replace stderr with error_log");
+        }
+        else {
+            /* We are done with stderr_pool, close it, killing
+             * the previous generation's stderr logger
+             */
+            if (stderr_pool)
+                apr_pool_destroy(stderr_pool);
+            stderr_pool = stderr_p;
+            replace_stderr = 0;
+            /*
+             * Now that we have dup'ed s_main->error_log to stderr_log
+             * close it and set s_main->error_log to stderr_log. This avoids
+             * this fd being inherited by the next piped logger who would
+             * keep open the writing end of the pipe that this one uses
+             * as stdin. This in turn would prevent the piped logger from
+             * exiting.
+             */
+             apr_file_close(s_main->error_log);
+             s_main->error_log = stderr_log;
+        }
     }
-  fprintf(f, "0x%02x", *tables++);
-  if (i != 255) fprintf(f, ",");
-  }
+    /* note that stderr may still need to be replaced with something
+     * because it points to the old error log, or back to the tty
+     * of the submitter.
+     * XXX: This is BS - /dev/null is non-portable
+     */
+    if (replace_stderr && freopen("/dev/null", "w", stderr) == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main,
+                     "unable to replace stderr with /dev/null");
+    }
 
-fprintf(f, "};/* ");
-if (isprint(i-8)) fprintf(f, " %c -", i-8);
-  else fprintf(f, "%3d-", i-8);
-if (isprint(i-1)) fprintf(f, " %c ", i-1);
-  else fprintf(f, "%3d", i-1);
-fprintf(f, " */\n\n/* End of chartables.c */\n");
+    for (virt = s_main->next; virt; virt = virt->next) {
+        if (virt->error_fname) {
+            for (q=s_main; q != virt; q = q->next) {
+                if (q->error_fname != NULL
+                    && strcmp(q->error_fname, virt->error_fname) == 0) {
+                    break;
+                }
+            }
 
-fclose(f);
-return 0;
+            if (q == virt) {
+                if (open_error_log(virt, 0, p) != OK) {
+                    return DONE;
+                }
+            }
+            else {
+                virt->error_log = q->error_log;
+            }
+        }
+        else {
+            virt->error_log = s_main->error_log;
+        }
+    }
+    return OK;
 }

@@ -1,1 +1,1 @@
-error(_("Failed to lock HEAD during fast_forward_to"));
+die(_("external diff died, stopping at %s"), name);

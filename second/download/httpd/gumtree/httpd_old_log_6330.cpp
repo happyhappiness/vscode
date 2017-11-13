@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03254)
-            "%s", buffer);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00968)
+               "ajp_marshal_into_msgb: "
+               "Error appending the message begining");

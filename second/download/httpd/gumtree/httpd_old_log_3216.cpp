@@ -1,3 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                          "apr_file_write(child input), len %" APR_SIZE_T_FMT,
-                          tmplen);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require group: "
+                              "authorization successful (attribute %s) "
+                              "[%s][%d - %s]",
+                              ent[i].name, ldc->reason, result,
+                              ldap_err2string(result));

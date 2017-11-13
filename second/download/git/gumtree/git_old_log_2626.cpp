@@ -1,1 +1,1 @@
-printf("---");
+die_errno("Could not open '%s'", optarg);

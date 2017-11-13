@@ -1,1 +1,0 @@
-die_want_option("--stat-width");

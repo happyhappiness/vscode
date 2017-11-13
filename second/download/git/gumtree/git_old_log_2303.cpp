@@ -1,2 +1,1 @@
-die(_("fatal: submodule--helper subcommand must be "
-		      "called with a subcommand"));
+printf("previous %s ", sha1_to_hex(prev->commit->object.sha1));

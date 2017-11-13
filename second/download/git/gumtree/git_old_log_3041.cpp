@@ -1,1 +1,1 @@
-printf("Launching default browser to display HTML ...\n");
+die("failed to launch browser for %.*s", MAX_PATH, unixpath);

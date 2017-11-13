@@ -1,2 +1,1 @@
-error("%s: invalid sha1 pointer in cache-tree",
-			      oid_to_hex(&it->oid));
+printf("-%d-g%s", depth, find_unique_abbrev(oid->hash, abbrev));

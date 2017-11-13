@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "serving URL %s", url);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(01283)
+                             "LDAP: Could not set LDAP_OPT_TIMEOUT");

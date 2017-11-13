@@ -1,325 +1,78 @@
-int
-ssl_expr_yyparse (YYPARSE_PARAM_ARG)
-    YYPARSE_PARAM_DECL
+static int proxy_status_hook(request_rec *r, int flags)
 {
-    register int ssl_expr_yym, ssl_expr_yyn, ssl_expr_yystate;
-#if YYDEBUG
-    register const char *ssl_expr_yys;
+    int i, n;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *conf = (proxy_server_conf *)
+        ap_get_module_config(sconf, &proxy_module);
+    proxy_balancer *balancer = NULL;
+    proxy_worker *worker = NULL;
 
-    if ((ssl_expr_yys = getenv("YYDEBUG")))
-    {
-        ssl_expr_yyn = *ssl_expr_yys;
-        if (ssl_expr_yyn >= '0' && ssl_expr_yyn <= '9')
-            ssl_expr_yydebug = ssl_expr_yyn - '0';
-    }
-#endif
+    if (flags & AP_STATUS_SHORT || conf->balancers->nelts == 0 ||
+        conf->proxy_status == status_off)
+        return OK;
 
-    ssl_expr_yynerrs = 0;
-    ssl_expr_yyerrflag = 0;
-    ssl_expr_yychar = (-1);
+    balancer = (proxy_balancer *)conf->balancers->elts;
+    for (i = 0; i < conf->balancers->nelts; i++) {
+        ap_rputs("<hr />\n<h1>Proxy LoadBalancer Status for ", r);
+        ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);
+        ap_rputs("\n\n<table border=\"0\"><tr>"
+                 "<th>SSes</th><th>Timeout</th><th>Method</th>"
+                 "</tr>\n<tr>", r);
+        ap_rvputs(r, "<td>", balancer->sticky, NULL);
+        ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
+                   apr_time_sec(balancer->timeout));
+        ap_rprintf(r, "<td>%s</td>\n",
+                   balancer->lbmethod->name);
+        ap_rputs("</table>\n", r);
+        ap_rputs("\n\n<table border=\"0\"><tr>"
+                 "<th>Sch</th><th>Host</th><th>Stat</th>"
+                 "<th>Route</th><th>Redir</th>"
+                 "<th>F</th><th>Acc</th><th>Wr</th><th>Rd</th>"
+                 "</tr>\n", r);
 
-    if (ssl_expr_yyss == NULL && ssl_expr_yygrowstack()) goto ssl_expr_yyoverflow;
-    ssl_expr_yyssp = ssl_expr_yyss;
-    ssl_expr_yyvsp = ssl_expr_yyvs;
-    *ssl_expr_yyssp = ssl_expr_yystate = 0;
-
-ssl_expr_yyloop:
-    if ((ssl_expr_yyn = ssl_expr_yydefred[ssl_expr_yystate])) goto ssl_expr_yyreduce;
-    if (ssl_expr_yychar < 0)
-    {
-        if ((ssl_expr_yychar = ssl_expr_yylex()) < 0) ssl_expr_yychar = 0;
-#if YYDEBUG
-        if (ssl_expr_yydebug)
-        {
-            ssl_expr_yys = 0;
-            if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
-            if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
-            printf("%sdebug: state %d, reading %d (%s)\n",
-                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);
-        }
-#endif
-    }
-    if ((ssl_expr_yyn = ssl_expr_yysindex[ssl_expr_yystate]) && (ssl_expr_yyn += ssl_expr_yychar) >= 0 &&
-            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yychar)
-    {
-#if YYDEBUG
-        if (ssl_expr_yydebug)
-            printf("%sdebug: state %d, shifting to state %d\n",
-                    YYPREFIX, ssl_expr_yystate, ssl_expr_yytable[ssl_expr_yyn]);
-#endif
-        if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
-        {
-            goto ssl_expr_yyoverflow;
-        }
-        *++ssl_expr_yyssp = ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
-        *++ssl_expr_yyvsp = ssl_expr_yylval;
-        ssl_expr_yychar = (-1);
-        if (ssl_expr_yyerrflag > 0)  --ssl_expr_yyerrflag;
-        goto ssl_expr_yyloop;
-    }
-    if ((ssl_expr_yyn = ssl_expr_yyrindex[ssl_expr_yystate]) && (ssl_expr_yyn += ssl_expr_yychar) >= 0 &&
-            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yychar)
-    {
-        ssl_expr_yyn = ssl_expr_yytable[ssl_expr_yyn];
-        goto ssl_expr_yyreduce;
-    }
-    if (ssl_expr_yyerrflag) goto ssl_expr_yyinrecovery;
-#if defined(lint) || defined(__GNUC__)
-    goto ssl_expr_yynewerror;
-#endif
-ssl_expr_yynewerror:
-    ssl_expr_yyerror("syntax error");
-#if defined(lint) || defined(__GNUC__)
-    goto ssl_expr_yyerrlab;
-#endif
-ssl_expr_yyerrlab:
-    ++ssl_expr_yynerrs;
-ssl_expr_yyinrecovery:
-    if (ssl_expr_yyerrflag < 3)
-    {
-        ssl_expr_yyerrflag = 3;
-        for (;;)
-        {
-            if ((ssl_expr_yyn = ssl_expr_yysindex[*ssl_expr_yyssp]) && (ssl_expr_yyn += YYERRCODE) >= 0 &&
-                    ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == YYERRCODE)
-            {
-#if YYDEBUG
-                if (ssl_expr_yydebug)
-                    printf("%sdebug: state %d, error recovery shifting\
- to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yytable[ssl_expr_yyn]);
-#endif
-                if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
-                {
-                    goto ssl_expr_yyoverflow;
-                }
-                *++ssl_expr_yyssp = ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
-                *++ssl_expr_yyvsp = ssl_expr_yylval;
-                goto ssl_expr_yyloop;
-            }
+        worker = (proxy_worker *)balancer->workers->elts;
+        for (n = 0; n < balancer->workers->nelts; n++) {
+            char fbuf[50];
+            ap_rvputs(r, "<tr>\n<td>", worker->scheme, "</td>", NULL);
+            ap_rvputs(r, "<td>", worker->hostname, "</td><td>", NULL);
+            if (worker->s->status & PROXY_WORKER_DISABLED)
+                ap_rputs("Dis", r);
+            else if (worker->s->status & PROXY_WORKER_IN_ERROR)
+                ap_rputs("Err", r);
+            else if (worker->s->status & PROXY_WORKER_INITIALIZED)
+                ap_rputs("Ok", r);
             else
-            {
-#if YYDEBUG
-                if (ssl_expr_yydebug)
-                    printf("%sdebug: error recovery discarding state %d\n",
-                            YYPREFIX, *ssl_expr_yyssp);
-#endif
-                if (ssl_expr_yyssp <= ssl_expr_yyss) goto ssl_expr_yyabort;
-                --ssl_expr_yyssp;
-                --ssl_expr_yyvsp;
-            }
+                ap_rputs("-", r);
+            ap_rvputs(r, "</td><td>", worker->s->route, NULL);
+            ap_rvputs(r, "</td><td>", worker->s->redirect, NULL);
+            ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
+            ap_rprintf(r, "<td>%d</td><td>", (int)(worker->s->elected));
+            ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
+            ap_rputs("</td><td>", r);
+            ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
+            ap_rputs("</td>\n", r);
+
+            /* TODO: Add the rest of dynamic worker data */
+            ap_rputs("</tr>\n", r);
+
+            ++worker;
         }
+        ap_rputs("</table>\n", r);
+        ++balancer;
     }
-    else
-    {
-        if (ssl_expr_yychar == 0) goto ssl_expr_yyabort;
-#if YYDEBUG
-        if (ssl_expr_yydebug)
-        {
-            ssl_expr_yys = 0;
-            if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
-            if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
-            printf("%sdebug: state %d, error recovery discards token %d (%s)\n",
-                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);
-        }
-#endif
-        ssl_expr_yychar = (-1);
-        goto ssl_expr_yyloop;
-    }
-ssl_expr_yyreduce:
-#if YYDEBUG
-    if (ssl_expr_yydebug)
-        printf("%sdebug: state %d, reducing by rule %d (%s)\n",
-                YYPREFIX, ssl_expr_yystate, ssl_expr_yyn, ssl_expr_yyrule[ssl_expr_yyn]);
-#endif
-    ssl_expr_yym = ssl_expr_yylen[ssl_expr_yyn];
-    ssl_expr_yyval = ssl_expr_yyvsp[1-ssl_expr_yym];
-    switch (ssl_expr_yyn)
-    {
-case 1:
-#line 84 "ssl_expr_parse.y"
-{ ssl_expr_info.expr = ssl_expr_yyvsp[0].exVal; }
-break;
-case 2:
-#line 87 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_True,  NULL, NULL); }
-break;
-case 3:
-#line 88 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_False, NULL, NULL); }
-break;
-case 4:
-#line 89 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_Not,   ssl_expr_yyvsp[0].exVal,   NULL); }
-break;
-case 5:
-#line 90 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_Or,    ssl_expr_yyvsp[-2].exVal,   ssl_expr_yyvsp[0].exVal);   }
-break;
-case 6:
-#line 91 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_And,   ssl_expr_yyvsp[-2].exVal,   ssl_expr_yyvsp[0].exVal);   }
-break;
-case 7:
-#line 92 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_Comp,  ssl_expr_yyvsp[0].exVal,   NULL); }
-break;
-case 8:
-#line 93 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[-1].exVal; }
-break;
-case 9:
-#line 96 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_EQ,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
-break;
-case 10:
-#line 97 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_NE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
-break;
-case 11:
-#line 98 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_LT,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
-break;
-case 12:
-#line 99 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_LE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
-break;
-case 13:
-#line 100 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_GT,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
-break;
-case 14:
-#line 101 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_GE,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
-break;
-case 15:
-#line 102 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_IN,  ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
-break;
-case 16:
-#line 103 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_REG, ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
-break;
-case 17:
-#line 104 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_NRE, ssl_expr_yyvsp[-2].exVal, ssl_expr_yyvsp[0].exVal); }
-break;
-case 18:
-#line 107 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_OidListElement, ssl_expr_yyvsp[-1].exVal, NULL); }
-break;
-case 19:
-#line 108 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[-1].exVal ; }
-break;
-case 20:
-#line 111 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[0].exVal, NULL); }
-break;
-case 21:
-#line 112 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[0].exVal, ssl_expr_yyvsp[-2].exVal);   }
-break;
-case 22:
-#line 115 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_Digit,  ssl_expr_yyvsp[0].cpVal, NULL); }
-break;
-case 23:
-#line 116 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_String, ssl_expr_yyvsp[0].cpVal, NULL); }
-break;
-case 24:
-#line 117 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_make(op_Var,    ssl_expr_yyvsp[-1].cpVal, NULL); }
-break;
-case 25:
-#line 118 "ssl_expr_parse.y"
-{ ssl_expr_yyval.exVal = ssl_expr_yyvsp[0].exVal; }
-break;
-case 26:
-#line 121 "ssl_expr_parse.y"
-{
-                ap_regex_t *regex;
-                if ((regex = ap_pregcomp(ssl_expr_info.pool, ssl_expr_yyvsp[0].cpVal,
-                                         AP_REG_EXTENDED|AP_REG_NOSUB)) == NULL) {
-                    ssl_expr_error = "Failed to compile regular expression";
-                    YYERROR;
-                }
-                ssl_expr_yyval.exVal = ssl_expr_make(op_Regex, regex, NULL);
-            }
-break;
-case 27:
-#line 130 "ssl_expr_parse.y"
-{
-                ap_regex_t *regex;
-                if ((regex = ap_pregcomp(ssl_expr_info.pool, ssl_expr_yyvsp[0].cpVal,
-                                         AP_REG_EXTENDED|AP_REG_NOSUB|AP_REG_ICASE)) == NULL) {
-                    ssl_expr_error = "Failed to compile regular expression";
-                    YYERROR;
-                }
-                ssl_expr_yyval.exVal = ssl_expr_make(op_Regex, regex, NULL);
-            }
-break;
-case 28:
-#line 141 "ssl_expr_parse.y"
-{
-               ssl_expr *args = ssl_expr_make(op_ListElement, ssl_expr_yyvsp[-1].cpVal, NULL);
-               ssl_expr_yyval.exVal = ssl_expr_make(op_Func, "file", args);
-            }
-break;
-#line 563 "y.tab.c"
-    }
-    ssl_expr_yyssp -= ssl_expr_yym;
-    ssl_expr_yystate = *ssl_expr_yyssp;
-    ssl_expr_yyvsp -= ssl_expr_yym;
-    ssl_expr_yym = ssl_expr_yylhs[ssl_expr_yyn];
-    if (ssl_expr_yystate == 0 && ssl_expr_yym == 0)
-    {
-#if YYDEBUG
-        if (ssl_expr_yydebug)
-            printf("%sdebug: after reduction, shifting from state 0 to\
- state %d\n", YYPREFIX, YYFINAL);
-#endif
-        ssl_expr_yystate = YYFINAL;
-        *++ssl_expr_yyssp = YYFINAL;
-        *++ssl_expr_yyvsp = ssl_expr_yyval;
-        if (ssl_expr_yychar < 0)
-        {
-            if ((ssl_expr_yychar = ssl_expr_yylex()) < 0) ssl_expr_yychar = 0;
-#if YYDEBUG
-            if (ssl_expr_yydebug)
-            {
-                ssl_expr_yys = 0;
-                if (ssl_expr_yychar <= YYMAXTOKEN) ssl_expr_yys = ssl_expr_yyname[ssl_expr_yychar];
-                if (!ssl_expr_yys) ssl_expr_yys = "illegal-symbol";
-                printf("%sdebug: state %d, reading %d (%s)\n",
-                        YYPREFIX, YYFINAL, ssl_expr_yychar, ssl_expr_yys);
-            }
-#endif
-        }
-        if (ssl_expr_yychar == 0) goto ssl_expr_yyaccept;
-        goto ssl_expr_yyloop;
-    }
-    if ((ssl_expr_yyn = ssl_expr_yygindex[ssl_expr_yym]) && (ssl_expr_yyn += ssl_expr_yystate) >= 0 &&
-            ssl_expr_yyn <= YYTABLESIZE && ssl_expr_yycheck[ssl_expr_yyn] == ssl_expr_yystate)
-        ssl_expr_yystate = ssl_expr_yytable[ssl_expr_yyn];
-    else
-        ssl_expr_yystate = ssl_expr_yydgoto[ssl_expr_yym];
-#if YYDEBUG
-    if (ssl_expr_yydebug)
-        printf("%sdebug: after reduction, shifting from state %d \
-to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yystate);
-#endif
-    if (ssl_expr_yyssp >= ssl_expr_yysslim && ssl_expr_yygrowstack())
-    {
-        goto ssl_expr_yyoverflow;
-    }
-    *++ssl_expr_yyssp = ssl_expr_yystate;
-    *++ssl_expr_yyvsp = ssl_expr_yyval;
-    goto ssl_expr_yyloop;
-ssl_expr_yyoverflow:
-    ssl_expr_yyerror("yacc stack overflow");
-ssl_expr_yyabort:
-    return (1);
-ssl_expr_yyaccept:
-    return (0);
+    ap_rputs("<hr /><table>\n"
+             "<tr><th>SSes</th><td>Sticky session name</td></tr>\n"
+             "<tr><th>Timeout</th><td>Balancer Timeout</td></tr>\n"
+             "<tr><th>Sch</th><td>Connection scheme</td></tr>\n"
+             "<tr><th>Host</th><td>Backend Hostname</td></tr>\n"
+             "<tr><th>Stat</th><td>Worker status</td></tr>\n"
+             "<tr><th>Route</th><td>Session Route</td></tr>\n"
+             "<tr><th>Redir</th><td>Session Route Redirection</td></tr>\n"
+             "<tr><th>F</th><td>Load Balancer Factor in %</td></tr>\n"
+             "<tr><th>Acc</th><td>Number of requests</td></tr>\n"
+             "<tr><th>Wr</th><td>Number of bytes transferred</td></tr>\n"
+             "<tr><th>Rd</th><td>Number of bytes read</td></tr>\n"
+             "</table>", r);
+
+    return OK;
 }

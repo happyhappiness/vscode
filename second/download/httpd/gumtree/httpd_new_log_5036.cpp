@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02798)
-                         "%s: empty argument #%d", where, i + 1);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf, APLOGNO(00472)
+                     "ap_queue_info_wait_for_idler failed.  "
+                     "Attempting to shutdown process gracefully");

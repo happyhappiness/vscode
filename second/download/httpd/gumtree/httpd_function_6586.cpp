@@ -1,193 +1,107 @@
-int cache_select(cache_request_rec *cache, request_rec *r)
+apr_status_t h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
 {
-    cache_provider_list *list;
-    apr_status_t rv;
-    cache_handle_t *h;
+    apr_status_t status;
+    int acquired;
 
-    if (!cache) {
-        /* This should never happen */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r, APLOGNO(00693)
-                "cache: No cache request information available for key"
-                " generation");
-        return DECLINED;
-    }
+    h2_workers_unregister(m->workers, m);
+    
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        int i, wait_secs = 5;
 
-    if (!cache->key) {
-        rv = cache_generate_key(r, r->pool, &cache->key);
-        if (rv != APR_SUCCESS) {
-            return DECLINED;
+        if (!h2_ihash_empty(m->streams) && APLOGctrace1(m->c)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                          "h2_mplx(%ld): release_join with %d streams open, "
+                          "%d streams resume, %d streams ready, %d tasks", 
+                          m->id, (int)h2_ihash_count(m->streams),
+                          (int)h2_ihash_count(m->sresume), 
+                          (int)h2_ihash_count(m->sready), 
+                          (int)h2_ihash_count(m->tasks));
+            h2_ihash_iter(m->streams, report_stream_iter, m);
         }
-    }
-
-    if (!ap_cache_check_allowed(cache, r)) {
-        return DECLINED;
-    }
-
-    /* go through the cache types till we get a match */
-    h = apr_palloc(r->pool, sizeof(cache_handle_t));
-
-    list = cache->providers;
-
-    while (list) {
-        switch ((rv = list->provider->open_entity(h, r, cache->key))) {
-        case OK: {
-            char *vary = NULL;
-            int fresh, mismatch = 0;
-
-            if (list->provider->recall_headers(h, r) != APR_SUCCESS) {
-                /* try again with next cache type */
-                list = list->next;
-                continue;
-            }
-
-            /*
-             * Check Content-Negotiation - Vary
-             *
-             * At this point we need to make sure that the object we found in
-             * the cache is the same object that would be delivered to the
-             * client, when the effects of content negotiation are taken into
-             * effect.
-             *
-             * In plain english, we want to make sure that a language-negotiated
-             * document in one language is not given to a client asking for a
-             * language negotiated document in a different language by mistake.
-             *
-             * This code makes the assumption that the storage manager will
-             * cache the req_hdrs if the response contains a Vary
-             * header.
-             *
-             * RFC2616 13.6 and 14.44 describe the Vary mechanism.
-             */
-            vary = apr_pstrdup(r->pool, apr_table_get(h->resp_hdrs, "Vary"));
-            while (vary && *vary) {
-                char *name = vary;
-                const char *h1, *h2;
-
-                /* isolate header name */
-                while (*vary && !apr_isspace(*vary) && (*vary != ','))
-                    ++vary;
-                while (*vary && (apr_isspace(*vary) || (*vary == ','))) {
-                    *vary = '\0';
-                    ++vary;
-                }
-
-                /*
-                 * is this header in the request and the header in the cached
-                 * request identical? If not, we give up and do a straight get
-                 */
-                h1 = apr_table_get(r->headers_in, name);
-                h2 = apr_table_get(h->req_hdrs, name);
-                if (h1 == h2) {
-                    /* both headers NULL, so a match - do nothing */
-                }
-                else if (h1 && h2 && !strcmp(h1, h2)) {
-                    /* both headers exist and are equal - do nothing */
-                }
-                else {
-                    /* headers do not match, so Vary failed */
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r, APLOGNO(00694) "cache_select_url(): Vary header mismatch.");
-                    mismatch = 1;
-                }
-            }
-
-            /* no vary match, try next provider */
-            if (mismatch) {
-                /* try again with next cache type */
-                list = list->next;
-                continue;
-            }
-
-            cache->provider = list->provider;
-            cache->provider_name = list->provider_name;
-
-            /* Is our cached response fresh enough? */
-            fresh = cache_check_freshness(h, cache, r);
-            if (!fresh) {
-                const char *etag, *lastmod;
-
-                /* Cache-Control: only-if-cached and revalidation required, try
-                 * the next provider
-                 */
-                if (cache->control_in.only_if_cached) {
-                    /* try again with next cache type */
-                    list = list->next;
-                    continue;
-                }
-
-                /* set aside the stale entry for accessing later */
-                cache->stale_headers = apr_table_copy(r->pool,
-                        r->headers_in);
-                cache->stale_handle = h;
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00695)
-                        "Cached response for %s isn't fresh.  Adding/replacing "
-                        "conditional request headers.", r->uri);
-
-                /* We can only revalidate with our own conditionals: remove the
-                 * conditions from the original request.
-                 */
-                apr_table_unset(r->headers_in, "If-Match");
-                apr_table_unset(r->headers_in, "If-Modified-Since");
-                apr_table_unset(r->headers_in, "If-None-Match");
-                apr_table_unset(r->headers_in, "If-Range");
-                apr_table_unset(r->headers_in, "If-Unmodified-Since");
-
-                etag = apr_table_get(h->resp_hdrs, "ETag");
-                lastmod = apr_table_get(h->resp_hdrs, "Last-Modified");
-
-                if (etag || lastmod) {
-                    /* If we have a cached etag and/or Last-Modified add in
-                     * our own conditionals.
+        
+        /* disable WINDOW_UPDATE callbacks */
+        h2_mplx_set_consumed_cb(m, NULL, NULL);
+        
+        if (!h2_ihash_empty(m->shold)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): start release_join with %d streams in hold", 
+                          m->id, (int)h2_ihash_count(m->shold));
+        }
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): start release_join with %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
+        }
+        
+        h2_iq_clear(m->q);
+        apr_thread_cond_broadcast(m->task_thawed);
+        while (!h2_ihash_iter(m->streams, stream_done_iter, m)) {
+            /* iterate until all streams have been removed */
+        }
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->streams));
+    
+        if (!h2_ihash_empty(m->shold)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 2. release_join with %d streams in hold", 
+                          m->id, (int)h2_ihash_count(m->shold));
+        }
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 2. release_join with %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
+        }
+        
+        /* If we still have busy workers, we cannot release our memory
+         * pool yet, as tasks have references to us.
+         * Any operation on the task slave connection will from now on
+         * be errored ECONNRESET/ABORTED, so processing them should fail 
+         * and workers *should* return in a timely fashion.
+         */
+        for (i = 0; m->workers_busy > 0; ++i) {
+            h2_ihash_iter(m->tasks, task_abort_connection, m);
+            
+            m->join_wait = wait;
+            status = apr_thread_cond_timedwait(wait, m->lock, apr_time_from_sec(wait_secs));
+            
+            if (APR_STATUS_IS_TIMEUP(status)) {
+                if (i > 0) {
+                    /* Oh, oh. Still we wait for assigned  workers to report that 
+                     * they are done. Unless we have a bug, a worker seems to be hanging. 
+                     * If we exit now, all will be deallocated and the worker, once 
+                     * it does return, will walk all over freed memory...
                      */
-
-                    if (etag) {
-                        apr_table_set(r->headers_in, "If-None-Match", etag);
+                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03198)
+                                  "h2_mplx(%ld): release, waiting for %d seconds now for "
+                                  "%d h2_workers to return, have still %d tasks outstanding", 
+                                  m->id, i*wait_secs, m->workers_busy,
+                                  (int)h2_ihash_count(m->tasks));
+                    if (i == 1) {
+                        h2_ihash_iter(m->tasks, task_print, m);
                     }
-
-                    if (lastmod) {
-                        apr_table_set(r->headers_in, "If-Modified-Since",
-                                lastmod);
-                    }
-
-                    /*
-                     * Do not do Range requests with our own conditionals: If
-                     * we get 304 the Range does not matter and otherwise the
-                     * entity changed and we want to have the complete entity
-                     */
-                    apr_table_unset(r->headers_in, "Range");
-
                 }
-
-                /* ready to revalidate, pretend we were never here */
-                return DECLINED;
+                h2_mplx_abort(m);
+                apr_thread_cond_broadcast(m->task_thawed);
             }
-
-            /* Okay, this response looks okay.  Merge in our stuff and go. */
-            cache_accept_headers(h, r, 0);
-
-            cache->handle = h;
-            return OK;
         }
-        case DECLINED: {
-            /* try again with next cache type */
-            list = list->next;
-            continue;
+        
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->shold));
+        if (!h2_ihash_empty(m->spurge)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): 3. release_join %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));
+            purge_streams(m);
         }
-        default: {
-            /* oo-er! an error */
-            return rv;
+        AP_DEBUG_ASSERT(h2_ihash_empty(m->spurge));
+        
+        if (!h2_ihash_empty(m->tasks)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03056)
+                          "h2_mplx(%ld): release_join -> destroy, "
+                          "%d tasks still present", 
+                          m->id, (int)h2_ihash_count(m->tasks));
         }
-        }
+        leave_mutex(m, acquired);
+        h2_mplx_destroy(m);
+        /* all gone */
     }
-
-    /* if Cache-Control: only-if-cached, and not cached, return 504 */
-    if (cache->control_in.only_if_cached) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00696)
-                "cache: 'only-if-cached' requested and no cached entity, "
-                "returning 504 Gateway Timeout for: %s", r->uri);
-        return HTTP_GATEWAY_TIME_OUT;
-    }
-
-    return DECLINED;
+    return status;
 }

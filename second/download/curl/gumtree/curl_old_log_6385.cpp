@@ -1,11 +1,9 @@
 fputs(
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior  should  not be endorsed, you should encourage everyone\n"
-"              who uses NTLM to switch to a public and  documented  authentica-\n"
-"              tion method instead, such as Digest.\n"
+"              hostname,  or  the hostname itself. For example, local.com would\n"
+"              match  local.com,  local.com:80,  and  www.local.com,  but   not\n"
+"              www.notlocal.com.  (Added in 7.19.4).\n"
 "\n"
-"              If  you  want to enable NTLM for your proxy authentication, then\n"
-"              use --proxy-ntlm.\n"
-"\n"
-"              This option requires a  library  built  with  SSL  support.  Use\n"
+"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
+"              method was designed by Microsoft and is used by IIS web servers.\n"
+"              It  is a proprietary protocol, reverse-engineered by clever peo-\n"
 , stdout);

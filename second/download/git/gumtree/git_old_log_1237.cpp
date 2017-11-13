@@ -1,1 +1,3 @@
-die("%s: cannot update the ref", ref);
+die(_("cannot read blob %s for path %s"),
+			    oid_to_hex(&o->blob_oid),
+			    path);

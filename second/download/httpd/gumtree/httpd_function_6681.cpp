@@ -1,50 +1,21 @@
-static int lua_websocket_ping(lua_State *L) 
+static int h2_task_pre_conn(conn_rec* c, void *arg)
 {
-    apr_socket_t *sock;
-    apr_size_t plen;
-    char prelude[2];
-    apr_status_t rv;
-    request_rec *r = ap_lua_check_request_rec(L, 1);
-    sock = ap_get_conn_socket(r->connection);
+    h2_ctx *ctx;
     
-    /* Send a header that says: PING. */
-    prelude[0] = 0x89; /* ping  opcode */
-    prelude[1] = 0;
-    plen = 2;
-    apr_socket_send(sock, prelude, &plen);
-    
-    
-    /* Get opcode and FIN bit from pong */
-    plen = 2;
-    rv = apr_socket_recv(sock, prelude, &plen);
-    if (rv == APR_SUCCESS) {
-        unsigned char opcode = prelude[0];
-        unsigned char len = prelude[1];
-        unsigned char mask = len >> 7;
-        if (mask) len -= 128;
-        plen = len;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Got PONG opcode: %x", opcode);
-        if (opcode == 0x8A) {
-            lua_pushboolean(L, 1);
-        }
-        else {
-            lua_pushboolean(L, 0);
-        }
-        if (plen > 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                        "Websocket: Reading %lu bytes of PONG", plen);
-            return 1;
-        }
-        if (mask) {
-            plen = 2;
-            apr_socket_recv(sock, prelude, &plen);
-            plen = 2;
-            apr_socket_recv(sock, prelude, &plen);
-        }
+    if (!c->master) {
+        return OK;
     }
-    else {
-        lua_pushboolean(L, 0);
+    
+    ctx = h2_ctx_get(c, 0);
+    (void)arg;
+    if (h2_ctx_is_task(ctx)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
+                      "h2_h2, pre_connection, found stream task");
+        
+        /* Add our own, network level in- and output filters.
+         */
+        ap_add_input_filter("H2_TO_H1", NULL, NULL, c);
+        ap_add_output_filter("H1_TO_H2", NULL, NULL, c);
     }
-    return 1;
+    return OK;
 }

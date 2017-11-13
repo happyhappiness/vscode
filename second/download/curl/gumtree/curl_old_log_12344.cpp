@@ -1,9 +1,11 @@
 fputs(
-"              (SSL)  Tells  curl  to use false start during the TLS handshake.\n"
-"              False start is a mode where a  TLS  client  will  start  sending\n"
-"              application data before verifying the server's Finished message,\n"
-"              thus saving a round trip when performing a full handshake.\n"
+"              PKCS#11  module  (libnsspem.so)  needs  to be available for this\n"
+"              option to work properly.\n"
 "\n"
-"              This is currently only implemented in the NSS and Secure  Trans-\n"
-"              port  (on  iOS  7.0  or  later, or OS X 10.9 or later) backends.\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --capath <CA certificate directory>\n"
+"              (SSL) Tells curl to use the specified certificate  directory  to\n"
+"              verify  the  peer.  Multiple paths can be provided by separating\n"
+"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
 , stdout);

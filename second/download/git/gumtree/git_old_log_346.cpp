@@ -1,1 +1,1 @@
-die(permissions_advice, dir);
+die_errno(_("can't open patch '%s'"), arg);

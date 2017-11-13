@@ -1,48 +1,22 @@
-static void process_command_line_args(struct list_head *arg_head,
-				      struct string_list *trailers)
+static void check_safe_crlf(const char *path, enum crlf_action crlf_action,
+			    struct text_stat *old_stats, struct text_stat *new_stats,
+			    enum safe_crlf checksafe)
 {
-	struct string_list_item *tr;
-	struct arg_item *item;
-	struct strbuf tok = STRBUF_INIT;
-	struct strbuf val = STRBUF_INIT;
-	const struct conf_info *conf;
-	struct list_head *pos;
-
-	/*
-	 * In command-line arguments, '=' is accepted (in addition to the
-	 * separators that are defined).
-	 */
-	char *cl_separators = xstrfmt("=%s", separators);
-
-	/* Add an arg item for each configured trailer with a command */
-	list_for_each(pos, &conf_head) {
-		item = list_entry(pos, struct arg_item, list);
-		if (item->conf.command)
-			add_arg_item(arg_head,
-				     xstrdup(token_from_item(item, NULL)),
-				     xstrdup(""),
-				     &item->conf);
+	if (old_stats->crlf && !new_stats->crlf ) {
+		/*
+		 * CRLFs would not be restored by checkout
+		 */
+		if (checksafe == SAFE_CRLF_WARN)
+			warning("CRLF will be replaced by LF in %s.\nThe file will have its original line endings in your working directory.", path);
+		else /* i.e. SAFE_CRLF_FAIL */
+			die("CRLF would be replaced by LF in %s.", path);
+	} else if (old_stats->lonelf && !new_stats->lonelf ) {
+		/*
+		 * CRLFs would be added by checkout
+		 */
+		if (checksafe == SAFE_CRLF_WARN)
+			warning("LF will be replaced by CRLF in %s.\nThe file will have its original line endings in your working directory.", path);
+		else /* i.e. SAFE_CRLF_FAIL */
+			die("LF would be replaced by CRLF in %s", path);
 	}
-
-	/* Add an arg item for each trailer on the command line */
-	for_each_string_list_item(tr, trailers) {
-		int separator_pos = find_separator(tr->string, cl_separators);
-		if (separator_pos == 0) {
-			struct strbuf sb = STRBUF_INIT;
-			strbuf_addstr(&sb, tr->string);
-			strbuf_trim(&sb);
-			error(_("empty trailer token in trailer '%.*s'"),
-			      (int) sb.len, sb.buf);
-			strbuf_release(&sb);
-		} else {
-			parse_trailer(&tok, &val, &conf, tr->string,
-				      separator_pos);
-			add_arg_item(arg_head,
-				     strbuf_detach(&tok, NULL),
-				     strbuf_detach(&val, NULL),
-				     conf);
-		}
-	}
-
-	free(cl_separators);
 }

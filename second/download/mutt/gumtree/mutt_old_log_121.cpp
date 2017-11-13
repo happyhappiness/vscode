@@ -1,1 +1,1 @@
-(mutt_yesorno (msg, M_NO);
+state_attach_puts (_("Error getting key information for KeyID "), s);

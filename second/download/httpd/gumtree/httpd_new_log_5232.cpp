@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02905)
-                          "unexpected return code %d from protocol_switch to %s"
-                          , rc, protocol);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf, APLOGNO(00361)
+                     "Child: %d threads blocked on the completion port",
+                     g_blocked_threads);

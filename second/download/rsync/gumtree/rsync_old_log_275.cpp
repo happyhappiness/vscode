@@ -1,1 +1,1 @@
-fprintf(FERROR,"add_exclude(%s)\n",pattern);
+fprintf(FERROR,"chdir %s : %s\n",dir,strerror(errno));

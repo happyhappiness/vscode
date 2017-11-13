@@ -1,12 +1,9 @@
 fputs(
-"              then tells the server to connect back to the client's  specified\n"
-"              address and port, while passive mode asks the server to setup an\n"
-"              IP address and port for it to connect to.  <address>  should  be\n"
-"              one of:\n"
+"              sign. To just get the content part from a file, prefix the  file\n"
+"              name  with  the symbol <. The difference between @ and < is then\n"
+"              that @ makes a file get attached in the post as a  file  upload,\n"
+"              while  the  <  makes  a text field and just get the contents for\n"
+"              that text field from a file.\n"
 "\n"
-"              interface\n"
-"                     i.e  \"eth0\"  to  specify which interface's IP address you\n"
-"                     want to use (Unix only)\n"
-"\n"
-"              IP address\n"
+"              Example: to send an image to a server, where  'profile'  is  the\n"
 , stdout);

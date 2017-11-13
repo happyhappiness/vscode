@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, cmd->server,
-                     "Cannot find module '%s', trying '%s'", arg, name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "LDAP: Setting referrals to %s.",
+                 ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));

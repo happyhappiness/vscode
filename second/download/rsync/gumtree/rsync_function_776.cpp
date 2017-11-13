@@ -1,24 +1,31 @@
-void match_hard_links(struct file_list *flist)
+void glob_expand(char *base1, char ***argv_ptr, int *argc_ptr, int *maxargs_ptr)
 {
-	if (!list_only) {
-		int i, ndx_count = 0;
-		int32 *ndx_list;
+	char *s = (*argv_ptr)[*argc_ptr];
+	char *p, *q;
+	char *base = base1;
+	int base_len = strlen(base);
 
-		if (!(ndx_list = new_array(int32, flist->used)))
-			out_of_memory("match_hard_links");
+	if (!s || !*s)
+		return;
 
-		for (i = 0; i < flist->used; i++) {
-			if (F_IS_HLINKED(flist->sorted[i]))
-				ndx_list[ndx_count++] = i;
-		}
+	if (strncmp(s, base, base_len) == 0)
+		s += base_len;
 
-		hlink_flist = flist;
+	if (!(s = strdup(s)))
+		out_of_memory("glob_expand");
 
-		if (ndx_count)
-			match_gnums(ndx_list, ndx_count);
+	if (asprintf(&base," %s/", base1) <= 0)
+		out_of_memory("glob_expand");
+	base_len++;
 
-		free(ndx_list);
+	for (q = s; *q; q = p + base_len) {
+		if ((p = strstr(q, base)) != NULL)
+			*p = '\0'; /* split it at this point */
+		glob_expand_one(q, argv_ptr, argc_ptr, maxargs_ptr);
+		if (!p)
+			break;
 	}
-	if (protocol_version < 30)
-		idev_destroy();
+
+	free(s);
+	free(base);
 }

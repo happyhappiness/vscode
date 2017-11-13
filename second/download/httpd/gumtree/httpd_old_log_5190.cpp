@@ -1,5 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01882)
-                     "Init: this version of mod_ssl was compiled against "
-                     "a newer library (%s, version currently loaded is %s)"
-                     " - may result in undefined or erroneous behavior",
-                     SSL_LIBRARY_TEXT, SSLeay_version(SSLEAY_VERSION));
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d exceeds ServerLimit value "
+                         "of %d, decreasing to match",
+                         ap_daemons_limit, server_limit);

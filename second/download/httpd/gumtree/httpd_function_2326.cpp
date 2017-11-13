@@ -1,80 +1,116 @@
-static authn_status authn_dbd_realm(request_rec *r, const char *user,
-                                    const char *realm, char **rethash)
+apr_status_t mpm_service_install(apr_pool_t *ptemp, int argc,
+                                 const char * const * argv, int reconfig)
 {
+    char key_name[MAX_PATH];
+    char exe_path[MAX_PATH];
+    char *launch_cmd;
+    ap_regkey_t *key;
     apr_status_t rv;
-    const char *dbd_hash = NULL;
-    apr_dbd_prepared_t *statement;
-    apr_dbd_results_t *res = NULL;
-    apr_dbd_row_t *row = NULL;
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
 
-    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
-                                                &authn_dbd_module);
-    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
-    if (dbd == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error looking up %s in database", user);
-        return AUTH_GENERAL_ERROR;
+    fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
+                   : "Installing the %s service\n", mpm_display_name);
+
+    /* ###: utf-ize */
+    if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
+    {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "GetModuleFileName failed");
+        return rv;
     }
-    if (conf->realm == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "No AuthDBDUserRealmQuery has been specified.");
-        return AUTH_GENERAL_ERROR;
+
+    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                 SC_MANAGER_CREATE_SERVICE);
+    if (!schSCManager) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "Failed to open the WinNT service manager, perhaps "
+                     "you forgot to log in as Adminstrator?");
+        return (rv);
     }
-    statement = apr_hash_get(dbd->prepared, conf->realm, APR_HASH_KEY_STRING);
-    if (statement == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "A prepared statement could not be found for AuthDBDUserRealmQuery, key '%s'.", conf->realm);
-        return AUTH_GENERAL_ERROR;
-    }
-    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
-                              0, user, realm, NULL) != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error looking up %s:%s in database", user, realm);
-        return AUTH_GENERAL_ERROR;
-    }
-    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
-         rv != -1;
-         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
-        if (rv != 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "Error looking up %s in database", user);
-            return AUTH_GENERAL_ERROR;
+
+    launch_cmd = apr_psprintf(ptemp, "\"%s\" -k runservice", exe_path);
+
+    if (reconfig) {
+        /* ###: utf-ize */
+        schService = OpenService(schSCManager, mpm_service_name,
+                                 SERVICE_CHANGE_CONFIG);
+        if (!schService) {
+            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                         apr_get_os_error(), NULL,
+                         "OpenService failed");
         }
-        if (dbd_hash == NULL) {
-            dbd_hash = apr_dbd_get_entry(dbd->driver, row, 0);
+        /* ###: utf-ize */
+        else if (!ChangeServiceConfig(schService,
+                                      SERVICE_WIN32_OWN_PROCESS,
+                                      SERVICE_AUTO_START,
+                                      SERVICE_ERROR_NORMAL,
+                                      launch_cmd, NULL, NULL,
+                                      "Tcpip\0Afd\0", NULL, NULL,
+                                      mpm_display_name)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                         apr_get_os_error(), NULL,
+                         "ChangeServiceConfig failed");
 
-#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
-            /* add the rest of the columns to the environment */
-            int i = 1;
-            const char *name;
-            for (name = apr_dbd_get_name(dbd->driver, res, i);
-                 name != NULL;
-                 name = apr_dbd_get_name(dbd->driver, res, i)) {
-
-                char *str = apr_pstrcat(r->pool, AUTHN_PREFIX,
-                                        name,
-                                        NULL);
-                int j = sizeof(AUTHN_PREFIX)-1; /* string length of "AUTHENTICATE_", excluding the trailing NIL */
-                while (str[j]) {
-                    if (!apr_isalnum(str[j])) {
-                        str[j] = '_';
-                    }
-                    else {
-                        str[j] = apr_toupper(str[j]);
-                    }
-                    j++;
-                }
-                apr_table_set(r->subprocess_env, str,
-                              apr_dbd_get_entry(dbd->driver, row, i));
-                i++;
+            /* !schService aborts configuration below */
+            CloseServiceHandle(schService);
+            schService = NULL;
             }
-#endif
         }
-        /* we can't break out here or row won't get cleaned up */
+    else {
+        /* RPCSS is the Remote Procedure Call (RPC) Locator required
+         * for DCOM communication pipes.  I am far from convinced we
+         * should add this to the default service dependencies, but
+         * be warned that future apache modules or ISAPI dll's may
+         * depend on it.
+         */
+        /* ###: utf-ize */
+        schService = CreateService(schSCManager,         // SCManager database
+                                   mpm_service_name,     // name of service
+                                   mpm_display_name,     // name to display
+                                   SERVICE_ALL_ACCESS,   // access required
+                                   SERVICE_WIN32_OWN_PROCESS,  // service type
+                                   SERVICE_AUTO_START,   // start type
+                                   SERVICE_ERROR_NORMAL, // error control type
+                                   launch_cmd,           // service's binary
+                                   NULL,                 // no load svc group
+                                   NULL,                 // no tag identifier
+                                   "Tcpip\0Afd\0",       // dependencies
+                                   NULL,                 // use SYSTEM account
+                                   NULL);                // no password
+
+        if (!schService)
+        {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to create WinNT Service Profile");
+            CloseServiceHandle(schSCManager);
+            return (rv);
+        }
     }
 
-    if (!dbd_hash) {
-        return AUTH_USER_NOT_FOUND;
-    }
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
 
-    *rethash = apr_pstrdup(r->pool, dbd_hash);
-    return AUTH_USER_FOUND;
+    set_service_description();
+
+    /* Store the service ConfigArgs in the registry...
+     */
+    apr_snprintf(key_name, sizeof(key_name), SERVICEPARAMS, mpm_service_name);
+    rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, key_name,
+                        APR_READ | APR_WRITE | APR_CREATE, pconf);
+    if (rv == APR_SUCCESS) {
+        rv = ap_regkey_value_array_set(key, "ConfigArgs", argc, argv, pconf);
+        ap_regkey_close(key);
+    }
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "%s: Failed to store the ConfigArgs in the registry.",
+                     mpm_display_name);
+        return (rv);
+    }
+    fprintf(stderr,"The %s service is successfully installed.\n", mpm_display_name);
+    return APR_SUCCESS;
 }

@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                          "h2_task_input(%s): return %ld data bytes",
-                          input->task->id, (long)bblen);
+ap_log_error(APLOG_MARK,
+                                     APLOG_WARNING, 0, NULL, APLOGNO(02795)
+                                     "bad cumulated nesting (%+d) in %s",
+                                     any_nesting, where);

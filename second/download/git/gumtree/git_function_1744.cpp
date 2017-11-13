@@ -1,52 +1,30 @@
-int log_ref_setup(const char *refname, struct strbuf *sb_logfile)
+static void pass_blame_to_parent(struct scoreboard *sb,
+				 struct origin *target,
+				 struct origin *parent)
 {
-	int logfd, oflags = O_APPEND | O_WRONLY;
-	char *logfile;
+	mmfile_t file_p, file_o;
+	struct blame_chunk_cb_data d;
+	struct blame_entry *newdest = NULL;
 
-	strbuf_git_path(sb_logfile, "logs/%s", refname);
-	logfile = sb_logfile->buf;
-	/* make sure the rest of the function can't change "logfile" */
-	sb_logfile = NULL;
-	if (log_all_ref_updates &&
-	    (starts_with(refname, "refs/heads/") ||
-	     starts_with(refname, "refs/remotes/") ||
-	     starts_with(refname, "refs/notes/") ||
-	     !strcmp(refname, "HEAD"))) {
-		if (safe_create_leading_directories(logfile) < 0) {
-			int save_errno = errno;
-			error("unable to create directory for %s", logfile);
-			errno = save_errno;
-			return -1;
-		}
-		oflags |= O_CREAT;
-	}
+	if (!target->suspects)
+		return; /* nothing remains for this target */
 
-	logfd = open(logfile, oflags, 0666);
-	if (logfd < 0) {
-		if (!(oflags & O_CREAT) && (errno == ENOENT || errno == EISDIR))
-			return 0;
+	d.parent = parent;
+	d.offset = 0;
+	d.dstq = &newdest; d.srcq = &target->suspects;
 
-		if (errno == EISDIR) {
-			if (remove_empty_directories(logfile)) {
-				int save_errno = errno;
-				error("There are still logs under '%s'",
-				      logfile);
-				errno = save_errno;
-				return -1;
-			}
-			logfd = open(logfile, oflags, 0666);
-		}
+	fill_origin_blob(&sb->revs->diffopt, parent, &file_p);
+	fill_origin_blob(&sb->revs->diffopt, target, &file_o);
+	num_get_patch++;
 
-		if (logfd < 0) {
-			int save_errno = errno;
-			error("Unable to append to %s: %s", logfile,
-			      strerror(errno));
-			errno = save_errno;
-			return -1;
-		}
-	}
+	if (diff_hunks(&file_p, &file_o, 0, blame_chunk_cb, &d))
+		die("unable to generate diff (%s -> %s)",
+		    sha1_to_hex(parent->commit->object.sha1),
+		    sha1_to_hex(target->commit->object.sha1));
+	/* The rest are the same as the parent */
+	blame_chunk(&d.dstq, &d.srcq, INT_MAX, d.offset, INT_MAX, parent);
+	*d.dstq = NULL;
+	queue_blames(sb, parent, newdest);
 
-	adjust_shared_perm(logfile);
-	close(logfd);
-	return 0;
+	return;
 }

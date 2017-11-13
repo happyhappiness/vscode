@@ -1,1 +1,1 @@
-fprintf(FINFO,"hash search b=%d len=%d\n",s->n,(int)len);
+fprintf(f,"-H, --hard-links         preserve hard links\n");

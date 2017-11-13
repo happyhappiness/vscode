@@ -1,1 +1,0 @@
-die(_("malformed input line: '%s'."), buf.buf);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, f->r, APLOGNO(00765)
-                    "cache: Cache provider's store_body failed for URI %s", f->r->uri);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                  H2_SSSN_MSG(session, "pool_cleanup"));

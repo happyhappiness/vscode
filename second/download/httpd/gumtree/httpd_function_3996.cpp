@@ -1,86 +1,43 @@
-static int proxy_match_ipaddr(struct dirconn_entry *This, request_rec *r)
+static int fixup_redir(request_rec *r)
 {
-    int i, ip_addr[4];
-    struct in_addr addr, *ip;
-    const char *host = proxy_get_host_of_request(r);
+    void *dconf = r->per_dir_config;
+    alias_dir_conf *dirconf =
+    (alias_dir_conf *) ap_get_module_config(dconf, &alias_module);
+    char *ret;
+    int status;
 
-    if (host == NULL) {   /* oops! */
-       return 0;
-    }
+    /* It may have changed since last time, so try again */
 
-    memset(&addr, '\0', sizeof addr);
-    memset(ip_addr, '\0', sizeof ip_addr);
+    if ((ret = try_alias_list(r, dirconf->redirects, 1, &status)) != NULL) {
+        if (ap_is_HTTP_REDIRECT(status)) {
+            if (ret[0] == '/') {
+                char *orig_target = ret;
 
-    if (4 == sscanf(host, "%d.%d.%d.%d", &ip_addr[0], &ip_addr[1], &ip_addr[2], &ip_addr[3])) {
-        for (addr.s_addr = 0, i = 0; i < 4; ++i) {
-            /* ap_proxy_is_ipaddr() already confirmed that we have
-             * a valid octet in ip_addr[i]
-             */
-            addr.s_addr |= htonl(ip_addr[i] << (24 - 8 * i));
-        }
-
-        if (This->addr.s_addr == (addr.s_addr & This->mask.s_addr)) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "1)IP-Match: %s[%s] <-> ", host, inet_ntoa(addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "%s/", inet_ntoa(This->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "%s", inet_ntoa(This->mask));
-#endif
-            return 1;
-        }
-#if DEBUGGING
-        else {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "1)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "%s/", inet_ntoa(This->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "%s", inet_ntoa(This->mask));
-        }
-#endif
-    }
-    else {
-        struct apr_sockaddr_t *reqaddr;
-
-        if (apr_sockaddr_info_get(&reqaddr, host, APR_UNSPEC, 0, 0, r->pool)
-            != APR_SUCCESS) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-             "2)IP-NoMatch: hostname=%s msg=Host not found", host);
-#endif
-            return 0;
-        }
-
-        /* Try to deal with multiple IP addr's for a host */
-        /* FIXME: This needs to be able to deal with IPv6 */
-        while (reqaddr) {
-            ip = (struct in_addr *) reqaddr->ipaddr_ptr;
-            if (This->addr.s_addr == (ip->s_addr & This->mask.s_addr)) {
-#if DEBUGGING
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "3)IP-Match: %s[%s] <-> ", host, inet_ntoa(*ip));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "%s/", inet_ntoa(This->addr));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "%s", inet_ntoa(This->mask));
-#endif
-                return 1;
+                ret = ap_construct_url(r->pool, ret, r);
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "incomplete redirection target of '%s' for "
+                              "URI '%s' modified to '%s'",
+                              orig_target, r->uri, ret);
             }
-#if DEBUGGING
+            if (!ap_is_url(ret)) {
+                status = HTTP_INTERNAL_SERVER_ERROR;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "cannot redirect '%s' to '%s'; "
+                              "target is not a valid absoluteURI or abs_path",
+                              r->uri, ret);
+            }
             else {
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "3)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(*ip));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "%s/", inet_ntoa(This->addr));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "%s", inet_ntoa(This->mask));
+                /* append requested query only, if the config didn't
+                 * supply its own.
+                 */
+                if (r->args && !ap_strchr(ret, '?')) {
+                    ret = apr_pstrcat(r->pool, ret, "?", r->args, NULL);
+                }
+                apr_table_setn(r->headers_out, "Location", ret);
             }
-#endif
-            reqaddr = reqaddr->next;
         }
+        return status;
     }
 
-    return 0;
+    return DECLINED;
 }

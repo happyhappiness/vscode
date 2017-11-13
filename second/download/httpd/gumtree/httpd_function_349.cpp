@@ -1,28 +1,42 @@
-static apr_status_t write_body(cache_handle_t *h, request_rec *r, apr_bucket_brigade *b) 
+static void add_password(const char *user, const char *realm, apr_file_t *f)
 {
-    apr_bucket *e;
-    apr_status_t rv;
-    disk_cache_object_t *dobj = (disk_cache_object_t *) h->cache_obj->vobj;
+    char *pw;
+    apr_md5_ctx_t context;
+    unsigned char digest[16];
+    char string[MAX_STRING_LEN];
+    char pwin[MAX_STRING_LEN];
+    char pwv[MAX_STRING_LEN];
+    unsigned int i;
+    apr_size_t len = sizeof(pwin);
 
-    if (!dobj->fd) {
-        rv = apr_file_open(&dobj->fd, dobj->tempfile, 
-                           APR_WRITE | APR_CREATE | APR_BINARY| APR_TRUNCATE | APR_BUFFERED,
-                           APR_UREAD | APR_UWRITE, r->pool);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
+    if (apr_password_get("New password: ", pwin, &len) != APR_SUCCESS) {
+	fprintf(stderr, "password too long");
+	exit(5);
     }
-    APR_BRIGADE_FOREACH(e, b) {
-        const char *str;
-        apr_size_t length;
-        apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
-        apr_file_write(dobj->fd, str, &length);
+    len = sizeof(pwin);
+    apr_password_get("Re-type new password: ", pwv, &len);
+    if (strcmp(pwin, pwv) != 0) {
+	fprintf(stderr, "They don't match, sorry.\n");
+	if (tfp) {
+	    apr_file_close(tfp);
+	}
+	exit(1);
     }
-    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(b))) {
-        file_cache_el_final(h, r);    /* Link to the perm file, and close the descriptor  */
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "disk_cache: Cached body for URL %s",  dobj->name);
-    }
+    pw = pwin;
+    apr_file_printf(f, "%s:%s:", user, realm);
 
-    return APR_SUCCESS;	
+    /* Do MD5 stuff */
+    sprintf(string, "%s:%s:%s", user, realm, pw);
+
+    apr_md5_init(&context);
+#if APR_CHARSET_EBCDIC
+    apr_md5_set_xlate(&context, to_ascii);
+#endif
+    apr_md5_update(&context, (unsigned char *) string, strlen(string));
+    apr_md5_final(digest, &context);
+
+    for (i = 0; i < 16; i++)
+	apr_file_printf(f, "%02x", digest[i]);
+
+    apr_file_printf(f, "\n");
 }

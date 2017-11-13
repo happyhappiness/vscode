@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03065)
-                      "h2_stream(%ld-%d): closing with err=%d %s", 
-                      session->id, (int)stream->id, (int)error_code,
-                      h2_h2_err_description(error_code));
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                          APLOGNO(02917) 
+                          "h2_request(%d): pseudo header after request start",
+                          req->id);

@@ -1,359 +1,329 @@
-void child_main(apr_pool_t *pconf, DWORD parent_pid)
+static int read_request_line(request_rec *r, apr_bucket_brigade *bb)
 {
-    apr_status_t status;
-    apr_hash_t *ht;
-    ap_listen_rec *lr;
-    HANDLE child_events[3];
-    HANDLE *child_handles;
-    int listener_started = 0;
-    int threads_created = 0;
-    int watch_thread;
-    int time_remains;
-    int cld;
-    DWORD tid;
-    int rv;
-    int i;
-    int num_events;
+    enum {
+        rrl_none, rrl_badmethod, rrl_badwhitespace, rrl_excesswhitespace,
+        rrl_missinguri, rrl_baduri, rrl_badprotocol, rrl_trailingtext,
+        rrl_badmethod09, rrl_reject09
+    } deferred_error = rrl_none;
+    char *ll;
+    char *uri;
+    apr_size_t len;
+    int num_blank_lines = DEFAULT_LIMIT_BLANK_LINES;
+    core_server_config *conf = ap_get_core_module_config(r->server->module_config);
+    int strict = (conf->http_conformance != AP_HTTP_CONFORMANCE_UNSAFE);
 
-    apr_pool_create(&pchild, pconf);
-    apr_pool_tag(pchild, "pchild");
+    /* Read past empty lines until we get a real request line,
+     * a read error, the connection closes (EOF), or we timeout.
+     *
+     * We skip empty lines because browsers have to tack a CRLF on to the end
+     * of POSTs to support old CERN webservers.  But note that we may not
+     * have flushed any previous response completely to the client yet.
+     * We delay the flush as long as possible so that we can improve
+     * performance for clients that are pipelining requests.  If a request
+     * is pipelined then we won't block during the (implicit) read() below.
+     * If the requests aren't pipelined, then the client is still waiting
+     * for the final buffer flush from us, and we will block in the implicit
+     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
+     * have to block during a read.
+     */
 
-    ap_run_child_init(pchild, ap_server_conf);
-    ht = apr_hash_make(pchild);
+    do {
+        apr_status_t rv;
 
-    /* Initialize the child_events */
-    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!max_requests_per_child_event) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00350)
-                     "Child: Failed to create a max_requests event.");
-        exit(APEXIT_CHILDINIT);
+        /* ensure ap_rgetline allocates memory each time thru the loop
+         * if there are empty lines
+         */
+        r->the_request = NULL;
+        rv = ap_rgetline(&(r->the_request), (apr_size_t)(r->server->limit_req_line + 2),
+                         &len, r, strict ? AP_GETLINE_CRLF : 0, bb);
+
+        if (rv != APR_SUCCESS) {
+            r->request_time = apr_time_now();
+
+            /* ap_rgetline returns APR_ENOSPC if it fills up the
+             * buffer before finding the end-of-line.  This is only going to
+             * happen if it exceeds the configured limit for a request-line.
+             */
+            if (APR_STATUS_IS_ENOSPC(rv)) {
+                r->status = HTTP_REQUEST_URI_TOO_LARGE;
+            }
+            else if (APR_STATUS_IS_TIMEUP(rv)) {
+                r->status = HTTP_REQUEST_TIME_OUT;
+            }
+            else if (APR_STATUS_IS_EINVAL(rv)) {
+                r->status = HTTP_BAD_REQUEST;
+            }
+            r->proto_num = HTTP_VERSION(1,0);
+            r->protocol  = apr_pstrdup(r->pool, "HTTP/1.0");
+            return 0;
+        }
+    } while ((len <= 0) && (--num_blank_lines >= 0));
+
+    if (APLOGrtrace5(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
+                      "Request received from client: %s",
+                      ap_escape_logitem(r->pool, r->the_request));
     }
-    child_events[0] = exit_event;
-    child_events[1] = max_requests_per_child_event;
 
-    if (parent_pid != my_pid) {
-        child_events[2] = OpenProcess(SYNCHRONIZE, FALSE, parent_pid);
-        num_events = 3;
+    r->request_time = apr_time_now();
+
+    r->method = r->the_request;
+
+    /* If there is whitespace before a method, skip it and mark in error */
+    if (apr_isspace(*r->method)) {
+        deferred_error = rrl_badwhitespace; 
+        for ( ; apr_isspace(*r->method); ++r->method)
+            ; 
+    }
+
+    /* Scan the method up to the next whitespace, ensure it contains only
+     * valid http-token characters, otherwise mark in error
+     */
+    if (strict) {
+        ll = (char*) ap_scan_http_token(r->method);
     }
     else {
-        /* presumably -DONE_PROCESS */
-        child_events[2] = NULL;
-        num_events = 2;
+        ll = (char*) ap_scan_vchar_obstext(r->method);
     }
 
-    /*
-     * Wait until we have permission to start accepting connections.
-     * start_mutex is used to ensure that only one child ever
-     * goes into the listen/accept loop at once.
-     */
-    status = apr_proc_mutex_lock(start_mutex);
-    if (status != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf, APLOGNO(00351)
-                     "Child: Failed to acquire the start_mutex. "
-                     "Process will exit.");
-        exit(APEXIT_CHILDINIT);
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf, APLOGNO(00352)
-                 "Child: Acquired the start mutex.");
-
-    /*
-     * Create the worker thread dispatch IOCompletionPort
-     */
-    /* Create the worker thread dispatch IOCP */
-    ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
-                                                NULL, 0, 0);
-    apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
-    qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!qwait_event) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
-                     ap_server_conf, APLOGNO(00353)
-                     "Child: Failed to create a qwait event.");
-        exit(APEXIT_CHILDINIT);
+    if (((ll == r->method) || (*ll && !apr_isspace(*ll)))
+            && deferred_error == rrl_none) {
+        deferred_error = rrl_badmethod;
+        ll = strpbrk(ll, "\t\n\v\f\r ");
     }
 
-    /*
-     * Create the pool of worker threads
-     */
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00354)
-                 "Child: Starting %d worker threads.", ap_threads_per_child);
-    child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child
-                                                  * sizeof(HANDLE));
-    apr_thread_mutex_create(&child_lock, APR_THREAD_MUTEX_DEFAULT, pchild);
-
-    while (1) {
-        for (i = 0; i < ap_threads_per_child; i++) {
-            int *score_idx;
-            int status = ap_scoreboard_image->servers[0][i].status;
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
-            }
-            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
-
-            child_handles[i] = CreateThread(NULL, ap_thread_stacksize,
-                                            worker_main, (void *) i,
-                                            stack_res_flag, &tid);
-            if (child_handles[i] == 0) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
-                             ap_server_conf, APLOGNO(00355)
-                             "Child: CreateThread failed. Unable to "
-                             "create all worker threads. Created %d of the %d "
-                             "threads requested with the ThreadsPerChild "
-                             "configuration directive.",
-                             threads_created, ap_threads_per_child);
-                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
-                goto shutdown;
-            }
-            threads_created++;
-            /* Save the score board index in ht keyed to the thread handle.
-             * We need this when cleaning up threads down below...
-             */
-            apr_thread_mutex_lock(child_lock);
-            score_idx = apr_pcalloc(pchild, sizeof(int));
-            *score_idx = i;
-            apr_hash_set(ht, &child_handles[i], sizeof(HANDLE), score_idx);
-            apr_thread_mutex_unlock(child_lock);
-        }
-        /* Start the listener only when workers are available */
-        if (!listener_started && threads_created) {
-            create_listener_thread();
-            listener_started = 1;
-            winnt_mpm_state = AP_MPMQ_RUNNING;
-        }
-        if (threads_created == ap_threads_per_child) {
-            break;
-        }
-        /* Check to see if the child has been told to exit */
-        if (WaitForSingleObject(exit_event, 0) != WAIT_TIMEOUT) {
-            break;
-        }
-        /* wait for previous generation to clean up an entry in the scoreboard
-         */
-        apr_sleep(1 * APR_USEC_PER_SEC);
+    /* Verify method terminated with a single SP, or mark as specific error */
+    if (!ll) {
+        if (deferred_error == rrl_none)
+            deferred_error = rrl_missinguri;
+        r->protocol = uri = "";
+        len = 0;
+        goto rrl_done;
+    }
+    else if (strict && ll[0] && apr_isspace(ll[1])
+             && deferred_error == rrl_none) {
+        deferred_error = rrl_excesswhitespace; 
     }
 
-    /* Wait for one of three events:
-     * exit_event:
-     *    The exit_event is signaled by the parent process to notify
-     *    the child that it is time to exit.
-     *
-     * max_requests_per_child_event:
-     *    This event is signaled by the worker threads to indicate that
-     *    the process has handled MaxConnectionsPerChild connections.
-     *
-     * TIMEOUT:
-     *    To do periodic maintenance on the server (check for thread exits,
-     *    number of completion contexts, etc.)
-     *
-     * XXX: thread exits *aren't* being checked.
-     *
-     * XXX: other_child - we need the process handles to the other children
-     *      in order to map them to apr_proc_other_child_read (which is not
-     *      named well, it's more like a_p_o_c_died.)
-     *
-     * XXX: however - if we get a_p_o_c handle inheritance working, and
-     *      the parent process creates other children and passes the pipes
-     *      to our worker processes, then we have no business doing such
-     *      things in the child_main loop, but should happen in master_main.
+    /* Advance uri pointer over leading whitespace, NUL terminate the method
+     * If non-SP whitespace is encountered, mark as specific error
      */
-    while (1) {
-#if !APR_HAS_OTHER_CHILD
-        rv = WaitForMultipleObjects(num_events, (HANDLE *)child_events, FALSE, INFINITE);
-        cld = rv - WAIT_OBJECT_0;
-#else
-        rv = WaitForMultipleObjects(num_events, (HANDLE *)child_events, FALSE, 1000);
-        cld = rv - WAIT_OBJECT_0;
-        if (rv == WAIT_TIMEOUT) {
-            apr_proc_other_child_refresh_all(APR_OC_REASON_RUNNING);
-        }
+    for (uri = ll; apr_isspace(*uri); ++uri) 
+        if (*uri != ' ' && deferred_error == rrl_none)
+            deferred_error = rrl_badwhitespace; 
+    *ll = '\0';
+
+    if (!*uri && deferred_error == rrl_none)
+        deferred_error = rrl_missinguri;
+
+    /* Scan the URI up to the next whitespace, ensure it contains no raw
+     * control characters, otherwise mark in error
+     */
+    ll = (char*) ap_scan_vchar_obstext(uri);
+    if (ll == uri || (*ll && !apr_isspace(*ll))) {
+        deferred_error = rrl_baduri;
+        ll = strpbrk(ll, "\t\n\v\f\r ");
+    }
+
+    /* Verify URI terminated with a single SP, or mark as specific error */
+    if (!ll) {
+        r->protocol = "";
+        len = 0;
+        goto rrl_done;
+    }
+    else if (strict && ll[0] && apr_isspace(ll[1])
+             && deferred_error == rrl_none) {
+        deferred_error = rrl_excesswhitespace; 
+    }
+
+    /* Advance protocol pointer over leading whitespace, NUL terminate the uri
+     * If non-SP whitespace is encountered, mark as specific error
+     */
+    for (r->protocol = ll; apr_isspace(*r->protocol); ++r->protocol) 
+        if (*r->protocol != ' ' && deferred_error == rrl_none)
+            deferred_error = rrl_badwhitespace; 
+    *ll = '\0';
+
+    /* Scan the protocol up to the next whitespace, validation comes later */
+    if (!(ll = (char*) ap_scan_vchar_obstext(r->protocol))) {
+        len = strlen(r->protocol);
+        goto rrl_done;
+    }
+    len = ll - r->protocol;
+
+    /* Advance over trailing whitespace, if found mark in error,
+     * determine if trailing text is found, unconditionally mark in error,
+     * finally NUL terminate the protocol string
+     */
+    if (*ll && !apr_isspace(*ll)) {
+        deferred_error = rrl_badprotocol;
+    }
+    else if (strict && *ll) {
+        deferred_error = rrl_excesswhitespace;
+    }
+    else {
+        for ( ; apr_isspace(*ll); ++ll)
+            if (*ll != ' ' && deferred_error == rrl_none)
+                deferred_error = rrl_badwhitespace; 
+        if (*ll && deferred_error == rrl_none)
+            deferred_error = rrl_trailingtext;
+    }
+    *((char *)r->protocol + len) = '\0';
+
+rrl_done:
+    /* For internal integrety and palloc efficiency, reconstruct the_request
+     * in one palloc, using only single SP characters, per spec.
+     */
+    r->the_request = apr_pstrcat(r->pool, r->method, *uri ? " " : NULL, uri,
+                                 *r->protocol ? " " : NULL, r->protocol, NULL);
+
+    if (len == 8
+            && r->protocol[0] == 'H' && r->protocol[1] == 'T'
+            && r->protocol[2] == 'T' && r->protocol[3] == 'P'
+            && r->protocol[4] == '/' && apr_isdigit(r->protocol[5])
+            && r->protocol[6] == '.' && apr_isdigit(r->protocol[7])
+            && r->protocol[5] != '0') {
+        r->assbackwards = 0;
+        r->proto_num = HTTP_VERSION(r->protocol[5] - '0', r->protocol[7] - '0');
+    }
+    else if (len == 8
+                 && (r->protocol[0] == 'H' || r->protocol[0] == 'h')
+                 && (r->protocol[1] == 'T' || r->protocol[1] == 't')
+                 && (r->protocol[2] == 'T' || r->protocol[2] == 't')
+                 && (r->protocol[3] == 'P' || r->protocol[3] == 'p')
+                 && r->protocol[4] == '/' && apr_isdigit(r->protocol[5])
+                 && r->protocol[6] == '.' && apr_isdigit(r->protocol[7])
+                 && r->protocol[5] != '0') {
+        r->assbackwards = 0;
+        r->proto_num = HTTP_VERSION(r->protocol[5] - '0', r->protocol[7] - '0');
+        if (strict && deferred_error == rrl_none)
+            deferred_error = rrl_badprotocol;
         else
-#endif
-            if (rv == WAIT_FAILED) {
-            /* Something serious is wrong */
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
-                         ap_server_conf, APLOGNO(00356)
-                         "Child: WAIT_FAILED -- shutting down server");
-            break;
-        }
-        else if (cld == 0) {
-            /* Exit event was signaled */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf, APLOGNO(00357)
-                         "Child: Exit event signaled. Child process is "
-                         "ending.");
-            break;
-        }
-        else if (cld == 2) {
-            /* The parent is dead.  Shutdown the child process. */
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf, APLOGNO(02538)
-                         "Child: Parent process exited abruptly. Child process "
-                         "is ending");
-            break;
-        }
-        else {
-            /* MaxConnectionsPerChild event set by the worker threads.
-             * Signal the parent to restart
-             */
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00358)
-                         "Child: Process exiting because it reached "
-                         "MaxConnectionsPerChild. Signaling the parent to "
-                         "restart a new child process.");
-            ap_signal_parent(SIGNAL_PARENT_RESTART);
-            break;
-        }
+            memcpy((char*)r->protocol, "HTTP", 4);
     }
-
-    /*
-     * Time to shutdown the child process
-     */
-
- shutdown:
-
-    winnt_mpm_state = AP_MPMQ_STOPPING;
-
-    /* Close the listening sockets. Note, we must close the listeners
-     * before closing any accept sockets pending in AcceptEx to prevent
-     * memory leaks in the kernel.
-     */
-    for (lr = ap_listeners; lr ; lr = lr->next) {
-        apr_socket_close(lr->sd);
-    }
-
-    /* Shutdown listener threads and pending AcceptEx sockets
-     * but allow the worker threads to continue consuming from
-     * the queue of accepted connections.
-     */
-    shutdown_in_progress = 1;
-
-    Sleep(1000);
-
-    /* Tell the worker threads to exit */
-    workers_may_exit = 1;
-
-    /* Release the start_mutex to let the new process (in the restart
-     * scenario) a chance to begin accepting and servicing requests
-     */
-    rv = apr_proc_mutex_unlock(start_mutex);
-    if (rv == APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, ap_server_conf, APLOGNO(00359)
-                     "Child: Released the start mutex");
+    else if (r->protocol[0]) {
+        r->proto_num = HTTP_VERSION(0, 9);
+        /* Defer setting the r->protocol string till error msg is composed */
+        if (deferred_error == rrl_none)
+            deferred_error = rrl_badprotocol;
     }
     else {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00360)
-                     "Child: Failure releasing the start mutex");
+        r->assbackwards = 1;
+        r->protocol  = apr_pstrdup(r->pool, "HTTP/0.9");
+        r->proto_num = HTTP_VERSION(0, 9);
     }
 
-    /* Shutdown the worker threads
-     * Post worker threads blocked on the ThreadDispatch IOCompletion port
+    /* Determine the method_number and parse the uri prior to invoking error
+     * handling, such that these fields are available for subsitution
      */
-    while (g_blocked_threads > 0) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf, APLOGNO(00361)
-                     "Child: %d threads blocked on the completion port",
-                     g_blocked_threads);
-        for (i=g_blocked_threads; i > 0; i--) {
-            PostQueuedCompletionStatus(ThreadDispatchIOCP, 0,
-                                       IOCP_SHUTDOWN, NULL);
-        }
-        Sleep(1000);
-    }
-    /* Empty the accept queue of completion contexts */
-    apr_thread_mutex_lock(qlock);
-    while (qhead) {
-        CloseHandle(qhead->overlapped.hEvent);
-        closesocket(qhead->accept_socket);
-        qhead = qhead->next;
-    }
-    apr_thread_mutex_unlock(qlock);
+    r->method_number = ap_method_number_of(r->method);
+    if (r->method_number == M_GET && r->method[0] == 'H')
+        r->header_only = 1;
 
-    /* Give busy threads a chance to service their connections
-     * (no more than the global server timeout period which
-     * we track in msec remaining).
+    ap_parse_uri(r, uri);
+
+    /* With the request understood, we can consider HTTP/0.9 specific errors */
+    if (r->proto_num == HTTP_VERSION(0, 9) && deferred_error == rrl_none) {
+        if (conf->http09_enable == AP_HTTP09_DISABLE)
+            deferred_error = rrl_reject09;
+        else if (strict && (r->method_number != M_GET || r->header_only))
+            deferred_error = rrl_badmethod09;
+    }
+
+    /* Now that the method, uri and protocol are all processed,
+     * we can safely resume any deferred error reporting
      */
-    watch_thread = 0;
-    time_remains = (int)(ap_server_conf->timeout / APR_TIME_C(1000));
+    if (deferred_error != rrl_none) {
+        if (deferred_error == rrl_badmethod)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03445)
+                          "HTTP Request Line; Invalid method token: '%.*s'",
+                          field_name_len(r->method), r->method);
+        else if (deferred_error == rrl_badmethod09)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03444)
+                          "HTTP Request Line; Invalid method token: '%.*s'"
+                          " (only GET is allowed for HTTP/0.9 requests)",
+                          field_name_len(r->method), r->method);
+        else if (deferred_error == rrl_missinguri)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03446)
+                          "HTTP Request Line; Missing URI");
+        else if (deferred_error == rrl_baduri)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03454)
+                          "HTTP Request Line; URI incorrectly encoded: '%.*s'",
+                          field_name_len(r->uri), r->uri);
+        else if (deferred_error == rrl_badwhitespace)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03447)
+                          "HTTP Request Line; Invalid whitespace");
+        else if (deferred_error == rrl_excesswhitespace)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03448)
+                          "HTTP Request Line; Excess whitespace "
+                          "(disallowed by HttpProtocolOptions Strict");
+        else if (deferred_error == rrl_trailingtext)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03449)
+                          "HTTP Request Line; Extraneous text found '%.*s' "
+                          "(perhaps whitespace was injected?)",
+                          field_name_len(ll), ll);
+        else if (deferred_error == rrl_reject09)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02401)
+                          "HTTP Request Line; Rejected HTTP/0.9 request");
+        else if (deferred_error == rrl_badprotocol)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02418)
+                          "HTTP Request Line; Unrecognized protocol '%.*s' "
+                          "(perhaps whitespace was injected?)",
+                          field_name_len(r->protocol), r->protocol);
+        r->status = HTTP_BAD_REQUEST;
+        goto rrl_failed;
+    }
 
-    while (threads_created)
-    {
-        int nFailsafe = MAXIMUM_WAIT_OBJECTS;
-        DWORD dwRet;
+    if (conf->http_methods == AP_HTTP_METHODS_REGISTERED
+            && r->method_number == M_INVALID) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02423)
+                      "HTTP Request Line; Unrecognized HTTP method: '%.*s' "
+                      "(disallowed by RegisteredMethods)",
+                      field_name_len(r->method), r->method);
+        r->status = HTTP_NOT_IMPLEMENTED;
+        /* This can't happen in an HTTP/0.9 request, we verified GET above */
+        return 0;
+    }
 
-        /* Every time we roll over to wait on the first group
-         * of MAXIMUM_WAIT_OBJECTS threads, take a breather,
-         * and infrequently update the error log.
+    if (r->status != HTTP_OK) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03450)
+                      "HTTP Request Line; Unable to parse URI: '%.*s'",
+                      field_name_len(r->uri), r->uri);
+        goto rrl_failed;
+    }
+
+    if (strict) {
+        if (r->parsed_uri.fragment) {
+            /* RFC3986 3.5: no fragment */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02421)
+                          "HTTP Request Line; URI must not contain a fragment");
+            r->status = HTTP_BAD_REQUEST;
+            goto rrl_failed;
+        }
+        if (r->parsed_uri.user || r->parsed_uri.password) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02422)
+                          "HTTP Request Line; URI must not contain a "
+                          "username/password");
+            r->status = HTTP_BAD_REQUEST;
+            goto rrl_failed;
+        }
+    }
+
+    return 1;
+
+rrl_failed:
+    if (r->proto_num == HTTP_VERSION(0, 9)) {
+        /* Send all parsing and protocol error response with 1.x behavior,
+         * and reserve 505 errors for actual HTTP protocols presented.
+         * As called out in RFC7230 3.5, any errors parsing the protocol
+         * from the request line are nearly always misencoded HTTP/1.x
+         * requests. Only a valid 0.9 request with no parsing errors
+         * at all may be treated as a simple request, if allowed.
          */
-        if (watch_thread >= threads_created) {
-            if ((time_remains -= 100) < 0)
-                break;
-
-            /* Every 30 seconds give an update */
-            if ((time_remains % 30000) == 0) {
-                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS,
-                             ap_server_conf, APLOGNO(00362)
-                             "Child: Waiting %d more seconds "
-                             "for %d worker threads to finish.",
-                             time_remains / 1000, threads_created);
-            }
-            /* We'll poll from the top, 10 times per second */
-            Sleep(100);
-            watch_thread = 0;
-        }
-
-        /* Fairness, on each iteration we will pick up with the thread
-         * after the one we just removed, even if it's a single thread.
-         * We don't block here.
-         */
-        dwRet = WaitForMultipleObjects(min(threads_created - watch_thread,
-                                           MAXIMUM_WAIT_OBJECTS),
-                                       child_handles + watch_thread, 0, 0);
-
-        if (dwRet == WAIT_FAILED) {
-            break;
-        }
-        if (dwRet == WAIT_TIMEOUT) {
-            /* none ready */
-            watch_thread += MAXIMUM_WAIT_OBJECTS;
-            continue;
-        }
-        else if (dwRet >= WAIT_ABANDONED_0) {
-            /* We just got the ownership of the object, which
-             * should happen at most MAXIMUM_WAIT_OBJECTS times.
-             * It does NOT mean that the object is signaled.
-             */
-            if ((nFailsafe--) < 1)
-                break;
-        }
-        else {
-            watch_thread += (dwRet - WAIT_OBJECT_0);
-            if (watch_thread >= threads_created)
-                break;
-            cleanup_thread(child_handles, &threads_created, watch_thread);
-        }
+        r->assbackwards = 0;
+        r->connection->keepalive = AP_CONN_CLOSE;
+        r->proto_num = HTTP_VERSION(1, 0);
+        r->protocol  = apr_pstrdup(r->pool, "HTTP/1.0");
     }
-
-    /* Kill remaining threads off the hard way */
-    if (threads_created) {
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00363)
-                     "Child: Terminating %d threads that failed to exit.",
-                     threads_created);
-    }
-    for (i = 0; i < threads_created; i++) {
-        int *score_idx;
-        TerminateThread(child_handles[i], 1);
-        CloseHandle(child_handles[i]);
-        /* Reset the scoreboard entry for the thread we just whacked */
-        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
-        if (score_idx) {
-            ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);
-        }
-    }
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00364)
-                 "Child: All worker threads have exited.");
-
-    apr_thread_mutex_destroy(child_lock);
-    apr_thread_mutex_destroy(qlock);
-    CloseHandle(qwait_event);
-
-    apr_pool_destroy(pchild);
-    CloseHandle(exit_event);
-    if (child_events[2] != NULL) {
-        CloseHandle(child_events[2]);
-    }
+    return 0;
 }

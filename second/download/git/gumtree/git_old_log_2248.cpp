@@ -1,2 +1,4 @@
-error(_("could not open '%s' for writing: %s"),
-					mail, strerror(errno));
+status_printf_ln(s, color,
+					 _("You are currently rebasing branch '%s' on '%s'."),
+					 state->branch,
+					 state->onto);

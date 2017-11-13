@@ -1,11 +1,9 @@
 fputs(
-"              that is executed when needed.\n"
+"              Tells curl to use a separate operation for the following URL and\n"
+"              associated  options.  This  allows  you  to  send  several   URL\n"
+"              requests,  each  with  their  own specific options, for example,\n"
+"              such as different user names or custom requests for each.\n"
 "\n"
-"              See also --ntlm and --proxy-ntlm.\n"
-"\n"
-"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior should not be endorsed, you should  encourage  everyone\n"
+"              -:, --next will reset all local options  and  only  global  ones\n"
+"              will  have  their values survive over to the operation following\n"
 , stdout);

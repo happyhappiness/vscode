@@ -1,1 +1,1 @@
-die(_("rev-list does not support display of notes"));
+error("'%s' exists; cannot create '%s'", entry->name, refname);

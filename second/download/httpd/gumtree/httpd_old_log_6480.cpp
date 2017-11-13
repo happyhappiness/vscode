@@ -1,1 +1,2 @@
-ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
+ap_log_cerror(APLOG_MARK, level, 0, c, "bb_dump(%ld-%d)-%s: %s", 
+                  c->id, stream_id, tag, line);

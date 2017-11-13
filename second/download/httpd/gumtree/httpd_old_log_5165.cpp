@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01946)
-                         "Cannot reinit %s mutex with file `%s'",
-                         SSL_STAPLING_MUTEX_TYPE, lockfile);
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, s, "fork: Unable to fork new process");

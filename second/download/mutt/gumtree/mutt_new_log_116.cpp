@@ -1,1 +1,0 @@
-(mutt_yesorno (prompt, MUTT_YES);

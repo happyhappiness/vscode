@@ -1,28 +1,23 @@
-static int edit_and_replace(const char *object_ref, int force, int raw)
+static void export_object(const unsigned char *sha1, enum object_type type,
+			  int raw, const char *filename)
 {
-	char *tmpfile = git_pathdup("REPLACE_EDITOBJ");
-	enum object_type type;
-	unsigned char old[20], new[20], prev[20];
-	char ref[PATH_MAX];
+	struct child_process cmd = { NULL };
+	int fd;
 
-	if (get_sha1(object_ref, old) < 0)
-		die("Not a valid object name: '%s'", object_ref);
+	fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+	if (fd < 0)
+		die_errno("unable to open %s for writing", filename);
 
-	type = sha1_object_info(old, NULL);
-	if (type < 0)
-		die("unable to get object type for %s", sha1_to_hex(old));
+	argv_array_push(&cmd.args, "--no-replace-objects");
+	argv_array_push(&cmd.args, "cat-file");
+	if (raw)
+		argv_array_push(&cmd.args, typename(type));
+	else
+		argv_array_push(&cmd.args, "-p");
+	argv_array_push(&cmd.args, sha1_to_hex(sha1));
+	cmd.git_cmd = 1;
+	cmd.out = fd;
 
-	check_ref_valid(old, prev, ref, sizeof(ref), force);
-
-	export_object(old, type, raw, tmpfile);
-	if (launch_editor(tmpfile, NULL, NULL) < 0)
-		die("editing object file failed");
-	import_object(new, type, raw, tmpfile);
-
-	free(tmpfile);
-
-	if (!hashcmp(old, new))
-		return error("new object is the same as the old one: '%s'", sha1_to_hex(old));
-
-	return replace_object_sha1(object_ref, old, "replacement", new, force);
+	if (run_command(&cmd))
+		die("cat-file reported failure");
 }

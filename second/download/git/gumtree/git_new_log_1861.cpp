@@ -1,1 +1,1 @@
-die("BUG: not unique item in first-parent chain");
+die("git cat-file: could not get object info");

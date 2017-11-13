@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,  APLOGNO(02651)
-                              "Error writing request body to script %s", 
-                              r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02550) "Failed to flush CGI output to client");

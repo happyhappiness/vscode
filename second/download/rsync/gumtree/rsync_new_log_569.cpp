@@ -1,1 +1,1 @@
-rprintf(FINFO,"generator wrote %ld\n",(long)write_total());
+rprintf(FERROR,"rmdir %s : %s\n",f_name(f),strerror(errno));

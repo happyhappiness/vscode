@@ -1,10 +1,9 @@
 fputs(
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the  command  HEAD which this uses to get nothing but the header\n"
-"              of a document. When used on an FTP or FILE file,  curl  displays\n"
-"              the file size and last modification time only.\n"
+"              should  not  replace internally set headers without knowing per-\n"
+"              fectly well what you're doing. Remove an internal header by giv-\n"
+"              ing  a  replacement  without  content  on  the right side of the\n"
+"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
+"              value  then its header must be terminated with a semicolon, such\n"
+"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
 "\n"
-"       --interface <name>\n"
-"              Perform  an operation using a specified interface. You can enter\n"
-"              interface name, IP address or host name. An example  could  look\n"
 , stdout);

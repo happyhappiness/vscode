@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
-                         "LDAP cache: error while creating a shared memory segment: %s", buf);
+apr_file_printf(errfile, "Use -c option to create new one.\n");

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "inflate: bad flags %02x",
-                                  ctx->zlib_flags);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                  "handing out temporary %d bit DH key", keylen);

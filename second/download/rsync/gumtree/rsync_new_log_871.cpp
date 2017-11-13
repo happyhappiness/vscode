@@ -1,1 +1,1 @@
-fprintf(F,"Trivial file listing program for portably checking rsync\n");
+fprintf(F,"\nOptions:\n");

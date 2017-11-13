@@ -1,1 +1,0 @@
-strcpy(id->hex, hex);

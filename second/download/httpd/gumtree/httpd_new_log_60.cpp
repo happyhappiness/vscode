@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                         "cache: not caching streamed response for "
-                                         "%s because length %s", url,
-                                          "> CacheMaxStreamingBuffer");
+apr_file_printf(errfile, "%s: unable to update file %s\n", 
+                        argv[0], pwfilename);

@@ -1,1 +1,1 @@
-fprintf(porcelain ? stdout : stderr, "To %s\n", dest);
+fprintf(stderr, "flushed.\n");

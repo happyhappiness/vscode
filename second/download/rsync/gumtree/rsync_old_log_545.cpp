@@ -1,1 +1,1 @@
-fprintf(FERROR,"mktemp %s failed\n",fnametmp);
+fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));

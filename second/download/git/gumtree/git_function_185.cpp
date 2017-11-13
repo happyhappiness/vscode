@@ -1,35 +1,66 @@
-static int clean_index(const unsigned char *head, const unsigned char *remote)
+static int push_refs_with_export(struct transport *transport,
+		struct ref *remote_refs, int flags)
 {
-	struct tree *head_tree, *remote_tree, *index_tree;
-	unsigned char index[GIT_SHA1_RAWSZ];
+	struct ref *ref;
+	struct child_process *helper, exporter;
+	struct helper_data *data = transport->data;
+	struct string_list revlist_args = STRING_LIST_INIT_NODUP;
+	struct strbuf buf = STRBUF_INIT;
 
-	head_tree = parse_tree_indirect(head);
-	if (!head_tree)
-		return error(_("Could not parse object '%s'."), sha1_to_hex(head));
+	if (!data->refspecs)
+		die("remote-helper doesn't support push; refspec needed");
 
-	remote_tree = parse_tree_indirect(remote);
-	if (!remote_tree)
-		return error(_("Could not parse object '%s'."), sha1_to_hex(remote));
+	if (flags & TRANSPORT_PUSH_DRY_RUN) {
+		if (set_helper_option(transport, "dry-run", "true") != 0)
+			die("helper %s does not support dry-run", data->name);
+	}
 
-	read_cache_unmerged();
+	if (flags & TRANSPORT_PUSH_FORCE) {
+		if (set_helper_option(transport, "force", "true") != 0)
+			warning("helper %s does not support 'force'", data->name);
+	}
 
-	if (fast_forward_to(head_tree, head_tree, 1))
-		return -1;
+	helper = get_helper(transport);
 
-	if (write_cache_as_tree(index, 0, NULL))
-		return -1;
+	write_constant(helper->in, "export\n");
 
-	index_tree = parse_tree_indirect(index);
-	if (!index_tree)
-		return error(_("Could not parse object '%s'."), sha1_to_hex(index));
+	strbuf_reset(&buf);
 
-	if (fast_forward_to(index_tree, remote_tree, 0))
-		return -1;
+	for (ref = remote_refs; ref; ref = ref->next) {
+		char *private;
+		unsigned char sha1[20];
 
-	if (merge_tree(remote_tree))
-		return -1;
+		if (ref->deletion)
+			die("remote-helpers do not support ref deletion");
 
-	remove_branch_state();
+		private = apply_refspecs(data->refspecs, data->refspec_nr, ref->name);
+		if (private && !get_sha1(private, sha1)) {
+			strbuf_addf(&buf, "^%s", private);
+			string_list_append(&revlist_args, strbuf_detach(&buf, NULL));
+			hashcpy(ref->old_sha1, sha1);
+		}
+		free(private);
+
+		if (ref->peer_ref) {
+			if (strcmp(ref->peer_ref->name, ref->name))
+				die("remote-helpers do not support old:new syntax");
+			string_list_append(&revlist_args, ref->peer_ref->name);
+		}
+	}
+
+	if (get_exporter(transport, &exporter, &revlist_args))
+		die("Couldn't run fast-export");
+
+	if (finish_command(&exporter))
+		die("Error while running fast-export");
+	if (push_update_refs_status(data, remote_refs, flags))
+		return 1;
+
+	if (data->export_marks) {
+		strbuf_addf(&buf, "%s.tmp", data->export_marks);
+		rename(buf.buf, data->export_marks);
+		strbuf_release(&buf);
+	}
 
 	return 0;
 }

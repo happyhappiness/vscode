@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: %s\n", err);
+io_printf(f_out, "@ERROR: getpwuid failed\n");

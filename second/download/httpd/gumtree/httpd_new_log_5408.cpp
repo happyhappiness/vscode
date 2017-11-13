@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, APLOGNO(03196)
-                      "missing argument for exec element in %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, ap_server_conf,
+                 "end of generation %d", gi->gen);

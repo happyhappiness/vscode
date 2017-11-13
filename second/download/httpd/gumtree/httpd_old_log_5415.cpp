@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_TRACE3, 0, task->pool,
-                  "h2_conn(%ld): created from master", master->id);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
+                     "cannot send signal %d to pid %ld (non-child or "
+                     "already dead)", sig, (long)pid);

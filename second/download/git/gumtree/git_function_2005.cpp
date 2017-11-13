@@ -1,189 +1,221 @@
-void show_log(struct rev_info *opt)
+int git_config_set_multivar_in_file(const char *config_filename,
+				const char *key, const char *value,
+				const char *value_regex, int multi_replace)
 {
-	struct strbuf msgbuf = STRBUF_INIT;
-	struct log_info *log = opt->loginfo;
-	struct commit *commit = log->commit, *parent = log->parent;
-	int abbrev_commit = opt->abbrev_commit ? opt->abbrev : 40;
-	const char *extra_headers = opt->extra_headers;
-	struct pretty_print_context ctx = {0};
+	int fd = -1, in_fd;
+	int ret;
+	struct lock_file *lock = NULL;
+	char *filename_buf = NULL;
+	char *contents = NULL;
+	size_t contents_sz;
 
-	opt->loginfo = NULL;
-	if (!opt->verbose_header) {
-		graph_show_commit(opt->graph);
+	/* parse-key returns negative; flip the sign to feed exit(3) */
+	ret = 0 - git_config_parse_key(key, &store.key, &store.baselen);
+	if (ret)
+		goto out_free;
 
-		if (!opt->graph)
-			put_revision_mark(opt, commit);
-		fputs(find_unique_abbrev(commit->object.sha1, abbrev_commit), stdout);
-		if (opt->print_parents)
-			show_parents(commit, abbrev_commit);
-		if (opt->children.name)
-			show_children(opt, commit, abbrev_commit);
-		show_decorations(opt, commit);
-		if (opt->graph && !graph_is_commit_finished(opt->graph)) {
-			putchar('\n');
-			graph_show_remainder(opt->graph);
-		}
-		putchar(opt->diffopt.line_termination);
-		return;
+	store.multi_replace = multi_replace;
+
+	if (!config_filename)
+		config_filename = filename_buf = git_pathdup("config");
+
+	/*
+	 * The lock serves a purpose in addition to locking: the new
+	 * contents of .git/config will be written into it.
+	 */
+	lock = xcalloc(1, sizeof(struct lock_file));
+	fd = hold_lock_file_for_update(lock, config_filename, 0);
+	if (fd < 0) {
+		error("could not lock config file %s: %s", config_filename, strerror(errno));
+		free(store.key);
+		ret = CONFIG_NO_LOCK;
+		goto out_free;
 	}
 
 	/*
-	 * If use_terminator is set, we already handled any record termination
-	 * at the end of the last record.
-	 * Otherwise, add a diffopt.line_termination character before all
-	 * entries but the first.  (IOW, as a separator between entries)
+	 * If .git/config does not exist yet, write a minimal version.
 	 */
-	if (opt->shown_one && !opt->use_terminator) {
+	in_fd = open(config_filename, O_RDONLY);
+	if ( in_fd < 0 ) {
+		free(store.key);
+
+		if ( ENOENT != errno ) {
+			error("opening %s: %s", config_filename,
+			      strerror(errno));
+			ret = CONFIG_INVALID_FILE; /* same as "invalid config file" */
+			goto out_free;
+		}
+		/* if nothing to unset, error out */
+		if (value == NULL) {
+			ret = CONFIG_NOTHING_SET;
+			goto out_free;
+		}
+
+		store.key = (char *)key;
+		if (!store_write_section(fd, key) ||
+		    !store_write_pair(fd, key, value))
+			goto write_err_out;
+	} else {
+		struct stat st;
+		size_t copy_begin, copy_end;
+		int i, new_line = 0;
+
+		if (value_regex == NULL)
+			store.value_regex = NULL;
+		else if (value_regex == CONFIG_REGEX_NONE)
+			store.value_regex = CONFIG_REGEX_NONE;
+		else {
+			if (value_regex[0] == '!') {
+				store.do_not_match = 1;
+				value_regex++;
+			} else
+				store.do_not_match = 0;
+
+			store.value_regex = (regex_t*)xmalloc(sizeof(regex_t));
+			if (regcomp(store.value_regex, value_regex,
+					REG_EXTENDED)) {
+				error("invalid pattern: %s", value_regex);
+				free(store.value_regex);
+				ret = CONFIG_INVALID_PATTERN;
+				goto out_free;
+			}
+		}
+
+		ALLOC_GROW(store.offset, 1, store.offset_alloc);
+		store.offset[0] = 0;
+		store.state = START;
+		store.seen = 0;
+
 		/*
-		 * If entries are separated by a newline, the output
-		 * should look human-readable.  If the last entry ended
-		 * with a newline, print the graph output before this
-		 * newline.  Otherwise it will end up as a completely blank
-		 * line and will look like a gap in the graph.
-		 *
-		 * If the entry separator is not a newline, the output is
-		 * primarily intended for programmatic consumption, and we
-		 * never want the extra graph output before the entry
-		 * separator.
+		 * After this, store.offset will contain the *end* offset
+		 * of the last match, or remain at 0 if no match was found.
+		 * As a side effect, we make sure to transform only a valid
+		 * existing config file.
 		 */
-		if (opt->diffopt.line_termination == '\n' &&
-		    !opt->missing_newline)
-			graph_show_padding(opt->graph);
-		putchar(opt->diffopt.line_termination);
-	}
-	opt->shown_one = 1;
-
-	/*
-	 * If the history graph was requested,
-	 * print the graph, up to this commit's line
-	 */
-	graph_show_commit(opt->graph);
-
-	/*
-	 * Print header line of header..
-	 */
-
-	if (opt->commit_format == CMIT_FMT_EMAIL) {
-		log_write_email_headers(opt, commit, &ctx.subject, &extra_headers,
-					&ctx.need_8bit_cte);
-	} else if (opt->commit_format != CMIT_FMT_USERFORMAT) {
-		fputs(diff_get_color_opt(&opt->diffopt, DIFF_COMMIT), stdout);
-		if (opt->commit_format != CMIT_FMT_ONELINE)
-			fputs("commit ", stdout);
-
-		if (!opt->graph)
-			put_revision_mark(opt, commit);
-		fputs(find_unique_abbrev(commit->object.sha1, abbrev_commit),
-		      stdout);
-		if (opt->print_parents)
-			show_parents(commit, abbrev_commit);
-		if (opt->children.name)
-			show_children(opt, commit, abbrev_commit);
-		if (parent)
-			printf(" (from %s)",
-			       find_unique_abbrev(parent->object.sha1,
-						  abbrev_commit));
-		fputs(diff_get_color_opt(&opt->diffopt, DIFF_RESET), stdout);
-		show_decorations(opt, commit);
-		if (opt->commit_format == CMIT_FMT_ONELINE) {
-			putchar(' ');
-		} else {
-			putchar('\n');
-			graph_show_oneline(opt->graph);
+		if (git_config_from_file(store_aux, config_filename, NULL)) {
+			error("invalid config file %s", config_filename);
+			free(store.key);
+			if (store.value_regex != NULL &&
+			    store.value_regex != CONFIG_REGEX_NONE) {
+				regfree(store.value_regex);
+				free(store.value_regex);
+			}
+			ret = CONFIG_INVALID_FILE;
+			goto out_free;
 		}
-		if (opt->reflog_info) {
-			/*
-			 * setup_revisions() ensures that opt->reflog_info
-			 * and opt->graph cannot both be set,
-			 * so we don't need to worry about printing the
-			 * graph info here.
-			 */
-			show_reflog_message(opt->reflog_info,
-					    opt->commit_format == CMIT_FMT_ONELINE,
-					    &opt->date_mode,
-					    opt->date_mode_explicit);
-			if (opt->commit_format == CMIT_FMT_ONELINE)
-				return;
+
+		free(store.key);
+		if (store.value_regex != NULL &&
+		    store.value_regex != CONFIG_REGEX_NONE) {
+			regfree(store.value_regex);
+			free(store.value_regex);
 		}
+
+		/* if nothing to unset, or too many matches, error out */
+		if ((store.seen == 0 && value == NULL) ||
+				(store.seen > 1 && multi_replace == 0)) {
+			ret = CONFIG_NOTHING_SET;
+			goto out_free;
+		}
+
+		fstat(in_fd, &st);
+		contents_sz = xsize_t(st.st_size);
+		contents = xmmap_gently(NULL, contents_sz, PROT_READ,
+					MAP_PRIVATE, in_fd, 0);
+		if (contents == MAP_FAILED) {
+			if (errno == ENODEV && S_ISDIR(st.st_mode))
+				errno = EISDIR;
+			error("unable to mmap '%s': %s",
+			      config_filename, strerror(errno));
+			ret = CONFIG_INVALID_FILE;
+			contents = NULL;
+			goto out_free;
+		}
+		close(in_fd);
+
+		if (chmod(lock->filename.buf, st.st_mode & 07777) < 0) {
+			error("chmod on %s failed: %s",
+				lock->filename.buf, strerror(errno));
+			ret = CONFIG_NO_WRITE;
+			goto out_free;
+		}
+
+		if (store.seen == 0)
+			store.seen = 1;
+
+		for (i = 0, copy_begin = 0; i < store.seen; i++) {
+			if (store.offset[i] == 0) {
+				store.offset[i] = copy_end = contents_sz;
+			} else if (store.state != KEY_SEEN) {
+				copy_end = store.offset[i];
+			} else
+				copy_end = find_beginning_of_line(
+					contents, contents_sz,
+					store.offset[i]-2, &new_line);
+
+			if (copy_end > 0 && contents[copy_end-1] != '\n')
+				new_line = 1;
+
+			/* write the first part of the config */
+			if (copy_end > copy_begin) {
+				if (write_in_full(fd, contents + copy_begin,
+						  copy_end - copy_begin) <
+				    copy_end - copy_begin)
+					goto write_err_out;
+				if (new_line &&
+				    write_str_in_full(fd, "\n") != 1)
+					goto write_err_out;
+			}
+			copy_begin = store.offset[i];
+		}
+
+		/* write the pair (value == NULL means unset) */
+		if (value != NULL) {
+			if (store.state == START) {
+				if (!store_write_section(fd, key))
+					goto write_err_out;
+			}
+			if (!store_write_pair(fd, key, value))
+				goto write_err_out;
+		}
+
+		/* write the rest of the config */
+		if (copy_begin < contents_sz)
+			if (write_in_full(fd, contents + copy_begin,
+					  contents_sz - copy_begin) <
+			    contents_sz - copy_begin)
+				goto write_err_out;
 	}
 
-	if (opt->show_signature) {
-		show_signature(opt, commit);
-		show_mergetag(opt, commit);
-	}
-
-	if (!get_cached_commit_buffer(commit, NULL))
-		return;
-
-	if (opt->show_notes) {
-		int raw;
-		struct strbuf notebuf = STRBUF_INIT;
-
-		raw = (opt->commit_format == CMIT_FMT_USERFORMAT);
-		format_display_notes(commit->object.sha1, &notebuf,
-				     get_log_output_encoding(), raw);
-		ctx.notes_message = notebuf.len
-			? strbuf_detach(&notebuf, NULL)
-			: xcalloc(1, 1);
+	if (commit_lock_file(lock) < 0) {
+		error("could not commit config file %s", config_filename);
+		ret = CONFIG_NO_WRITE;
+		lock = NULL;
+		goto out_free;
 	}
 
 	/*
-	 * And then the pretty-printed message itself
+	 * lock is committed, so don't try to roll it back below.
+	 * NOTE: Since lockfile.c keeps a linked list of all created
+	 * lock_file structures, it isn't safe to free(lock).  It's
+	 * better to just leave it hanging around.
 	 */
-	if (ctx.need_8bit_cte >= 0 && opt->add_signoff)
-		ctx.need_8bit_cte =
-			has_non_ascii(fmt_name(getenv("GIT_COMMITTER_NAME"),
-					       getenv("GIT_COMMITTER_EMAIL")));
-	ctx.date_mode = opt->date_mode;
-	ctx.date_mode_explicit = opt->date_mode_explicit;
-	ctx.abbrev = opt->diffopt.abbrev;
-	ctx.after_subject = extra_headers;
-	ctx.preserve_subject = opt->preserve_subject;
-	ctx.reflog_info = opt->reflog_info;
-	ctx.fmt = opt->commit_format;
-	ctx.mailmap = opt->mailmap;
-	ctx.color = opt->diffopt.use_color;
-	ctx.output_encoding = get_log_output_encoding();
-	if (opt->from_ident.mail_begin && opt->from_ident.name_begin)
-		ctx.from_ident = &opt->from_ident;
-	pretty_print_commit(&ctx, commit, &msgbuf);
+	lock = NULL;
+	ret = 0;
 
-	if (opt->add_signoff)
-		append_signoff(&msgbuf, 0, APPEND_SIGNOFF_DEDUP);
+	/* Invalidate the config cache */
+	git_config_clear();
 
-	if ((ctx.fmt != CMIT_FMT_USERFORMAT) &&
-	    ctx.notes_message && *ctx.notes_message) {
-		if (ctx.fmt == CMIT_FMT_EMAIL) {
-			strbuf_addstr(&msgbuf, "---\n");
-			opt->shown_dashes = 1;
-		}
-		strbuf_addstr(&msgbuf, ctx.notes_message);
-	}
+out_free:
+	if (lock)
+		rollback_lock_file(lock);
+	free(filename_buf);
+	if (contents)
+		munmap(contents, contents_sz);
+	return ret;
 
-	if (opt->show_log_size) {
-		printf("log size %i\n", (int)msgbuf.len);
-		graph_show_oneline(opt->graph);
-	}
+write_err_out:
+	ret = write_error(lock->filename.buf);
+	goto out_free;
 
-	/*
-	 * Set opt->missing_newline if msgbuf doesn't
-	 * end in a newline (including if it is empty)
-	 */
-	if (!msgbuf.len || msgbuf.buf[msgbuf.len - 1] != '\n')
-		opt->missing_newline = 1;
-	else
-		opt->missing_newline = 0;
-
-	if (opt->graph)
-		graph_show_commit_msg(opt->graph, &msgbuf);
-	else
-		fwrite(msgbuf.buf, sizeof(char), msgbuf.len, stdout);
-	if (opt->use_terminator && !commit_format_is_empty(opt->commit_format)) {
-		if (!opt->missing_newline)
-			graph_show_padding(opt->graph);
-		putchar(opt->diffopt.line_termination);
-	}
-
-	strbuf_release(&msgbuf);
-	free(ctx.notes_message);
 }

@@ -1,25 +1,21 @@
-static void handle_bad_merge_base(void)
+static int fast_forward_to(const unsigned char *to, const unsigned char *from,
+			int unborn, struct replay_opts *opts)
 {
-	if (is_expected_rev(current_bad_oid)) {
-		char *bad_hex = oid_to_hex(current_bad_oid);
-		char *good_hex = join_sha1_array_hex(&good_revs, ' ');
-		if (!strcmp(term_bad, "bad") && !strcmp(term_good, "good")) {
-			fprintf(stderr, "The merge base %s is bad.\n"
-				"This means the bug has been fixed "
-				"between %s and [%s].\n",
-				bad_hex, bad_hex, good_hex);
-		} else {
-			fprintf(stderr, "The merge base %s is %s.\n"
-				"This means the first '%s' commit is "
-				"between %s and [%s].\n",
-				bad_hex, term_bad, term_good, bad_hex, good_hex);
-		}
-		exit(3);
-	}
+	struct ref_lock *ref_lock;
+	struct strbuf sb = STRBUF_INIT;
+	int ret;
 
-	fprintf(stderr, "Some %s revs are not ancestor of the %s rev.\n"
-		"git bisect cannot work properly in this case.\n"
-		"Maybe you mistook %s and %s revs?\n",
-		term_good, term_bad, term_good, term_bad);
-	exit(1);
+	read_cache();
+	if (checkout_fast_forward(from, to, 1))
+		exit(128); /* the callee should have complained already */
+	ref_lock = lock_any_ref_for_update("HEAD", unborn ? null_sha1 : from,
+					   0, NULL);
+	if (!ref_lock)
+		return error(_("Failed to lock HEAD during fast_forward_to"));
+
+	strbuf_addf(&sb, "%s: fast-forward", action_name(opts));
+	ret = write_ref_sha1(ref_lock, to, sb.buf);
+
+	strbuf_release(&sb);
+	return ret;
 }

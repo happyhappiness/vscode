@@ -1,2 +1,1 @@
-rprintf(FERROR,"ERROR: file corruption in %s. File changed during transfer?\n",
-			      fname);
+rprintf(FINFO,"%s\n",fname);

@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, level, 0, c, "bb_dump(%ld-%d)-%s: %s", 
-                  c->id, stream_id, tag, line);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, errno, NULL, APLOGNO(00057)
+                     "sending signal to server");

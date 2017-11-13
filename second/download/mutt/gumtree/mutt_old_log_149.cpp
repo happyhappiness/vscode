@@ -1,1 +1,0 @@
-(mutt_yesorno (warning, M_NO);

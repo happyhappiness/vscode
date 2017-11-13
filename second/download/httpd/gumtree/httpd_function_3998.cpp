@@ -1,86 +1,138 @@
-static int proxy_match_ipaddr(struct dirconn_entry *This, request_rec *r)
+static char *imap_url(request_rec *r, const char *base, const char *value)
 {
-    int i, ip_addr[4];
-    struct in_addr addr, *ip;
-    const char *host = proxy_get_host_of_request(r);
+/* translates a value into a URL. */
+    int slen, clen;
+    char *string_pos = NULL;
+    const char *string_pos_const = NULL;
+    char *directory = NULL;
+    const char *referer = NULL;
+    char *my_base;
 
-    if (host == NULL) {   /* oops! */
-       return 0;
+    if (!strcasecmp(value, "map") || !strcasecmp(value, "menu")) {
+        return ap_construct_url(r->pool, r->uri, r);
     }
 
-    memset(&addr, '\0', sizeof addr);
-    memset(ip_addr, '\0', sizeof ip_addr);
+    if (!strcasecmp(value, "nocontent") || !strcasecmp(value, "error")) {
+        return apr_pstrdup(r->pool, value);      /* these are handled elsewhere,
+                                                so just copy them */
+    }
 
-    if (4 == sscanf(host, "%d.%d.%d.%d", &ip_addr[0], &ip_addr[1], &ip_addr[2], &ip_addr[3])) {
-        for (addr.s_addr = 0, i = 0; i < 4; ++i) {
-            /* ap_proxy_is_ipaddr() already confirmed that we have
-             * a valid octet in ip_addr[i]
-             */
-            addr.s_addr |= htonl(ip_addr[i] << (24 - 8 * i));
+    if (!strcasecmp(value, "referer")) {
+        referer = apr_table_get(r->headers_in, "Referer");
+        if (referer && *referer) {
+            return ap_escape_html(r->pool, referer);
         }
-
-        if (This->addr.s_addr == (addr.s_addr & This->mask.s_addr)) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "1)IP-Match: %s[%s] <-> ", host, inet_ntoa(addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "%s/", inet_ntoa(This->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "%s", inet_ntoa(This->mask));
-#endif
-            return 1;
-        }
-#if DEBUGGING
         else {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "1)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "%s/", inet_ntoa(This->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "%s", inet_ntoa(This->mask));
+            /* XXX:  This used to do *value = '\0'; ... which is totally bogus
+             * because it hammers the passed in value, which can be a string
+             * constant, or part of a config, or whatever.  Total garbage.
+             * This works around that without changing the rest of this
+             * code much
+             */
+            value = "";      /* if 'referer' but no referring page,
+                                null the value */
         }
-#endif
     }
-    else {
-        struct apr_sockaddr_t *reqaddr;
 
-        if (apr_sockaddr_info_get(&reqaddr, host, APR_UNSPEC, 0, 0, r->pool)
-            != APR_SUCCESS) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-             "2)IP-NoMatch: hostname=%s msg=Host not found", host);
-#endif
-            return 0;
+    string_pos_const = value;
+    while (apr_isalpha(*string_pos_const)) {
+        string_pos_const++;           /* go along the URL from the map
+                                         until a non-letter */
+    }
+    if (*string_pos_const == ':') {
+        /* if letters and then a colon (like http:) */
+        /* it's an absolute URL, so use it! */
+        return apr_pstrdup(r->pool, value);
+    }
+
+    if (!base || !*base) {
+        if (value && *value) {
+            return apr_pstrdup(r->pool, value); /* no base: use what is given */
         }
+        /* no base, no value: pick a simple default */
+        return ap_construct_url(r->pool, "/", r);
+    }
 
-        /* Try to deal with multiple IP addr's for a host */
-        /* FIXME: This needs to be able to deal with IPv6 */
-        while (reqaddr) {
-            ip = (struct in_addr *) reqaddr->ipaddr_ptr;
-            if (This->addr.s_addr == (ip->s_addr & This->mask.s_addr)) {
-#if DEBUGGING
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "3)IP-Match: %s[%s] <-> ", host, inet_ntoa(*ip));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "%s/", inet_ntoa(This->addr));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "%s", inet_ntoa(This->mask));
-#endif
-                return 1;
-            }
-#if DEBUGGING
+    /* must be a relative URL to be combined with base */
+    if (ap_strchr_c(base, '/') == NULL && (!strncmp(value, "../", 3)
+        || !strcmp(value, ".."))) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "invalid base directive in map file: %s", r->uri);
+        return NULL;
+    }
+    my_base = apr_pstrdup(r->pool, base);
+    string_pos = my_base;
+    while (*string_pos) {
+        if (*string_pos == '/' && *(string_pos + 1) == '/') {
+            string_pos += 2;    /* if there are two slashes, jump over them */
+            continue;
+        }
+        if (*string_pos == '/') {       /* the first single slash */
+            if (value[0] == '/') {
+                *string_pos = '\0';
+            }                   /* if the URL from the map starts from root,
+                                   end the base URL string at the first single
+                                   slash */
             else {
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "3)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(*ip));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "%s/", inet_ntoa(This->addr));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "%s", inet_ntoa(This->mask));
-            }
-#endif
-            reqaddr = reqaddr->next;
+                directory = string_pos;         /* save the start of
+                                                   the directory portion */
+
+                string_pos = strrchr(string_pos, '/');  /* now reuse
+                                                           string_pos */
+                string_pos++;   /* step over that last slash */
+                *string_pos = '\0';
+            }                   /* but if the map url is relative, leave the
+                                   slash on the base (if there is one) */
+            break;
         }
+        string_pos++;           /* until we get to the end of my_base without
+                                   finding a slash by itself */
     }
 
-    return 0;
+    while (!strncmp(value, "../", 3) || !strcmp(value, "..")) {
+
+        if (directory && (slen = strlen(directory))) {
+
+            /* for each '..',  knock a directory off the end
+               by ending the string right at the last slash.
+               But only consider the directory portion: don't eat
+               into the server name.  And only try if a directory
+               portion was found */
+
+            clen = slen - 1;
+
+            while ((slen - clen) == 1) {
+
+                if ((string_pos = strrchr(directory, '/'))) {
+                    *string_pos = '\0';
+                }
+                clen = strlen(directory);
+                if (clen == 0) {
+                    break;
+                }
+            }
+
+            value += 2;         /* jump over the '..' that we found in the
+                                   value */
+        }
+        else if (directory) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "invalid directory name in map file: %s", r->uri);
+            return NULL;
+        }
+
+        if (!strncmp(value, "/../", 4) || !strcmp(value, "/..")) {
+            value++;            /* step over the '/' if there are more '..'
+                                   to do.  This way, we leave the starting
+                                   '/' on value after the last '..', but get
+                                   rid of it otherwise */
+        }
+
+    }                           /* by this point, value does not start
+                                   with '..' */
+
+    if (value && *value) {
+        return apr_pstrcat(r->pool, my_base, value, NULL);
+    }
+    return my_base;
 }

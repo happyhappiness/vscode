@@ -1,1 +1,1 @@
-puts (_(Licence));
+fprintf (stderr, _("Error: value '%s' is invalid for -d.\n"), optarg);

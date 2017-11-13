@@ -1,1 +1,1 @@
-fprintf(FERROR,"receive_sums failed\n");
+fprintf(FERROR,"%s : not a regular file\n",fname);

@@ -1,61 +1,48 @@
-struct file_list *recv_file_list(int f)
+void match_sums(int f,struct sum_struct *s,struct map_struct *buf,off_t len)
 {
-  struct file_list *flist;
-  unsigned char flags;
+  char file_sum[SUM_LENGTH];
 
-  if (verbose && recurse && !am_server) {
-    fprintf(FINFO,"receiving file list ... ");
-    fflush(FINFO);
+  last_match = 0;
+  false_alarms = 0;
+  tag_hits = 0;
+  matches=0;
+  data_transfer=0;
+
+  sum_init();
+
+  if (len > 0 && s->count>0) {
+    build_hash_table(s);
+
+    if (verbose > 2) 
+      fprintf(FERROR,"built hash table\n");
+
+    hash_search(f,s,buf,len);
+
+    if (verbose > 2) 
+      fprintf(FERROR,"done hash search\n");
+  } else {
+    matched(f,s,buf,len,len,-1);
   }
 
-  flist = (struct file_list *)malloc(sizeof(flist[0]));
-  if (!flist)
-    goto oom;
+  sum_end(file_sum);
 
-  flist->count=0;
-  flist->malloced=100;
-  flist->files = (struct file_struct *)malloc(sizeof(flist->files[0])*
-					      flist->malloced);
-  if (!flist->files)
-    goto oom;
-
-
-  for (flags=read_byte(f); flags; flags=read_byte(f)) {
-    int i = flist->count;
-
-    if (i >= flist->malloced) {
-      flist->malloced += 100;
-      flist->files =(struct file_struct *)realloc(flist->files,
-						  sizeof(flist->files[0])*
-						  flist->malloced);
-      if (!flist->files)
-	goto oom;
-    }
-
-    receive_file_entry(&flist->files[i],flags,f);
-
-    if (S_ISREG(flist->files[i].mode))
-      total_size += flist->files[i].length;
-
-    flist->count++;
-
+  if (remote_version >= 14) {
     if (verbose > 2)
-      fprintf(FERROR,"recv_file_name(%s)\n",flist->files[i].name);
+      fprintf(FERROR,"sending file_sum\n");
+    write_buf(f,file_sum,SUM_LENGTH);
   }
 
+  if (targets) {
+    free(targets);
+    targets=NULL;
+  }
 
   if (verbose > 2)
-    fprintf(FERROR,"received %d names\n",flist->count);
+    fprintf(FERROR, "false_alarms=%d tag_hits=%d matches=%d\n",
+	    false_alarms, tag_hits, matches);
 
-  clean_flist(flist);
-
-  if (verbose && recurse && !am_server) {
-    fprintf(FINFO,"done\n");
-  }
-
-  return flist;
-
-oom:
-    out_of_memory("recv_file_list");
-    return NULL; /* not reached */
+  total_tag_hits += tag_hits;
+  total_false_alarms += false_alarms;
+  total_matches += matches;
+  total_data_transfer += data_transfer;
 }

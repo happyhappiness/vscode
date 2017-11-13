@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(01907)
-                         "%s server certificate is not a leaf certificate "
-                         "(BasicConstraints: pathlen == %d > 0 !?)",
-                         ssl_asn1_keystr(type), pathlen);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01208)
+                     "proxy: byrequests selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
+                     mycandidate->s->name, mycandidate->s->busy, mycandidate->s->lbstatus);

@@ -1,53 +1,53 @@
-static void show_rebase_information(struct wt_status *s,
-					struct wt_status_state *state,
-					const char *color)
+static void wt_porcelain_v2_print_tracking(struct wt_status *s)
 {
-	if (state->rebase_interactive_in_progress) {
-		int i;
-		int nr_lines_to_show = 2;
+	struct branch *branch;
+	const char *base;
+	const char *branch_name;
+	struct wt_status_state state;
+	int ab_info, nr_ahead, nr_behind;
+	char eol = s->null_termination ? '\0' : '\n';
 
-		struct string_list have_done = STRING_LIST_INIT_DUP;
-		struct string_list yet_to_do = STRING_LIST_INIT_DUP;
+	memset(&state, 0, sizeof(state));
+	wt_status_get_state(&state, s->branch && !strcmp(s->branch, "HEAD"));
 
-		read_rebase_todolist("rebase-merge/done", &have_done);
-		if (read_rebase_todolist("rebase-merge/git-rebase-todo",
-					 &yet_to_do))
-			status_printf_ln(s, color,
-				_("git-rebase-todo is missing."));
-		if (have_done.nr == 0)
-			status_printf_ln(s, color, _("No commands done."));
-		else {
-			status_printf_ln(s, color,
-				Q_("Last command done (%d command done):",
-					"Last commands done (%d commands done):",
-					have_done.nr),
-				have_done.nr);
-			for (i = (have_done.nr > nr_lines_to_show)
-				? have_done.nr - nr_lines_to_show : 0;
-				i < have_done.nr;
-				i++)
-				status_printf_ln(s, color, "   %s", have_done.items[i].string);
-			if (have_done.nr > nr_lines_to_show && s->hints)
-				status_printf_ln(s, color,
-					_("  (see more in file %s)"), git_path("rebase-merge/done"));
+	fprintf(s->fp, "# branch.oid %s%c",
+			(s->is_initial ? "(initial)" : sha1_to_hex(s->sha1_commit)),
+			eol);
+
+	if (!s->branch)
+		fprintf(s->fp, "# branch.head %s%c", "(unknown)", eol);
+	else {
+		if (!strcmp(s->branch, "HEAD")) {
+			fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);
+
+			if (state.rebase_in_progress || state.rebase_interactive_in_progress)
+				branch_name = state.onto;
+			else if (state.detached_from)
+				branch_name = state.detached_from;
+			else
+				branch_name = "";
+		} else {
+			branch_name = NULL;
+			skip_prefix(s->branch, "refs/heads/", &branch_name);
+
+			fprintf(s->fp, "# branch.head %s%c", branch_name, eol);
 		}
 
-		if (yet_to_do.nr == 0)
-			status_printf_ln(s, color,
-					 _("No commands remaining."));
-		else {
-			status_printf_ln(s, color,
-				Q_("Next command to do (%d remaining command):",
-					"Next commands to do (%d remaining commands):",
-					yet_to_do.nr),
-				yet_to_do.nr);
-			for (i = 0; i < nr_lines_to_show && i < yet_to_do.nr; i++)
-				status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);
-			if (s->hints)
-				status_printf_ln(s, color,
-					_("  (use \"git rebase --edit-todo\" to view and edit)"));
+		/* Lookup stats on the upstream tracking branch, if set. */
+		branch = branch_get(branch_name);
+		base = NULL;
+		ab_info = (stat_tracking_info(branch, &nr_ahead, &nr_behind, &base) == 0);
+		if (base) {
+			base = shorten_unambiguous_ref(base, 0);
+			fprintf(s->fp, "# branch.upstream %s%c", base, eol);
+			free((char *)base);
+
+			if (ab_info)
+				fprintf(s->fp, "# branch.ab +%d -%d%c", nr_ahead, nr_behind, eol);
 		}
-		string_list_clear(&yet_to_do, 0);
-		string_list_clear(&have_done, 0);
 	}
+
+	free(state.branch);
+	free(state.onto);
+	free(state.detached_from);
 }

@@ -1,10 +1,11 @@
 fputs(
-"              also be enforced by using an URL that ends with \";type=A\".  This\n"
-"              option  causes  data sent to stdout to be in text mode for win32\n"
-"              systems.\n"
+"              input. No cookies will be stored in the file. To store  cookies,\n"
+"              use  the  -c/--cookie-jar option or you could even save the HTTP\n"
+"              headers to a file using -D/--dump-header!\n"
 "\n"
-"       --basic\n"
-"              (HTTP) Tells curl to use HTTP Basic authentication. This is  the\n"
-"              default  and this option is usually pointless, unless you use it\n"
-"              to override a  previously  set  option  that  sets  a  different\n"
+"              If this option is set more than once, the last one will  be  the\n"
+"              one that's used.\n"
+"\n"
+"       -B/--use-ascii\n"
+"              Enable  ASCII transfer when using FTP or LDAP. For FTP, this can\n"
 , stdout);

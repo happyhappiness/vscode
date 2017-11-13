@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_read_header: ajp_ilink_receive failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "can't open translation %s->%s",
+                          dc->charset_default, dc->charset_source);

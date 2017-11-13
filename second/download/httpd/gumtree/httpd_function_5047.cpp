@@ -1,173 +1,139 @@
-static apr_status_t
-rate_limit_filter(ap_filter_t *f, apr_bucket_brigade *input_bb)
+static void *APR_THREAD_FUNC start_threads(apr_thread_t * thd, void *dummy)
 {
-    apr_status_t rv = APR_SUCCESS;
-    rl_ctx_t *ctx = f->ctx;
-    apr_bucket *fb;
-    int do_sleep = 0;
-    apr_bucket_alloc_t *ba = f->r->connection->bucket_alloc;
-    apr_bucket_brigade *bb = input_bb;
+    thread_starter *ts = dummy;
+    apr_thread_t **threads = ts->threads;
+    apr_threadattr_t *thread_attr = ts->threadattr;
+    int child_num_arg = ts->child_num_arg;
+    int my_child_num = child_num_arg;
+    proc_info *my_info;
+    apr_status_t rv;
+    int i;
+    int threads_created = 0;
+    int listener_started = 0;
+    int loops;
+    int prev_threads_created;
+    int max_recycled_pools = -1;
 
-    if (f->c->aborted) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01454) "rl: conn aborted");
-        apr_brigade_cleanup(bb);
-        return APR_ECONNABORTED;
+    /* We must create the fd queues before we start up the listener
+     * and worker threads. */
+    worker_queue = apr_pcalloc(pchild, sizeof(*worker_queue));
+    rv = ap_queue_init(worker_queue, threads_per_child, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "ap_queue_init() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
 
-    if (ctx == NULL) {
-
-        const char *rl = NULL;
-        int ratelimit;
-
-        /* no subrequests. */
-        if (f->r->main != NULL) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        rl = apr_table_get(f->r->subprocess_env, "rate-limit");
-
-        if (rl == NULL) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-        
-        /* rl is in kilo bytes / second  */
-        ratelimit = atoi(rl) * 1024;
-        if (ratelimit <= 0) {
-            /* remove ourselves */
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        /* first run, init stuff */
-        ctx = apr_palloc(f->r->pool, sizeof(rl_ctx_t));
-        f->ctx = ctx;
-        ctx->state = RATE_LIMIT;
-        ctx->speed = ratelimit;
-
-        /* calculate how many bytes / interval we want to send */
-        /* speed is bytes / second, so, how many  (speed / 1000 % interval) */
-        ctx->chunk_size = (ctx->speed / (1000 / RATE_INTERVAL_MS));
-        ctx->tmpbb = apr_brigade_create(f->r->pool, ba);
-        ctx->holdingbb = apr_brigade_create(f->r->pool, ba);
+    if (ap_max_mem_free != APR_ALLOCATOR_MAX_FREE_UNLIMITED) {
+        /* If we want to conserve memory, let's not keep an unlimited number of
+         * pools & allocators.
+         * XXX: This should probably be a separate config directive
+         */
+        max_recycled_pools = threads_per_child * 3 / 4 ;
+    }
+    rv = ap_queue_info_create(&worker_queue_info, pchild,
+                              threads_per_child, max_recycled_pools);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "ap_queue_info_create() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
 
-    while (ctx->state != RATE_ERROR &&
-           (!APR_BRIGADE_EMPTY(bb) || !APR_BRIGADE_EMPTY(ctx->holdingbb))) {
-        apr_bucket *e;
+    /* Create the timeout mutex and main pollset before the listener
+     * thread starts.
+     */
+    rv = apr_thread_mutex_create(&timeout_mutex, APR_THREAD_MUTEX_DEFAULT,
+                                 pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "creation of the timeout mutex failed.");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
 
-        if (!APR_BRIGADE_EMPTY(ctx->holdingbb)) {
-            APR_BRIGADE_CONCAT(bb, ctx->holdingbb);
-            apr_brigade_cleanup(ctx->holdingbb);
-        }
+    /* Create the main pollset */
+    rv = apr_pollset_create(&event_pollset,
+                            threads_per_child, /* XXX don't we need more, to handle
+                                                * connections in K-A or lingering
+                                                * close?
+                                                */
+                            pchild, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "apr_pollset_create with Thread Safety failed.");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
 
-        while (ctx->state == RATE_FULLSPEED && !APR_BRIGADE_EMPTY(bb)) {
-            /* Find where we 'stop' going full speed. */
-            for (e = APR_BRIGADE_FIRST(bb);
-                 e != APR_BRIGADE_SENTINEL(bb); e = APR_BUCKET_NEXT(e)) {
-                if (AP_RL_BUCKET_IS_END(e)) {
-                    apr_bucket *f;
-                    f = APR_RING_LAST(&bb->list);
-                    APR_RING_UNSPLICE(e, f, link);
-                    APR_RING_SPLICE_TAIL(&ctx->holdingbb->list, e, f,
-                                         apr_bucket, link);
-                    ctx->state = RATE_LIMIT;
-                    break;
-                }
+    worker_sockets = apr_pcalloc(pchild, threads_per_child
+                                 * sizeof(apr_socket_t *));
+
+    loops = prev_threads_created = 0;
+    while (1) {
+        /* threads_per_child does not include the listener thread */
+        for (i = 0; i < threads_per_child; i++) {
+            int status =
+                ap_scoreboard_image->servers[child_num_arg][i].status;
+
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
             }
 
-            if (f->c->aborted) {
-                apr_brigade_cleanup(bb);
-                ctx->state = RATE_ERROR;
-                break;
-            }
+            my_info = (proc_info *) ap_malloc(sizeof(proc_info));
+            my_info->pid = my_child_num;
+            my_info->tid = i;
+            my_info->sd = 0;
 
-            fb = apr_bucket_flush_create(ba);
-            APR_BRIGADE_INSERT_TAIL(bb, fb);
-            rv = ap_pass_brigade(f->next, bb);
-
+            /* We are creating threads right now */
+            ap_update_child_status_from_indexes(my_child_num, i,
+                                                SERVER_STARTING, NULL);
+            /* We let each thread update its own scoreboard entry.  This is
+             * done because it lets us deal with tid better.
+             */
+            rv = apr_thread_create(&threads[i], thread_attr,
+                                   worker_thread, my_info, pchild);
             if (rv != APR_SUCCESS) {
-                ctx->state = RATE_ERROR;
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01455)
-                              "rl: full speed brigade pass failed.");
+                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                             "apr_thread_create: unable to create worker thread");
+                /* let the parent decide how bad this really is */
+                clean_child_exit(APEXIT_CHILDSICK);
             }
+            threads_created++;
         }
 
-        while (ctx->state == RATE_LIMIT && !APR_BRIGADE_EMPTY(bb)) {
-            for (e = APR_BRIGADE_FIRST(bb);
-                 e != APR_BRIGADE_SENTINEL(bb); e = APR_BUCKET_NEXT(e)) {
-                if (AP_RL_BUCKET_IS_START(e)) {
-                    apr_bucket *f;
-                    f = APR_RING_LAST(&bb->list);
-                    APR_RING_UNSPLICE(e, f, link);
-                    APR_RING_SPLICE_TAIL(&ctx->holdingbb->list, e, f,
-                                         apr_bucket, link);
-                    ctx->state = RATE_FULLSPEED;
-                    break;
-                }
+        /* Start the listener only when there are workers available */
+        if (!listener_started && threads_created) {
+            create_listener_thread(ts);
+            listener_started = 1;
+        }
+
+
+        if (start_thread_may_exit || threads_created == threads_per_child) {
+            break;
+        }
+        /* wait for previous generation to clean up an entry */
+        apr_sleep(apr_time_from_sec(1));
+        ++loops;
+        if (loops % 120 == 0) { /* every couple of minutes */
+            if (prev_threads_created == threads_created) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                             "child %" APR_PID_T_FMT " isn't taking over "
+                             "slots very quickly (%d of %d)",
+                             ap_my_pid, threads_created,
+                             threads_per_child);
             }
-
-            while (!APR_BRIGADE_EMPTY(bb)) {
-                apr_bucket *stop_point;
-                apr_off_t len = 0;
-
-                if (f->c->aborted) {
-                    apr_brigade_cleanup(bb);
-                    ctx->state = RATE_ERROR;
-                    break;
-                }
-
-                if (do_sleep) {
-                    apr_sleep(RATE_INTERVAL_MS * 1000);
-                }
-                else {
-                    do_sleep = 1;
-                }
-
-                apr_brigade_length(bb, 1, &len);
-
-                rv = apr_brigade_partition(bb, ctx->chunk_size, &stop_point);
-                if (rv != APR_SUCCESS && rv != APR_INCOMPLETE) {
-                    ctx->state = RATE_ERROR;
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01456)
-                                  "rl: partition failed.");
-                    break;
-                }
-
-                if (stop_point != APR_BRIGADE_SENTINEL(bb)) {
-                    apr_bucket *f;
-                    apr_bucket *e = APR_BUCKET_PREV(stop_point);
-                    f = APR_RING_FIRST(&bb->list);
-                    APR_RING_UNSPLICE(f, e, link);
-                    APR_RING_SPLICE_HEAD(&ctx->tmpbb->list, f, e, apr_bucket,
-                                         link);
-                }
-                else {
-                    APR_BRIGADE_CONCAT(ctx->tmpbb, bb);
-                }
-
-                fb = apr_bucket_flush_create(ba);
-
-                APR_BRIGADE_INSERT_TAIL(ctx->tmpbb, fb);
-
-#if 0
-                brigade_dump(f->r, ctx->tmpbb);
-                brigade_dump(f->r, bb);
-#endif
-
-                rv = ap_pass_brigade(f->next, ctx->tmpbb);
-                apr_brigade_cleanup(ctx->tmpbb);
-
-                if (rv != APR_SUCCESS) {
-                    ctx->state = RATE_ERROR;
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01457)
-                                  "rl: brigade pass failed.");
-                    break;
-                }
-            }
+            prev_threads_created = threads_created;
         }
     }
 
-    return rv;
+    /* What state should this child_main process be listed as in the
+     * scoreboard...?
+     *  ap_update_child_status_from_indexes(my_child_num, i, SERVER_STARTING,
+     *                                      (request_rec *) NULL);
+     *
+     *  This state should be listed separately in the scoreboard, in some kind
+     *  of process_status, not mixed in with the worker threads' status.
+     *  "life_status" is almost right, but it's in the worker's structure, and
+     *  the name could be clearer.   gla
+     */
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
 }

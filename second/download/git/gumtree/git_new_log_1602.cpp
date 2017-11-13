@@ -1,4 +1,4 @@
-error(remote_branch
-			      ? _("Error deleting remote-tracking branch '%s'")
-			      : _("Error deleting branch '%s'"),
-			      bname.buf);
+fprintf(stderr, "IMAP command '%s' returned response (%s) - %s\n",
+					!starts_with(cmdp->cmd, "LOGIN") ?
+							cmdp->cmd : "LOGIN <user> <pass>",
+							arg, cmd ? cmd : "");

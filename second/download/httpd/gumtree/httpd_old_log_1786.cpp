@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to generate temporary "
-                         "%u bit DH parameters", bits);
+ap_log_rerror(APLOG_MARK, level, 0, r,
+                          "%s  [%d, #%d]",
+                          errscan->desc, errscan->status, errscan->error_id);

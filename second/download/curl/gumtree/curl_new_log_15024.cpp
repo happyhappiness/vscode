@@ -1,8 +1,11 @@
 fputs(
-"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
-"  store certificates with, but it is not used by the most commonly used\n"
-"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
-"  want curl to use the certificates you use with your (favourite) browser, you\n"
-"  may need to download/compile a converter that can convert your browser's\n"
-"  formatted certificates to PEM formatted ones. This kind of converter is\n"
+"  systems) from the user's home dir on startup.\n"
+"\n"
+"  The config file could be made up with normal command line switches, but you\n"
+"  can also specify the long options without the dashes to make it more\n"
+"  readable. You can separate the options and the parameter with spaces, or\n"
+"  with = or :. Comments can be used within the file. If the first letter on a\n"
+"  line is a '#'-symbol the rest of the line is treated as a comment.\n"
+"\n"
+"  If you want the parameter to contain spaces, you must enclose the entire\n"
 , stdout);

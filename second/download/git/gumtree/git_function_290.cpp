@@ -1,24 +1,24 @@
-static void show_ref(const char *path, const unsigned char *sha1)
+static int apply_data(struct apply_state *state, struct patch *patch,
+		      struct stat *st, const struct cache_entry *ce)
 {
-	if (sent_capabilities) {
-		packet_write(1, "%s %s\n", sha1_to_hex(sha1), path);
-	} else {
-		struct strbuf cap = STRBUF_INIT;
+	struct image image;
 
-		strbuf_addstr(&cap,
-			      "report-status delete-refs side-band-64k quiet");
-		if (advertise_atomic_push)
-			strbuf_addstr(&cap, " atomic");
-		if (prefer_ofs_delta)
-			strbuf_addstr(&cap, " ofs-delta");
-		if (push_cert_nonce)
-			strbuf_addf(&cap, " push-cert=%s", push_cert_nonce);
-		if (advertise_push_options)
-			strbuf_addstr(&cap, " push-options");
-		strbuf_addf(&cap, " agent=%s", git_user_agent_sanitized());
-		packet_write(1, "%s %s%c%s\n",
-			     sha1_to_hex(sha1), path, 0, cap.buf);
-		strbuf_release(&cap);
-		sent_capabilities = 1;
+	if (load_preimage(state, &image, patch, st, ce) < 0)
+		return -1;
+
+	if (patch->direct_to_threeway ||
+	    apply_fragments(state, &image, patch) < 0) {
+		/* Note: with --reject, apply_fragments() returns 0 */
+		if (!state->threeway || try_threeway(state, &image, patch, st, ce) < 0)
+			return -1;
 	}
+	patch->result = image.buf;
+	patch->resultsize = image.len;
+	add_to_fn_table(state, patch);
+	free(image.line_allocated);
+
+	if (0 < patch->is_delete && patch->resultsize)
+		return error(_("removal patch leaves file contents"));
+
+	return 0;
 }

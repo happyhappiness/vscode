@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                 "Child %lu: Accept thread exiting.", my_pid);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to acquire thread mutex");

@@ -1,11 +1,10 @@
 fputs(
-"  be read from a file, use <@filename> as contents. When specifying a file,\n"
-"  you can also specify the file content type by appending ';type=<mime type>'\n"
-"  to the file name. You can also post the contents of several files in one\n"
-"  field.  For example, the field name 'coolfiles' is used to send three files,\n"
-"  with different content types using the following syntax:\n"
+"  Different protocols provide different ways of getting detailed information\n"
+"  about specific files/documents. To get curl to show detailed information\n"
+"  about a single file, you should use -I/--head option. It displays all\n"
+"  available info on a single file for HTTP and FTP. The HTTP information is a\n"
+"  lot more extensive.\n"
 "\n"
-"        curl -F \"coolfiles=@fil1.gif;type=image/gif,fil2.txt,fil3.html\" \\\n"
-"        http://www.post.com/postit.cgi\n"
-"\n"
+"  For HTTP, you can get the header information (the same as -I would show)\n"
+"  shown before the data by using -i/--include. Curl understands the\n"
 , stdout);

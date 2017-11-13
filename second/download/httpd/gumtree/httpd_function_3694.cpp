@@ -1,55 +1,35 @@
-static proxy_worker *find_best_roundrobin(proxy_balancer *balancer,
-                                         request_rec *r)
+static apr_status_t drain_available_output(ap_filter_t *f,
+                                           apr_bucket_brigade *bb)
 {
-    int i;
-    proxy_worker **worker;
-    proxy_worker *mycandidate = NULL;
-    int checking_standby;
-    int checked_standby;
-    rr_data *ctx;
+    request_rec *r = f->r;
+    conn_rec *c = r->connection;
+    ef_ctx_t *ctx = f->ctx;
+    ef_dir_t *dc = ctx->dc;
+    apr_size_t len;
+    char buf[4096];
+    apr_status_t rv;
+    apr_bucket *b;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: Entering roundrobin for BALANCER %s (%d)",
-                 balancer->name, (int)getpid());
-    
-    /* The index of the candidate last chosen is stored in ctx->index */
-    if (!balancer->context) {
-        /* UGLY */
-        ctx = apr_pcalloc(r->server->process->pconf, sizeof(rr_data));
-        balancer->context = (void *)ctx;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: Creating roundrobin ctx for BALANCER %s (%d)",
-                 balancer->name, (int)getpid());
-    } else {
-        ctx = (rr_data *)balancer->context;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: roundrobin index: %d (%d)",
-                 ctx->index, (int)getpid());
-
-    checking_standby = checked_standby = 0;
-    while (!mycandidate && !checked_standby) {
-        worker = (proxy_worker **)balancer->workers->elts;
-
-        for (i = 0; i < balancer->workers->nelts; i++, worker++) {
-            if (i < ctx->index)
-                continue;
-            if ( (checking_standby ? !PROXY_WORKER_IS_STANDBY(*worker) : PROXY_WORKER_IS_STANDBY(*worker)) )
-                continue;
-            if (!PROXY_WORKER_IS_USABLE(*worker))
-                ap_proxy_retry_worker("BALANCER", *worker, r->server);
-            if (PROXY_WORKER_IS_USABLE(*worker)) {
-                mycandidate = *worker;
-                break;
-            }
+    while (1) {
+        len = sizeof(buf);
+        rv = apr_file_read(ctx->proc->out,
+                      buf,
+                      &len);
+        if ((rv && !APR_STATUS_IS_EAGAIN(rv)) ||
+            dc->debug >= DBGLVL_GORY) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "apr_file_read(child output), len %" APR_SIZE_T_FMT,
+                          !rv ? len : -1);
         }
-        checked_standby = checking_standby++;
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+        b = apr_bucket_heap_create(buf, len, NULL, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        return APR_SUCCESS;
     }
-
-
-    ctx->index += 1;
-    if (ctx->index >= balancer->workers->nelts) {
-        ctx->index = 0;
-    }
-    return mycandidate;
+    /* we should never get here; if we do, a bogus error message would be
+     * the least of our problems
+     */
+    return APR_ANONYMOUS;
 }

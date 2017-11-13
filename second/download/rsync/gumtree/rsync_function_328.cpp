@@ -1,47 +1,75 @@
-static struct sum_struct *receive_sums(int f)
+static int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
 {
-  struct sum_struct *s;
-  int i;
-  off_t offset = 0;
+  char *args[100];
+  int i,argc=0, ret;
+  char *tok,*p,*dir=NULL;
 
-  s = (struct sum_struct *)malloc(sizeof(*s));
-  if (!s) out_of_memory("receive_sums");
+  if (!local_server) {
+    if (!cmd)
+      cmd = getenv(RSYNC_RSH_ENV);
+    if (!cmd)
+      cmd = RSYNC_RSH;
+    cmd = strdup(cmd);
+    if (!cmd) 
+      goto oom;
 
-  s->count = read_int(f);
-  s->n = read_int(f);
-  s->remainder = read_int(f);  
-  s->sums = NULL;
-
-  if (verbose > 3)
-    fprintf(FERROR,"count=%d n=%d rem=%d\n",
-	    s->count,s->n,s->remainder);
-
-  if (s->count == 0) 
-    return(s);
-
-  s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
-  if (!s->sums) out_of_memory("receive_sums");
-
-  for (i=0;i<s->count;i++) {
-    s->sums[i].sum1 = read_int(f);
-    read_buf(f,s->sums[i].sum2,csum_length);
-
-    s->sums[i].offset = offset;
-    s->sums[i].i = i;
-
-    if (i == s->count-1 && s->remainder != 0) {
-      s->sums[i].len = s->remainder;
-    } else {
-      s->sums[i].len = s->n;
+    for (tok=strtok(cmd," ");tok;tok=strtok(NULL," ")) {
+      args[argc++] = tok;
     }
-    offset += s->sums[i].len;
 
-    if (verbose > 3)
-      fprintf(FERROR,"chunk[%d] len=%d offset=%d sum1=%08x\n",
-	      i,s->sums[i].len,(int)s->sums[i].offset,s->sums[i].sum1);
+#if HAVE_REMSH
+    /* remsh (on HPUX) takes the arguments the other way around */
+    args[argc++] = machine;
+    if (user) {
+      args[argc++] = "-l";
+      args[argc++] = user;
+    }
+#else
+    if (user) {
+      args[argc++] = "-l";
+      args[argc++] = user;
+    }
+    args[argc++] = machine;
+#endif
   }
 
-  s->flength = offset;
+  args[argc++] = rsync_path;
 
-  return s;
+  server_options(args,&argc);
+
+  if (path && *path) {
+    dir = strdup(path);
+    p = strrchr(dir,'/');
+    if (p && !relative_paths) {
+      *p = 0;
+      if (!dir[0])
+	args[argc++] = "/";
+      else
+	args[argc++] = dir;
+      p++;
+    } else {
+      args[argc++] = ".";
+      p = dir;
+    }
+    if (p[0])
+      args[argc++] = path;
+  }
+
+  args[argc] = NULL;
+
+  if (verbose > 3) {
+    fprintf(FERROR,"cmd=");
+    for (i=0;i<argc;i++)
+      fprintf(FERROR,"%s ",args[i]);
+    fprintf(FERROR,"\n");
+  }
+
+  ret = piped_child(args,f_in,f_out);
+  if (dir) free(dir);
+
+  return ret;
+
+oom:
+  out_of_memory("do_cmd");
+  return 0; /* not reached */
 }

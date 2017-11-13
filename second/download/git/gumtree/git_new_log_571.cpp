@@ -1,1 +1,1 @@
-error("abbrev length out of range: %d", abbrev);
+die("%s doesn't support --super-prefix", argv[0]);

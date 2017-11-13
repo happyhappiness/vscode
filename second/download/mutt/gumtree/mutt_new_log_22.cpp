@@ -1,1 +1,0 @@
-fprintf (s->fpout, _("(use '%s' to view this part)"), keystroke);

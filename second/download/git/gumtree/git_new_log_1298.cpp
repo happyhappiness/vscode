@@ -1,1 +1,2 @@
-git_die_config("imap.host", "Missing value for 'imap.host'");
+die("object %s cannot be read",
+			    oid_to_hex(&src_entry->idx.oid));

@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "Not cached: %s" APR_EOL_STR,
-                            argv[o->ind]);
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, rv, l->pool,
+                      "Mutex %s:%d acquired!", l->file, l->line);

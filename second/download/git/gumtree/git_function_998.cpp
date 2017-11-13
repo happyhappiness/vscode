@@ -1,12 +1,16 @@
-static void print_debug(const struct cache_entry *ce)
+static int fsck_loose(const unsigned char *sha1, const char *path, void *data)
 {
-	if (debug_mode) {
-		const struct stat_data *sd = &ce->ce_stat_data;
+	struct object *obj = parse_loose_object(sha1, path);
 
-		printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);
-		printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);
-		printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
-		printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
-		printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
+	if (!obj) {
+		errors_found |= ERROR_OBJECT;
+		error("%s: object corrupt or missing: %s",
+		      sha1_to_hex(sha1), path);
+		return 0; /* keep checking other objects */
 	}
+
+	obj->flags = HAS_OBJ;
+	if (fsck_obj(obj))
+		errors_found |= ERROR_OBJECT;
+	return 0;
 }

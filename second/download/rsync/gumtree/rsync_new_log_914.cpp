@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: too many groups\n");
+io_printf(f_out, "@ERROR: %s\n", err);

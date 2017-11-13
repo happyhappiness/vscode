@@ -1,2 +1,2 @@
-ap_rvputs(r, "<td>", balancer->s->sticky, " | ",
-                          balancer->s->sticky_path, NULL);
+ap_rvputs(r, ap_get_server_name(r), " (via ", r->connection->local_ip,
+                  ")</h1>\n\n", NULL);

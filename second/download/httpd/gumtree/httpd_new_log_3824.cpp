@@ -1,1 +1,2 @@
-ap_rputs("<tr><td>Sticky Session:</td><td><input name='b_ss' id='b_ss' size=64 type=text ", r);
+log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(01264)
+                "script not found or unable to stat");

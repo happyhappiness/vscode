@@ -1,1 +1,1 @@
-error("Invalid value for '%s'", k);
+die_errno(_("unable to get current working directory"));

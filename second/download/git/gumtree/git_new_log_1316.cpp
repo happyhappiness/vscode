@@ -1,1 +1,2 @@
-die("unable to get object info for %s", sha1_to_hex(sha1));
+warning(_("%s %s is not a commit!"),
+			ref_name, oid_to_hex(oid));

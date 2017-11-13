@@ -1,2 +1,2 @@
-error(_("failed writing detached signature to '%s': %s"),
-			     path, strerror(errno));
+printf("%s %s\n",
+		       sha1_to_hex(ref->old_sha1), ref->name);

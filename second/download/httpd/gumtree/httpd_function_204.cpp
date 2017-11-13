@@ -1,181 +1,122 @@
-static int cgid_server(void *data) 
-{ 
-    struct sockaddr_un unix_addr;
-    int sd, sd2, rc;
-    mode_t omask;
-    apr_socklen_t len;
-    apr_pool_t *ptrans;
-    server_rec *main_server = data;
-    cgid_server_conf *sconf = ap_get_module_config(main_server->module_config,
-                                                   &cgid_module); 
-    apr_hash_t *script_hash = apr_hash_make(pcgi);
+static apr_status_t includes_filter(ap_filter_t *f, apr_bucket_brigade *b)
+{
+    request_rec *r = f->r;
+    ssi_ctx_t *ctx = f->ctx;
+    request_rec *parent;
+    include_dir_config *conf = 
+                   (include_dir_config *)ap_get_module_config(r->per_dir_config,
+                                                              &include_module);
 
-    apr_pool_create(&ptrans, pcgi); 
+    include_server_config *sconf= ap_get_module_config(r->server->module_config,
+                                                              &include_module);
 
-    apr_signal(SIGCHLD, SIG_IGN); 
-    apr_signal(SIGHUP, daemon_signal_handler);
-
-    if (unlink(sconf->sockname) < 0 && errno != ENOENT) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                     "Couldn't unlink unix domain socket %s",
-                     sconf->sockname);
-        /* just a warning; don't bail out */
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "mod_include: Options +Includes (or IncludesNoExec) "
+                      "wasn't set, INCLUDES filter removed");
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, b);
     }
 
-    if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't create unix domain socket");
-        return errno;
-    } 
+    if (!f->ctx) {
+        /* create context for this filter */
+        f->ctx = ctx = apr_palloc(f->c->pool, sizeof(*ctx));
+        ctx->ctx = apr_pcalloc(f->c->pool, sizeof(*ctx->ctx));
+        ctx->ctx->pool = f->r->pool;
+        apr_pool_create(&ctx->dpool, ctx->ctx->pool);
 
-    memset(&unix_addr, 0, sizeof(unix_addr));
-    unix_addr.sun_family = AF_UNIX;
-    strcpy(unix_addr.sun_path, sconf->sockname);
+        /* configuration data */
+        ctx->end_seq_len = strlen(sconf->default_end_tag);
+        ctx->r = f->r;
 
-    omask = umask(0077); /* so that only Apache can use socket */
-    rc = bind(sd, (struct sockaddr *)&unix_addr, sizeof(unix_addr));
-    umask(omask); /* can't fail, so can't clobber errno */
-    if (rc < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't bind unix domain socket %s",
-                     sconf->sockname); 
-        return errno;
-    } 
-
-    if (listen(sd, DEFAULT_CGID_LISTENBACKLOG) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't listen on unix domain socket"); 
-        return errno;
-    } 
-
-    if (!geteuid()) {
-        if (chown(sconf->sockname, unixd_config.user_id, -1) < 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                         "Couldn't change owner of unix domain socket %s",
-                         sconf->sockname); 
-            return errno;
+        /* runtime data */
+        ctx->tmp_bb = apr_brigade_create(ctx->ctx->pool, f->c->bucket_alloc);
+        ctx->seen_eos = 0;
+        ctx->state = PARSE_PRE_HEAD;
+        ctx->ctx->flags = (FLAG_PRINTING | FLAG_COND_TRUE);
+        if (ap_allow_options(f->r) & OPT_INCNOEXEC) {
+            ctx->ctx->flags |= FLAG_NO_EXEC;
         }
+        ctx->ctx->if_nesting_level = 0;
+        ctx->ctx->re_string = NULL;
+        ctx->ctx->error_str_override = NULL;
+        ctx->ctx->time_str_override = NULL;
+
+        ctx->ctx->error_str = conf->default_error_msg;
+        ctx->ctx->time_str = conf->default_time_fmt;
+        ctx->ctx->start_seq_pat = &sconf->start_seq_pat;
+        ctx->ctx->start_seq  = sconf->default_start_tag;
+        ctx->ctx->start_seq_len = sconf->start_tag_len;
+        ctx->ctx->end_seq = sconf->default_end_tag;
+
+        /* legacy compat stuff */
+        ctx->ctx->state = PARSED; /* dummy */
+        ctx->ctx->ssi_tag_brigade = apr_brigade_create(f->c->pool,
+                                                       f->c->bucket_alloc);
+        ctx->ctx->status = APR_SUCCESS;
+        ctx->ctx->head_start_index = 0;
+        ctx->ctx->tag_start_index = 0;
+        ctx->ctx->tail_start_index = 0;
     }
-    
-    unixd_setup_child(); /* if running as root, switch to configured user/group */
+    else {
+        ctx->ctx->bytes_parsed = 0;
+    }
 
-    while (!daemon_should_exit) {
-        int errfileno = STDERR_FILENO;
-        char *argv0; 
-        char **env; 
-        const char * const *argv; 
-        apr_int32_t in_pipe;
-        apr_int32_t out_pipe;
-        apr_int32_t err_pipe;
-        apr_cmdtype_e cmd_type;
-        request_rec *r;
-        apr_procattr_t *procattr = NULL;
-        apr_proc_t *procnew = NULL;
-        apr_file_t *inout;
-        cgid_req_t cgid_req;
-        apr_status_t stat;
+    if ((parent = ap_get_module_config(r->request_config, &include_module))) {
+        /* Kludge --- for nested includes, we want to keep the subprocess
+         * environment of the base document (for compatibility); that means
+         * torquing our own last_modified date as well so that the
+         * LAST_MODIFIED variable gets reset to the proper value if the
+         * nested document resets <!--#config timefmt -->.
+         */
+        r->subprocess_env = r->main->subprocess_env;
+        apr_pool_join(r->main->pool, r->pool);
+        r->finfo.mtime = r->main->finfo.mtime;
+    }
+    else {
+        /* we're not a nested include, so we create an initial
+         * environment */
+        ap_add_common_vars(r);
+        ap_add_cgi_vars(r);
+        add_include_vars(r, conf->default_time_fmt);
+    }
+    /* Always unset the content-length.  There is no way to know if
+     * the content will be modified at some point by send_parsed_content.
+     * It is very possible for us to not find any content in the first
+     * 9k of the file, but still have to modify the content of the file.
+     * If we are going to pass the file through send_parsed_content, then
+     * the content-length should just be unset.
+     */
+    apr_table_unset(f->r->headers_out, "Content-Length");
 
-        apr_pool_clear(ptrans);
+    /* Always unset the Last-Modified field - see RFC2616 - 13.3.4.
+     * We don't know if we are going to be including a file or executing
+     * a program which may change the Last-Modified header or make the 
+     * content completely dynamic.  Therefore, we can't support these
+     * headers.
+     * Exception: XBitHack full means we *should* set the Last-Modified field.
+     */
 
-        len = sizeof(unix_addr);
-        sd2 = accept(sd, (struct sockaddr *)&unix_addr, &len);
-        if (sd2 < 0) {
-            if (errno != EINTR) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, errno, 
-                             (server_rec *)data,
-                             "Error accepting on cgid socket");
-            }
-            continue;
-        }
-       
-        r = apr_pcalloc(ptrans, sizeof(request_rec)); 
-        procnew = apr_pcalloc(ptrans, sizeof(*procnew));
-        r->pool = ptrans; 
-        stat = get_req(sd2, r, &argv0, &env, &cgid_req); 
-        if (stat != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, stat,
-                         main_server,
-                         "Error reading request on cgid socket");
-            close(sd2);
-            continue;
-        }
+    /* Assure the platform supports Group protections */
+    if ((*conf->xbithack == xbithack_full)
+        && (r->finfo.valid & APR_FINFO_GPROT)
+        && (r->finfo.protection & APR_GEXECUTE)) {
+        ap_update_mtime(r, r->finfo.mtime);
+        ap_set_last_modified(r);
+    }
+    else {
+        apr_table_unset(f->r->headers_out, "Last-Modified");
+    }
 
-        if (cgid_req.req_type == GETPID_REQ) {
-            pid_t pid;
+    /* add QUERY stuff to env cause it ain't yet */
+    if (r->args) {
+        char *arg_copy = apr_pstrdup(r->pool, r->args);
 
-            pid = (pid_t)apr_hash_get(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id));
-            if (write(sd2, &pid, sizeof(pid)) != sizeof(pid)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             main_server,
-                             "Error writing pid %" APR_PID_T_FMT " to handler", pid);
-            }
-            close(sd2);
-            continue;
-        }
+        apr_table_setn(r->subprocess_env, "QUERY_STRING", r->args);
+        ap_unescape_url(arg_copy);
+        apr_table_setn(r->subprocess_env, "QUERY_STRING_UNESCAPED",
+                  ap_escape_shell_cmd(r->pool, arg_copy));
+    }
 
-        apr_os_file_put(&r->server->error_log, &errfileno, 0, r->pool);
-        apr_os_file_put(&inout, &sd2, 0, r->pool);
-
-        if (cgid_req.req_type == SSI_REQ) {
-            in_pipe  = APR_NO_PIPE;
-            out_pipe = APR_FULL_BLOCK;
-            err_pipe = APR_NO_PIPE;
-            cmd_type = APR_SHELLCMD;
-        }
-        else {
-            in_pipe  = APR_CHILD_BLOCK;
-            out_pipe = APR_CHILD_BLOCK;
-            err_pipe = APR_CHILD_BLOCK;
-            cmd_type = APR_PROGRAM;
-        }
-
-        if (((rc = apr_procattr_create(&procattr, ptrans)) != APR_SUCCESS) ||
-            ((cgid_req.req_type == CGI_REQ) && 
-             (((rc = apr_procattr_io_set(procattr,
-                                        in_pipe,
-                                        out_pipe,
-                                        err_pipe)) != APR_SUCCESS) ||
-              /* XXX apr_procattr_child_*_set() is creating an unnecessary 
-               * pipe between this process and the child being created...
-               * It is cleaned up with the temporary pool for this request.
-               */
-              ((rc = apr_procattr_child_err_set(procattr, r->server->error_log, NULL)) != APR_SUCCESS) ||
-              ((rc = apr_procattr_child_in_set(procattr, inout, NULL)) != APR_SUCCESS))) ||
-            ((rc = apr_procattr_child_out_set(procattr, inout, NULL)) != APR_SUCCESS) ||
-            ((rc = apr_procattr_dir_set(procattr,
-                                  ap_make_dirstr_parent(r->pool, r->filename))) != APR_SUCCESS) ||
-            ((rc = apr_procattr_cmdtype_set(procattr, cmd_type)) != APR_SUCCESS)) {
-            /* Something bad happened, tell the world. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                      "couldn't set child process attributes: %s", r->filename);
-        }
-        else {
-            argv = (const char * const *)create_argv(r->pool, NULL, NULL, NULL, argv0, r->args);
-
-           /* We want to close sd2 for the new CGI process too.
-            * If it is left open it'll make ap_pass_brigade() block
-            * waiting for EOF if CGI forked something running long.
-            * close(sd2) here should be okay, as CGI channel
-            * is already dup()ed by apr_procattr_child_{in,out}_set()
-            * above.
-            */
-            close(sd2);
-
-            rc = ap_os_create_privileged_process(r, procnew, argv0, argv, 
-                                                 (const char * const *)env, 
-                                                 procattr, ptrans);
-
-            if (rc != APR_SUCCESS) {
-                /* Bad things happened. Everyone should have cleaned up. */
-                ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, rc, r,
-                              "couldn't create child process: %d: %s", rc, 
-                              apr_filename_of_pathname(r->filename));
-            }
-            else {
-                apr_hash_set(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id), 
-                             (void *)procnew->pid);
-            }
-        }
-    } 
-    return -1; 
+    return send_parsed_content(f, b);
 }

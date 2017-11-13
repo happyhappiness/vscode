@@ -1,1 +1,1 @@
-out_of_memory("finish_pre_exec");
+io_printf(f_out, "%s\n", path);

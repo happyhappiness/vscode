@@ -1,91 +1,118 @@
-struct file_list *send_file_list(int f,int recurse,int argc,char *argv[])
-{
-  int i,l;
+int recv_files(int f_in,struct file_list *flist,char *local_name)
+{  
+  int fd1,fd2;
   struct stat st;
-  char *p,*dir;
-  char dbuf[MAXPATHLEN];
-  struct file_list *flist;
+  char *fname;
+  char fnametmp[MAXPATHLEN];
+  char *buf;
+  int i;
 
-  if (verbose && recurse) {
-    fprintf(am_server?stderr:stdout,"building file list ... ");
-    fflush(am_server?stderr:stdout);
+  if (verbose > 2) {
+    fprintf(stderr,"recv_files(%d) starting\n",flist->count);
   }
 
-  flist = (struct file_list *)malloc(sizeof(flist[0]));
-  if (!flist) out_of_memory("send_file_list");
+  if (recurse && delete_mode && !local_name && flist->count>0) {
+    delete_files(flist);
+  }
 
-  flist->count=0;
-  flist->malloced = 100;
-  flist->files = (struct file_struct *)malloc(sizeof(flist->files[0])*
-					      flist->malloced);
-  if (!flist->files) out_of_memory("send_file_list");
+  while (1) 
+    {
+      i = read_int(f_in);
+      if (i == -1) break;
 
-  for (i=0;i<argc;i++) {
-    char fname2[MAXPATHLEN];
-    char *fname = fname2;
+      fname = flist->files[i].name;
 
-    strcpy(fname,argv[i]);
+      if (local_name)
+	fname = local_name;
 
-    l = strlen(fname);
-    if (l != 1 && fname[l-1] == '/') {
-      strcat(fname,".");
-    }
-
-    if (lstat(fname,&st) != 0) {
-      fprintf(stderr,"%s : %s\n",fname,strerror(errno));
-      continue;
-    }
-
-    if (S_ISDIR(st.st_mode) && !recurse) {
-      fprintf(stderr,"skipping directory %s\n",fname);
-      continue;
-    }
-
-    dir = NULL;
-    p = strrchr(fname,'/');
-    if (p) {
-      *p = 0;
-      dir = fname;
-      fname = p+1;      
-    }
-    if (!*fname)
-      fname = ".";
-
-    if (dir && *dir) {
-      if (getcwd(dbuf,MAXPATHLEN-1) == NULL) {
-	fprintf(stderr,"getwd : %s\n",strerror(errno));
-	exit_cleanup(1);
-      }
-      if (chdir(dir) != 0) {
-	fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+      if (dry_run) {
+	if (!am_server && verbose)
+	  printf("%s\n",fname);
 	continue;
       }
-      flist_dir = dir;
-      if (one_file_system)
-	set_filesystem(fname);
-      send_file_name(f,flist,recurse,fname);
-      flist_dir = NULL;
-      if (chdir(dbuf) != 0) {
-	fprintf(stderr,"chdir %s : %s\n",dbuf,strerror(errno));
-	exit_cleanup(1);
+
+      if (verbose > 2)
+	fprintf(stderr,"recv_files(%s)\n",fname);
+
+      /* open the file */  
+      fd1 = open(fname,O_RDONLY);
+
+      if (fd1 != -1 && fstat(fd1,&st) != 0) {
+	fprintf(stderr,"fstat %s : %s\n",fname,strerror(errno));
+	close(fd1);
+	return -1;
       }
-      continue;
+
+      if (fd1 != -1 && !S_ISREG(st.st_mode)) {
+	fprintf(stderr,"%s : not a regular file\n",fname);
+	close(fd1);
+	return -1;
+      }
+
+      if (fd1 != -1 && st.st_size > 0) {
+	buf = map_file(fd1,st.st_size);
+	if (!buf) {
+	  fprintf(stderr,"map_file failed\n");
+	  return -1;
+	}
+      } else {
+	buf = NULL;
+      }
+
+      if (verbose > 2)
+	fprintf(stderr,"mapped %s of size %d\n",fname,(int)st.st_size);
+
+      /* open tmp file */
+      sprintf(fnametmp,"%s.XXXXXX",fname);
+      if (NULL == mktemp(fnametmp)) {
+	fprintf(stderr,"mktemp %s failed\n",fnametmp);
+	return -1;
+      }
+      fd2 = open(fnametmp,O_WRONLY|O_CREAT,st.st_mode);
+      if (fd2 == -1) {
+	fprintf(stderr,"open %s : %s\n",fnametmp,strerror(errno));
+	return -1;
+      }
+      
+      cleanup_fname = fnametmp;
+
+      if (!am_server && verbose)
+	printf("%s\n",fname);
+
+      /* recv file data */
+      receive_data(f_in,buf,fd2,fname);
+
+      if (fd1 != -1) {
+	unmap_file(buf,st.st_size);
+	close(fd1);
+      }
+      close(fd2);
+
+      if (verbose > 2)
+	fprintf(stderr,"renaming %s to %s\n",fnametmp,fname);
+
+      if (make_backups) {
+	char fnamebak[MAXPATHLEN];
+	sprintf(fnamebak,"%s%s",fname,backup_suffix);
+	if (rename(fname,fnamebak) != 0 && errno != ENOENT) {
+	  fprintf(stderr,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
+	  exit(1);
+	}
+      }
+
+      /* move tmp file over real file */
+      if (rename(fnametmp,fname) != 0) {
+	fprintf(stderr,"rename %s -> %s : %s\n",
+		fnametmp,fname,strerror(errno));
+      }
+
+      cleanup_fname = NULL;
+
+      set_perms(fname,&flist->files[i],NULL,0);
     }
 
-    if (one_file_system)
-      set_filesystem(fname);
-    send_file_name(f,flist,recurse,fname);
-  }
-
-  if (f != -1) {
-    send_file_entry(NULL,f);
-    write_flush(f);
-  }
-
-  clean_flist(flist);
-
-  if (verbose && recurse)
-    fprintf(am_server?stderr:stdout,"done\n");
-
-  return flist;
+  if (verbose > 2)
+    fprintf(stderr,"recv_files finished\n");
+  
+  return 0;
 }

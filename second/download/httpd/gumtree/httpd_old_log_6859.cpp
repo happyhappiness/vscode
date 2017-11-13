@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                                  "Removing LDAP connection last used %" APR_TIME_T_FMT " seconds ago",
-                                  (now - l->freed) / APR_USEC_PER_SEC);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                  "h2_stream(%ld-%d): unpexected header status %d, stream rst", 
+                  session->id, stream->id, headers->status);

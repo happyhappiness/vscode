@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c, APLOGNO(03397)
-                      "h2_ngn_shed(%ld): abort while pulling requests %s", 
-                      shed->c->id, ngn->id);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, m->c, APLOGNO(02953) 
+                              "h2_mplx(%ld): stream for response %d closed, "
+                              "resetting io to close request processing",
+                              m->id, io->id);

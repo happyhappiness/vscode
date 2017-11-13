@@ -1,1 +1,1 @@
-die_errno("cannot exec '%s'", cmd->argv[0]);
+die("invalid date format: %s", date_str);

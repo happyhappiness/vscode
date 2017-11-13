@@ -1,28 +1,27 @@
-static int ssl_tmp_key_init_dh(server_rec *s,
+static int ssl_tmp_key_init_ec(server_rec *s,
                                int bits, int idx)
 {
     SSLModConfigRec *mc = myModConfig(s);
+    EC_KEY *ecdh = NULL;
 
-#ifdef HAVE_FIPS
+    /* XXX: Are there any FIPS constraints we should enforce? */
 
-    if (FIPS_mode() && bits < 1024) {
-        mc->pTmpKeys[idx] = NULL;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01880)
-                     "Init: Skipping generating temporary "
-                     "%d bit DH parameters in FIPS mode", bits);
-        return OK;
-    }
-
-#endif
-
-    if (!(mc->pTmpKeys[idx] =
-          ssl_dh_GetTmpParam(bits)))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01881)
+    if (bits != 256) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02298)
                      "Init: Failed to generate temporary "
-                     "%d bit DH parameters", bits);
+                     "%d bit EC parameters, only 256 bits supported", bits);
         return !OK;
     }
 
+    if ((ecdh = EC_KEY_new()) == NULL ||
+        EC_KEY_set_group(ecdh, EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1)) != 1)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02299)
+                     "Init: Failed to generate temporary "
+                     "%d bit EC parameters", bits);
+        return !OK;
+    }
+
+    mc->pTmpKeys[idx] = ecdh;
     return OK;
 }

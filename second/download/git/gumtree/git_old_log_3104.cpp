@@ -1,2 +1,2 @@
-fprintf(stderr, "%s in %s %s: %s\n",
-		msg_type, typename(obj->type), oid_to_hex(&obj->oid), err);
+printf("broken link from %7s %s\n",
+			   typename(parent->type), oid_to_hex(&parent->oid));

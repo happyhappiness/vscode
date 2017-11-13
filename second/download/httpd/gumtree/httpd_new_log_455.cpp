@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_ENOTIMPL, r->server,
-                     "proxy: client %s (%s) requested Transfer-Encoding body"
-                     " with Content-Length (C-L ignored)",
-                     c->remote_ip, c->remote_host ? c->remote_host: "");
+fprintf(stderr,
+                "Usage: %s [-l] <logfile> <rotation time in seconds> "
+                "[offset minutes from UTC] or <rotation size in megabytes>\n\n",
+                argv[0]);

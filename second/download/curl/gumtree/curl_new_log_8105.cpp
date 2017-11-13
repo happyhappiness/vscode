@@ -1,11 +1,11 @@
 fputs(
-"              To use a Metalink file in the local file system, use FILE proto-\n"
-"              col (file://):\n"
+"              are  errors (such as the file or server not being available). It\n"
+"              will also verify the hash of the file after  the  download  com-\n"
+"              pletes.  The Metalink file itself is downloaded and processed in\n"
+"              memory and not stored in the local file system.\n"
 "\n"
-"              curl --metalink file://example.metalink\n"
+"              Example to use a remote Metalink file:\n"
 "\n"
-"              Please  note  that if FILE protocol is disabled, there is no way\n"
-"              to use a local Metalink file at the time of this  writing.  Also\n"
-"              note  that  if  --metalink  and  --include  are  used  together,\n"
-"              --include will be ignored. This is because including headers  in\n"
+"              curl --metalink http://www.example.com/example.metalink\n"
+"\n"
 , stdout);

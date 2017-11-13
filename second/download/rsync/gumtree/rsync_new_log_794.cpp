@@ -1,1 +1,1 @@
-fprintf(F," -h, --help                  show this help\n");
+fprintf(out, " * Generated automatically by crc32.c\n */\n\n");

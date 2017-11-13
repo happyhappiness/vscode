@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01156)
-                      "ap_pass_brigade failed:");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01608)
+                                     "Cannot get media parameter.");

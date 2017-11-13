@@ -1,8 +1,13 @@
-puts(" -r/--range <range> Retrieve a byte range from a HTTP/1.1 or FTP server\n"
-       " -R/--remote-time   Set the remote file's time on the local output\n"
-       " -s/--silent        Silent mode. Don't output anything\n"
-       " -S/--show-error    Show error. With -s, make curl show errors when they occur\n"
-       "    --stderr <file> Where to redirect stderr. - means stdout.\n"
-       " -t/--telnet-option <OPT=val> Set telnet option\n"
-       " -T/--upload-file <file> Transfer/upload <file> to remote site\n"
-       "    --url <URL>     Another way to specify URL to work with");
+puts(
+"  user and password so curl can't do that automatically. To do that, you need\n"
+"  to track when the login prompt is received and send the username and\n"
+"  password accordingly.\n"
+"\n"
+"PERSISTANT CONNECTIONS\n"
+"\n"
+"  Specifying multiple files on a single command line will make curl transfer\n"
+"  all of them, one after the other in the specified order.\n"
+"\n"
+"  libcurl will attempt to use persistant connections for the transfers so that\n"
+"  the second transfer to the same host can use the same connection that was\n"
+);

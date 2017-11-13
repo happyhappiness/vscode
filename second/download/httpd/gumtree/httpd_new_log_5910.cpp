@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c, APLOGNO(03310)
-                              "error setting alpn protos from '%s'", alpn_note);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_task_output(%s): write brigade", output->task->id);

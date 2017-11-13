@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01948)
-                     "Failed to acquire OCSP stapling lock");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01061)
+                      "set r->path_info to %s", r->path_info);

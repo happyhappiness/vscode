@@ -1,9 +1,10 @@
 puts(
-"          URL. If there is no file part  in  the  specified  URL,\n"
-"          Curl  will  append  the  local file name. NOTE that you\n"
-"          must use a trailing / on the last directory  to  really\n"
-"          prove  to  Curl that there is no file name or curl will\n"
-"          think that your last directory name is the remote  file\n"
-"          name  to  use.  That  will most likely cause the upload\n"
-"          operation to fail. If this is used on a http(s) server,\n"
+"          (FTP) Reverses the initiator/listener roles  when  con�\n"
+"          necting  with  ftp. This switch makes Curl use the PORT\n"
+"          command instead of PASV. In practice,  PORT  tells  the\n"
+"          server to connect to the client's specified address and\n"
+"          port, while PASV asks the server for an ip address  and\n"
+"          port to connect to. <address> should be one of:\n"
+"\n"
+"          interface   i.e  \"eth0\" to specify which interface's IP\n"
 );

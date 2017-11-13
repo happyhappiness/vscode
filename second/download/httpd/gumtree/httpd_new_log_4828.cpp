@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, s, APLOGNO(00283)
-                     "fork: Unable to fork new process");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01970)
+                      "could not parse OID '%s'", extension);

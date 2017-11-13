@@ -1,49 +1,28 @@
-apr_status_t h2_stream_recv_frame(h2_stream *stream, int ftype, int flags)
+apr_status_t h2_stream_recv_DATA(h2_stream *stream, uint8_t flags,
+                                    const uint8_t *data, size_t len)
 {
+    h2_session *session = stream->session;
     apr_status_t status = APR_SUCCESS;
-    int new_state, eos = 0;
-
-    new_state = on_frame_recv(stream->state, ftype);
-    if (new_state < 0) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
-                      H2_STRM_MSG(stream, "invalid frame %d recv"), ftype);
-        AP_DEBUG_ASSERT(new_state > S_XXX);
-        return transit(stream, new_state);
-    }
     
-    switch (ftype) {
-        case NGHTTP2_DATA:
-            eos = (flags & NGHTTP2_FLAG_END_STREAM);
-            break;
-            
-        case NGHTTP2_HEADERS:
-            eos = (flags & NGHTTP2_FLAG_END_STREAM);
-            if (stream->state == H2_SS_OPEN) {
-                /* trailer HEADER */
-                if (!eos) {
-                    h2_stream_rst(stream, H2_ERR_PROTOCOL_ERROR);
-                }
-            }
-            else {
-                /* request HEADER */
-                ap_assert(stream->request == NULL);
-                ap_assert(stream->rtmp != NULL);
-                status = h2_request_end_headers(stream->rtmp, stream->pool, eos);
-                if (status != APR_SUCCESS) {
-                    return status;
-                }
-                set_policy_for(stream, stream->rtmp);
-                stream->request = stream->rtmp;
-                stream->rtmp = NULL;
-            }
-            break;
-            
-        default:
-            break;
-    }
-    status = transit(stream, new_state);
-    if (status == APR_SUCCESS && eos) {
-        status = transit(stream, on_event(stream, H2_SEV_CLOSED_R));
+    stream->in_data_frames++;
+    if (len > 0) {
+        if (APLOGctrace3(session->c)) {
+            const char *load = apr_pstrndup(stream->pool, (const char *)data, len);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, session->c,
+                          H2_STRM_MSG(stream, "recv DATA, len=%d: -->%s<--"), 
+                          (int)len, load);
+        }
+        else {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c,
+                          H2_STRM_MSG(stream, "recv DATA, len=%d"), (int)len);
+        }
+        stream->in_data_octets += len;
+        if (!stream->in_buffer) {
+            stream->in_buffer = apr_brigade_create(stream->pool, 
+                                                   session->c->bucket_alloc);
+        }
+        apr_brigade_write(stream->in_buffer, NULL, NULL, (const char *)data, len);
+        h2_stream_dispatch(stream, H2_SEV_IN_DATA_PENDING);
     }
     return status;
 }

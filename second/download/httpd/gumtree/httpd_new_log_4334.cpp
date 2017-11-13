@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01974)
-                      "could not connect to OCSP responder '%s'",
-                      uri->hostinfo);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01143)
+                      "Running scheme %s handler (attempt %d)",
+                      scheme, attempts);

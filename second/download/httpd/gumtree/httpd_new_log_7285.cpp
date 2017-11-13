@@ -1,4 +1,2 @@
-ap_register_output_filter("CACHE_INVALIDATE",
-                                  cache_invalidate_filter,
-                                  NULL,
-                                  AP_FTYPE_PROTOCOL);
+ap_log_rerror(
+                            APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02481) "Encountered premature end-of-stream while inflating");

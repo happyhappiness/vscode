@@ -1,43 +1,104 @@
-static int configset_add_value(struct config_set *cs, const char *key, const char *value)
+int reflog_expire(const char *refname, const unsigned char *sha1,
+		 unsigned int flags,
+		 reflog_expiry_prepare_fn prepare_fn,
+		 reflog_expiry_should_prune_fn should_prune_fn,
+		 reflog_expiry_cleanup_fn cleanup_fn,
+		 void *policy_cb_data)
 {
-	struct config_set_element *e;
-	struct string_list_item *si;
-	struct configset_list_item *l_item;
-	struct key_value_info *kv_info = xmalloc(sizeof(*kv_info));
+	static struct lock_file reflog_lock;
+	struct expire_reflog_cb cb;
+	struct ref_lock *lock;
+	char *log_file;
+	int status = 0;
+	int type;
+	struct strbuf err = STRBUF_INIT;
 
-	e = configset_find_element(cs, key);
+	memset(&cb, 0, sizeof(cb));
+	cb.flags = flags;
+	cb.policy_cb = policy_cb_data;
+	cb.should_prune_fn = should_prune_fn;
+
 	/*
-	 * Since the keys are being fed by git_config*() callback mechanism, they
-	 * are already normalized. So simply add them without any further munging.
+	 * The reflog file is locked by holding the lock on the
+	 * reference itself, plus we might need to update the
+	 * reference if --updateref was specified:
 	 */
-	if (!e) {
-		e = xmalloc(sizeof(*e));
-		hashmap_entry_init(e, strhash(key));
-		e->key = xstrdup(key);
-		string_list_init(&e->value_list, 1);
-		hashmap_add(&cs->config_hash, e);
+	lock = lock_ref_sha1_basic(refname, sha1, NULL, NULL, 0, &type, &err);
+	if (!lock) {
+		error("cannot lock ref '%s': %s", refname, err.buf);
+		strbuf_release(&err);
+		return -1;
 	}
-	si = string_list_append_nodup(&e->value_list, xstrdup_or_null(value));
-
-	ALLOC_GROW(cs->list.items, cs->list.nr + 1, cs->list.alloc);
-	l_item = &cs->list.items[cs->list.nr++];
-	l_item->e = e;
-	l_item->value_index = e->value_list.nr - 1;
-
-	if (!cf)
-		die("BUG: configset_add_value has no source");
-	if (cf->name) {
-		kv_info->filename = strintern(cf->name);
-		kv_info->linenr = cf->linenr;
-		kv_info->origin_type = cf->origin_type;
-	} else {
-		/* for values read from `git_config_from_parameters()` */
-		kv_info->filename = NULL;
-		kv_info->linenr = -1;
-		kv_info->origin_type = CONFIG_ORIGIN_CMDLINE;
+	if (!reflog_exists(refname)) {
+		unlock_ref(lock);
+		return 0;
 	}
-	kv_info->scope = current_parsing_scope;
-	si->util = kv_info;
 
-	return 0;
+	log_file = git_pathdup("logs/%s", refname);
+	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
+		/*
+		 * Even though holding $GIT_DIR/logs/$reflog.lock has
+		 * no locking implications, we use the lock_file
+		 * machinery here anyway because it does a lot of the
+		 * work we need, including cleaning up if the program
+		 * exits unexpectedly.
+		 */
+		if (hold_lock_file_for_update(&reflog_lock, log_file, 0) < 0) {
+			struct strbuf err = STRBUF_INIT;
+			unable_to_lock_message(log_file, errno, &err);
+			error("%s", err.buf);
+			strbuf_release(&err);
+			goto failure;
+		}
+		cb.newlog = fdopen_lock_file(&reflog_lock, "w");
+		if (!cb.newlog) {
+			error("cannot fdopen %s (%s)",
+			      get_lock_file_path(&reflog_lock), strerror(errno));
+			goto failure;
+		}
+	}
+
+	(*prepare_fn)(refname, sha1, cb.policy_cb);
+	for_each_reflog_ent(refname, expire_reflog_ent, &cb);
+	(*cleanup_fn)(cb.policy_cb);
+
+	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
+		/*
+		 * It doesn't make sense to adjust a reference pointed
+		 * to by a symbolic ref based on expiring entries in
+		 * the symbolic reference's reflog. Nor can we update
+		 * a reference if there are no remaining reflog
+		 * entries.
+		 */
+		int update = (flags & EXPIRE_REFLOGS_UPDATE_REF) &&
+			!(type & REF_ISSYMREF) &&
+			!is_null_sha1(cb.last_kept_sha1);
+
+		if (close_lock_file(&reflog_lock)) {
+			status |= error("couldn't write %s: %s", log_file,
+					strerror(errno));
+		} else if (update &&
+			   (write_in_full(get_lock_file_fd(lock->lk),
+				sha1_to_hex(cb.last_kept_sha1), 40) != 40 ||
+			    write_str_in_full(get_lock_file_fd(lock->lk), "\n") != 1 ||
+			    close_ref(lock) < 0)) {
+			status |= error("couldn't write %s",
+					get_lock_file_path(lock->lk));
+			rollback_lock_file(&reflog_lock);
+		} else if (commit_lock_file(&reflog_lock)) {
+			status |= error("unable to write reflog %s: %s",
+					log_file, strerror(errno));
+		} else if (update && commit_ref(lock)) {
+			status |= error("couldn't set %s", lock->ref_name);
+		}
+	}
+	free(log_file);
+	unlock_ref(lock);
+	return status;
+
+ failure:
+	rollback_lock_file(&reflog_lock);
+	free(log_file);
+	unlock_ref(lock);
+	return -1;
 }

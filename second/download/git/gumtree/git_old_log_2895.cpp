@@ -1,2 +1,2 @@
-die(_("fatal: submodule--helper subcommand must be "
-		      "called with a subcommand"));
+die(_("fatal: '%s' is not a valid submodule--helper "
+	      "subcommand"), argv[1]);

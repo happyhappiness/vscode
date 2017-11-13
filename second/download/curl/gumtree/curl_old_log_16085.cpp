@@ -1,11 +1,11 @@
 fputs(
-"              (SSL)  Tells curl to use TLS version 1.x when negotiating with a\n"
-"              remote TLS server. That means TLS version 1.0, 1.1 or 1.2.\n"
+"              remote SSL server. Sometimes curl is built  without  SSLv3  sup-\n"
+"              port. SSLv3 is widely considered insecure (see RFC 7568).\n"
 "\n"
-"              See also --http1.1 and --http2. -1, --tlsv1  requires  that  the\n"
-"              underlying  libcurl  was built to support TLS. This option over-\n"
-"              rides --tlsv1.1 and --tlsv1.2 and --tlsv1.3.\n"
+"              See  also  --http1.1  and --http2. -3, --sslv3 requires that the\n"
+"              underlying libcurl was built to support TLS. This  option  over-\n"
+"              rides -2, --sslv2 and -1, --tlsv1 and --tlsv1.1 and --tlsv1.2.\n"
 "\n"
-"       --tr-encoding\n"
-"              (HTTP) Request a compressed Transfer-Encoding response using one\n"
+"       --stderr\n"
+"              Redirect  all writes to stderr to the specified file instead. If\n"
 , stdout);

@@ -1,1 +1,1 @@
-printf(_("Deleted tag '%s' (was %s)\n"), name, find_unique_abbrev(sha1, DEFAULT_ABBREV));
+fprintf(stderr, _("Testing mtime in '%s' "), xgetcwd());

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, 0, NULL, "%s: %s",
-                     ap_server_argv0, error);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "         Set to %s/%ld", inet_ntoa(This->addr), bits);

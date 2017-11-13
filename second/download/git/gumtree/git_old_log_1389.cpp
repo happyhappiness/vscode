@@ -1,1 +1,2 @@
-die_errno(_("could not create file '%s'"), path);
+die(_("missing object %s for %s"),
+		    sha1_to_hex(ref->objectname), ref->refname);

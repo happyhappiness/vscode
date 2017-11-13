@@ -1,1 +1,1 @@
-error("no signature found");
+error("tag '%s' not found.", name);

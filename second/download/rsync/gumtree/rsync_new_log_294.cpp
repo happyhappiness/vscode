@@ -1,2 +1,1 @@
-fprintf(FERROR,"write_longint failed : %s\n",
-			ret==-1?strerror(errno):"EOF");
+fprintf(f,"-T  --temp-dir DIR       create temporary files in directory DIR\n");

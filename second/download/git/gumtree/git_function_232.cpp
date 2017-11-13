@@ -1,16 +1,13 @@
-static int opt_parse_porcelain(const struct option *opt, const char *arg, int unset)
+static void read_patch_file(struct strbuf *sb, int fd)
 {
-	enum wt_status_format *value = (enum wt_status_format *)opt->value;
-	if (unset)
-		*value = STATUS_FORMAT_NONE;
-	else if (!arg)
-		*value = STATUS_FORMAT_PORCELAIN;
-	else if (!strcmp(arg, "v1") || !strcmp(arg, "1"))
-		*value = STATUS_FORMAT_PORCELAIN;
-	else if (!strcmp(arg, "v2") || !strcmp(arg, "2"))
-		*value = STATUS_FORMAT_PORCELAIN_V2;
-	else
-		die("unsupported porcelain version '%s'", arg);
+	if (strbuf_read(sb, fd, 0) < 0)
+		die_errno("git apply: failed to read");
 
-	return 0;
+	/*
+	 * Make sure that we have some slop in the buffer
+	 * so that we can do speculative "memcmp" etc, and
+	 * see to it that it is NUL-filled.
+	 */
+	strbuf_grow(sb, SLOP);
+	memset(sb->buf + sb->len, 0, SLOP);
 }

@@ -1,1 +1,1 @@
-error(_("'%s': %s"), filename, strerror(errno));
+error(_("'%s': short read %s"), filename, strerror(errno));

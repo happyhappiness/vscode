@@ -1,1 +1,1 @@
-memcpy(m, name, nlen + 1);
+die("unable to generate diff");

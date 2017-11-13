@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02042)
-                          "rejecting client initiated renegotiation");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01194)
+                                  "%s: Lock failed for adding worker",
+                                  bsel->s->name);

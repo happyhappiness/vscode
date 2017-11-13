@@ -1,85 +1,67 @@
-int main(int argc, const char **argv)
+struct ref **get_remote_heads(int in, char *src_buf, size_t src_len,
+			      struct ref **list, unsigned int flags,
+			      struct sha1_array *extra_have,
+			      struct sha1_array *shallow_points)
 {
-	struct strbuf buf = STRBUF_INIT;
-	int nongit;
+	struct ref **orig_list = list;
+	int got_at_least_one_head = 0;
 
-	git_extract_argv0_path(argv[0]);
-	setup_git_directory_gently(&nongit);
-	if (argc < 2) {
-		fprintf(stderr, "Remote needed\n");
-		return 1;
-	}
+	*list = NULL;
+	for (;;) {
+		struct ref *ref;
+		unsigned char old_sha1[20];
+		char *name;
+		int len, name_len;
+		char *buffer = packet_buffer;
 
-	options.verbosity = 1;
-	options.progress = !!isatty(2);
-	options.thin = 1;
+		len = packet_read(in, &src_buf, &src_len,
+				  packet_buffer, sizeof(packet_buffer),
+				  PACKET_READ_GENTLE_ON_EOF |
+				  PACKET_READ_CHOMP_NEWLINE);
+		if (len < 0)
+			die_initial_contact(got_at_least_one_head);
 
-	remote = remote_get(argv[1]);
-
-	if (argc > 2) {
-		end_url_with_slash(&url, argv[2]);
-	} else {
-		end_url_with_slash(&url, remote->url[0]);
-	}
-
-	http_init(remote, url.buf, 0);
-
-	do {
-		if (strbuf_getline(&buf, stdin, '\n') == EOF) {
-			if (ferror(stdin))
-				fprintf(stderr, "Error reading command stream\n");
-			else
-				fprintf(stderr, "Unexpected end of command stream\n");
-			return 1;
-		}
-		if (buf.len == 0)
+		if (!len)
 			break;
-		if (starts_with(buf.buf, "fetch ")) {
-			if (nongit)
-				die("Fetch attempted without a local repo");
-			parse_fetch(&buf);
 
-		} else if (!strcmp(buf.buf, "list") || starts_with(buf.buf, "list ")) {
-			int for_push = !!strstr(buf.buf + 4, "for-push");
-			output_refs(get_refs(for_push));
+		if (len > 4 && starts_with(buffer, "ERR "))
+			die("remote error: %s", buffer + 4);
 
-		} else if (starts_with(buf.buf, "push ")) {
-			parse_push(&buf);
-
-		} else if (starts_with(buf.buf, "option ")) {
-			char *name = buf.buf + strlen("option ");
-			char *value = strchr(name, ' ');
-			int result;
-
-			if (value)
-				*value++ = '\0';
-			else
-				value = "true";
-
-			result = set_option(name, value);
-			if (!result)
-				printf("ok\n");
-			else if (result < 0)
-				printf("error invalid value\n");
-			else
-				printf("unsupported\n");
-			fflush(stdout);
-
-		} else if (!strcmp(buf.buf, "capabilities")) {
-			printf("fetch\n");
-			printf("option\n");
-			printf("push\n");
-			printf("check-connectivity\n");
-			printf("\n");
-			fflush(stdout);
-		} else {
-			fprintf(stderr, "Unknown command '%s'\n", buf.buf);
-			return 1;
+		if (len == 48 && starts_with(buffer, "shallow ")) {
+			if (get_sha1_hex(buffer + 8, old_sha1))
+				die("protocol error: expected shallow sha-1, got '%s'", buffer + 8);
+			if (!shallow_points)
+				die("repository on the other end cannot be shallow");
+			sha1_array_append(shallow_points, old_sha1);
+			continue;
 		}
-		strbuf_reset(&buf);
-	} while (1);
 
-	http_cleanup();
+		if (len < 42 || get_sha1_hex(buffer, old_sha1) || buffer[40] != ' ')
+			die("protocol error: expected sha/ref, got '%s'", buffer);
+		name = buffer + 41;
 
-	return 0;
+		name_len = strlen(name);
+		if (len != name_len + 41) {
+			free(server_capabilities);
+			server_capabilities = xstrdup(name + name_len + 1);
+		}
+
+		if (extra_have &&
+		    name_len == 5 && !memcmp(".have", name, 5)) {
+			sha1_array_append(extra_have, old_sha1);
+			continue;
+		}
+
+		if (!check_ref(name, name_len, flags))
+			continue;
+		ref = alloc_ref(buffer + 41);
+		hashcpy(ref->old_sha1, old_sha1);
+		*list = ref;
+		list = &ref->next;
+		got_at_least_one_head = 1;
+	}
+
+	annotate_refs_with_symref_info(*orig_list);
+
+	return list;
 }

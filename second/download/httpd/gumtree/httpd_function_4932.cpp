@@ -1,51 +1,57 @@
-static apr_status_t open_scoreboard(apr_pool_t *pconf)
+static const char *set_override(cmd_parms *cmd, void *d_, const char *l)
 {
-#if APR_HAS_SHARED_MEMORY
-    apr_status_t rv;
-    char *fname = NULL;
-    apr_pool_t *global_pool;
+    core_dir_config *d = d_;
+    char *w;
+    char *k, *v;
 
-    /* We don't want to have to recreate the scoreboard after
-     * restarts, so we'll create a global pool and never clean it.
-     */
-    rv = apr_pool_create(&global_pool, NULL);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "Fatal error: unable to create global pool "
-                     "for use by the scoreboard");
-        return rv;
+    /* Throw a warning if we're in <Location> or <Files> */
+    if (ap_check_cmd_context(cmd, NOT_IN_LOCATION | NOT_IN_FILES)) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                     "Useless use of AllowOverride in line %d of %s.",
+                     cmd->directive->line_num, cmd->directive->filename);
     }
 
-    /* The config says to create a name-based shmem */
-    if (ap_scoreboard_fname) {
-        /* make sure it's an absolute pathname */
-        fname = ap_server_root_relative(pconf, ap_scoreboard_fname);
-        if (!fname) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, APR_EBADPATH, NULL,
-                         "Fatal error: Invalid Scoreboard path %s",
-                         ap_scoreboard_fname);
-            return APR_EBADPATH;
-        }
-        return create_namebased_scoreboard(global_pool, fname);
-    }
-    else { /* config didn't specify, we get to choose shmem type */
-        rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, NULL,
-                            global_pool); /* anonymous shared memory */
-        if ((rv != APR_SUCCESS) && (rv != APR_ENOTIMPL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                         "Unable to create or access scoreboard "
-                         "(anonymous shared memory failure)");
-            return rv;
-        }
-        /* Make up a filename and do name-based shmem */
-        else if (rv == APR_ENOTIMPL) {
-            /* Make sure it's an absolute pathname */
-            ap_scoreboard_fname = DEFAULT_SCOREBOARD;
-            fname = ap_server_root_relative(pconf, ap_scoreboard_fname);
+    d->override = OR_NONE;
+    while (l[0]) {
+        w = ap_getword_conf(cmd->pool, &l);
 
-            return create_namebased_scoreboard(global_pool, fname);
+        k = w;
+        v = strchr(k, '=');
+        if (v) {
+                *v++ = '\0';
         }
+
+        if (!strcasecmp(w, "Limit")) {
+            d->override |= OR_LIMIT;
+        }
+        else if (!strcasecmp(k, "Options")) {
+            d->override |= OR_OPTIONS;
+            if (v)
+                set_allow_opts(cmd, &(d->override_opts), v);
+            else
+                d->override_opts = OPT_ALL;
+        }
+        else if (!strcasecmp(w, "FileInfo")) {
+            d->override |= OR_FILEINFO;
+        }
+        else if (!strcasecmp(w, "AuthConfig")) {
+            d->override |= OR_AUTHCFG;
+        }
+        else if (!strcasecmp(w, "Indexes")) {
+            d->override |= OR_INDEXES;
+        }
+        else if (!strcasecmp(w, "None")) {
+            d->override = OR_NONE;
+        }
+        else if (!strcasecmp(w, "All")) {
+            d->override = OR_ALL;
+        }
+        else {
+            return apr_pstrcat(cmd->pool, "Illegal override option ", w, NULL);
+        }
+
+        d->override &= ~OR_UNSET;
     }
-#endif /* APR_HAS_SHARED_MEMORY */
-    return APR_SUCCESS;
+
+    return NULL;
 }

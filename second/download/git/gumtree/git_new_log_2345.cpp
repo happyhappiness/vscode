@@ -1,2 +1,1 @@
-error_errno("Couldn't truncate temporary file %s",
-					    freq->tmpfile);
+printf("missing %s %s\n", typename(obj->type), oid_to_hex(&obj->oid));

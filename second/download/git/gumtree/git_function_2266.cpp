@@ -1,71 +1,66 @@
-static struct commit *get_base_commit(const char *base_commit,
-				      struct commit **list,
-				      int total)
+static void builtin_diffstat(const char *name_a, const char *name_b,
+			     struct diff_filespec *one,
+			     struct diff_filespec *two,
+			     struct diffstat_t *diffstat,
+			     struct diff_options *o,
+			     struct diff_filepair *p)
 {
-	struct commit *base = NULL;
-	struct commit **rev;
-	int i = 0, rev_nr = 0;
+	mmfile_t mf1, mf2;
+	struct diffstat_file *data;
+	int same_contents;
+	int complete_rewrite = 0;
 
-	if (base_commit && strcmp(base_commit, "auto")) {
-		base = lookup_commit_reference_by_name(base_commit);
-		if (!base)
-			die(_("Unknown commit %s"), base_commit);
-	} else if ((base_commit && !strcmp(base_commit, "auto")) || base_auto) {
-		struct branch *curr_branch = branch_get(NULL);
-		const char *upstream = branch_get_upstream(curr_branch, NULL);
-		if (upstream) {
-			struct commit_list *base_list;
-			struct commit *commit;
-			unsigned char sha1[20];
+	if (!DIFF_PAIR_UNMERGED(p)) {
+		if (p->status == DIFF_STATUS_MODIFIED && p->score)
+			complete_rewrite = 1;
+	}
 
-			if (get_sha1(upstream, sha1))
-				die(_("Failed to resolve '%s' as a valid ref."), upstream);
-			commit = lookup_commit_or_die(sha1, "upstream base");
-			base_list = get_merge_bases_many(commit, total, list);
-			/* There should be one and only one merge base. */
-			if (!base_list || base_list->next)
-				die(_("Could not find exact merge base."));
-			base = base_list->item;
-			free_commit_list(base_list);
+	data = diffstat_add(diffstat, name_a, name_b);
+	data->is_interesting = p->status != DIFF_STATUS_UNKNOWN;
+
+	if (!one || !two) {
+		data->is_unmerged = 1;
+		return;
+	}
+
+	same_contents = !hashcmp(one->sha1, two->sha1);
+
+	if (diff_filespec_is_binary(one) || diff_filespec_is_binary(two)) {
+		data->is_binary = 1;
+		if (same_contents) {
+			data->added = 0;
+			data->deleted = 0;
 		} else {
-			die(_("Failed to get upstream, if you want to record base commit automatically,\n"
-			      "please use git branch --set-upstream-to to track a remote branch.\n"
-			      "Or you could specify base commit by --base=<base-commit-id> manually."));
+			data->added = diff_filespec_size(two);
+			data->deleted = diff_filespec_size(one);
 		}
 	}
 
-	ALLOC_ARRAY(rev, total);
-	for (i = 0; i < total; i++)
-		rev[i] = list[i];
-
-	rev_nr = total;
-	/*
-	 * Get merge base through pair-wise computations
-	 * and store it in rev[0].
-	 */
-	while (rev_nr > 1) {
-		for (i = 0; i < rev_nr / 2; i++) {
-			struct commit_list *merge_base;
-			merge_base = get_merge_bases(rev[2 * i], rev[2 * i + 1]);
-			if (!merge_base || merge_base->next)
-				die(_("Failed to find exact merge base"));
-
-			rev[i] = merge_base->item;
-		}
-
-		if (rev_nr % 2)
-			rev[i] = rev[2 * i];
-		rev_nr = (rev_nr + 1) / 2;
+	else if (complete_rewrite) {
+		diff_populate_filespec(one, 0);
+		diff_populate_filespec(two, 0);
+		data->deleted = count_lines(one->data, one->size);
+		data->added = count_lines(two->data, two->size);
 	}
 
-	if (!in_merge_bases(base, rev[0]))
-		die(_("base commit should be the ancestor of revision list"));
+	else if (!same_contents) {
+		/* Crazy xdl interfaces.. */
+		xpparam_t xpp;
+		xdemitconf_t xecfg;
 
-	for (i = 0; i < total; i++) {
-		if (base == list[i])
-			die(_("base commit shouldn't be in revision list"));
+		if (fill_mmfile(&mf1, one) < 0 || fill_mmfile(&mf2, two) < 0)
+			die("unable to read files to diff");
+
+		memset(&xpp, 0, sizeof(xpp));
+		memset(&xecfg, 0, sizeof(xecfg));
+		xpp.flags = o->xdl_opts;
+		xecfg.ctxlen = o->context;
+		xecfg.interhunkctxlen = o->interhunkcontext;
+		if (xdi_diff_outf(&mf1, &mf2, diffstat_consume, diffstat,
+				  &xpp, &xecfg))
+			die("unable to generate diffstat for %s", one->path);
 	}
 
-	free(rev);
-	return base;
+	diff_free_filespec_data(one);
+	diff_free_filespec_data(two);
 }

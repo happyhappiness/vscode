@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         threads_per_child);
+ap_log_cerror(APLOG_MARK, loglevel, 0, c,
+                      "Connection closed to child %ld with %s shutdown "
+                      "(server %s)",
+                      c->id, type, ssl_util_vhostid(c->pool, mySrvFromConn(c)));

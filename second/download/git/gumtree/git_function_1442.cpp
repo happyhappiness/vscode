@@ -1,100 +1,74 @@
-int reflog_expire(const char *refname, const unsigned char *sha1,
-		 unsigned int flags,
-		 reflog_expiry_prepare_fn prepare_fn,
-		 reflog_expiry_should_prune_fn should_prune_fn,
-		 reflog_expiry_cleanup_fn cleanup_fn,
-		 void *policy_cb_data)
+static int push_check(int argc, const char **argv, const char *prefix)
 {
-	static struct lock_file reflog_lock;
-	struct expire_reflog_cb cb;
-	struct ref_lock *lock;
-	char *log_file;
-	int status = 0;
-	int type;
+	struct remote *remote;
+	const char *superproject_head;
+	char *head;
+	int detached_head = 0;
+	struct object_id head_oid;
 
-	memset(&cb, 0, sizeof(cb));
-	cb.flags = flags;
-	cb.policy_cb = policy_cb_data;
-	cb.should_prune_fn = should_prune_fn;
+	if (argc < 3)
+		die("submodule--helper push-check requires at least 2 arguments");
 
 	/*
-	 * The reflog file is locked by holding the lock on the
-	 * reference itself, plus we might need to update the
-	 * reference if --updateref was specified:
+	 * superproject's resolved head ref.
+	 * if HEAD then the superproject is in a detached head state, otherwise
+	 * it will be the resolved head ref.
 	 */
-	lock = lock_ref_sha1_basic(refname, sha1, NULL, 0, &type);
-	if (!lock)
-		return error("cannot lock ref '%s'", refname);
-	if (!reflog_exists(refname)) {
-		unlock_ref(lock);
-		return 0;
-	}
+	superproject_head = argv[1];
+	argv++;
+	argc--;
+	/* Get the submodule's head ref and determine if it is detached */
+	head = resolve_refdup("HEAD", 0, head_oid.hash, NULL);
+	if (!head)
+		die(_("Failed to resolve HEAD as a valid ref."));
+	if (!strcmp(head, "HEAD"))
+		detached_head = 1;
 
-	log_file = git_pathdup("logs/%s", refname);
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * Even though holding $GIT_DIR/logs/$reflog.lock has
-		 * no locking implications, we use the lock_file
-		 * machinery here anyway because it does a lot of the
-		 * work we need, including cleaning up if the program
-		 * exits unexpectedly.
-		 */
-		if (hold_lock_file_for_update(&reflog_lock, log_file, 0) < 0) {
-			struct strbuf err = STRBUF_INIT;
-			unable_to_lock_message(log_file, errno, &err);
-			error("%s", err.buf);
-			strbuf_release(&err);
-			goto failure;
+	/*
+	 * The remote must be configured.
+	 * This is to avoid pushing to the exact same URL as the parent.
+	 */
+	remote = pushremote_get(argv[1]);
+	if (!remote || remote->origin == REMOTE_UNCONFIGURED)
+		die("remote '%s' not configured", argv[1]);
+
+	/* Check the refspec */
+	if (argc > 2) {
+		int i, refspec_nr = argc - 2;
+		struct ref *local_refs = get_local_heads();
+		struct refspec *refspec = parse_push_refspec(refspec_nr,
+							     argv + 2);
+
+		for (i = 0; i < refspec_nr; i++) {
+			struct refspec *rs = refspec + i;
+
+			if (rs->pattern || rs->matching)
+				continue;
+
+			/* LHS must match a single ref */
+			switch (count_refspec_match(rs->src, local_refs, NULL)) {
+			case 1:
+				break;
+			case 0:
+				/*
+				 * If LHS matches 'HEAD' then we need to ensure
+				 * that it matches the same named branch
+				 * checked out in the superproject.
+				 */
+				if (!strcmp(rs->src, "HEAD")) {
+					if (!detached_head &&
+					    !strcmp(head, superproject_head))
+						break;
+					die("HEAD does not match the named branch in the superproject");
+				}
+			default:
+				die("src refspec '%s' must name a ref",
+				    rs->src);
+			}
 		}
-		cb.newlog = fdopen_lock_file(&reflog_lock, "w");
-		if (!cb.newlog) {
-			error("cannot fdopen %s (%s)",
-			      reflog_lock.filename.buf, strerror(errno));
-			goto failure;
-		}
+		free_refspec(refspec_nr, refspec);
 	}
+	free(head);
 
-	(*prepare_fn)(refname, sha1, cb.policy_cb);
-	for_each_reflog_ent(refname, expire_reflog_ent, &cb);
-	(*cleanup_fn)(cb.policy_cb);
-
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * It doesn't make sense to adjust a reference pointed
-		 * to by a symbolic ref based on expiring entries in
-		 * the symbolic reference's reflog. Nor can we update
-		 * a reference if there are no remaining reflog
-		 * entries.
-		 */
-		int update = (flags & EXPIRE_REFLOGS_UPDATE_REF) &&
-			!(type & REF_ISSYMREF) &&
-			!is_null_sha1(cb.last_kept_sha1);
-
-		if (close_lock_file(&reflog_lock)) {
-			status |= error("couldn't write %s: %s", log_file,
-					strerror(errno));
-		} else if (update &&
-			(write_in_full(lock->lock_fd,
-				sha1_to_hex(cb.last_kept_sha1), 40) != 40 ||
-			 write_str_in_full(lock->lock_fd, "\n") != 1 ||
-			 close_ref(lock) < 0)) {
-			status |= error("couldn't write %s",
-					lock->lk->filename.buf);
-			rollback_lock_file(&reflog_lock);
-		} else if (commit_lock_file(&reflog_lock)) {
-			status |= error("unable to commit reflog '%s' (%s)",
-					log_file, strerror(errno));
-		} else if (update && commit_ref(lock)) {
-			status |= error("couldn't set %s", lock->ref_name);
-		}
-	}
-	free(log_file);
-	unlock_ref(lock);
-	return status;
-
- failure:
-	rollback_lock_file(&reflog_lock);
-	free(log_file);
-	unlock_ref(lock);
-	return -1;
+	return 0;
 }

@@ -1,11 +1,9 @@
 fputs(
-"              See  also  --dns-ipv4-addr  and --dns-ipv6-addr. --dns-interface\n"
-"              requires that the underlying libcurl was  built  to  support  c-\n"
-"              ares. Added in 7.33.0.\n"
+"              If  any of these options is used more than once on the same com-\n"
+"              mand line, the data pieces specified  will  be  merged  together\n"
+"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"       --dns-ipv4-addr <address>\n"
-"              (DNS)  Tell  curl  to  bind to <ip-address> when making IPv4 DNS\n"
-"              requests, so that the DNS requests originate from this  address.\n"
-"              The argument should be a single IPv4 address.\n"
-"\n"
+"              If  you  start  the data with the letter @, the rest should be a\n"
 , stdout);

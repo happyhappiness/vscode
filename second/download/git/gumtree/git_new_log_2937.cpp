@@ -1,2 +1,2 @@
-error_errno("Unable to write marks file %s",
+error_errno("Unable to write file %s",
 				       export_marks_file);

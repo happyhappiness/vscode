@@ -1,1 +1,1 @@
-error("too many parameters");
+die_errno("unable to overwrite old ref-pack file");

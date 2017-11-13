@@ -1,1 +1,1 @@
-git_die_config(key, "unknown notes merge strategy %s", value);
+die("internal error: packed-refs not locked");

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "finished force-expire, subcache: idx_used=%d, "
-                     "data_used=%d", subcache->idx_used, subcache->data_used);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "[%" APR_PID_T_FMT "] util_ldap: Couldn't "
+                              "retrieve group entry for %s from cache",
+                               getpid(), dn);

@@ -1,96 +1,76 @@
-static int stapling_cb(SSL *ssl, void *arg)
+static int handle_headers(request_rec *r,
+                          int *state,
+                          char *readbuf,
+                          apr_bucket_brigade *ob)
 {
-    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
-    server_rec *s       = mySrvFromConn(conn);
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-    SSLConnRec *sslconn = myConnConfig(conn);
-    modssl_ctx_t *mctx  = myCtxConfig(sslconn, sc);
-    certinfo *cinf = NULL;
-    OCSP_RESPONSE *rsp = NULL;
-    int rv;
-    BOOL ok;
+    conn_rec *c = r->connection;
+    const char *itr = readbuf;
 
-    if (sc->server->stapling_enabled != TRUE) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "stapling_cb: OCSP Stapling disabled");
-        return SSL_TLSEXT_ERR_NOACK;
-    }
+    while (*itr) {
+        if (*itr == '\r') {
+            switch (*state) {
+                case HDR_STATE_GOT_CRLF:
+                    *state = HDR_STATE_GOT_CRLFCR;
+                    break;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "stapling_cb: OCSP Stapling callback called");
-
-    cinf = stapling_get_cert_info(s, mctx, ssl);
-    if (cinf == NULL) {
-        return SSL_TLSEXT_ERR_NOACK;
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "stapling_cb: retrieved cached certificate data");
-
-    /* Check to see if we already have a response for this certificate */
-    stapling_mutex_on(s);
-
-    rv = stapling_get_cached_response(s, &rsp, &ok, cinf, conn->pool);
-    if (rv == FALSE) {
-        stapling_mutex_off(s);
-        return SSL_TLSEXT_ERR_ALERT_FATAL;
-    }
-
-    if (rsp) {
-        /* see if response is acceptable */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "stapling_cb: retrieved cached response");
-        rv = stapling_check_response(s, mctx, cinf, rsp, NULL);
-        if (rv == SSL_TLSEXT_ERR_ALERT_FATAL) {
-            OCSP_RESPONSE_free(rsp);
-            stapling_mutex_off(s);
-            return SSL_TLSEXT_ERR_ALERT_FATAL;
-        }
-        else if (rv == SSL_TLSEXT_ERR_NOACK) {
-            /* Error in response. If this error was not present when it was
-             * stored (i.e. response no longer valid) then it can be
-             * renewed straight away.
-             *
-             * If the error *was* present at the time it was stored then we
-             * don't renew the response straight away we just wait for the
-             * cached response to expire.
-             */
-            if (ok) {
-                OCSP_RESPONSE_free(rsp);
-                rsp = NULL;
-            }
-            else if (!mctx->stapling_return_errors) {
-                OCSP_RESPONSE_free(rsp);
-                stapling_mutex_off(s);
-                return SSL_TLSEXT_ERR_NOACK;
+                default:
+                    *state = HDR_STATE_GOT_CR;
+                    break;
             }
         }
+        else if (*itr == '\n') {
+            switch (*state) {
+                 case HDR_STATE_GOT_LF:
+                     *state = HDR_STATE_DONE_WITH_HEADERS;
+                     break;
+
+                 case HDR_STATE_GOT_CR:
+                     *state = HDR_STATE_GOT_CRLF;
+                     break;
+
+                 case HDR_STATE_GOT_CRLFCR:
+                     *state = HDR_STATE_DONE_WITH_HEADERS;
+                     break;
+
+                 default:
+                     *state = HDR_STATE_GOT_LF;
+                     break;
+            }
+        }
+        else {
+            *state = HDR_STATE_READING_HEADERS;
+        }
+
+        if (*state == HDR_STATE_DONE_WITH_HEADERS)
+            break;
+
+        ++itr;
     }
 
-    if (rsp == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "stapling_cb: renewing cached response");
-        rv = stapling_renew_response(s, mctx, ssl, cinf, &rsp, conn->pool);
+    if (*state == HDR_STATE_DONE_WITH_HEADERS) {
+        int status = ap_scan_script_header_err_brigade(r, ob, NULL);
+        if (status != OK) {
+            apr_bucket *b;
 
-        if (rv == FALSE) {
-            stapling_mutex_off(s);
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "stapling_cb: fatal error");
-            return SSL_TLSEXT_ERR_ALERT_FATAL;
+            r->status = status;
+
+            apr_brigade_cleanup(ob);
+
+            b = apr_bucket_eos_create(c->bucket_alloc);
+
+            APR_BRIGADE_INSERT_TAIL(ob, b);
+
+            ap_pass_brigade(r->output_filters, ob);
+
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "proxy: FCGI: Error parsing script headers");
+
+            return -1;
+        }
+        else {
+            return 1;
         }
     }
-    stapling_mutex_off(s);
 
-    if (rsp) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "stapling_cb: setting response");
-        if (!stapling_set_response(ssl, rsp))
-            return SSL_TLSEXT_ERR_ALERT_FATAL;
-        return SSL_TLSEXT_ERR_OK;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "stapling_cb: no response available");
-
-    return SSL_TLSEXT_ERR_NOACK;
-
+    return 0;
 }

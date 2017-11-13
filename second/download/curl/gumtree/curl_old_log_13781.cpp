@@ -1,11 +1,9 @@
 fputs(
-"              (FTP) Enable Kerberos authentication and use. The level must  be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
-"              'private'. Should you use a level that  is  not  one  of  these,\n"
-"              'private' will instead be used.\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default  config  file  and  uses it if found. The default config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"              This  option  requires  a  library built with kerberos4 support.\n"
-"              This is not very common. Use -V, --version to see if  your  curl\n"
-"              supports it.\n"
-"\n"
+"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it uses getpwuid() on Unix-like systems (which returns the  home\n"
 , stdout);

@@ -1,0 +1,1 @@
+print_internals(re, stdout);

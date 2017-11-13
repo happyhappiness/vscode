@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(02024)
-                         "Cannot reinit %s mutex with file `%s'",
-                         SSL_CACHE_MUTEX_TYPE, lockfile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01203)
+                                  "%s: Unlock failed for adding worker",
+                                  bsel->s->name);

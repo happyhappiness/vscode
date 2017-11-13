@@ -1,78 +1,92 @@
-static int send_handles_to_child(apr_pool_t *p,
-                                 HANDLE child_ready_event,
-                                 HANDLE child_exit_event,
-                                 apr_proc_mutex_t *child_start_mutex,
-                                 apr_shm_t *scoreboard_shm,
-                                 HANDLE hProcess,
-                                 apr_file_t *child_in)
+static apr_status_t ssl_io_filter_buffer(ap_filter_t *f,
+                                         apr_bucket_brigade *bb,
+                                         ap_input_mode_t mode,
+                                         apr_read_type_e block,
+                                         apr_off_t bytes)
 {
+    struct modssl_buffer_ctx *ctx = f->ctx;
     apr_status_t rv;
-    HANDLE hCurrentProcess = GetCurrentProcess();
-    HANDLE hDup;
-    HANDLE os_start;
-    HANDLE hScore;
-    apr_size_t BytesWritten;
 
-    if (!DuplicateHandle(hCurrentProcess, child_ready_event, hProcess, &hDup,
-        EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the ready event handle for the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the exit event handle to the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, child_exit_event, hProcess, &hDup,
-                         EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the exit event handle for the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the exit event handle to the child");
-        return -1;
-    }
-    if ((rv = apr_os_proc_mutex_get(&os_start, child_start_mutex)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the start mutex for the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, os_start, hProcess, &hDup,
-                         SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the start mutex to the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the start mutex to the child");
-        return -1;
-    }
-    if ((rv = apr_os_shm_get(&hScore, scoreboard_shm)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the scoreboard handle for the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, hScore, hProcess, &hDup,
-                         FILE_MAP_READ | FILE_MAP_WRITE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the scoreboard handle to the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the scoreboard handle to the child");
-        return -1;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
+                  "read from buffered SSL brigade, mode %d, "
+                  "%" APR_OFF_T_FMT " bytes",
+                  mode, bytes);
+
+    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
+        return APR_ENOTIMPL;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Parent: Sent the scoreboard to the child");
-    return 0;
+    if (APR_BRIGADE_EMPTY(ctx->bb)) {
+        /* Suprisingly (and perhaps, wrongly), the request body can be
+         * pulled from the input filter stack more than once; a
+         * handler may read it, and ap_discard_request_body() will
+         * attempt to do so again after *every* request.  So input
+         * filters must be prepared to give up an EOS if invoked after
+         * initially reading the request. The HTTP_IN filter does this
+         * with its ->eos_sent flag. */
+
+        APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_eos_create(f->c->bucket_alloc));
+        return APR_SUCCESS;
+    }
+
+    if (mode == AP_MODE_READBYTES) {
+        apr_bucket *e;
+
+        /* Partition the buffered brigade. */
+        rv = apr_brigade_partition(ctx->bb, bytes, &e);
+        if (rv && rv != APR_INCOMPLETE) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                          "could not partition buffered SSL brigade");
+            ap_remove_input_filter(f);
+            return rv;
+        }
+
+        /* If the buffered brigade contains less then the requested
+         * length, just pass it all back. */
+        if (rv == APR_INCOMPLETE) {
+            APR_BRIGADE_CONCAT(bb, ctx->bb);
+        } else {
+            apr_bucket *d = APR_BRIGADE_FIRST(ctx->bb);
+
+            e = APR_BUCKET_PREV(e);
+
+            /* Unsplice the partitioned segment and move it into the
+             * passed-in brigade; no convenient way to do this with
+             * the APR_BRIGADE_* macros. */
+            APR_RING_UNSPLICE(d, e, link);
+            APR_RING_SPLICE_HEAD(&bb->list, d, e, apr_bucket, link);
+
+            APR_BRIGADE_CHECK_CONSISTENCY(bb);
+            APR_BRIGADE_CHECK_CONSISTENCY(ctx->bb);
+        }
+    }
+    else {
+        /* Split a line into the passed-in brigade. */
+        rv = apr_brigade_split_line(bb, ctx->bb, block, bytes);
+
+        if (rv) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                          "could not split line from buffered SSL brigade");
+            ap_remove_input_filter(f);
+            return rv;
+        }
+    }
+
+    if (APR_BRIGADE_EMPTY(ctx->bb)) {
+        apr_bucket *e = APR_BRIGADE_LAST(bb);
+
+        /* Ensure that the brigade is terminated by an EOS if the
+         * buffered request body has been entirely consumed. */
+        if (e == APR_BRIGADE_SENTINEL(bb) || !APR_BUCKET_IS_EOS(e)) {
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+        }
+
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
+                      "buffered SSL brigade exhausted");
+        /* Note that the filter must *not* be removed here; it may be
+         * invoked again, see comment above. */
+    }
+
+    return APR_SUCCESS;
 }

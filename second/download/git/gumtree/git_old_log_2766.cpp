@@ -1,2 +1,1 @@
-error("problems writing temporary file %s: %s",
-			     buf->buf, strerror(errno));
+error("Could not get ref %s", refspec[i]);

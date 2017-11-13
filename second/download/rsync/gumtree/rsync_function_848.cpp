@@ -1,47 +1,75 @@
-static char *expand_vars(char *str)
+static void send_implied_dirs(int f, struct file_list *flist, char *fname,
+			      char *start, char *limit, int flags, char name_type)
 {
-	char *buf, *t, *f;
-	int bufsize;
+	struct file_struct *file;
+	item_list *relname_list;
+	relnamecache **rnpp;
+	char *slash;
+	int len, need_new_dir;
+	struct filter_list_struct save_filter_list = filter_list;
 
-	if (strchr(str, '%') == NULL)
-		return str;
+	flags = (flags | FLAG_IMPLIED_DIR) & ~(FLAG_TOP_DIR | FLAG_CONTENT_DIR);
+	filter_list.head = filter_list.tail = NULL; /* Don't filter implied dirs. */
 
-	bufsize = strlen(str) + 2048;
-	if ((buf = new_array(char, bufsize+1)) == NULL) /* +1 for trailing '\0' */
-		out_of_memory("expand_vars");
+	if (inc_recurse) {
+		if (lastpath_struct && F_PATHNAME(lastpath_struct) == pathname
+		 && lastpath_len == limit - fname
+		 && strncmp(lastpath, fname, lastpath_len) == 0)
+			need_new_dir = 0;
+		else
+			need_new_dir = 1;
+	} else
+		need_new_dir = 1;
 
-	for (t = buf, f = str; bufsize && *f; ) {
-		if (*f == '%' && *++f != '%') {
-			char *percent = strchr(f, '%');
-			if (percent) {
-				char *val;
-				*percent = '\0';
-				val = getenv(f);
-				*percent = '%';
-				if (val) {
-					int len = strlcpy(t, val, bufsize+1);
-					if (len > bufsize)
-						break;
-					bufsize -= len;
-					t += len;
-					f = percent + 1;
-					continue;
-				}
-			}
-			f--;
+	if (need_new_dir) {
+		int save_copy_links = copy_links;
+		int save_xfer_dirs = xfer_dirs;
+
+		copy_links = xfer_dirs = 1;
+
+		*limit = '\0';
+
+		for (slash = start; (slash = strchr(slash+1, '/')) != NULL; ) {
+			*slash = '\0';
+			send_file_name(f, flist, fname, NULL, flags, ALL_FILTERS);
+			*slash = '/';
 		}
-		*t++ = *f++;
-		bufsize--;
+
+		file = send_file_name(f, flist, fname, NULL, flags, ALL_FILTERS);
+		if (inc_recurse) {
+			if (file && !S_ISDIR(file->mode))
+				file = NULL;
+			lastpath_struct = file;
+		}
+
+		strlcpy(lastpath, fname, sizeof lastpath);
+		lastpath_len = limit - fname;
+
+		*limit = '/';
+
+		copy_links = save_copy_links;
+		xfer_dirs = save_xfer_dirs;
+
+		if (!inc_recurse)
+			goto done;
 	}
-	*t = '\0';
 
-	if (*f) {
-		rprintf(FLOG, "Overflowed buf in expand_vars() trying to expand: %s\n", str);
-		exit_cleanup(RERR_MALLOC);
+	if (!lastpath_struct)
+		goto done; /* dir must have vanished */
+
+	len = strlen(limit+1);
+	memcpy(&relname_list, F_DIR_RELNAMES_P(lastpath_struct), sizeof relname_list);
+	if (!relname_list) {
+		if (!(relname_list = new0(item_list)))
+			out_of_memory("send_implied_dirs");
+		memcpy(F_DIR_RELNAMES_P(lastpath_struct), &relname_list, sizeof relname_list);
 	}
+	rnpp = EXPAND_ITEM_LIST(relname_list, relnamecache *, 32);
+	if (!(*rnpp = (relnamecache*)new_array(char, sizeof (relnamecache) + len)))
+		out_of_memory("send_implied_dirs");
+	(*rnpp)->name_type = name_type;
+	strlcpy((*rnpp)->fname, limit+1, len + 1);
 
-	if (bufsize && (buf = realloc(buf, t - buf + 1)) == NULL)
-		out_of_memory("expand_vars");
-
-	return buf;
+done:
+	filter_list = save_filter_list;
 }

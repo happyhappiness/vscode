@@ -1,1 +1,1 @@
-fprintf(f, format, help, " ");
+fprintf(f, "%d\n", pid);

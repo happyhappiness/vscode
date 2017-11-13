@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t -D DUMP_INCLUDES: show all included configuration files");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                 "h2_workers: adding worker(%d)", h2_worker_get_id(w));

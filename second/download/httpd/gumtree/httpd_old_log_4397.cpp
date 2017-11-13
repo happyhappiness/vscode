@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, status, ap_server_conf,
-                             "apr_socket_accept failed for inactive listener");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "proxy: FD: Failed to connect to '%s'",
+                      url);

@@ -1,11 +1,11 @@
 fputs(
-"              ate HTTP/2 support with the server during https sessions.\n"
+"              To use a Metalink file in the local file system, use FILE proto-\n"
+"              col (file://):\n"
 "\n"
-"              See  also  --no-npn  and  --http2.  --no-alpn  requires that the\n"
-"              underlying libcurl was built to support TLS. Added in 7.36.0.\n"
+"               curl --metalink file://example.metalink\n"
 "\n"
-"       -N, --no-buffer\n"
-"              Disables the buffering of the output stream. In normal work sit-\n"
-"              uations,  curl  will  use a standard buffered output stream that\n"
-"              will have the effect that it will output the data in chunks, not\n"
+"              Please note that if FILE protocol is disabled, there is  no  way\n"
+"              to  use  a local Metalink file at the time of this writing. Also\n"
+"              note that if --metalink and -i,  --include  are  used  together,\n"
+"              --include  will be ignored. This is because including headers in\n"
 , stdout);

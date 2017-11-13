@@ -1,0 +1,16 @@
+puts(
+"     If  this  option is used several times, the last one will be\n"
+"     used.\n"
+"\n"
+"     -R/--remote-time\n"
+"          When used, this will make libcurl attempt to figure out\n"
+"          the timestamp of the remote file, and if that is avail�\n"
+"          able make the local file get that same timestamp.\n"
+"\n"
+"          If this option is used twice, the second time  disables\n"
+"          this again.\n"
+"\n"
+"     -s/--silent\n"
+"          Silent  mode.  Don't  show progress meter or error mes�\n"
+"          sages.  Makes Curl mute.\n"
+);

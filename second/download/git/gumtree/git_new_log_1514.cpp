@@ -1,1 +1,1 @@
-git_die_config(key, _("Invalid %s: '%s'"), key, *output);
+fprintf(stderr, "corrupt mailbox\n");

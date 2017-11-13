@@ -1,1 +1,2 @@
-die("could not set GIT_WORK_TREE to '%s'", work_tree);
+die("multiple stage entries for merged file '%s'",
+				ce->name);

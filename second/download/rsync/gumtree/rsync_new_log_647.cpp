@@ -1,1 +1,0 @@
-io_printf(f_out, "@ERROR: Unknown command '%s'\n", line);

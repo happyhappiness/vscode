@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      task->id, block, (long)readbytes, (long)bblen);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool,
+                      "h2_request(%d): unanounced trailers",
+                      req->id);

@@ -1,1 +1,0 @@
-error(msg, path, _(": perhaps a D/F conflict?"));

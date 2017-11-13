@@ -1,1 +1,1 @@
-error("object %s: %s", oid_to_hex(&obj->oid), message);
+die_errno(_("could not close %s"), path);

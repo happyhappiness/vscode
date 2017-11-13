@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02338)
-                 "%s shm[%d] (0x%pp) for worker: %s", action, i, (void *)shm,
-                 worker->s->name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03390)
+                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
+                              io->c->id, (long)remain);

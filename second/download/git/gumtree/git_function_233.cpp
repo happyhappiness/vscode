@@ -1,91 +1,67 @@
-int cmd_commit_tree(int argc, const char **argv, const char *prefix)
+static int has_epoch_timestamp(const char *nameline)
 {
-	int i, got_tree = 0;
-	struct commit_list *parents = NULL;
-	unsigned char tree_sha1[20];
-	unsigned char commit_sha1[20];
-	struct strbuf buffer = STRBUF_INIT;
+	/*
+	 * We are only interested in epoch timestamp; any non-zero
+	 * fraction cannot be one, hence "(\.0+)?" in the regexp below.
+	 * For the same reason, the date must be either 1969-12-31 or
+	 * 1970-01-01, and the seconds part must be "00".
+	 */
+	const char stamp_regexp[] =
+		"^(1969-12-31|1970-01-01)"
+		" "
+		"[0-2][0-9]:[0-5][0-9]:00(\\.0+)?"
+		" "
+		"([-+][0-2][0-9]:?[0-5][0-9])\n";
+	const char *timestamp = NULL, *cp, *colon;
+	static regex_t *stamp;
+	regmatch_t m[10];
+	int zoneoffset;
+	int hourminute;
+	int status;
 
-	git_config(commit_tree_config, NULL);
-
-	if (argc < 2 || !strcmp(argv[1], "-h"))
-		usage(commit_tree_usage);
-
-	for (i = 1; i < argc; i++) {
-		const char *arg = argv[i];
-		if (!strcmp(arg, "-p")) {
-			unsigned char sha1[20];
-			if (argc <= ++i)
-				usage(commit_tree_usage);
-			if (get_sha1_commit(argv[i], sha1))
-				die("Not a valid object name %s", argv[i]);
-			assert_sha1_type(sha1, OBJ_COMMIT);
-			new_parent(lookup_commit(sha1), &parents);
-			continue;
+	for (cp = nameline; *cp != '\n'; cp++) {
+		if (*cp == '\t')
+			timestamp = cp + 1;
+	}
+	if (!timestamp)
+		return 0;
+	if (!stamp) {
+		stamp = xmalloc(sizeof(*stamp));
+		if (regcomp(stamp, stamp_regexp, REG_EXTENDED)) {
+			warning(_("Cannot prepare timestamp regexp %s"),
+				stamp_regexp);
+			return 0;
 		}
-
-		if (skip_prefix(arg, "-S", &sign_commit))
-			continue;
-
-		if (!strcmp(arg, "--no-gpg-sign")) {
-			sign_commit = NULL;
-			continue;
-		}
-
-		if (!strcmp(arg, "-m")) {
-			if (argc <= ++i)
-				usage(commit_tree_usage);
-			if (buffer.len)
-				strbuf_addch(&buffer, '\n');
-			strbuf_addstr(&buffer, argv[i]);
-			strbuf_complete_line(&buffer);
-			continue;
-		}
-
-		if (!strcmp(arg, "-F")) {
-			int fd;
-
-			if (argc <= ++i)
-				usage(commit_tree_usage);
-			if (buffer.len)
-				strbuf_addch(&buffer, '\n');
-			if (!strcmp(argv[i], "-"))
-				fd = 0;
-			else {
-				fd = open(argv[i], O_RDONLY);
-				if (fd < 0)
-					die_errno("git commit-tree: failed to open '%s'",
-						  argv[i]);
-			}
-			if (strbuf_read(&buffer, fd, 0) < 0)
-				die_errno("git commit-tree: failed to read '%s'",
-					  argv[i]);
-			if (fd && close(fd))
-				die_errno("git commit-tree: failed to close '%s'",
-					  argv[i]);
-			strbuf_complete_line(&buffer);
-			continue;
-		}
-
-		if (get_sha1_tree(arg, tree_sha1))
-			die("Not a valid object name %s", arg);
-		if (got_tree)
-			die("Cannot give more than one trees");
-		got_tree = 1;
 	}
 
-	if (!buffer.len) {
-		if (strbuf_read(&buffer, 0, 0) < 0)
-			die_errno("git commit-tree: failed to read");
+	status = regexec(stamp, timestamp, ARRAY_SIZE(m), m, 0);
+	if (status) {
+		if (status != REG_NOMATCH)
+			warning(_("regexec returned %d for input: %s"),
+				status, timestamp);
+		return 0;
 	}
 
-	if (commit_tree(buffer.buf, buffer.len, tree_sha1, parents,
-			commit_sha1, NULL, sign_commit)) {
-		strbuf_release(&buffer);
-		return 1;
-	}
+	zoneoffset = strtol(timestamp + m[3].rm_so + 1, (char **) &colon, 10);
+	if (*colon == ':')
+		zoneoffset = zoneoffset * 60 + strtol(colon + 1, NULL, 10);
+	else
+		zoneoffset = (zoneoffset / 100) * 60 + (zoneoffset % 100);
+	if (timestamp[m[3].rm_so] == '-')
+		zoneoffset = -zoneoffset;
 
-	printf("%s\n", sha1_to_hex(commit_sha1));
-	strbuf_release(&buffer);
-	return 0;
+	/*
+	 * YYYY-MM-DD hh:mm:ss must be from either 1969-12-31
+	 * (west of GMT) or 1970-01-01 (east of GMT)
+	 */
+	if ((zoneoffset < 0 && memcmp(timestamp, "1969-12-31", 10)) ||
+	    (0 <= zoneoffset && memcmp(timestamp, "1970-01-01", 10)))
+		return 0;
+
+	hourminute = (strtol(timestamp + 11, NULL, 10) * 60 +
+		      strtol(timestamp + 14, NULL, 10) -
+		      zoneoffset);
+
+	return ((zoneoffset < 0 && hourminute == 1440) ||
+		(0 <= zoneoffset && !hourminute));
 }

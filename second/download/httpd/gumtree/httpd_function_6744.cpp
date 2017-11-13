@@ -1,28 +1,23 @@
-static void init_balancer_members(apr_pool_t *p, server_rec *s,
-                                 proxy_balancer *balancer)
+static apr_status_t initialize_secret(server_rec *s)
 {
-    int i;
-    proxy_worker **workers;
+    apr_status_t status;
 
-    workers = (proxy_worker **)balancer->workers->elts;
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01757)
+                 "generating secret for digest authentication ...");
 
-    for (i = 0; i < balancer->workers->nelts; i++) {
-        int worker_is_initialized;
-        proxy_worker *worker = *workers;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01158)
-                     "Looking at %s -> %s initialized?", balancer->s->name, worker->s->name);
-        worker_is_initialized = PROXY_WORKER_IS_INITIALIZED(worker);
-        if (!worker_is_initialized) {
-            ap_proxy_initialize_worker(worker, s, p);
-        }
-        ++workers;
+#if APR_HAS_RANDOM
+    status = apr_generate_random_bytes(secret, sizeof(secret));
+#else
+#error APR random number support is missing; you probably need to install the truerand library.
+#endif
+
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, status, s, APLOGNO(01758)
+                     "error generating secret");
+        return status;
     }
 
-    /* Set default number of attempts to the number of
-     * workers.
-     */
-    if (!balancer->s->max_attempts_set && balancer->workers->nelts > 1) {
-        balancer->s->max_attempts = balancer->workers->nelts - 1;
-        balancer->s->max_attempts_set = 1;
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01759) "done");
+
+    return APR_SUCCESS;
 }

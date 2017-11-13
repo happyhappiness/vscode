@@ -1,115 +1,74 @@
-static void usage(process_rec *process)
+static apr_status_t ssl_io_filter_Upgrade(ap_filter_t *f,
+                                          apr_bucket_brigade *bb)
 {
-    const char *bin = process->argv[0];
-    char pad[MAX_STRING_LEN];
-    unsigned i;
+    const char *upgrade;
+    apr_bucket_brigade *upgradebb;
+    request_rec *r = f->r;
+    SSLConnRec *sslconn;
+    apr_status_t rv;
+    apr_bucket *b;
+    SSL *ssl;
 
-    for (i = 0; i < strlen(bin); i++) {
-        pad[i] = ' ';
+    /* Just remove the filter, if it doesn't work the first time, it won't
+     * work at all for this request.
+     */
+    ap_remove_output_filter(f);
+
+    /* No need to ensure that this is a server with optional SSL, the filter
+     * is only inserted if that is true.
+     */
+
+    upgrade = apr_table_get(r->headers_in, "Upgrade");
+    if (upgrade == NULL
+        || strcmp(ap_getword(r->pool, &upgrade, ','), "TLS/1.0")) {
+        /* "Upgrade: TLS/1.0, ..." header not found, don't do Upgrade */
+        return ap_pass_brigade(f->next, bb);
     }
 
-    pad[i] = '\0';
+    apr_table_unset(r->headers_out, "Upgrade");
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL ,
-                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
-                 bin);
-#else
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
-#endif
+    /* Send the interim 101 response. */
+    upgradebb = apr_brigade_create(r->pool, f->c->bucket_alloc);
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-C \"directive\"] [-c \"directive\"]", pad);
+    ap_fputstrs(f->next, upgradebb, SWITCH_STATUS_LINE, CRLF,
+                UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
 
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k install|config|uninstall] [-n service_name]",
-                 pad);
-#endif
-#ifdef AP_MPM_WANT_SIGNAL_SERVER
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k start|restart|graceful|stop]",
-                 pad);
-#endif
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Options:");
+    b = apr_bucket_flush_create(f->c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(upgradebb, b);
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -R directory      : specify an alternate location for "
-                 "shared object files");
-#endif
+    rv = ap_pass_brigade(f->next, upgradebb);
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "could not send interim 101 Upgrade response");
+        return AP_FILTER_ERROR;
+    }
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -D name           : define a name for use in "
-                 "<IfDefine name> directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -d directory      : specify an alternate initial "
-                 "ServerRoot");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -f file           : specify an alternate ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -C \"directive\"    : process directive before reading "
-                 "config files");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -c \"directive\"    : process directive after reading "
-                 "config files");
+    ssl_init_ssl_connection(f->c);
 
-#ifdef NETWARE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set screen name");
-#endif
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set service name and use its "
-                 "ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k start          : tell Apache to start");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k restart        : tell running Apache to do a graceful "
-                 "restart");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k stop|shutdown  : tell running Apache to shutdown");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k install        : install an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k config         : change startup Options of an Apache "
-                 "service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k uninstall      : uninstall an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -w                : hold open the console window on error");
-#endif
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                  "Awaiting re-negotiation handshake");
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -e level          : show startup errors of level "
-                 "(see LogLevel)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -E file           : log startup errors to file");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -v                : show version number");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -V                : show compile settings");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -h                : list available command line options "
-                 "(this page)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -l                : list compiled in modules");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -L                : list available configuration "
-                 "directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t -D DUMP_VHOSTS : show parsed settings (currently only "
-                 "vhost settings)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -S                : a synonym for -t -D DUMP_VHOSTS");   
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t                : run syntax check for config files");
+    sslconn = myConnConfig(f->c);
+    ssl = sslconn->ssl;
 
-    destroy_and_exit_process(process, 1);
+    /* XXX: Should replace SSL_set_state with SSL_renegotiate(ssl);
+     * However, this causes failures in perl-framework currently,
+     * perhaps pre-test if we have already negotiated?
+     */
+    SSL_set_accept_state(ssl);
+    SSL_do_handshake(ssl);
+
+    if (SSL_get_state(ssl) != SSL_ST_OK) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "TLS Upgrade handshake failed: "
+                      "Not accepted by client!?");
+
+        return AP_FILTER_ERROR;
+    }
+
+    /* Now that we have initialized the ssl connection which added the ssl_io_filter,
+       pass the brigade off to the connection based output filters so that the
+       request can complete encrypted */
+    return ap_pass_brigade(f->c->output_filters, bb);
+
 }

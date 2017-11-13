@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     APLOGNO(00371) "Failed to store ConfigArgs for the "
-                     "'%s' service in the registry.", mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00514)
+                         "MaxRequestWorkers of %d is not an integer multiple "
+                         "of ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d", max_workers, threads_per_child,
+                         tmp_max_workers);

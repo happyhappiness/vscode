@@ -1,1 +1,1 @@
-die("no name was given and auto-detection is disabled");
+die(_("Could not format %s."), git_path_todo_file());

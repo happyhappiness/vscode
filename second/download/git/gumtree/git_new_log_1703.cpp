@@ -1,1 +1,1 @@
-error("Invalid value for '%s'", k);
+die("BUG: reverse reflog parser had leftover data");

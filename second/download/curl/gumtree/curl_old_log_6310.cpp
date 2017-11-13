@@ -1,11 +1,11 @@
 fputs(
-"              URL to make curl automatically set the previous URL when it fol-\n"
-"              lows  a  Location: header. The \";auto\" string can be used alone,\n"
-"              even if you don't set an initial --referer.\n"
+"              When used in FTP, the FTP server response lines  are  considered\n"
+"              being \"headers\" and thus are saved there.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --engine <name>\n"
-"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
-"              Use  --engine  list  to  print  a  list  of build-time supported\n"
+"       -e/--referer <URL>\n"
+"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
+"              This can also be set with the -H/--header flag of course.   When\n"
+"              used  with -L/--location you can append \";auto\" to the --referer\n"
 , stdout);

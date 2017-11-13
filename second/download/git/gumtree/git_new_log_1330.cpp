@@ -1,1 +1,2 @@
-die_errno("unable to fdopen packed-refs descriptor");
+error("bad tree object %s",
+			     tree_name ? tree_name : oid_to_hex(tree_oid));

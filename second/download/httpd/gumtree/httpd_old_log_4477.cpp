@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, APR_EBADPATH,
-                     NULL, "Invalid PID file path %s, ignoring.", filename);
+ap_log_error(APLOG_MARK, APLOG_INFO, status, r->server,
+                             "proxy: HTTP: 100-Continue failed to %pI (%s)",
+                             worker->cp->addr, worker->hostname);

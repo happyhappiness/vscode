@@ -1,1 +1,1 @@
-fprintf(FERROR,"\nError: MDupdate MD already done.");
+fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");

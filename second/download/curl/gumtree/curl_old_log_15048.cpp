@@ -1,9 +1,12 @@
 fputs(
-"              likely  not  what  you  intended.  To address these issues set a\n"
-"              domain in Set-Cookie (doing that will include  sub  domains)  or\n"
-"              use the Netscape format.\n"
+"              fication)  or  for the application protocols.  \"host\" and \"port\"\n"
+"              may be the empty string, meaning \"any host/port\".   \"connect-to-\n"
+"              host\"  and \"connect-to-port\" may also be the empty string, mean-\n"
+"              ing \"use the request's original host/port\".\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"              Users very often want to both read cookies from a file and write\n"
-"              updated cookies back to a file, so using both -b,  --cookie  and\n"
+"              This option can be used many times to add many connect rules.\n"
+"\n"
+"              See also --resolve and -H, --header. Added in 7.49.0.\n"
+"\n"
+"       -C, --continue-at <offset>\n"
 , stdout);

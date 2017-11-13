@@ -1,10 +1,11 @@
 fputs(
-"              NEW_ENV=<var,val> Sets an environment variable.\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks5 proxy with -x, --proxy using a socks5:// protocol prefix.\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (This option was  previously  wrongly  documented  and  used  as\n"
+"              --socks without the number appended.)\n"
 "\n"
-"       -T, --upload-file <file>\n"
-"              This transfers the specified local file to the  remote  URL.  If\n"
-"              there is no file part in the specified URL, Curl will append the\n"
-"              local file name. NOTE that you must use a trailing / on the last\n"
-"              directory  to really prove to Curl that there is no file name or\n"
-"              curl will think that your last directory name is the remote file\n"
+"              This  option (as well as --socks4) does not work with IPV6, FTPS\n"
+"              or LDAP.\n"
+"\n"
 , stdout);

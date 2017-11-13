@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "proxy: FCGI: Failed to read entire header "
-                             "got %" APR_SIZE_T_FMT " wanted %d", 
-                             readbuflen, FCGI_HEADER_LEN);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s with body is not allowed for %s", r->method, r->uri);

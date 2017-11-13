@@ -1,1 +1,1 @@
-strbuf_release(&err);
+vreportf(prefix, fmt, params);

@@ -1,2 +1,1 @@
-fprintf(stderr, "need to write %ld bytes, iobuf.msg.buf is only %ld bytes.\n",
-				(long)needed, (long)iobuf.msg.size);
+fprintf(stderr, "failed to create pid file %s: %s\n", pid_file, strerror(errno));

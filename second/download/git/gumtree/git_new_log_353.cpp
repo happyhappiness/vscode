@@ -1,1 +1,1 @@
-die_want_option("--stat-graph-width");
+packet_write_fmt(fd[1], "argument %s\n", argv[i]);

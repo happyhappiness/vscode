@@ -1,5 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, ctx->owner, 
-                          "h2_proxy_engine(%s): pulled request (%s) %s", 
-                          ctx->engine_id, 
-                          before_leave? "before leave" : "regular", 
-                          r->the_request);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, r->connection, 
+                  "h2_proxy_session(%s): request done %s, touched=%d",
+                  ctx->engine_id, task_id, touched);

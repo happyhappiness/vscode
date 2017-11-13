@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                  "h2_mplx(%s): open response: %d, rst=%d",
-                  task->id, response->http_status, response->rst_error);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
+                      "h2_conn_io(%ld): timeout write size reset to %ld", 
+                      (long)io->connection->id, (long)io->write_size);

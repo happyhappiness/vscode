@@ -1,1 +1,1 @@
-die("%s doesn't support --super-prefix", argv[0]);
+error(_("Could not read object %s"), oid_to_hex(oid));

@@ -1,1 +1,2 @@
-die("git-%s failed", argv[0]);
+die("missing object %s for %s",
+		    sha1_to_hex(tagged), ref->refname);

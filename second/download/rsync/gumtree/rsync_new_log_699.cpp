@@ -1,1 +1,1 @@
-out_of_memory("rsync_module");
+fprintf(stderr, "%s", msg);

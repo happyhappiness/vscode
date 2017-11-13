@@ -1,12 +1,9 @@
 fputs(
-"              Example:\n"
-"\n"
-"               curl -H \"X-First-Name: Joe\" http://example.com/\n"
-"\n"
-"              WARNING: headers set  with  this  option  will  be  set  in  all\n"
-"              requests  -  even  after  redirects are followed, like when told\n"
-"              with -L, --location. This can lead to the header being  sent  to\n"
-"              other  hosts than the original host, so sensitive headers should\n"
-"              be used with caution combined with following redirects.\n"
+"              When used, this option will make all  data  specified  with  -d,\n"
+"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
+"              GET request instead of the POST request that otherwise would  be\n"
+"              used. The data will be appended to the URL with a '?' separator.\n"
+"              If  used  in  combination  with  -I,  --head, the POST data will\n"
+"              instead be appended to the URL with a HEAD request.\n"
 "\n"
 , stdout);

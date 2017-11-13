@@ -1,12 +1,20 @@
-static void print_debug(const struct cache_entry *ce)
+static void fsck_handle_reflog_sha1(const char *refname, unsigned char *sha1,
+	unsigned long timestamp)
 {
-	if (debug_mode) {
-		const struct stat_data *sd = &ce->ce_stat_data;
+	struct object *obj;
 
-		printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);
-		printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);
-		printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
-		printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
-		printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
+	if (!is_null_sha1(sha1)) {
+		obj = lookup_object(sha1);
+		if (obj && (obj->flags & HAS_OBJ)) {
+			if (timestamp && name_objects)
+				add_decoration(fsck_walk_options.object_names,
+					obj,
+					xstrfmt("%s@{%ld}", refname, timestamp));
+			obj->used = 1;
+			mark_object_reachable(obj);
+		} else {
+			error("%s: invalid reflog entry %s", refname, sha1_to_hex(sha1));
+			errors_found |= ERROR_REACHABLE;
+		}
 	}
 }

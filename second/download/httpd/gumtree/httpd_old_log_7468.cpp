@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00926)
-                     "worker %s local already initialized", worker->s->name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00927)
+                     "initializing worker %s local", worker->s->name);

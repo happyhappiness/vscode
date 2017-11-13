@@ -1,6 +1,16 @@
-static const char *load_file(cmd_parms *cmd, void *dummy, const char *filename)
+static void copyright(void)
 {
-    ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool,
-                 "WARNING: LoadFile not supported on this platform");
-    return NULL;
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 951932 $>");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
+        printf("\n");
+    }
+    else {
+        printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 951932 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
+        printf("</p>\n<p>\n");
+    }
 }

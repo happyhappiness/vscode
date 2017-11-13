@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01634)
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
+printf("                        %.2f kb/s total\n",
+               (double) (totalread + totalposted) / timetaken / 1024);

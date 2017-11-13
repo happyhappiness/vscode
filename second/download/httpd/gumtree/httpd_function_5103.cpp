@@ -1,65 +1,81 @@
-apr_status_t mpm_service_start(apr_pool_t *ptemp, int argc,
-                               const char * const * argv)
+static int mpmt_os2_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s )
 {
-    apr_status_t rv;
-    CHAR **start_argv;
-    SC_HANDLE   schService;
-    SC_HANDLE   schSCManager;
+    char *listener_shm_name;
+    parent_info_t *parent_info;
+    ULONG rc;
+    pconf = _pconf;
+    ap_server_conf = s;
+    restart_pending = 0;
 
-    fprintf(stderr,"Starting the %s service\n", mpm_display_name);
+    DosSetMaxFH(ap_thread_limit * 2);
+    listener_shm_name = apr_psprintf(pconf, "/sharemem/httpd/parent_info.%d", getppid());
+    rc = DosGetNamedSharedMem((PPVOID)&parent_info, listener_shm_name, PAG_READ);
+    is_parent_process = rc != 0;
+    ap_scoreboard_fname = apr_psprintf(pconf, "/sharemem/httpd/scoreboard.%d", is_parent_process ? getpid() : getppid());
 
-    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
-                                 SC_MANAGER_CONNECT);
-    if (!schSCManager) {
-        rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00375)
-                     "Failed to open the WinNT service manager");
-        return (rv);
+    if (rc == 0) {
+        /* Child process */
+        ap_listen_rec *lr;
+        int num_listeners = 0;
+
+        ap_mpm_accept_mutex = parent_info->accept_mutex;
+
+        /* Set up a default listener if necessary */
+        if (ap_listeners == NULL) {
+            ap_listen_rec *lr = apr_pcalloc(s->process->pool, sizeof(ap_listen_rec));
+            ap_listeners = lr;
+            apr_sockaddr_info_get(&lr->bind_addr, "0.0.0.0", APR_UNSPEC,
+                                  DEFAULT_HTTP_PORT, 0, s->process->pool);
+            apr_socket_create(&lr->sd, lr->bind_addr->family,
+                              SOCK_STREAM, 0, s->process->pool);
+        }
+
+        for (lr = ap_listeners; lr; lr = lr->next) {
+            apr_sockaddr_t *sa;
+            apr_os_sock_put(&lr->sd, &parent_info->listeners[num_listeners].listen_fd, pconf);
+            apr_socket_addr_get(&sa, APR_LOCAL, lr->sd);
+            num_listeners++;
+        }
+
+        DosFreeMem(parent_info);
+
+        /* Do the work */
+        ap_mpm_child_main(pconf);
+
+        /* Outta here */
+        return 1;
     }
+    else {
+        /* Parent process */
+        char restart;
+        is_parent_process = TRUE;
 
-    /* ###: utf-ize */
-    schService = OpenService(schSCManager, mpm_service_name,
-                             SERVICE_START | SERVICE_QUERY_STATUS);
-    if (!schService) {
-        rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00376)
-                     "%s: Failed to open the service.", mpm_display_name);
-        CloseServiceHandle(schSCManager);
-        return (rv);
-    }
+        if (ap_setup_listeners(ap_server_conf) < 1) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
+                         "no listening sockets available, shutting down");
+            return 1;
+        }
 
-    if (QueryServiceStatus(schService, &globdat.ssStatus)
-        && (globdat.ssStatus.dwCurrentState == SERVICE_RUNNING)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL, APLOGNO(00377)
-                     "Service %s is already started!", mpm_display_name);
-        CloseServiceHandle(schService);
-        CloseServiceHandle(schSCManager);
-        return 0;
-    }
+        ap_log_pid(pconf, ap_pid_fname);
 
-    start_argv = malloc((argc + 1) * sizeof(const char **));
-    memcpy(start_argv, argv, argc * sizeof(const char **));
-    start_argv[argc] = NULL;
+        restart = master_main();
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
 
-    rv = APR_EINIT;
-    /* ###: utf-ize */
-    if (StartService(schService, argc, start_argv)
-        && signal_service_transition(schService, 0, /* test only */
-                                     SERVICE_START_PENDING,
-                                     SERVICE_RUNNING))
-        rv = APR_SUCCESS;
-    if (rv != APR_SUCCESS)
-        rv = apr_get_os_error();
+        if (!restart) {
+            const char *pidfile = ap_server_root_relative(pconf, ap_pid_fname);
 
-    CloseServiceHandle(schService);
-    CloseServiceHandle(schSCManager);
+            if (pidfile != NULL && remove(pidfile) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
+                             ap_server_conf, "removed PID file %s (pid=%d)",
+                             pidfile, getpid());
+            }
 
-    if (rv == APR_SUCCESS)
-        fprintf(stderr,"The %s service is running.\n", mpm_display_name);
-    else
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00378)
-                     "%s: Failed to start the service process.",
-                     mpm_display_name);
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "caught SIGTERM, shutting down");
+            return 1;
+        }
+    }  /* Parent process */
 
-    return rv;
+    return 0; /* Restart */
 }

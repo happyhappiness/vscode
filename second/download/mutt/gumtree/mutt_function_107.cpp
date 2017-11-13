@@ -23,7 +23,7 @@ static int show_one_sig_status (gpgme_ctx_t ctx, int idx, STATE *s)
 
       if (signature_key)
 	{
-	  gpgme_key_unref (signature_key);
+	  gpgme_key_release (signature_key);
 	  signature_key = NULL;
 	}
       
@@ -101,7 +101,7 @@ static int show_one_sig_status (gpgme_ctx_t ctx, int idx, STATE *s)
       }
 
       if (key != signature_key)
-	gpgme_key_unref (key);
+	gpgme_key_release (key);
     }
 
   return anybad ? 1 : anywarn ? 2 : 0;

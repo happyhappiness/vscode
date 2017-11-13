@@ -1,1 +1,1 @@
-fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
+fprintf(stderr, "    -T content-type Content-type header for POSTing, eg.\n");

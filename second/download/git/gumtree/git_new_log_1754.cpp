@@ -1,1 +1,1 @@
-die("BUG: commit called for transaction that is not open");
+rp_error("%s", err.buf);

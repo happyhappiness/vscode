@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
-                         ap_server_conf,
-                         "No active workers found..."
-                         " Apache is exiting!");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "proxy: %s: disabled connection for (%s)",
+                         proxy_function, worker->hostname);

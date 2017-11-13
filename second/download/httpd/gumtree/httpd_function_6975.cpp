@@ -1,46 +1,65 @@
-static int hc_read_body (sctx_t *ctx, request_rec *r)
+static void * APR_THREAD_FUNC hc_check(apr_thread_t *thread, void *b)
 {
-    apr_status_t rv = APR_SUCCESS;
-    apr_bucket_brigade *bb;
-    int seen_eos = 0;
+    baton_t *baton = (baton_t *)b;
+    sctx_t *ctx = baton->ctx;
+    apr_time_t now = baton->now;
+    proxy_worker *worker = baton->worker;
+    apr_pool_t *ptemp = baton->ptemp;
+    server_rec *s = ctx->s;
+    apr_status_t rv;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03256)
+                 "%sHealth checking %s", (thread ? "Threaded " : ""), worker->s->name);
 
-    bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-    do {
-        apr_bucket *bucket, *cpy;
-        apr_size_t len = HUGE_STRING_LEN;
-
-        rv = ap_get_brigade(r->proto_input_filters, bb, AP_MODE_READBYTES,
-                            APR_BLOCK_READ, len);
-
-        if (rv != APR_SUCCESS) {
-            if (APR_STATUS_IS_TIMEUP(rv) || APR_STATUS_IS_EOF(rv)) {
-                rv = APR_SUCCESS;
-                break;
-            }
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, ctx->s, APLOGNO(03300)
-                          "Error reading response body");
+    switch (worker->s->method) {
+        case TCP:
+            rv = hc_check_tcp(ctx, ptemp, worker);
             break;
-        }
 
-        for (bucket = APR_BRIGADE_FIRST(bb);
-             bucket != APR_BRIGADE_SENTINEL(bb);
-             bucket = APR_BUCKET_NEXT(bucket))
-        {
-            if (APR_BUCKET_IS_EOS(bucket)) {
-                seen_eos = 1;
-                break;
-            }
-            if (APR_BUCKET_IS_FLUSH(bucket)) {
-                continue;
-            }
-            rv =  apr_bucket_copy(bucket, &cpy);
-            if (rv != APR_SUCCESS) {
-                break;
-            }
-            APR_BRIGADE_INSERT_TAIL(r->kept_body, cpy);
-        }
-        apr_brigade_cleanup(bb);
+        case OPTIONS:
+        case HEAD:
+        case GET:
+             rv = hc_check_http(ctx, ptemp, worker);
+             break;
+
+        default:
+            rv = APR_ENOTIMPL;
+            break;
     }
-    while (!seen_eos);
-    return (rv == APR_SUCCESS ? OK : !OK);
+    if (rv == APR_ENOTIMPL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(03257)
+                         "Somehow tried to use unimplemented hcheck method: %d",
+                         (int)worker->s->method);
+        apr_pool_destroy(ptemp);
+        return NULL;
+    }
+    /* what state are we in ? */
+    if (PROXY_WORKER_IS_HCFAILED(worker)) {
+        if (rv == APR_SUCCESS) {
+            worker->s->pcount += 1;
+            if (worker->s->pcount >= worker->s->passes) {
+                ap_proxy_set_wstatus(PROXY_WORKER_HC_FAIL_FLAG, 0, worker);
+                ap_proxy_set_wstatus(PROXY_WORKER_IN_ERROR_FLAG, 0, worker);
+                worker->s->pcount = 0;
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03302)
+                             "%sHealth check ENABLING %s", (thread ? "Threaded " : ""),
+                             worker->s->name);
+
+            }
+        }
+    } else {
+        if (rv != APR_SUCCESS) {
+            worker->s->error_time = now;
+            worker->s->fcount += 1;
+            if (worker->s->fcount >= worker->s->fails) {
+                ap_proxy_set_wstatus(PROXY_WORKER_HC_FAIL_FLAG, 1, worker);
+                worker->s->fcount = 0;
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03303)
+                             "%sHealth check DISABLING %s", (thread ? "Threaded " : ""),
+                             worker->s->name);
+            }
+        }
+    }
+    worker->s->updated = now;
+    apr_pool_destroy(ptemp);
+    return NULL;
 }

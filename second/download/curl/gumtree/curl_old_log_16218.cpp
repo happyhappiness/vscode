@@ -1,11 +1,11 @@
 fputs(
-"              deliver a document, it  returns  an  HTML  document  stating  so\n"
-"              (which  often  also describes why and more). This flag will pre-\n"
-"              vent curl from outputting that and return error 22.\n"
+"              details on the default config file search path.\n"
 "\n"
-"              This method is not fail-safe and there are occasions where  non-\n"
-"              successful  response  codes  will  slip through, especially when\n"
-"              authentication is involved (response codes 401 and 407).\n"
+"       --dns-interface <interface>\n"
+"              (DNS)  Tell  curl  to send outgoing DNS requests through <inter-\n"
+"              face>. This option is a counterpart to --interface  (which  does\n"
+"              not  affect  DNS). The supplied string must be an interface name\n"
+"              (not an address).\n"
 "\n"
-"       --false-start\n"
+"              See also --dns-ipv4-addr  and  --dns-ipv6-addr.  --dns-interface\n"
 , stdout);

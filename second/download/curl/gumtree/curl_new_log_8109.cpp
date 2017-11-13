@@ -1,11 +1,11 @@
 fputs(
-"              will have the effect that it will output the data in chunks, not\n"
-"              necessarily  exactly  when  the data arrives.  Using this option\n"
-"              will disable that buffering.\n"
+"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
+"              allow  curl to FTP to the machine host.domain.com with user name\n"
+"              'myself' and password 'secret' should look similar to:\n"
 "\n"
-"              Note that this is the negated option name  documented.  You  can\n"
-"              thus use --buffer to enforce the buffering.\n"
+"              machine host.domain.com login myself password secret\n"
 "\n"
-"       --netrc-file\n"
-"              This  option  is similar to --netrc, except that you provide the\n"
+"       -N, --no-buffer\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
+"              uations,  curl  will  use a standard buffered output stream that\n"
 , stdout);

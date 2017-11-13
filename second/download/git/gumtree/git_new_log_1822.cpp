@@ -1,2 +1,1 @@
-error("unable to generate patch-id diff for %s",
-				     p->one->path);
+warning("--no-curl not supported in this build");

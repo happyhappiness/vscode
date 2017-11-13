@@ -1,115 +1,115 @@
-static void usage(process_rec *process)
+static apr_status_t ssl_io_filter_output(ap_filter_t *f,
+                                         apr_bucket_brigade *bb)
 {
-    const char *bin = process->argv[0];
-    char pad[MAX_STRING_LEN];
-    unsigned i;
+    apr_status_t status = APR_SUCCESS;
+    ssl_filter_ctx_t *filter_ctx = f->ctx;
+    bio_filter_in_ctx_t *inctx;
+    bio_filter_out_ctx_t *outctx;
+    apr_read_type_e rblock = APR_NONBLOCK_READ;
 
-    for (i = 0; i < strlen(bin); i++) {
-        pad[i] = ' ';
+    if (f->c->aborted) {
+        apr_brigade_cleanup(bb);
+        return APR_ECONNABORTED;
     }
 
-    pad[i] = '\0';
+    if (!filter_ctx->pssl) {
+        /* ssl_filter_io_shutdown was called */
+        return ap_pass_brigade(f->next, bb);
+    }
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL ,
-                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
-                 bin);
-#else
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
-#endif
+    inctx = (bio_filter_in_ctx_t *)filter_ctx->pbioRead->ptr;
+    outctx = (bio_filter_out_ctx_t *)filter_ctx->pbioWrite->ptr;
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-C \"directive\"] [-c \"directive\"]", pad);
+    /* When we are the writer, we must initialize the inctx
+     * mode so that we block for any required ssl input, because
+     * output filtering is always nonblocking.
+     */
+    inctx->mode = AP_MODE_READBYTES;
+    inctx->block = APR_BLOCK_READ;
 
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k install|config|uninstall] [-n service_name]",
-                 pad);
-#endif
-#ifdef AP_MPM_WANT_SIGNAL_SERVER
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k start|restart|graceful|stop]",
-                 pad);
-#endif
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Options:");
+    if ((status = ssl_io_filter_connect(filter_ctx)) != APR_SUCCESS) {
+        return ssl_io_filter_error(f, bb, status);
+    }
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -R directory      : specify an alternate location for "
-                 "shared object files");
-#endif
+    while (!APR_BRIGADE_EMPTY(bb)) {
+        apr_bucket *bucket = APR_BRIGADE_FIRST(bb);
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -D name           : define a name for use in "
-                 "<IfDefine name> directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -d directory      : specify an alternate initial "
-                 "ServerRoot");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -f file           : specify an alternate ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -C \"directive\"    : process directive before reading "
-                 "config files");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -c \"directive\"    : process directive after reading "
-                 "config files");
+        /* If it is a flush or EOS, we need to pass this down. 
+         * These types do not require translation by OpenSSL.  
+         */
+        if (APR_BUCKET_IS_EOS(bucket) || APR_BUCKET_IS_FLUSH(bucket)) {
+            if (bio_filter_out_flush(filter_ctx->pbioWrite) < 0) {
+                status = outctx->rc;
+                break;
+            }
 
-#ifdef NETWARE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set screen name");
-#endif
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set service name and use its "
-                 "ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k start          : tell Apache to start");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k restart        : tell running Apache to do a graceful "
-                 "restart");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k stop|shutdown  : tell running Apache to shutdown");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k install        : install an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k config         : change startup Options of an Apache "
-                 "service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k uninstall      : uninstall an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -w                : hold open the console window on error");
-#endif
+            if (APR_BUCKET_IS_EOS(bucket)) {
+                /*
+                 * By definition, nothing can come after EOS.
+                 * which also means we can pass the rest of this brigade
+                 * without creating a new one since it only contains the
+                 * EOS bucket.
+                 */
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -e level          : show startup errors of level "
-                 "(see LogLevel)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -E file           : log startup errors to file");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -v                : show version number");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -V                : show compile settings");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -h                : list available command line options "
-                 "(this page)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -l                : list compiled in modules");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -L                : list available configuration "
-                 "directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t -D DUMP_VHOSTS : show parsed settings (currently only "
-                 "vhost settings)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -S                : a synonym for -t -D DUMP_VHOSTS");   
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t                : run syntax check for config files");
+                if ((status = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
+                    return status;
+                }
+                break;
+            }
+            else {
+                /* bio_filter_out_flush() already passed down a flush bucket
+                 * if there was any data to be flushed.
+                 */
+                apr_bucket_delete(bucket);
+            }
+        }
+        else if (AP_BUCKET_IS_EOC(bucket)) {
+            /* The special "EOC" bucket means a shutdown is needed;
+             * - turn off buffering in bio_filter_out_write
+             * - issue the SSL_shutdown
+             */
+            filter_ctx->nobuffer = 1;
+            status = ssl_filter_io_shutdown(filter_ctx, f->c, 0);
+            if (status != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, status, NULL,
+                             "SSL filter error shutting down I/O");
+            }
+            if ((status = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
+                return status;
+            }
+            break;
+        }
+        else {
+            /* filter output */
+            const char *data;
+            apr_size_t len;
+            
+            status = apr_bucket_read(bucket, &data, &len, rblock);
 
-    destroy_and_exit_process(process, 1);
+            if (APR_STATUS_IS_EAGAIN(status)) {
+                /* No data available: flush... */
+                if (bio_filter_out_flush(filter_ctx->pbioWrite) < 0) {
+                    status = outctx->rc;
+                    break;
+                }
+                rblock = APR_BLOCK_READ;
+                continue; /* and try again with a blocking read. */
+            }
+
+            rblock = APR_NONBLOCK_READ;
+
+            if (!APR_STATUS_IS_EOF(status) && (status != APR_SUCCESS)) {
+                break;
+            }
+
+            status = ssl_filter_write(f, data, len);
+            apr_bucket_delete(bucket);
+
+            if (status != APR_SUCCESS) {
+                break;
+            }
+        }
+    }
+
+    return status;
 }

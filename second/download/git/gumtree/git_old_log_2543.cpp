@@ -1,1 +1,1 @@
-printf("%6d\t%s\n", (int)UTIL_TO_INT(item), item->string);
+error("unable to rename '%s' to '%s': %s", oldrefname, newrefname, err.buf);

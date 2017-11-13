@@ -1,11 +1,9 @@
 fputs(
-"              (SMTP) Specifies a custom SMTP command to use instead of HELP or\n"
-"              VRFY. (Added in 7.34.0)\n"
+"              This  option  overrides  existing environment variables that set\n"
+"              the proxy to use. If there's an environment variable  setting  a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --xattr\n"
-"              When  saving  output  to a file, this option tells curl to store\n"
-"              certain file metadata in extended  file  attributes.  Currently,\n"
-"              the URL is stored in the xdg.origin.url attribute and, for HTTP,\n"
+"              All operations that are performed over an HTTP proxy will trans-\n"
+"              parently be converted to HTTP. It means  that  certain  protocol\n"
+"              specific operations might not be available. This is not the case\n"
 , stdout);

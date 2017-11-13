@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s\n",fname);
+fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);

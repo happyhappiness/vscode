@@ -1,39 +1,31 @@
-static int pp_start_one(struct parallel_processes *pp)
+static int delete_pseudoref(const char *pseudoref, const unsigned char *old_sha1)
 {
-	int i, code;
+	static struct lock_file lock;
+	const char *filename;
 
-	for (i = 0; i < pp->max_processes; i++)
-		if (pp->children[i].state == GIT_CP_FREE)
-			break;
-	if (i == pp->max_processes)
-		die("BUG: bookkeeping is hard");
+	filename = git_path("%s", pseudoref);
 
-	code = pp->get_next_task(&pp->children[i].process,
-				 &pp->children[i].err,
-				 pp->data,
-				 &pp->children[i].data);
-	if (!code) {
-		strbuf_addbuf(&pp->buffered_output, &pp->children[i].err);
-		strbuf_reset(&pp->children[i].err);
-		return 1;
-	}
-	pp->children[i].process.err = -1;
-	pp->children[i].process.stdout_to_stderr = 1;
-	pp->children[i].process.no_stdin = 1;
+	if (old_sha1 && !is_null_sha1(old_sha1)) {
+		int fd;
+		unsigned char actual_old_sha1[20];
 
-	if (start_command(&pp->children[i].process)) {
-		code = pp->start_failure(&pp->children[i].err,
-					 pp->data,
-					 &pp->children[i].data);
-		strbuf_addbuf(&pp->buffered_output, &pp->children[i].err);
-		strbuf_reset(&pp->children[i].err);
-		if (code)
-			pp->shutdown = 1;
-		return code;
+		fd = hold_lock_file_for_update(&lock, filename,
+					       LOCK_DIE_ON_ERROR);
+		if (fd < 0)
+			die_errno(_("Could not open '%s' for writing"), filename);
+		if (read_ref(pseudoref, actual_old_sha1))
+			die("could not read ref '%s'", pseudoref);
+		if (hashcmp(actual_old_sha1, old_sha1)) {
+			warning("Unexpected sha1 when deleting %s", pseudoref);
+			rollback_lock_file(&lock);
+			return -1;
+		}
+
+		unlink(filename);
+		rollback_lock_file(&lock);
+	} else {
+		unlink(filename);
 	}
 
-	pp->nr_processes++;
-	pp->children[i].state = GIT_CP_WORKING;
-	pp->pfd[i].fd = pp->children[i].process.err;
 	return 0;
 }

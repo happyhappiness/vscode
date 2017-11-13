@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
-                      "%s: Forcing worker (%s) into error state "
-                      "due to timeout and 'failonstatus' parameter being set",
-                       balancer->s->name, worker->s->name);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02478)
+        "failed to create %s mutex", proxy_id);

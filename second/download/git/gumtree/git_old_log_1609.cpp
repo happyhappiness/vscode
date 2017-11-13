@@ -1,1 +1,1 @@
-error("%s", err.buf);
+warning("%s: symlink too long", p);

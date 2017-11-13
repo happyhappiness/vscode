@@ -1,40 +1,19 @@
-static const char *parse_attr(const char *src, int lineno, const char *cp,
-			      struct attr_state *e)
+static uint32_t *paint_alloc(struct paint_info *info)
 {
-	const char *ep, *equals;
-	int len;
-
-	ep = cp + strcspn(cp, blank);
-	equals = strchr(cp, '=');
-	if (equals && ep < equals)
-		equals = NULL;
-	if (equals)
-		len = equals - cp;
-	else
-		len = ep - cp;
-	if (!e) {
-		if (*cp == '-' || *cp == '!') {
-			cp++;
-			len--;
-		}
-		if (invalid_attr_name(cp, len)) {
-			fprintf(stderr,
-				"%.*s is not a valid attribute name: %s:%d\n",
-				len, cp, src, lineno);
-			return NULL;
-		}
-	} else {
-		if (*cp == '-' || *cp == '!') {
-			e->setto = (*cp == '-') ? ATTR__FALSE : ATTR__UNSET;
-			cp++;
-			len--;
-		}
-		else if (!equals)
-			e->setto = ATTR__TRUE;
-		else {
-			e->setto = xmemdupz(equals + 1, ep - equals - 1);
-		}
-		e->attr = git_attr_internal(cp, len);
+	unsigned nr = (info->nr_bits + 31) / 32;
+	unsigned size = nr * sizeof(uint32_t);
+	void *p;
+	if (!info->pool_count || size > info->end - info->free) {
+		if (size > POOL_SIZE)
+			die("BUG: pool size too small for %d in paint_alloc()",
+			    size);
+		info->pool_count++;
+		REALLOC_ARRAY(info->pools, info->pool_count);
+		info->free = xmalloc(POOL_SIZE);
+		info->pools[info->pool_count - 1] = info->free;
+		info->end = info->free + POOL_SIZE;
 	}
-	return ep + strspn(ep, blank);
+	p = info->free;
+	info->free += size;
+	return p;
 }

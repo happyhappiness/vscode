@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01235)
-                          "mod_asis: failed to find end-of-headers position "
-                          "for %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01634)
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

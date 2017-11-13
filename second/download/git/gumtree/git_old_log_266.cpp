@@ -1,2 +1,2 @@
-die("Refusing to %s notes in %s (outside of refs/notes/)",
-		    subcommand, ref);
+error("cannot apply binary patch to '%s' "
+			     "without full index line", name);

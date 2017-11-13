@@ -1,2 +1,1 @@
-printf("tagged %s %s", typename(tag->tagged->type),
-				describe_object(tag->tagged));
+error(_("Your local changes would be overwritten by revert."));

@@ -1,78 +1,34 @@
-static int send_handles_to_child(apr_pool_t *p,
-                                 HANDLE child_ready_event,
-                                 HANDLE child_exit_event,
-                                 apr_proc_mutex_t *child_start_mutex,
-                                 apr_shm_t *scoreboard_shm,
-                                 HANDLE hProcess,
-                                 apr_file_t *child_in)
+void ssl_io_filter_init(conn_rec *c, request_rec *r, SSL *ssl)
 {
-    apr_status_t rv;
-    HANDLE hCurrentProcess = GetCurrentProcess();
-    HANDLE hDup;
-    HANDLE os_start;
-    HANDLE hScore;
-    apr_size_t BytesWritten;
+    ssl_filter_ctx_t *filter_ctx;
 
-    if (!DuplicateHandle(hCurrentProcess, child_ready_event, hProcess, &hDup,
-        EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the ready event handle for the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the exit event handle to the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, child_exit_event, hProcess, &hDup,
-                         EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the exit event handle for the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the exit event handle to the child");
-        return -1;
-    }
-    if ((rv = apr_os_proc_mutex_get(&os_start, child_start_mutex)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the start mutex for the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, os_start, hProcess, &hDup,
-                         SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the start mutex to the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the start mutex to the child");
-        return -1;
-    }
-    if ((rv = apr_os_shm_get(&hScore, scoreboard_shm)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the scoreboard handle for the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, hScore, hProcess, &hDup,
-                         FILE_MAP_READ | FILE_MAP_WRITE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the scoreboard handle to the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the scoreboard handle to the child");
-        return -1;
+    filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
+
+    filter_ctx->config          = myConnConfig(c);
+
+    ap_add_output_filter(ssl_io_coalesce, NULL, r, c);
+
+    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
+                                                       filter_ctx, r, c);
+
+    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
+    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);
+
+    /* We insert a clogging input filter. Let the core know. */
+    c->clogging_input_filters = 1;
+
+    ssl_io_input_add_filter(filter_ctx, c, r, ssl);
+
+    SSL_set_bio(ssl, filter_ctx->pbioRead, filter_ctx->pbioWrite);
+    filter_ctx->pssl            = ssl;
+
+    apr_pool_cleanup_register(c->pool, (void*)filter_ctx,
+                              ssl_io_filter_cleanup, apr_pool_cleanup_null);
+
+    if (APLOG_CS_IS_LEVEL(c, mySrvFromConn(c), APLOG_TRACE4)) {
+        BIO_set_callback(SSL_get_rbio(ssl), ssl_io_data_cb);
+        BIO_set_callback_arg(SSL_get_rbio(ssl), (void *)ssl);
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Parent: Sent the scoreboard to the child");
-    return 0;
+    return;
 }

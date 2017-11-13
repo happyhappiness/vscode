@@ -1,242 +1,149 @@
-static apr_status_t ajp_marshal_into_msgb(ajp_msg_t *msg,
-                                          request_rec *r,
-                                          apr_uri_t *uri)
+static int dav_method_update(request_rec *r)
 {
-    int method;
-    apr_uint32_t i, num_headers = 0;
-    apr_byte_t is_ssl;
-    char *remote_host;
-    const char *session_route, *envvar;
-    const apr_array_header_t *arr = apr_table_elts(r->subprocess_env);
-    const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
+    dav_resource *resource;
+    dav_resource *version = NULL;
+    const dav_hooks_vsn *vsn_hooks = DAV_GET_HOOKS_VSN(r);
+    apr_xml_doc *doc;
+    apr_xml_elem *child;
+    int is_label = 0;
+    int depth;
+    int result;
+    apr_size_t tsize;
+    const char *target;
+    dav_response *multi_response;
+    dav_error *err;
+    dav_lookup_result lookup;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Into ajp_marshal_into_msgb");
+    /* If no versioning provider, or UPDATE not supported,
+     * decline the request */
+    if (vsn_hooks == NULL || vsn_hooks->update == NULL)
+        return DECLINED;
 
-    if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb - No such method %s",
-               r->method);
-        return AJP_EBAD_METHOD;
+    if ((depth = dav_get_depth(r, 0)) < 0) {
+        /* dav_get_depth() supplies additional information for the
+         * default message. */
+        return HTTP_BAD_REQUEST;
     }
 
-    is_ssl = (apr_byte_t) ap_proxy_conn_is_https(r->connection);
-
-    if (r->headers_in && apr_table_elts(r->headers_in)) {
-        const apr_array_header_t *t = apr_table_elts(r->headers_in);
-        num_headers = t->nelts;
+    /* parse the request body */
+    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
+        return result;
     }
 
-    remote_host = (char *)ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_HOST, NULL);
-
-    ajp_msg_reset(msg);
-
-    if (ajp_msg_append_uint8(msg, CMD_AJP13_FORWARD_REQUEST)     ||
-        ajp_msg_append_uint8(msg, (apr_byte_t) method)           ||
-        ajp_msg_append_string(msg, r->protocol)                  ||
-        ajp_msg_append_string(msg, uri->path)                    ||
-        ajp_msg_append_string(msg, r->connection->remote_ip)     ||
-        ajp_msg_append_string(msg, remote_host)                  ||
-        ajp_msg_append_string(msg, ap_get_server_name(r))        ||
-        ajp_msg_append_uint16(msg, (apr_uint16_t)r->connection->local_addr->port) ||
-        ajp_msg_append_uint8(msg, is_ssl)                        ||
-        ajp_msg_append_uint16(msg, (apr_uint16_t) num_headers)) {
-
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb: "
-               "Error appending the message begining");
-        return APR_EGENERAL;
+    if (doc == NULL || !dav_validate_root(doc, "update")) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request body does not contain "
+                      "an \"update\" element.");
+        return HTTP_BAD_REQUEST;
     }
 
-    for (i = 0 ; i < num_headers ; i++) {
-        int sc;
-        const apr_array_header_t *t = apr_table_elts(r->headers_in);
-        const apr_table_entry_t *elts = (apr_table_entry_t *)t->elts;
-
-        if ((sc = sc_for_req_header(elts[i].key)) != UNKNOWN_METHOD) {
-            if (ajp_msg_append_uint16(msg, (apr_uint16_t)sc)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
-                return AJP_EOVERFLOW;
-            }
-        }
-        else {
-            if (ajp_msg_append_string(msg, elts[i].key)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if (ajp_msg_append_string(msg, elts[i].val)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the header value");
-            return AJP_EOVERFLOW;
-        }
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                   "ajp_marshal_into_msgb: Header[%d] [%s] = [%s]",
-                   i, elts[i].key, elts[i].val);
-    }
-
-/* XXXX need to figure out how to do this
-    if (s->secret) {
-        if (ajp_msg_append_uint8(msg, SC_A_SECRET) ||
-            ajp_msg_append_string(msg, s->secret)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "Error ajp_marshal_into_msgb - "
-                   "Error appending secret");
-            return APR_EGENERAL;
+    /* check for label-name or version element, but not both */
+    if ((child = dav_find_child(doc->root, "label-name")) != NULL)
+        is_label = 1;
+    else if ((child = dav_find_child(doc->root, "version")) != NULL) {
+        /* get the href element */
+        if ((child = dav_find_child(child, "href")) == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The version element does not contain "
+                          "an \"href\" element.");
+            return HTTP_BAD_REQUEST;
         }
     }
- */
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The \"update\" element does not contain "
+                      "a \"label-name\" or \"version\" element.");
+        return HTTP_BAD_REQUEST;
+    }
 
-    if (r->user) {
-        if (ajp_msg_append_uint8(msg, SC_A_REMOTE_USER) ||
-            ajp_msg_append_string(msg, r->user)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the remote user");
-            return AJP_EOVERFLOW;
-        }
+    /* a depth greater than zero is only allowed for a label */
+    if (!is_label && depth != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be zero for UPDATE with a version");
+        return HTTP_BAD_REQUEST;
     }
-    if (r->ap_auth_type) {
-        if (ajp_msg_append_uint8(msg, SC_A_AUTH_TYPE) ||
-            ajp_msg_append_string(msg, r->ap_auth_type)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the auth type");
-            return AJP_EOVERFLOW;
-        }
+
+    /* get the target value (a label or a version URI) */
+    apr_xml_to_text(r->pool, child, APR_XML_X2T_INNER, NULL, NULL,
+                    &target, &tsize);
+    if (tsize == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "A \"label-name\" or \"href\" element does not contain "
+                      "any content.");
+        return HTTP_BAD_REQUEST;
     }
-    /* XXXX  ebcdic (args converted?) */
-    if (uri->query) {
-        if (ajp_msg_append_uint8(msg, SC_A_QUERY_STRING) ||
-            ajp_msg_append_string(msg, uri->query)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the query string");
-            return AJP_EOVERFLOW;
-        }
+
+    /* Ask repository module to resolve the resource */
+    err = dav_get_resource(r, 0 /* label_allowed */, 0 /* use_checked_in */,
+                           &resource);
+    if (err != NULL)
+        return dav_handle_err(r, err, NULL);
+
+    if (!resource->exists) {
+        /* Apache will supply a default error for this. */
+        return HTTP_NOT_FOUND;
     }
-    if ((session_route = apr_table_get(r->notes, "session-route"))) {
-        if (ajp_msg_append_uint8(msg, SC_A_JVM_ROUTE) ||
-            ajp_msg_append_string(msg, session_route)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the jvm route");
-            return AJP_EOVERFLOW;
-        }
-    }
-/* XXX: Is the subprocess_env a right place?
- * <Location /examples>
- *   ProxyPass ajp://remote:8009/servlets-examples
- *   SetEnv SSL_SESSION_ID CUSTOM_SSL_SESSION_ID
- * </Location>
- */
-    /*
-     * Only lookup SSL variables if we are currently running HTTPS.
-     * Furthermore ensure that only variables get set in the AJP message
-     * that are not NULL and not empty.
+
+    /* ### need a general mechanism for reporting precondition violations
+     * ### (should be returning XML document for 403/409 responses)
      */
-    if (is_ssl) {
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_CLIENT_CERT_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_CERT)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL certificates");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_CIPHER_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_CIPHER)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL ciphers");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_SESSION_INDICATOR))
-            && envvar[0]) {
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_SESSION)
-                || ajp_msg_append_string(msg, envvar)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL session");
-                return AJP_EOVERFLOW;
-            }
-        }
-
-        /* ssl_key_size is required by Servlet 2.3 API */
-        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
-                                       AJP13_SSL_KEY_SIZE_INDICATOR))
-            && envvar[0]) {
-
-            if (ajp_msg_append_uint8(msg, SC_A_SSL_KEY_SIZE)
-                || ajp_msg_append_uint16(msg, (unsigned short) atoi(envvar))) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Error ajp_marshal_into_msgb - "
-                             "Error appending the SSL key size");
-                return APR_EGENERAL;
-            }
-        }
-    }
-    /* Forward the remote port information, which was forgotten
-     * from the builtin data of the AJP 13 protocol.
-     * Since the servlet spec allows to retrieve it via getRemotePort(),
-     * we provide the port to the Tomcat connector as a request
-     * attribute. Modern Tomcat versions know how to retrieve
-     * the remote port from this attribute.
-     */
-    {
-        const char *key = SC_A_REQ_REMOTE_PORT;
-        char *val = apr_itoa(r->pool, r->connection->remote_addr->port);
-        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-            ajp_msg_append_string(msg, key)   ||
-            ajp_msg_append_string(msg, val)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
-            return AJP_EOVERFLOW;
-        }
-    }
-    /* Use the environment vars prefixed with AJP_
-     * and pass it to the header striping that prefix.
-     */
-    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
-        if (!strncmp(elts[i].key, "AJP_", 4)) {
-            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-                ajp_msg_append_string(msg, elts[i].key + 4)   ||
-                ajp_msg_append_string(msg, elts[i].val)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                        "ajp_marshal_into_msgb: "
-                        "Error appending attribute %s=%s",
-                        elts[i].key, elts[i].val);
-                return AJP_EOVERFLOW;
-            }
-        }
+    if (resource->type != DAV_RESOURCE_TYPE_REGULAR
+        || !resource->versioned || resource->working) {
+        return dav_error_response(r, HTTP_CONFLICT,
+                                  "<DAV:must-be-checked-in-version-controlled-resource>");
     }
 
-    if (ajp_msg_append_uint8(msg, SC_A_ARE_DONE)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb: "
-               "Error appending the message end");
-        return AJP_EOVERFLOW;
+    /* if target is a version, resolve the version resource */
+    /* ### dav_lookup_uri only allows absolute URIs; is that OK? */
+    if (!is_label) {
+        lookup = dav_lookup_uri(target, r, 0 /* must_be_absolute */);
+        if (lookup.rnew == NULL) {
+            if (lookup.err.status == HTTP_BAD_REQUEST) {
+                /* This supplies additional information for the default message. */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "%s", lookup.err.desc);
+                return HTTP_BAD_REQUEST;
+            }
+
+            /* ### this assumes that dav_lookup_uri() only generates a status
+             * ### that Apache can provide a status line for!! */
+
+            return dav_error_response(r, lookup.err.status, lookup.err.desc);
+        }
+        if (lookup.rnew->status != HTTP_OK) {
+            /* ### how best to report this... */
+            return dav_error_response(r, lookup.rnew->status,
+                                      "Version URI had an error.");
+        }
+
+        /* resolve version resource */
+        err = dav_get_resource(lookup.rnew, 0 /* label_allowed */,
+                               0 /* use_checked_in */, &version);
+        if (err != NULL)
+            return dav_handle_err(r, err, NULL);
+
+        /* NULL out target, since we're using a version resource */
+        target = NULL;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-            "ajp_marshal_into_msgb: Done");
-    return APR_SUCCESS;
+    /* do the UPDATE operation */
+    err = (*vsn_hooks->update)(resource, version, target, depth, &multi_response);
+
+    if (err != NULL) {
+        err = dav_push_error(r->pool, err->status, 0,
+                             apr_psprintf(r->pool,
+                                          "Could not UPDATE %s.",
+                                          ap_escape_html(r->pool, r->uri)),
+                             err);
+        return dav_handle_err(r, err, multi_response);
+    }
+
+    /* set the Cache-Control header, per the spec */
+    apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
+
+    /* no body */
+    ap_set_content_length(r, 0);
+
+    return DONE;
 }

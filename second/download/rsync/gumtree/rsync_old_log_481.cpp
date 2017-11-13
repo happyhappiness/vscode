@@ -1,1 +1,1 @@
-fprintf(FINFO, "sum=%.8x k=%d\n", sum, k);
+fprintf(f,"-p, --perms              preserve permissions\n");

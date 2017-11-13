@@ -1,11 +1,11 @@
 fputs(
-"              \"SITE AUTH\" will tell the server to retrieve the  username  from\n"
-"              the certificate. (Added in 7.15.5)\n"
+"              port again.\n"
 "\n"
-"       --ftp-skip-pasv-ip\n"
-"              (FTP) Tell curl to not use the IP address the server suggests in\n"
-"              its response to curl's PASV command when curl connects the  data\n"
-"              connection.  Instead  curl  will  re-use  the same IP address it\n"
-"              already uses for the control connection. (Added in 7.14.2)\n"
+"              Passive mode means that curl will try the EPSV command first and\n"
+"              then PASV, unless --disable-epsv is used.\n"
 "\n"
+"       --ftp-alternative-to-user <command>\n"
+"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
+"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
+"              Transport  server  over  FTPS  using a client certificate, using\n"
 , stdout);

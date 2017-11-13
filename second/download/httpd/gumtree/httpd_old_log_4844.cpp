@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                    "SIGHUP received.  Attempting to restart");
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, 0, l->pool,
+                      "Releasing mutex %s:%d", l->file, l->line);

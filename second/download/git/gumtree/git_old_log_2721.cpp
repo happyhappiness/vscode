@@ -1,1 +1,1 @@
-die(_("unable to parse format"));
+die(_("expected format: %%(align:<width>,<position>)"));

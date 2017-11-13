@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
-                             r->server, "Cache locked for url, not caching "
-                             "response: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, 
+                              "Error writing request body to script %s", 
+                              r->filename);

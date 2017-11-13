@@ -1,11 +1,11 @@
 fputs(
-"              (FTP SFTP) When an FTP or SFTP URL/operation uses  a  path  that\n"
-"              doesn't  currently exist on the server, the standard behavior of\n"
-"              curl is to fail. Using this option, curl will instead attempt to\n"
-"              create missing directories.\n"
+"              that @ makes a file get attached in the post as a  file  upload,\n"
+"              while  the  <  makes  a text field and just get the contents for\n"
+"              that text field from a file.\n"
 "\n"
-"              See also --create-dirs.\n"
+"              Example: to send an image to a server, where  'profile'  is  the\n"
+"              name of the form-field to which portrait.jpg will be the input:\n"
 "\n"
-"       --ftp-method <method>\n"
-"              (FTP)  Control what method curl should use to reach a file on an\n"
+"               curl -F profile=@portrait.jpg https://example.com/upload.cgi\n"
+"\n"
 , stdout);

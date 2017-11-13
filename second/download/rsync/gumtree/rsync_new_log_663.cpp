@@ -1,1 +1,1 @@
-fprintf(fp, " %s", con->otherHelp);
+out_of_memory("string_area_new");

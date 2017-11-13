@@ -1,10 +1,10 @@
 fputs(
-"              time_starttransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"                             to  a  file  with  the  -O,  --remote-name or -o,\n"
+"                             --output option. It's most useful in  combination\n"
+"                             with  the -J, --remote-header-name option. (Added\n"
+"                             in 7.26.0)\n"
 "\n"
-"              time_total     The  total time, in seconds, that the full opera-\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"                             to the remote FTP server. (Added in 7.15.4)\n"
+"\n"
 , stdout);

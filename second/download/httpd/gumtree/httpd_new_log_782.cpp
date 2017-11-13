@@ -1,1 +1,1 @@
-ap_rputs("<hr>\n", r);
+ap_rvputs(r, "<td>", balancer->sticky, NULL);

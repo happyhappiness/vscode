@@ -1,12 +1,10 @@
 fputs(
-"              The default service name for a socks server is rcmd/server-fqdn.\n"
-"              This option allows you to change it.\n"
+"              second  and  then for all forthcoming retries it will double the\n"
+"              waiting time until it reaches 10 minutes which then will be  the\n"
+"              delay  between  the rest of the retries.  By using --retry-delay\n"
+"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
+"              --retry-max-time to limit the total time allowed for retries.\n"
 "\n"
-"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
-"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
-"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
-"              where the proxy-name does not match the principal name.\n"
-"\n"
-"              Added in 7.19.4.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
 , stdout);

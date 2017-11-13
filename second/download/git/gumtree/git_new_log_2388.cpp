@@ -1,1 +1,1 @@
-error_errno("unable to open %s", path->buf);
+printf("%s\n", oid_to_hex(&bases->item->object.oid));

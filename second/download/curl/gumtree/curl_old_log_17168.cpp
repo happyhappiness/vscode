@@ -1,6 +1,11 @@
-puts(" -i/--include       Include the HTTP-header in the output (H)\n"
-       " -I/--head          Fetch document info only (HTTP HEAD/FTP SIZE)\n"
-       "    --interface <interface> Specify the interface to be used\n"
-       "    --krb4 <level>  Enable krb4 with specified security level (F)\n"
-       " -K/--config        Specify which config file to read\n"
-       " -l/--list-only     List only names of an FTP directory (F)");
+puts(
+"  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
+"  path the \"cookie\" should be used for (by specifying \"path=value\"), when the\n"
+"  cookie should expire (\"expire=DATE\"), for what domain to use it\n"
+"  (\"domain=NAME\") and if it should be used on secure connections only\n"
+"  (\"secure\").\n"
+"\n"
+"  If you've received a page from a server that contains a header like:\n"
+"        Set-Cookie: sessionid=boo123; path=\"/foo\";\n"
+"\n"
+);

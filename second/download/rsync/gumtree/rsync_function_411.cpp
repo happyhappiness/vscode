@@ -1,27 +1,19 @@
-int64 read_longint(int f)
+static void add_delete_entry(struct file_struct *file)
 {
-	extern int remote_version;
-	int64 ret;
-	char b[8];
-	ret = read_int(f);
-
-	if (ret != -1) return ret;
-
-#ifndef HAVE_LONGLONG
-	fprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");
-	exit_cleanup(1);
-#else
-	if (remote_version >= 16) {
-		if ((ret=readfd(f,b,8)) != 8) {
-			if (verbose > 1) 
-				fprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
-					getpid(),8,ret==-1?strerror(errno):"EOF");
-			exit_cleanup(1);
+	if (dlist_len == dlist_alloc_len) {
+		dlist_alloc_len += 1024;
+		if (!delete_list) {
+			delete_list = (struct delete_list *)malloc(sizeof(delete_list[0])*dlist_alloc_len);
+		} else {
+			delete_list = (struct delete_list *)realloc(delete_list, sizeof(delete_list[0])*dlist_alloc_len);
 		}
-		total_read += 8;
-		ret = IVAL(b,0) | (((int64)IVAL(b,4))<<32);
+		if (!delete_list) out_of_memory("add_delete_entry");
 	}
-#endif
 
-	return ret;
+	delete_list[dlist_len].dev = file->dev;
+	delete_list[dlist_len].inode = file->inode;
+	dlist_len++;
+
+	if (verbose > 3)
+		fprintf(FINFO,"added %s to delete list\n", f_name(file));
 }

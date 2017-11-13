@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03449)
-                          "HTTP Request Line; Extraneous text found '%.*s' "
-                          "(perhaps whitespace was injected?)",
-                          field_name_len(ll), ll);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, APR_TIMEUP, c,
+                                  "h2_session: wait for data");

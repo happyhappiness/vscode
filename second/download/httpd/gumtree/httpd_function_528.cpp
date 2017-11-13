@@ -1,261 +1,161 @@
-static apr_status_t inflate_out_filter(ap_filter_t *f,
-                                      apr_bucket_brigade *bb)
+static void show_compile_settings(void)
 {
-    int zlib_method;
-    int zlib_flags;
-    int deflate_init = 1;
-    apr_bucket *bkt;
-    request_rec *r = f->r;
-    deflate_ctx *ctx = f->ctx;
-    int zRC;
-    apr_status_t rv;
-    deflate_filter_config *c;
+    printf("Server version: %s\n", ap_get_server_version());
+    printf("Server built:   %s\n", ap_get_server_built());
+    printf("Server's Module Magic Number: %u:%u\n",
+           MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
+    printf("Server loaded:  APR %s, APR-UTIL %s\n",
+           apr_version_string(), apu_version_string());
+    printf("Compiled using: APR %s, APR-UTIL %s\n",
+           APR_VERSION_STRING, APU_VERSION_STRING);
+    /* sizeof(foo) is long on some platforms so we might as well
+     * make it long everywhere to keep the printf format
+     * consistent
+     */
+    printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
+    printf("Server compiled with....\n");
+#ifdef BIG_SECURITY_HOLE
+    printf(" -D BIG_SECURITY_HOLE\n");
+#endif
 
-    /* Do nothing if asked to filter nothing. */
-    if (APR_BRIGADE_EMPTY(bb)) {
-        return APR_SUCCESS;
-    }
+#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
+    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
+#endif
 
-    c = ap_get_module_config(r->server->module_config, &deflate_module);
+#ifdef APACHE_MPM_DIR
+    printf(" -D APACHE_MPM_DIR=\"%s\"\n", APACHE_MPM_DIR);
+#endif
 
-    if (!ctx) {
-        int found = 0;
-        char *token;
-        const char *encoding;
+#ifdef HAVE_SHMGET
+    printf(" -D HAVE_SHMGET\n");
+#endif
 
-        /* only work on main request/no subrequests */
-        if (!ap_is_initial_req(r)) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
+#if APR_FILE_BASED_SHM
+    printf(" -D APR_FILE_BASED_SHM\n");
+#endif
 
-        /* Let's see what our current Content-Encoding is.
-         * If gzip is present, don't gzip again.  (We could, but let's not.)
-         */
-        encoding = apr_table_get(r->headers_out, "Content-Encoding");
-        if (encoding) {
-            const char *tmp = encoding;
+#if APR_HAS_SENDFILE
+    printf(" -D APR_HAS_SENDFILE\n");
+#endif
 
-            token = ap_get_token(r->pool, &tmp, 0);
-            while (token && token[0]) {
-                if (!strcasecmp(token, "gzip")) {
-                    found = 1;
-                    break;
-                }
-                /* Otherwise, skip token */
-                tmp++;
-                token = ap_get_token(r->pool, &tmp, 0);
-            }
-        }
+#if APR_HAS_MMAP
+    printf(" -D APR_HAS_MMAP\n");
+#endif
 
-        if (found == 0) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-        apr_table_unset(r->headers_out, "Content-Encoding");
+#ifdef NO_WRITEV
+    printf(" -D NO_WRITEV\n");
+#endif
 
-        /* No need to inflate HEAD or 204/304 */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(bb))) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
+#ifdef NO_LINGCLOSE
+    printf(" -D NO_LINGCLOSE\n");
+#endif
 
+#if APR_HAVE_IPV6
+    printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");
+#ifdef AP_ENABLE_V4_MAPPED
+    printf("enabled)\n");
+#else
+    printf("disabled)\n");
+#endif
+#endif
 
-        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
-        ctx->proc_bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
+#if APR_USE_FLOCK_SERIALIZE
+    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
+#endif
 
+#if APR_USE_SYSVSEM_SERIALIZE
+    printf(" -D APR_USE_SYSVSEM_SERIALIZE\n");
+#endif
 
-        zRC = inflateInit2(&ctx->stream, c->windowSize);
+#if APR_USE_POSIXSEM_SERIALIZE
+    printf(" -D APR_USE_POSIXSEM_SERIALIZE\n");
+#endif
 
-        if (zRC != Z_OK) {
-            f->ctx = NULL;
-            inflateEnd(&ctx->stream);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "unable to init Zlib: "
-                          "inflateInit2 returned %d: URL %s",
-                          zRC, r->uri);
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
+#if APR_USE_FCNTL_SERIALIZE
+    printf(" -D APR_USE_FCNTL_SERIALIZE\n");
+#endif
 
-        /* initialize deflate output buffer */
-        ctx->stream.next_out = ctx->buffer;
-        ctx->stream.avail_out = c->bufferSize;
+#if APR_USE_PROC_PTHREAD_SERIALIZE
+    printf(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n");
+#endif
 
-        deflate_init = 0;
-    }
+#if APR_USE_PTHREAD_SERIALIZE
+    printf(" -D APR_USE_PTHREAD_SERIALIZE\n");
+#endif
 
-    for (bkt = APR_BRIGADE_FIRST(bb);
-         bkt != APR_BRIGADE_SENTINEL(bb);
-         bkt = APR_BUCKET_NEXT(bkt))
-    {
-        const char *data;
-        apr_size_t len;
+#if APR_PROCESS_LOCK_IS_GLOBAL
+    printf(" -D APR_PROCESS_LOCK_IS_GLOBAL\n");
+#endif
 
-        /* If we actually see the EOS, that means we screwed up! */
-        /* no it doesn't - not in a HEAD or 204/304 */
-        if (APR_BUCKET_IS_EOS(bkt)) {
-            inflateEnd(&ctx->stream);
-            return ap_pass_brigade(f->next, bb);
-        }
+#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
+    printf(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n");
+#endif
 
-        if (APR_BUCKET_IS_FLUSH(bkt)) {
-            apr_bucket *tmp_heap;
-            zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
-            if (zRC != Z_OK) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Inflate error %d on flush", zRC);
-                inflateEnd(&ctx->stream);
-                return APR_EGENERAL;
-            }
+#if APR_HAS_OTHER_CHILD
+    printf(" -D APR_HAS_OTHER_CHILD\n");
+#endif
 
-            ctx->stream.next_out = ctx->buffer;
-            len = c->bufferSize - ctx->stream.avail_out;
+#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
+    printf(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n");
+#endif
 
-            ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-            tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                             NULL, f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-            ctx->stream.avail_out = c->bufferSize;
+#ifdef BUFFERED_LOGS
+    printf(" -D BUFFERED_LOGS\n");
+#ifdef PIPE_BUF
+    printf(" -D PIPE_BUF=%ld\n",(long)PIPE_BUF);
+#endif
+#endif
 
-            /* Move everything to the returning brigade. */
-            APR_BUCKET_REMOVE(bkt);
-            break;
-        }
+#if APR_CHARSET_EBCDIC
+    printf(" -D APR_CHARSET_EBCDIC\n");
+#endif
 
-        /* read */
-        apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
+#ifdef APACHE_XLATE
+    printf(" -D APACHE_XLATE\n");
+#endif
 
-        /* first bucket contains zlib header */
-        if (!deflate_init++) {
-            if (len < 10) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Insufficient data for inflate");
-                return APR_EGENERAL;
-            }
-            else  {
-                zlib_method = data[2];
-                zlib_flags = data[3];
-                if (zlib_method != Z_DEFLATED) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "inflate: data not deflated!");
-                    ap_remove_output_filter(f);
-                    return ap_pass_brigade(f->next, bb);
-                }
-                if (data[0] != deflate_magic[0] ||
-                    data[1] != deflate_magic[1] ||
-                    (zlib_flags & RESERVED) != 0) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "inflate: bad header");
-                    return APR_EGENERAL ;
-                }
-                data += 10 ;
-                len -= 10 ;
-           }
-           if (zlib_flags & EXTRA_FIELD) {
-               unsigned int bytes = (unsigned int)(data[0]);
-               bytes += ((unsigned int)(data[1])) << 8;
-               bytes += 2;
-               if (len < bytes) {
-                   ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                 "inflate: extra field too big (not "
-                                 "supported)");
-                   return APR_EGENERAL;
-               }
-               data += bytes;
-               len -= bytes;
-           }
-           if (zlib_flags & ORIG_NAME) {
-               while (len-- && *data++);
-           }
-           if (zlib_flags & COMMENT) {
-               while (len-- && *data++);
-           }
-           if (zlib_flags & HEAD_CRC) {
-                len -= 2;
-                data += 2;
-           }
-        }
+#ifdef NEED_HASHBANG_EMUL
+    printf(" -D NEED_HASHBANG_EMUL\n");
+#endif
 
-        /* pass through zlib inflate. */
-        ctx->stream.next_in = (unsigned char *)data;
-        ctx->stream.avail_in = len;
+#ifdef SHARED_CORE
+    printf(" -D SHARED_CORE\n");
+#endif
 
-        zRC = Z_OK;
+/* This list displays the compiled in default paths: */
+#ifdef HTTPD_ROOT
+    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
+#endif
 
-        while (ctx->stream.avail_in != 0) {
-            if (ctx->stream.avail_out == 0) {
-                apr_bucket *tmp_heap;
-                ctx->stream.next_out = ctx->buffer;
-                len = c->bufferSize - ctx->stream.avail_out;
+#ifdef SUEXEC_BIN
+    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
+#endif
 
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                  NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                ctx->stream.avail_out = c->bufferSize;
-            }
+#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
+    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
+#endif
 
-            zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+#ifdef DEFAULT_PIDLOG
+    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
+#endif
 
-            if (zRC == Z_STREAM_END) {
-                break;
-            }
+#ifdef DEFAULT_SCOREBOARD
+    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
+#endif
 
-            if (zRC != Z_OK) {
-                    inflateEnd(&ctx->stream);
-                    return APR_EGENERAL;
-            }
-        }
-        if (zRC == Z_STREAM_END) {
-            apr_bucket *tmp_heap, *eos;
+#ifdef DEFAULT_LOCKFILE
+    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
+#endif
 
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Zlib: Inflated %ld to %ld : URL %s",
-                          ctx->stream.total_in, ctx->stream.total_out,
-                          r->uri);
+#ifdef DEFAULT_ERRORLOG
+    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
+#endif
 
-            len = c->bufferSize - ctx->stream.avail_out;
+#ifdef AP_TYPES_CONFIG_FILE
+    printf(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n");
+#endif
 
-            ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-            tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                              NULL, f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-            ctx->stream.avail_out = c->bufferSize;
-
-            /* Is the remaining 8 bytes already in the avail stream? */
-            if (ctx->stream.avail_in >= 8) {
-                unsigned long compCRC, compLen;
-                compCRC = getLong(ctx->stream.next_in);
-                if (ctx->crc != compCRC) {
-                    inflateEnd(&ctx->stream);
-                    return APR_EGENERAL;
-                }
-                ctx->stream.next_in += 4;
-                compLen = getLong(ctx->stream.next_in);
-                if (ctx->stream.total_out != compLen) {
-                    inflateEnd(&ctx->stream);
-                    return APR_EGENERAL;
-                }
-            }
-            else {
-                /* FIXME: We need to grab the 8 verification bytes
-                 * from the wire! */
-                inflateEnd(&ctx->stream);
-                return APR_EGENERAL;
-            }
-
-            inflateEnd(&ctx->stream);
-
-            eos = apr_bucket_eos_create(f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, eos);
-            break;
-        }
-
-    }
-
-    rv = ap_pass_brigade(f->next, ctx->proc_bb);
-    apr_brigade_cleanup(ctx->proc_bb);
-    return rv ;
+#ifdef SERVER_CONFIG_FILE
+    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
+#endif
 }

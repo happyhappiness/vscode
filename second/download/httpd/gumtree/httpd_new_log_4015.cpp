@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00920)
-                     "Failed to reopen mutex %s in child",
-                     balancer->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00659)
+                          "apr_global_mutex_lock(rewrite_mapr_lock_acquire) "
+                          "failed");

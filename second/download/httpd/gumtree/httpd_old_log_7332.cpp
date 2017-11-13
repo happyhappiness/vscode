@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "%s: -n and -D options conflict" NL, argv[0]);
+apr_file_printf(errfile, "%s: %s" NL, argv[0], errstr);

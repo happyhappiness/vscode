@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
-                         ap_server_conf, "processor unbind failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Failed to evaluate expression - ignoring");

@@ -1,11 +1,11 @@
 fputs(
-"              is  not  very  common.  Use -V, --version to see if your version\n"
-"              supports GSS-Negotiate.\n"
+"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
+"              authentication but may be also used along with another authenti-\n"
+"              cation method. For more information see IETF draft draft-brezak-\n"
+"              spnego-http-04.txt.\n"
 "\n"
-"              When using this option, you must also provide a fake -u,  --user\n"
-"              option  to  activate the authentication code properly. Sending a\n"
-"              '-u :' is enough as the user  name  and  password  from  the  -u\n"
-"              option aren't actually used.\n"
+"              If  you  want to enable Negotiate for your proxy authentication,\n"
+"              then use --proxy-negotiate.\n"
 "\n"
-"              If  this option is used several times, the following occurrences\n"
+"              This option requires a library built with GSSAPI  support.  This\n"
 , stdout);

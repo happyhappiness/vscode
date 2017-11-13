@@ -1,54 +1,56 @@
-static int start_lingering_close_common(event_conn_state_t *cs, int in_worker)
+static int socache_status_hook(request_rec *r, int flags)
 {
-    apr_status_t rv;
-    struct timeout_queue *q;
-    apr_socket_t *csd = cs->pfd.desc.s;
-#ifdef AP_DEBUG
-    {
-        rv = apr_socket_timeout_set(csd, 0);
-        AP_DEBUG_ASSERT(rv == APR_SUCCESS);
+    apr_status_t status = APR_SUCCESS;
+    cache_socache_conf *conf = ap_get_module_config(r->server->module_config,
+                                                    &cache_socache_module);
+    if (!conf->provider || !conf->provider->socache_provider ||
+        !conf->provider->socache_instance) {
+        return DECLINED;
     }
-#else
-    apr_socket_timeout_set(csd, 0);
-#endif
-    cs->queue_timestamp = apr_time_now();
-    /*
-     * If some module requested a shortened waiting period, only wait for
-     * 2s (SECONDS_TO_LINGER). This is useful for mitigating certain
-     * DoS attacks.
-     */
-    if (apr_table_get(cs->c->notes, "short-lingering-close")) {
-        q = short_linger_q;
-        cs->pub.state = CONN_STATE_LINGER_SHORT;
+
+    if (!(flags & AP_STATUS_SHORT)) {
+        ap_rputs("<hr>\n"
+                 "<table cellspacing=0 cellpadding=0>\n"
+                 "<tr><td bgcolor=\"#000000\">\n"
+                 "<b><font color=\"#ffffff\" face=\"Arial,Helvetica\">"
+                 "mod_cache_socache Status:</font></b>\n"
+                 "</td></tr>\n"
+                 "<tr><td bgcolor=\"#ffffff\">\n", r);
     }
     else {
-        q = linger_q;
-        cs->pub.state = CONN_STATE_LINGER_NORMAL;
+        ap_rputs("ModCacheSocacheStatus\n", r);
     }
-    apr_atomic_inc32(&lingering_count);
-    if (in_worker) { 
-        notify_suspend(cs);
+
+    if (socache_mutex) {
+        status = apr_global_mutex_lock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02816)
+                    "could not acquire lock for cache status");
+        }
     }
-    else {
-        cs->c->sbh = NULL;
+
+    if (status != APR_SUCCESS) {
+        if (!(flags & AP_STATUS_SHORT)) {
+            ap_rputs("No cache status data available\n", r);
+        }
+        else {
+            ap_rputs("NotAvailable\n", r);
+        }
+    } else {
+        conf->provider->socache_provider->status(conf->provider->socache_instance,
+                                                 r, flags);
     }
-    apr_thread_mutex_lock(timeout_mutex);
-    TO_QUEUE_APPEND(q, cs);
-    cs->pfd.reqevents = (
-            cs->pub.sense == CONN_SENSE_WANT_WRITE ? APR_POLLOUT :
-                    APR_POLLIN) | APR_POLLHUP | APR_POLLERR;
-    cs->pub.sense = CONN_SENSE_DEFAULT;
-    rv = apr_pollset_add(event_pollset, &cs->pfd);
-    apr_thread_mutex_unlock(timeout_mutex);
-    if (rv != APR_SUCCESS && !APR_STATUS_IS_EEXIST(rv)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "start_lingering_close: apr_pollset_add failure");
-        apr_thread_mutex_lock(timeout_mutex);
-        TO_QUEUE_REMOVE(q, cs);
-        apr_thread_mutex_unlock(timeout_mutex);
-        apr_socket_close(cs->pfd.desc.s);
-        ap_push_pool(worker_queue_info, cs->p);
-        return 0;
+
+    if (socache_mutex && status == APR_SUCCESS) {
+        status = apr_global_mutex_unlock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02817)
+                    "could not release lock for cache status");
+        }
     }
-    return 1;
+
+    if (!(flags & AP_STATUS_SHORT)) {
+        ap_rputs("</td></tr>\n</table>\n", r);
+    }
+    return OK;
 }

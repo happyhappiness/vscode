@@ -1,115 +1,158 @@
-static apr_status_t ssl_io_filter_output(ap_filter_t *f,
-                                         apr_bucket_brigade *bb)
+static int ap_set_byterange(request_rec *r, apr_off_t clength,
+                            apr_array_header_t **indexes)
 {
-    apr_status_t status = APR_SUCCESS;
-    ssl_filter_ctx_t *filter_ctx = f->ctx;
-    bio_filter_in_ctx_t *inctx;
-    bio_filter_out_ctx_t *outctx;
-    apr_read_type_e rblock = APR_NONBLOCK_READ;
+    const char *range;
+    const char *if_range;
+    const char *match;
+    const char *ct;
+    char *cur;
+    int num_ranges = 0, unsatisfiable = 0;
+    apr_off_t sum_lengths = 0;
+    indexes_t *idx;
+    int ranges = 1;
+    const char *it;
 
-    if (f->c->aborted) {
-        apr_brigade_cleanup(bb);
-        return APR_ECONNABORTED;
+    if (r->assbackwards) {
+        return 0;
     }
 
-    if (!filter_ctx->pssl) {
-        /* ssl_filter_io_shutdown was called */
-        return ap_pass_brigade(f->next, bb);
-    }
-
-    inctx = (bio_filter_in_ctx_t *)filter_ctx->pbioRead->ptr;
-    outctx = (bio_filter_out_ctx_t *)filter_ctx->pbioWrite->ptr;
-
-    /* When we are the writer, we must initialize the inctx
-     * mode so that we block for any required ssl input, because
-     * output filtering is always nonblocking.
+    /*
+     * Check for Range request-header (HTTP/1.1) or Request-Range for
+     * backwards-compatibility with second-draft Luotonen/Franks
+     * byte-ranges (e.g. Netscape Navigator 2-3).
+     *
+     * We support this form, with Request-Range, and (farther down) we
+     * send multipart/x-byteranges instead of multipart/byteranges for
+     * Request-Range based requests to work around a bug in Netscape
+     * Navigator 2-3 and MSIE 3.
      */
-    inctx->mode = AP_MODE_READBYTES;
-    inctx->block = APR_BLOCK_READ;
 
-    if ((status = ssl_io_filter_connect(filter_ctx)) != APR_SUCCESS) {
-        return ssl_io_filter_error(f, bb, status);
+    if (!(range = apr_table_get(r->headers_in, "Range"))) {
+        range = apr_table_get(r->headers_in, "Request-Range");
     }
 
-    while (!APR_BRIGADE_EMPTY(bb)) {
-        apr_bucket *bucket = APR_BRIGADE_FIRST(bb);
+    if (!range || strncasecmp(range, "bytes=", 6) || r->status != HTTP_OK) {
+        return 0;
+    }
 
-        /* If it is a flush or EOS, we need to pass this down. 
-         * These types do not require translation by OpenSSL.  
-         */
-        if (APR_BUCKET_IS_EOS(bucket) || APR_BUCKET_IS_FLUSH(bucket)) {
-            if (bio_filter_out_flush(filter_ctx->pbioWrite) < 0) {
-                status = outctx->rc;
-                break;
-            }
+    /* is content already a single range? */
+    if (apr_table_get(r->headers_out, "Content-Range")) {
+       return 0;
+    }
 
-            if (APR_BUCKET_IS_EOS(bucket)) {
-                /*
-                 * By definition, nothing can come after EOS.
-                 * which also means we can pass the rest of this brigade
-                 * without creating a new one since it only contains the
-                 * EOS bucket.
-                 */
+    /* is content already a multiple range? */
+    if ((ct = apr_table_get(r->headers_out, "Content-Type"))
+        && (!strncasecmp(ct, "multipart/byteranges", 20)
+            || !strncasecmp(ct, "multipart/x-byteranges", 22))) {
+       return 0;
+    }
 
-                if ((status = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
-                    return status;
-                }
-                break;
-            }
-            else {
-                /* bio_filter_out_flush() already passed down a flush bucket
-                 * if there was any data to be flushed.
-                 */
-                apr_bucket_delete(bucket);
+    /*
+     * Check the If-Range header for Etag or Date.
+     * Note that this check will return false (as required) if either
+     * of the two etags are weak.
+     */
+    if ((if_range = apr_table_get(r->headers_in, "If-Range"))) {
+        if (if_range[0] == '"') {
+            if (!(match = apr_table_get(r->headers_out, "Etag"))
+                || (strcmp(if_range, match) != 0)) {
+                return 0;
             }
         }
-        else if (AP_BUCKET_IS_EOC(bucket)) {
-            /* The special "EOC" bucket means a shutdown is needed;
-             * - turn off buffering in bio_filter_out_write
-             * - issue the SSL_shutdown
-             */
-            filter_ctx->nobuffer = 1;
-            status = ssl_filter_io_shutdown(filter_ctx, f->c, 0);
-            if (status != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, status, NULL,
-                             "SSL filter error shutting down I/O");
-            }
-            if ((status = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
-                return status;
-            }
+        else if (!(match = apr_table_get(r->headers_out, "Last-Modified"))
+                 || (strcmp(if_range, match) != 0)) {
+            return 0;
+        }
+    }
+
+    range += 6;
+    it = range;
+    while (*it) {
+        if (*it++ == ',') {
+            ranges++;
+        }
+    }
+    it = range;
+    *indexes = apr_array_make(r->pool, ranges, sizeof(indexes_t));
+    while ((cur = ap_getword(r->pool, &range, ','))) {
+        char *dash;
+        char *errp;
+        apr_off_t number, start, end;
+
+        if (!*cur)
             break;
+
+        /*
+         * Per RFC 2616 14.35.1: If there is at least one syntactically invalid
+         * byte-range-spec, we must ignore the whole header.
+         */
+
+        if (!(dash = strchr(cur, '-'))) {
+            return 0;
+        }
+
+        if (dash == cur) {
+            /* In the form "-5" */
+            if (strtoff(&number, dash+1, &errp, 10) || *errp) {
+                return 0;
+            }
+            if (number < 1) {
+                return 0;
+            }
+            start = clength - number;
+            end = clength - 1;
         }
         else {
-            /* filter output */
-            const char *data;
-            apr_size_t len;
-            
-            status = apr_bucket_read(bucket, &data, &len, rblock);
-
-            if (APR_STATUS_IS_EAGAIN(status)) {
-                /* No data available: flush... */
-                if (bio_filter_out_flush(filter_ctx->pbioWrite) < 0) {
-                    status = outctx->rc;
-                    break;
+            *dash++ = '\0';
+            if (strtoff(&number, cur, &errp, 10) || *errp) {
+                return 0;
+            }
+            start = number;
+            if (*dash) {
+                if (strtoff(&number, dash, &errp, 10) || *errp) {
+                    return 0;
                 }
-                rblock = APR_BLOCK_READ;
-                continue; /* and try again with a blocking read. */
+                end = number;
+                if (start > end) {
+                    return 0;
+                }
             }
-
-            rblock = APR_NONBLOCK_READ;
-
-            if (!APR_STATUS_IS_EOF(status) && (status != APR_SUCCESS)) {
-                break;
-            }
-
-            status = ssl_filter_write(f, data, len);
-            apr_bucket_delete(bucket);
-
-            if (status != APR_SUCCESS) {
-                break;
+            else {                  /* "5-" */
+                end = clength - 1;
             }
         }
+
+        if (start < 0) {
+            start = 0;
+        }
+        if (start >= clength) {
+            unsatisfiable = 1;
+            continue;
+        }
+        if (end >= clength) {
+            end = clength - 1;
+        }
+
+        idx = (indexes_t *)apr_array_push(*indexes);
+        idx->start = start;
+        idx->end = end;
+        sum_lengths += end - start + 1;
+        /* new set again */
+        num_ranges++;
     }
 
-    return status;
+    if (num_ranges == 0 && unsatisfiable) {
+        /* If all ranges are unsatisfiable, we should return 416 */
+        return -1;
+    }
+    if (sum_lengths >= clength) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Sum of ranges not smaller than file, ignoring.");
+        return 0;
+    }
+
+    r->status = HTTP_PARTIAL_CONTENT;
+    r->range = it;
+
+    return num_ranges;
 }

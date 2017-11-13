@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02310)
-                         "Unable to load SRP verifier file [error %d]", err);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02564)
+                             "Failed to configure encrypted (?) private key %s,"
+                             " check %s", key_id, keyfile);

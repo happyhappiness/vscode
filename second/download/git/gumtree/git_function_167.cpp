@@ -1,18 +1,27 @@
-static void die_with_unpushed_submodules(struct string_list *needs_pushing)
+int read_ref_at(const char *refname, unsigned long at_time, int cnt,
+		unsigned char *sha1, char **msg,
+		unsigned long *cutoff_time, int *cutoff_tz, int *cutoff_cnt)
 {
-	int i;
+	struct read_ref_at_cb cb;
 
-	fprintf(stderr, _("The following submodule paths contain changes that can\n"
-			"not be found on any remote:\n"));
-	for (i = 0; i < needs_pushing->nr; i++)
-		printf("  %s\n", needs_pushing->items[i].string);
-	fprintf(stderr, _("\nPlease try\n\n"
-			  "	git push --recurse-submodules=on-demand\n\n"
-			  "or cd to the path and use\n\n"
-			  "	git push\n\n"
-			  "to push them to a remote.\n\n"));
+	memset(&cb, 0, sizeof(cb));
+	cb.refname = refname;
+	cb.at_time = at_time;
+	cb.cnt = cnt;
+	cb.msg = msg;
+	cb.cutoff_time = cutoff_time;
+	cb.cutoff_tz = cutoff_tz;
+	cb.cutoff_cnt = cutoff_cnt;
+	cb.sha1 = sha1;
 
-	string_list_clear(needs_pushing, 0);
+	for_each_reflog_ent_reverse(refname, read_ref_at_ent, &cb);
 
-	die(_("Aborting."));
+	if (!cb.reccnt)
+		die("Log for %s is empty.", refname);
+	if (cb.found_it)
+		return 0;
+
+	for_each_reflog_ent(refname, read_ref_at_ent_oldest, &cb);
+
+	return 1;
 }

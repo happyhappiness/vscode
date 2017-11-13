@@ -1,51 +1,113 @@
-static apr_status_t ef_output_filter(ap_filter_t *f, apr_bucket_brigade *bb)
+int main(int argc, char **argv)
 {
-    request_rec *r = f->r;
-    ef_ctx_t *ctx = f->ctx;
-    apr_status_t rv;
+int i;
+FILE *f;
+const unsigned char *tables = pcre_maketables();
 
-    if (!ctx) {
-        if ((rv = init_filter_instance(f)) != APR_SUCCESS) {
-            ctx = f->ctx;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "can't initialise output filter %s: %s",
-                          f->frec->name,
-                          (ctx->dc->onfail == 1) ? "removing" : "aborting");
-            ap_remove_output_filter(f);
-            if (ctx->dc->onfail == 1) {
-                return ap_pass_brigade(f->next, bb);
-            }
-            else {
-                apr_bucket *e;
-                f->r->status_line = "500 Internal Server Error";
+if (argc != 2)
+  {
+  fprintf(stderr, "dftables: one filename argument is required\n");
+  return 1;
+  }
 
-                apr_brigade_cleanup(bb);
-                e = ap_bucket_error_create(HTTP_INTERNAL_SERVER_ERROR,
-                                           NULL, r->pool,
-                                           f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(bb, e);
-                e = apr_bucket_eos_create(f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(bb, e);
-                ap_pass_brigade(f->next, bb);
-                return AP_FILTER_ERROR;
-            }
-        }
-        ctx = f->ctx;
-    }
-    if (ctx->noop) {
-        ap_remove_output_filter(f);
-        return ap_pass_brigade(f->next, bb);
-    }
+f = fopen(argv[1], "w");
+if (f == NULL)
+  {
+  fprintf(stderr, "dftables: failed to open %s for writing\n", argv[1]);
+  return 1;
+  }
 
-    rv = ef_unified_filter(f, bb);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "ef_unified_filter() failed");
-    }
+/* There are two fprintf() calls here, because gcc in pedantic mode complains
+about the very long string otherwise. */
 
-    if ((rv = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "ap_pass_brigade() failed");
+fprintf(f,
+  "/*************************************************\n"
+  "*      Perl-Compatible Regular Expressions       *\n"
+  "*************************************************/\n\n"
+  "/* This file is automatically written by the dftables auxiliary \n"
+  "program. If you edit it by hand, you might like to edit the Makefile to \n"
+  "prevent its ever being regenerated.\n\n");
+fprintf(f,
+  "This file is #included in the compilation of pcre.c to build the default\n"
+  "character tables which are used when no tables are passed to the compile\n"
+  "function. */\n\n"
+  "static unsigned char pcre_default_tables[] = {\n\n"
+  "/* This table is a lower casing table. */\n\n");
+
+fprintf(f, "  ");
+for (i = 0; i < 256; i++)
+  {
+  if ((i & 7) == 0 && i != 0) fprintf(f, "\n  ");
+  fprintf(f, "%3d", *tables++);
+  if (i != 255) fprintf(f, ",");
+  }
+fprintf(f, ",\n\n");
+
+fprintf(f, "/* This table is a case flipping table. */\n\n");
+
+fprintf(f, "  ");
+for (i = 0; i < 256; i++)
+  {
+  if ((i & 7) == 0 && i != 0) fprintf(f, "\n  ");
+  fprintf(f, "%3d", *tables++);
+  if (i != 255) fprintf(f, ",");
+  }
+fprintf(f, ",\n\n");
+
+fprintf(f,
+  "/* This table contains bit maps for various character classes.\n"
+  "Each map is 32 bytes long and the bits run from the least\n"
+  "significant end of each byte. The classes that have their own\n"
+  "maps are: space, xdigit, digit, upper, lower, word, graph\n"
+  "print, punct, and cntrl. Other classes are built from combinations. */\n\n");
+
+fprintf(f, "  ");
+for (i = 0; i < cbit_length; i++)
+  {
+  if ((i & 7) == 0 && i != 0)
+    {
+    if ((i & 31) == 0) fprintf(f, "\n");
+    fprintf(f, "\n  ");
     }
-    return rv;
+  fprintf(f, "0x%02x", *tables++);
+  if (i != cbit_length - 1) fprintf(f, ",");
+  }
+fprintf(f, ",\n\n");
+
+fprintf(f,
+  "/* This table identifies various classes of character by individual bits:\n"
+  "  0x%02x   white space character\n"
+  "  0x%02x   letter\n"
+  "  0x%02x   decimal digit\n"
+  "  0x%02x   hexadecimal digit\n"
+  "  0x%02x   alphanumeric or '_'\n"
+  "  0x%02x   regular expression metacharacter or binary zero\n*/\n\n",
+  ctype_space, ctype_letter, ctype_digit, ctype_xdigit, ctype_word,
+  ctype_meta);
+
+fprintf(f, "  ");
+for (i = 0; i < 256; i++)
+  {
+  if ((i & 7) == 0 && i != 0)
+    {
+    fprintf(f, " /* ");
+    if (isprint(i-8)) fprintf(f, " %c -", i-8);
+      else fprintf(f, "%3d-", i-8);
+    if (isprint(i-1)) fprintf(f, " %c ", i-1);
+      else fprintf(f, "%3d", i-1);
+    fprintf(f, " */\n  ");
+    }
+  fprintf(f, "0x%02x", *tables++);
+  if (i != 255) fprintf(f, ",");
+  }
+
+fprintf(f, "};/* ");
+if (isprint(i-8)) fprintf(f, " %c -", i-8);
+  else fprintf(f, "%3d-", i-8);
+if (isprint(i-1)) fprintf(f, " %c ", i-1);
+  else fprintf(f, "%3d", i-1);
+fprintf(f, " */\n\n/* End of chartables.c */\n");
+
+fclose(f);
+return 0;
 }

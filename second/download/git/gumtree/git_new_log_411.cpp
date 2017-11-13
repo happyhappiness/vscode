@@ -1,1 +1,1 @@
-fputs(_(env_hint), stderr);
+die(_("unknown option %s"), arg);

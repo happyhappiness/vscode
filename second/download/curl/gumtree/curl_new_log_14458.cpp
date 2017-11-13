@@ -1,8 +1,11 @@
 fputs(
-"              Using this, you can make the curl requests(s)  use  a  specified\n"
-"              address  and  prevent the otherwise normally resolved address to\n"
-"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
-"              on  the  command line. The port number should be the number used\n"
-"              for the specific protocol the host will be used  for.  It  means\n"
-"              you  need several entries if you want to provide address for the\n"
+"              overwritten.  If  you  want  the server to be able to choose the\n"
+"              file name refer to -J, --remote-header-name which can be used in\n"
+"              addition  to  this option. If the server chooses a file name and\n"
+"              that name already exists it will not be overwritten.\n"
+"\n"
+"              There is no URL decoding done on the file name. If it has %20 or\n"
+"              other  URL  encoded parts of the name, they will end up as-is as\n"
+"              file name.\n"
+"\n"
 , stdout);

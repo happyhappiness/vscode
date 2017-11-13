@@ -1,2 +1,1 @@
-error(_("Could not parse parent commit %s\n"),
-				oid_to_hex(&parent->object.oid));
+error(_("Must specify a notes ref to merge"));

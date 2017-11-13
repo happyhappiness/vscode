@@ -1,33 +1,101 @@
-void ssl_io_filter_init(conn_rec *c, SSL *ssl)
+static int filter_lookup(ap_filter_t *f, ap_filter_rec_t *filter)
 {
-    ssl_filter_ctx_t *filter_ctx;
+    ap_filter_provider_t *provider;
+    const char *str = NULL;
+    char *str1;
+    int match;
+    int err = 0;
+    unsigned int proto_flags;
+    request_rec *r = f->r;
+    harness_ctx *ctx = f->ctx;
+    provider_ctx *pctx;
+    mod_filter_ctx *rctx = ap_get_module_config(r->request_config,
+                                                &filter_module);
 
-    filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
+    /* Check registered providers in order */
+    for (provider = filter->providers; provider; provider = provider->next) {
+        match = ap_expr_eval(r, provider->expr, &err, NULL, ap_expr_string, NULL);
+        if (err) {
+            /* log error but accept match value ? */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Error evaluating filter dispatch condition");
+        }
 
-    filter_ctx->config          = myConnConfig(c);
+        if (match) {
+            /* condition matches this provider */
+#ifndef NO_PROTOCOL
+            /* check protocol
+             *
+             * FIXME:
+             * This is a quick hack and almost certainly buggy.
+             * The idea is that by putting this in mod_filter, we relieve
+             * filter implementations of the burden of fixing up HTTP headers
+             * for cases that are routinely affected by filters.
+             *
+             * Default is ALWAYS to do nothing, so as not to tread on the
+             * toes of filters which want to do it themselves.
+             *
+             */
+            proto_flags = provider->frec->proto_flags;
 
-    filter_ctx->nobuffer        = 0;
-    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
-                                                   filter_ctx, NULL, c);
+            /* some specific things can't happen in a proxy */
+            if (r->proxyreq) {
+                if (proto_flags & AP_FILTER_PROTO_NO_PROXY) {
+                    /* can't use this provider; try next */
+                    continue;
+                }
 
-    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
-    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);
+                if (proto_flags & AP_FILTER_PROTO_TRANSFORM) {
+                    str = apr_table_get(r->headers_out, "Cache-Control");
+                    if (str) {
+                        str1 = apr_pstrdup(r->pool, str);
+                        ap_str_tolower(str1);
+                        if (strstr(str1, "no-transform")) {
+                            /* can't use this provider; try next */
+                            continue;
+                        }
+                    }
+                    apr_table_addn(r->headers_out, "Warning",
+                                   apr_psprintf(r->pool,
+                                                "214 %s Transformation applied",
+                                                r->hostname));
+                }
+            }
 
-    /* We insert a clogging input filter. Let the core know. */
-    c->clogging_input_filters = 1;
-    
-    ssl_io_input_add_filter(filter_ctx, c, ssl);
+            /* things that are invalidated if the filter transforms content */
+            if (proto_flags & AP_FILTER_PROTO_CHANGE) {
+                apr_table_unset(r->headers_out, "Content-MD5");
+                apr_table_unset(r->headers_out, "ETag");
+                if (proto_flags & AP_FILTER_PROTO_CHANGE_LENGTH) {
+                    apr_table_unset(r->headers_out, "Content-Length");
+                }
+            }
 
-    SSL_set_bio(ssl, filter_ctx->pbioRead, filter_ctx->pbioWrite);
-    filter_ctx->pssl            = ssl;
+            /* no-cache is for a filter that has different effect per-hit */
+            if (proto_flags & AP_FILTER_PROTO_NO_CACHE) {
+                apr_table_unset(r->headers_out, "Last-Modified");
+                apr_table_addn(r->headers_out, "Cache-Control", "no-cache");
+            }
 
-    apr_pool_cleanup_register(c->pool, (void*)filter_ctx,
-                              ssl_io_filter_cleanup, apr_pool_cleanup_null);
-
-    if (c->base_server->loglevel >= APLOG_DEBUG) {
-        BIO_set_callback(SSL_get_rbio(ssl), ssl_io_data_cb);
-        BIO_set_callback_arg(SSL_get_rbio(ssl), (void *)ssl);
+            if (proto_flags & AP_FILTER_PROTO_NO_BYTERANGE) {
+                apr_table_unset(r->headers_out, "Accept-Ranges");
+            }
+            else if (rctx && rctx->range) {
+                /* restore range header we saved earlier */
+                apr_table_setn(r->headers_in, "Range", rctx->range);
+                rctx->range = NULL;
+            }
+#endif
+            for (pctx = ctx->init_ctx; pctx; pctx = pctx->next) {
+                if (pctx->provider == provider) {
+                    ctx->fctx = pctx->ctx ;
+                }
+            }
+            ctx->func = provider->frec->filter_func.out_func;
+            return 1;
+        }
     }
 
-    return;
+    /* No provider matched */
+    return 0;
 }

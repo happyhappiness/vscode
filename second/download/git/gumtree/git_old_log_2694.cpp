@@ -1,1 +1,0 @@
-die("internal bug in trailer.c");

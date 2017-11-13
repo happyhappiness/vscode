@@ -1,8 +1,12 @@
 fputs(
-"              (SSL)  Tells  curl to use the specified certificate directory to\n"
-"              verify the peer. Multiple paths can be  provided  by  separating\n"
-"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
-"              be in PEM format, and if curl  is  built  against  OpenSSL,  the\n"
-"              directory  must  have  been processed using the c_rehash utility\n"
-"              supplied with OpenSSL. Using --capath can allow  OpenSSL-powered\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --engine <name>\n"
+"              Select  the  OpenSSL crypto engine to use for cipher operations.\n"
+"              Use --engine list  to  print  a  list  of  build-time  supported\n"
+"              engines.  Note  that  not  all  (or  none) of the engines may be\n"
+"              available at run-time.\n"
+"\n"
+"       --environment\n"
+"              (RISC OS ONLY) Sets a range of environment variables, using  the\n"
 , stdout);

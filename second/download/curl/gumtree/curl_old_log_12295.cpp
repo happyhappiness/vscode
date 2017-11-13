@@ -1,11 +1,10 @@
 fputs(
-"              by default curl enables them.\n"
+"              cally  used for FTP on Unix. If used with HTTP, curl will enable\n"
+"              user authentication. See netrc(5) ftp(1) for details on the file\n"
+"              format.  Curl  will  not  complain if that file doesn't have the\n"
+"              right permissions (it should not be either world- or group-read-\n"
+"              able).  The environment variable \"HOME\" is used to find the home\n"
+"              directory.\n"
 "\n"
-"              Note  that  this  is the negated option name documented. You can\n"
-"              thus use --keepalive to enforce keepalive.\n"
-"\n"
-"       --no-sessionid\n"
-"              (SSL) Disable curl's use of SSL session-ID caching.  By  default\n"
-"              all  transfers are done using the cache. Note that while nothing\n"
-"              should ever get hurt by attempting  to  reuse  SSL  session-IDs,\n"
+"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
 , stdout);

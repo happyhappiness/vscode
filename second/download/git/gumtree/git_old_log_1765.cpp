@@ -1,1 +1,2 @@
-die(_("Malformed options sheet: %s"), opts_file);
+error("cannot rename %s to %s",
+					newlog_path, log_file);

@@ -1,12 +1,9 @@
 fputs(
-"              To view the request headers, consider the -v, --verbose option.\n"
+"              should  not  replace internally set headers without knowing per-\n"
+"              fectly well what you're doing. Remove an internal header by giv-\n"
+"              ing  a  replacement  without  content  on  the right side of the\n"
+"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
+"              value  then its header must be terminated with a semicolon, such\n"
+"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
 "\n"
-"              See also -v, --verbose.\n"
-"\n"
-"       -k, --insecure\n"
-"              (TLS) By default, every SSL connection curl makes is verified to\n"
-"              be secure. This option allows curl to proceed and  operate  even\n"
-"              for server connections otherwise considered insecure.\n"
-"\n"
-"              The  server  connection  is verified by making sure the server's\n"
 , stdout);

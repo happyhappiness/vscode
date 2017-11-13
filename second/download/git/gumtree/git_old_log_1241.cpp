@@ -1,1 +1,2 @@
-die(_("%s: cannot update the ref"), ref.buf);
+status_printf_ln(s, GIT_COLOR_NORMAL,
+					"%s", only_include_assumed);

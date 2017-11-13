@@ -1,1 +1,1 @@
-fprintf(FINFO,"server_sender starting pid=%d\n",(int)getpid());
+fprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);

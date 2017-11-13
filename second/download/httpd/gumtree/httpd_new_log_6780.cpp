@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(02600)
-                         "existing shared memory for %s could not be used (failed contents check)",
-                         fname);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
+                      H2_STRM_MSG(stream, "->03198: no task"));

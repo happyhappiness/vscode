@@ -1,2 +1,1 @@
-packet_buf_write(req_buf,
-				 "%.*s", (int)(np - cp), cp);
+die("The commit %s is corrupt", oid_to_hex(&b->oid));

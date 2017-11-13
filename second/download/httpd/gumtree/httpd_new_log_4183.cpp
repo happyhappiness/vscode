@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02208)
-                     "SSL proxy client cert initialization failed");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "canonicalising URL %s", url);

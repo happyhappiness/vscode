@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00518)
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                         s, APLOGNO(00961) "%s: failed to enable ssl support "
+                         "for %pI (%s)", proxy_function,
+                         backend_addr, conn->hostname);

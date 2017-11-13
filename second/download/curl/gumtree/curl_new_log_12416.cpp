@@ -1,11 +1,9 @@
 fputs(
-"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
-"              PEM is assumed.\n"
+"              See --cert and --key to specify them independently.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --cacert <CA certificate>\n"
-"              (SSL) Tells curl to use the specified certificate file to verify\n"
-"              the peer. The file may contain  multiple  CA  certificates.  The\n"
-"              certificate(s)  must be in PEM format. Normally curl is built to\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
+"              can tell curl the nickname of the certificate to use within  the\n"
+"              NSS  database defined by the environment variable SSL_DIR (or by\n"
+"              default /etc/pki/nssdb). If the NSS  PEM  PKCS#11  module  (lib-\n"
+"              nsspem.so)  is  available  then  PEM files may be loaded. If you\n"
 , stdout);

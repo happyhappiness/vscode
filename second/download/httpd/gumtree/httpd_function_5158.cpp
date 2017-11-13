@@ -1,92 +1,78 @@
-static int proxy_wstunnel_handler(request_rec *r, proxy_worker *worker,
-                             proxy_server_conf *conf,
-                             char *url, const char *proxyname,
-                             apr_port_t proxyport)
+static void set_signals(void)
 {
-    int status;
-    char server_portstr[32];
-    proxy_conn_rec *backend = NULL;
-    const char *upgrade;
-    char *scheme;
-    int retry;
-    conn_rec *c = r->connection;
-    apr_pool_t *p = r->pool;
-    apr_uri_t *uri;
-    int is_ssl = 0;
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
+#endif
 
-    if (strncasecmp(url, "wss:", 4) == 0) {
-        scheme = "WSS";
-        is_ssl = 1;
-    }
-    else if (strncasecmp(url, "ws:", 3) == 0) {
-        scheme = "WS";
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02450) "declining URL %s", url);
-        return DECLINED;
+    if (!one_process) {
+        ap_fatal_signal_setup(ap_server_conf, pconf);
     }
 
-    upgrade = apr_table_get(r->headers_in, "Upgrade");
-    if (!upgrade || strcasecmp(upgrade, "WebSocket") != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02900)
-                      "declining URL %s  (not WebSocket)", url);
-        return DECLINED;
+#ifndef NO_USE_SIGACTION
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
+#ifdef AP_SIG_GRACEFUL_STOP
+    if (sigaction(AP_SIG_GRACEFUL_STOP, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
+#endif
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
+#endif
+#ifdef SIGXCPU
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXCPU, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGXCPU)");
+#endif
+#ifdef SIGXFSZ
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGXFSZ)");
+#endif
+#ifdef SIGPIPE
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGPIPE)");
+#endif
+
+    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy
+     * processing one
+     */
+    sigaddset(&sa.sa_mask, SIGHUP);
+    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+    sa.sa_handler = restart;
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+#else
+    if (!one_process) {
+#ifdef SIGXCPU
+        apr_signal(SIGXCPU, SIG_DFL);
+#endif /* SIGXCPU */
+#ifdef SIGXFSZ
+        apr_signal(SIGXFSZ, SIG_DFL);
+#endif /* SIGXFSZ */
     }
 
-    uri = apr_palloc(p, sizeof(*uri));
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02451) "serving URL %s", url);
+    apr_signal(SIGTERM, sig_term);
+#ifdef SIGHUP
+    apr_signal(SIGHUP, restart);
+#endif /* SIGHUP */
+#ifdef AP_SIG_GRACEFUL
+    apr_signal(AP_SIG_GRACEFUL, restart);
+#endif /* AP_SIG_GRACEFUL */
+#ifdef AP_SIG_GRACEFUL_STOP
+    apr_signal(AP_SIG_GRACEFUL_STOP, sig_term);
+#endif /* AP_SIG_GRACEFUL */
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);
+#endif /* SIGPIPE */
 
-    /* create space for state information */
-    status = ap_proxy_acquire_connection(scheme, &backend, worker,
-                                         r->server);
-    if (status != OK) {
-        if (backend) {
-            backend->close = 1;
-            ap_proxy_release_connection(scheme, backend, r->server);
-        }
-        return status;
-    }
-
-    backend->is_ssl = is_ssl;
-    backend->close = 0;
-
-    retry = 0;
-    while (retry < 2) {
-        char *locurl = url;
-        /* Step One: Determine Who To Connect To */
-        status = ap_proxy_determine_connection(p, r, conf, worker, backend,
-                                               uri, &locurl, proxyname, proxyport,
-                                               server_portstr,
-                                               sizeof(server_portstr));
-
-        if (status != OK)
-            break;
-
-        /* Step Two: Make the Connection */
-        if (ap_proxy_connect_backend(scheme, backend, worker, r->server)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02452)
-                          "failed to make connection to backend: %s",
-                          backend->hostname);
-            status = HTTP_SERVICE_UNAVAILABLE;
-            break;
-        }
-        /* Step Three: Create conn_rec */
-        if (!backend->connection) {
-            if ((status = ap_proxy_connection_create(scheme, backend,
-                                                     c, r->server)) != OK)
-                break;
-        }
-
-        backend->close = 1; /* must be after ap_proxy_determine_connection */
-
-
-        /* Step Three: Process the Request */
-        status = proxy_wstunnel_request(p, r, backend, worker, conf, uri, locurl,
-                                      server_portstr);
-        break;
-    }
-
-    /* Do not close the socket */
-    ap_proxy_release_connection(scheme, backend, r->server);
-    return status;
+#endif
 }

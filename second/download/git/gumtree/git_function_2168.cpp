@@ -1,18 +1,19 @@
-int create_symref(const char *refname, const char *target, const char *logmsg)
+int commit_lock_file(struct lock_file *lk)
 {
-	struct strbuf err = STRBUF_INIT;
-	struct ref_lock *lock;
-	int ret;
+	static struct strbuf result_file = STRBUF_INIT;
+	int err;
 
-	lock = lock_ref_sha1_basic(refname, NULL, NULL, NULL, REF_NODEREF, NULL,
-				   &err);
-	if (!lock) {
-		error("%s", err.buf);
-		strbuf_release(&err);
-		return -1;
-	}
+	if (!lk->active)
+		die("BUG: attempt to commit unlocked object");
 
-	ret = create_symref_locked(lock, refname, target, logmsg);
-	unlock_ref(lock);
-	return ret;
+	if (lk->filename.len <= LOCK_SUFFIX_LEN ||
+	    strcmp(lk->filename.buf + lk->filename.len - LOCK_SUFFIX_LEN, LOCK_SUFFIX))
+		die("BUG: lockfile filename corrupt");
+
+	/* remove ".lock": */
+	strbuf_add(&result_file, lk->filename.buf,
+		   lk->filename.len - LOCK_SUFFIX_LEN);
+	err = commit_lock_file_to(lk, result_file.buf);
+	strbuf_reset(&result_file);
+	return err;
 }

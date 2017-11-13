@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+printf("%s %s\n", sha1_to_hex(posn->old_sha1), posn->name);

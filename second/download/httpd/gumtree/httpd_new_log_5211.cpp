@@ -1,5 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_INFO, 0, p, APLOGNO(02819)
-                              "Using %i listeners bucket(s) based on %i "
-                              "online CPU cores and a ratio of %i",
-                              *num_buckets, num_online_cores,
-                              ap_listencbratio);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf, APLOGNO(00340)
+                                     "winnt_mpm: falling back to "
+                                     "'AcceptFilter none'.");

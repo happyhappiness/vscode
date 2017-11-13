@@ -1,1 +1,1 @@
-fputs(output, stderr);
+fprintf(stderr, "\n");

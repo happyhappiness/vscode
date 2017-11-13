@@ -1,2 +1,1 @@
-fprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
-					getpid(),8,ret==-1?strerror(errno):"EOF");
+fprintf(f,"    --numeric-ids        don't map uid/gid values by user/group name\n");

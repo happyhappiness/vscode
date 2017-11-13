@@ -1,8 +1,8 @@
-static void *session_malloc(size_t size, void *ctx)
+static APR_INLINE int ajp_log_overflow(ajp_msg_t *msg, const char *context)
 {
-    h2_session *session = ctx;
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
-                  "h2_session(%ld): malloc(%ld)",
-                  session->id, (long)size);
-    return malloc(size);
+    ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                 "%s(): BufferOverflowException %" APR_SIZE_T_FMT
+                 " %" APR_SIZE_T_FMT,
+                 context, msg->pos, msg->len);
+    return AJP_EOVERFLOW;
 }

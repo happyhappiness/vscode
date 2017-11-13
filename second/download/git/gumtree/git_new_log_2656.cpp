@@ -1,1 +1,1 @@
-die("BUG: fatal merge failure, shouldn't happen.");
+die("strange hostname '%s' blocked", ssh_host);

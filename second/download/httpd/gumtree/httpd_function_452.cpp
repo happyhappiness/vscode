@@ -1,130 +1,245 @@
-static apr_status_t spool_reqbody_cl(apr_pool_t *p,
-                                     request_rec *r,
-                                     proxy_http_conn_t *p_conn,
-                                     conn_rec *origin,
-                                     apr_bucket_brigade *header_brigade,
-                                     apr_bucket_brigade *input_brigade,
-                                     int force_cl)
+static void test(void)
 {
-    int seen_eos = 0;
+    apr_time_t now;
+    apr_int16_t rv;
+    long i;
     apr_status_t status;
-    apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
-    apr_bucket_brigade *body_brigade;
-    apr_bucket *e;
-    apr_off_t bytes, bytes_spooled = 0, fsize = 0;
-    apr_file_t *tmpfile = NULL;
+#ifdef NOT_ASCII
+    apr_size_t inbytes_left, outbytes_left;
+#endif
 
-    body_brigade = apr_brigade_create(p, bucket_alloc);
+    if (isproxy) {
+	connecthost = apr_pstrdup(cntxt, proxyhost);
+	connectport = proxyport;
+    }
+    else {
+	connecthost = apr_pstrdup(cntxt, hostname);
+	connectport = port;
+    }
 
-    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
-    {
-        /* If this brigade contains EOS, either stop or remove it. */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            seen_eos = 1;
+    if (!use_html) {
+	printf("Benchmarking %s ", hostname);
+	if (isproxy)
+	    printf("[through %s:%d] ", proxyhost, proxyport);
+	printf("(be patient)%s",
+	       (heartbeatres ? "\n" : "..."));
+	fflush(stdout);
+    }
 
-            /* We can't pass this EOS to the output_filters. */
-            e = APR_BRIGADE_LAST(input_brigade);
-            apr_bucket_delete(e);
+    now = apr_time_now();
+
+    con = calloc(concurrency * sizeof(struct connection), 1);
+    
+    stats = calloc(requests * sizeof(struct data), 1);
+
+    if ((status = apr_pollset_create(&readbits, concurrency, cntxt, 0)) != APR_SUCCESS) {
+        apr_err("apr_pollset_create failed", status);
+    }
+
+    /* setup request */
+    if (posting <= 0) {
+	sprintf(request, "%s %s HTTP/1.0\r\n"
+		"User-Agent: ApacheBench/%s\r\n"
+		"%s" "%s" "%s"
+		"Host: %s%s\r\n"
+		"Accept: */*\r\n"
+		"%s" "\r\n",
+		(posting == 0) ? "GET" : "HEAD",
+		(isproxy) ? fullurl : path,
+		AP_AB_BASEREVISION,
+		keepalive ? "Connection: Keep-Alive\r\n" : "",
+		cookie, auth, host_field, colonhost, hdrs);
+    }
+    else {
+	sprintf(request, "POST %s HTTP/1.0\r\n"
+		"User-Agent: ApacheBench/%s\r\n"
+		"%s" "%s" "%s"
+		"Host: %s%s\r\n"
+		"Accept: */*\r\n"
+		"Content-length: %" APR_SIZE_T_FMT "\r\n"
+		"Content-type: %s\r\n"
+		"%s"
+		"\r\n",
+		(isproxy) ? fullurl : path,
+		AP_AB_BASEREVISION,
+		keepalive ? "Connection: Keep-Alive\r\n" : "",
+		cookie, auth,
+		host_field, colonhost, postlen,
+		(content_type[0]) ? content_type : "text/plain", hdrs);
+    }
+
+    if (verbosity >= 2)
+	printf("INFO: POST header == \n---\n%s\n---\n", request);
+
+    reqlen = strlen(request);
+
+    /*
+     * Combine headers and (optional) post file into one contineous buffer
+     */
+    if (posting == 1) {
+	char *buff = malloc(postlen + reqlen + 1);
+        if (!buff) {
+            fprintf(stderr, "error creating request buffer: out of memory\n");
+            return;
         }
+	strcpy(buff, request);
+	strcpy(buff + reqlen, postdata);
+	request = buff;
+    }
 
-        apr_brigade_length(input_brigade, 1, &bytes);
+#ifdef NOT_ASCII
+    inbytes_left = outbytes_left = reqlen;
+    status = apr_xlate_conv_buffer(to_ascii, request, &inbytes_left,
+				   request, &outbytes_left);
+    if (status || inbytes_left || outbytes_left) {
+	fprintf(stderr, "only simple translation is supported (%d/%u/%u)\n",
+		status, inbytes_left, outbytes_left);
+	exit(1);
+    }
+#endif				/* NOT_ASCII */
 
-        if (bytes_spooled + bytes > MAX_MEM_SPOOL) {
-            /* can't spool any more in memory; write latest brigade to disk */
-            if (tmpfile == NULL) {
-                const char *temp_dir;
-                char *template;
+    /* This only needs to be done once */
+#ifdef USE_SSL
+    if (ssl != 1)
+#endif
+    if ((rv = apr_sockaddr_info_get(&destsa, connecthost, APR_UNSPEC, connectport, 0, cntxt))
+	!= APR_SUCCESS) {
+	char buf[120];
+	apr_snprintf(buf, sizeof(buf),
+		     "apr_sockaddr_info_get() for %s", connecthost);
+	apr_err(buf, rv);
+    }
 
-                status = apr_temp_dir_get(&temp_dir, p);
-                if (status != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: search for temporary directory failed");
-                    return status;
-                }
-                apr_filepath_merge(&template, temp_dir,
-                                   "modproxy.tmp.XXXXXX",
-                                   APR_FILEPATH_NATIVE, p);
-                status = apr_file_mktemp(&tmpfile, template, 0, p);
-                if (status != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: creation of temporary file in directory %s failed",
-                                 temp_dir);
-                    return status;
-                }
-            }
-            for (e = APR_BRIGADE_FIRST(input_brigade);
-                 e != APR_BRIGADE_SENTINEL(input_brigade);
-                 e = APR_BUCKET_NEXT(e)) {
-                const char *data;
-                apr_size_t bytes_read, bytes_written;
+    /* ok - lets start */
+    start = apr_time_now();
 
-                apr_bucket_read(e, &data, &bytes_read, APR_BLOCK_READ);
-                status = apr_file_write_full(tmpfile, data, bytes_read, &bytes_written);
-                if (status != APR_SUCCESS) {
-                    const char *tmpfile_name;
+    /* initialise lots of requests */
+    for (i = 0; i < concurrency; i++) {
+	con[i].socknum = i;
+	start_connect(&con[i]);
+    }
 
-                    if (apr_file_name_get(&tmpfile_name, tmpfile) != APR_SUCCESS) {
-                        tmpfile_name = "(unknown)";
+    while (done < requests) {
+	apr_int32_t n;
+	apr_int32_t timed;
+        const apr_pollfd_t *pollresults;
+
+	/* check for time limit expiry */
+	now = apr_time_now();
+	timed = (apr_int32_t)apr_time_sec(now - start);
+	if (tlimit && timed >= tlimit) {
+	    requests = done;	/* so stats are correct */
+	    break;		/* no need to do another round */
+	}
+
+	n = concurrency;
+#ifdef USE_SSL
+        if (ssl == 1)
+            status = APR_SUCCESS;
+        else
+#endif
+	status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+	if (status != APR_SUCCESS)
+	    apr_err("apr_poll", status);
+
+	if (!n) {
+	    err("\nServer timed out\n\n");
+	}
+
+	for (i = 0; i < n; i++) {
+            const apr_pollfd_t *next_fd = &(pollresults[i]);
+            struct connection *c = next_fd->client_data;
+
+	    /*
+	     * If the connection isn't connected how can we check it?
+	     */
+	    if (c->state == STATE_UNCONNECTED)
+		continue;
+
+#ifdef USE_SSL
+            if (ssl == 1)
+                rv = APR_POLLIN;
+            else
+#endif
+            rv = next_fd->rtnevents;
+
+	    /*
+	     * Notes: APR_POLLHUP is set after FIN is received on some
+	     * systems, so treat that like APR_POLLIN so that we try to read
+	     * again.
+	     *
+	     * Some systems return APR_POLLERR with APR_POLLHUP.  We need to
+	     * call read_connection() for APR_POLLHUP, so check for
+	     * APR_POLLHUP first so that a closed connection isn't treated
+	     * like an I/O error.  If it is, we never figure out that the
+	     * connection is done and we loop here endlessly calling
+	     * apr_poll().
+	     */
+	    if ((rv & APR_POLLIN) || (rv & APR_POLLPRI) || (rv & APR_POLLHUP))
+		read_connection(c);
+	    if ((rv & APR_POLLERR) || (rv & APR_POLLNVAL)) {
+		bad++;
+		err_except++;
+		start_connect(c);
+		continue;
+	    }
+	    if (rv & APR_POLLOUT) {
+                if (c->state == STATE_CONNECTING) {
+                    apr_pollfd_t remove_pollfd;
+                    rv = apr_connect(c->aprsock, destsa);
+                    remove_pollfd.desc_type = APR_POLL_SOCKET;
+                    remove_pollfd.desc.s = c->aprsock;
+                    apr_pollset_remove(readbits, &remove_pollfd);
+                    if (rv != APR_SUCCESS) {
+                        apr_socket_close(c->aprsock);
+                        err_conn++;
+                        if (bad++ > 10) {
+                            fprintf(stderr,
+                                    "\nTest aborted after 10 failures\n\n");
+                            apr_err("apr_connect()", rv);
+                        }
+                        c->state = STATE_UNCONNECTED;
+                        start_connect(c);
+                        continue;
                     }
-                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: write to temporary file %s failed",
-                                 tmpfile_name);
-                    return status;
+                    else {
+                        c->state = STATE_CONNECTED;
+                        write_request(c);
+                    }
                 }
-                AP_DEBUG_ASSERT(bytes_read == bytes_written);
-                fsize += bytes_written;
+                else {
+                    write_request(c);
+                }
             }
-            apr_brigade_cleanup(input_brigade);
-        }
-        else {
-            APR_BRIGADE_CONCAT(body_brigade, input_brigade);
-        }
-        
-        bytes_spooled += bytes;
 
-        if (seen_eos) {
-            break;
-        }
-
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                HUGE_STRING_LEN);
-
-        if (status != APR_SUCCESS) {
-            return status;
-        }
+	    /*
+	     * When using a select based poll every time we check the bits
+	     * are reset. In 1.3's ab we copied the FD_SET's each time
+	     * through, but here we're going to check the state and if the
+	     * connection is in STATE_READ or STATE_CONNECTING we'll add the
+	     * socket back in as APR_POLLIN.
+	     */
+#ifdef USE_SSL
+            if (ssl != 1)
+#endif
+                if (c->state == STATE_READ) {
+                    apr_pollfd_t new_pollfd;
+                    new_pollfd.desc_type = APR_POLL_SOCKET;
+                    new_pollfd.reqevents = APR_POLLIN;
+                    new_pollfd.desc.s = c->aprsock;
+                    new_pollfd.client_data = c;
+                    apr_pollset_add(readbits, &new_pollfd);
+                }
+	}
     }
 
-    if (bytes_spooled || force_cl) {
-        add_cl(p, bucket_alloc, header_brigade, apr_off_t_toa(p, bytes_spooled));
-    }
-    terminate_headers(bucket_alloc, header_brigade);
-    APR_BRIGADE_CONCAT(header_brigade, body_brigade);
-    if (tmpfile) {
-        /* For platforms where the size of the file may be larger than
-         * that which can be stored in a single bucket (where the
-         * length field is an apr_size_t), split it into several
-         * buckets: */
-        if (sizeof(apr_off_t) > sizeof(apr_size_t)
-            && fsize > AP_MAX_SENDFILE) {
-            e = apr_bucket_file_create(tmpfile, 0, AP_MAX_SENDFILE, p,
-                                       bucket_alloc);
-            while (fsize > AP_MAX_SENDFILE) {
-                apr_bucket *ce;
-                apr_bucket_copy(e, &ce);
-                APR_BRIGADE_INSERT_TAIL(header_brigade, ce);
-                e->start += AP_MAX_SENDFILE;
-                fsize -= AP_MAX_SENDFILE;
-            }
-            e->length = (apr_size_t)fsize; /* Resize just the last bucket */
-        }
-        else {
-            e = apr_bucket_file_create(tmpfile, 0, (apr_size_t)fsize, p,
-                                       bucket_alloc);
-        }
-        APR_BRIGADE_INSERT_TAIL(header_brigade, e);
-    }
-    /* This is all a single brigade, pass with flush flagged */
-    status = pass_brigade(bucket_alloc, r, p_conn, origin, header_brigade, 1);
-    return status;
+    if (heartbeatres)
+	fprintf(stderr, "Finished %ld requests\n", done);
+    else
+	printf("..done\n");
+
+    if (use_html)
+	output_html_results();
+    else
+	output_results();
 }

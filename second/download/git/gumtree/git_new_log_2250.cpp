@@ -1,3 +1,2 @@
-error(_("Cannot delete branch '%s' "
-					"checked out at '%s'"),
-				      bname.buf, wt->path);
+die_errno("Could not open file %s for reading",
+			  git_path("%s", fname));

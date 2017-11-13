@@ -1,1 +1,0 @@
-io_printf(f_out, "@ERROR: pre-xfer exec preparation failed\n");

@@ -1,1 +1,2 @@
-die_errno(_("could not open '%s'"), git_path(commit_editmsg));
+die("an empty %s object %s?",
+		    typename(type), oid_to_hex(oid));

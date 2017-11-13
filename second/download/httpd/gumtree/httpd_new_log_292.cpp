@@ -1,1 +1,0 @@
-err("Authentication credentials too long\n");

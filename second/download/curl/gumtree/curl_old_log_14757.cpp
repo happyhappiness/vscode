@@ -1,11 +1,9 @@
 fputs(
-"              As part of the GSS-API negotiation a protection mode is  negoti-\n"
-"              ated.  RFC  1961 says in section 4.3/4.4 it should be protected,\n"
-"              but the NEC  reference  implementation  does  not.   The  option\n"
-"              --socks5-gssapi-nec  allows the unprotected exchange of the pro-\n"
-"              tection mode negotiation.\n"
+"              If a transient error is returned when curl tries  to  perform  a\n"
+"              transfer,  it  will retry this number of times before giving up.\n"
+"              Setting the number to 0 makes curl do no retries (which  is  the\n"
+"              default).  Transient  error  means either: a timeout, an FTP 4xx\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"              Added in 7.19.4.\n"
-"\n"
-"       --socks5-gssapi-service <name>\n"
+"              When curl is about to retry a transfer, it will first  wait  one\n"
 , stdout);

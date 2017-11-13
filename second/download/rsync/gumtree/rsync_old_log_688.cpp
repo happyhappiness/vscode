@@ -1,1 +1,1 @@
-out_of_memory("server_options");
+io_printf(fd,"@ERROR: invalid gid %s\n", p);

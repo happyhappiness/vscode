@@ -1,269 +1,147 @@
-static int uldap_cache_checkuserid(request_rec *r, util_ldap_connection_t *ldc,
-                                   const char *url, const char *basedn,
-                                   int scope, char **attrs, const char *filter,
-                                   const char *bindpw, const char **binddn,
-                                   const char ***retvals)
+static apr_status_t on_stream_headers(h2_session *session, h2_stream *stream,  
+                                      h2_headers *headers, apr_off_t len,
+                                      int eos)
 {
-    const char **vals = NULL;
-    int numvals = 0;
-    int result = 0;
-    LDAPMessage *res, *entry;
-    char *dn;
-    int count;
-    int failures = 0;
-    util_url_node_t *curl;              /* Cached URL node */
-    util_url_node_t curnode;
-    util_search_node_t *search_nodep;   /* Cached search node */
-    util_search_node_t the_search_node;
-    apr_time_t curtime;
+    apr_status_t status = APR_SUCCESS;
+    int rv = 0;
 
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
-        &ldap_module);
-
-    /* Get the cache node for this url */
-    LDAP_CACHE_LOCK();
-    curnode.url = url;
-    curl = (util_url_node_t *)util_ald_cache_fetch(st->util_ldap_cache,
-                                                   &curnode);
-    if (curl == NULL) {
-        curl = util_ald_create_caches(st, url);
+    ap_assert(session);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  H2_STRM_MSG(stream, "on_headers"));
+    if (headers->status < 100) {
+        h2_stream_rst(stream, headers->status);
+        goto leave;
     }
-    LDAP_CACHE_UNLOCK();
-
-    if (curl) {
-        LDAP_CACHE_LOCK();
-        the_search_node.username = filter;
-        search_nodep = util_ald_cache_fetch(curl->search_cache,
-                                            &the_search_node);
-        if (search_nodep != NULL) {
-
-            /* found entry in search cache... */
-            curtime = apr_time_now();
-
-            /*
-             * Remove this item from the cache if its expired. If the sent
-             * password doesn't match the storepassword, the entry will
-             * be removed and readded later if the credentials pass
-             * authentication.
-             */
-            if ((curtime - search_nodep->lastbind) > st->search_cache_ttl) {
-                /* ...but entry is too old */
-                util_ald_cache_remove(curl->search_cache, search_nodep);
-            }
-            else if (   (search_nodep->bindpw)
-                     && (search_nodep->bindpw[0] != '\0')
-                     && (strcmp(search_nodep->bindpw, bindpw) == 0))
-            {
-                /* ...and entry is valid */
-                *binddn = apr_pstrdup(r->pool, search_nodep->dn);
-                if (attrs) {
-                    int i;
-                    *retvals = apr_palloc(r->pool, sizeof(char *) * search_nodep->numvals);
-                    for (i = 0; i < search_nodep->numvals; i++) {
-                        (*retvals)[i] = apr_pstrdup(r->pool, search_nodep->vals[i]);
-                    }
-                }
-                LDAP_CACHE_UNLOCK();
-                ldc->reason = "Authentication successful (cached)";
-                return LDAP_SUCCESS;
-            }
-        }
-        /* unlock this read lock */
-        LDAP_CACHE_UNLOCK();
-    }
-
-    /*
-     * At this point, there is no valid cached search, so lets do the search.
-     */
-
-    /*
-     * If LDAP operation fails due to LDAP_SERVER_DOWN, control returns here.
-     */
-start_over:
-    if (failures > st->retries) {
-        return result;
-    }
-
-    if (failures > 0 && st->retry_delay > 0) {
-        apr_sleep(st->retry_delay);
-    }
-
-    if (LDAP_SUCCESS != (result = uldap_connection_open(r, ldc))) {
-        return result;
-    }
-
-    /* try do the search */
-    result = ldap_search_ext_s(ldc->ldap,
-                               (char *)basedn, scope,
-                               (char *)filter, attrs, 0,
-                               NULL, NULL, st->opTimeout, APR_LDAP_SIZELIMIT, &res);
-    if (AP_LDAP_IS_SERVER_DOWN(result))
-    {
-        ldc->reason = "ldap_search_ext_s() for user failed with server down";
-        uldap_connection_unbind(ldc);
-        failures++;
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
-        goto start_over;
-    }
-
-    if (result == LDAP_TIMEOUT) {
-        ldc->reason = "ldap_search_ext_s() for user failed with timeout";
-        uldap_connection_unbind(ldc);
-        failures++;
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
-        goto start_over;
-    }
-
-
-    /* if there is an error (including LDAP_NO_SUCH_OBJECT) return now */
-    if (result != LDAP_SUCCESS) {
-        ldc->reason = "ldap_search_ext_s() for user failed";
-        return result;
-    }
-
-    /*
-     * We should have found exactly one entry; to find a different
-     * number is an error.
-     */
-    ldc->last_backend_conn = r->request_time;
-    count = ldap_count_entries(ldc->ldap, res);
-    if (count != 1)
-    {
-        if (count == 0 )
-            ldc->reason = "User not found";
-        else
-            ldc->reason = "User is not unique (search found two "
-                          "or more matches)";
-        ldap_msgfree(res);
-        return LDAP_NO_SUCH_OBJECT;
-    }
-
-    entry = ldap_first_entry(ldc->ldap, res);
-
-    /* Grab the dn, copy it into the pool, and free it again */
-    dn = ldap_get_dn(ldc->ldap, entry);
-    *binddn = apr_pstrdup(r->pool, dn);
-    ldap_memfree(dn);
-
-    /*
-     * A bind to the server with an empty password always succeeds, so
-     * we check to ensure that the password is not empty. This implies
-     * that users who actually do have empty passwords will never be
-     * able to authenticate with this module. I don't see this as a big
-     * problem.
-     */
-    if (!bindpw || strlen(bindpw) <= 0) {
-        ldap_msgfree(res);
-        ldc->reason = "Empty password not allowed";
-        return LDAP_INVALID_CREDENTIALS;
-    }
-
-    /*
-     * Attempt to bind with the retrieved dn and the password. If the bind
-     * fails, it means that the password is wrong (the dn obviously
-     * exists, since we just retrieved it)
-     */
-    result = uldap_simple_bind(ldc, (char *)*binddn, (char *)bindpw,
-                               st->opTimeout);
-    if (AP_LDAP_IS_SERVER_DOWN(result) ||
-        (result == LDAP_TIMEOUT && failures == 0)) {
-        if (AP_LDAP_IS_SERVER_DOWN(result))
-            ldc->reason = "ldap_simple_bind() to check user credentials "
-                          "failed with server down";
-        else
-            ldc->reason = "ldap_simple_bind() to check user credentials "
-                          "timed out";
-        ldap_msgfree(res);
-        uldap_connection_unbind(ldc);
-        failures++;
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
-        goto start_over;
-    }
-
-    /* failure? if so - return */
-    if (result != LDAP_SUCCESS) {
-        ldc->reason = "ldap_simple_bind() to check user credentials failed";
-        ldap_msgfree(res);
-        uldap_connection_unbind(ldc);
-        return result;
-    }
-    else {
-        /*
-         * We have just bound the connection to a different user and password
-         * combination, which might be reused unintentionally next time this
-         * connection is used from the connection pool.
-         */
-        ldc->must_rebind = 0;
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "LDC %pp used for authn, must be rebound", ldc);
-    }
-
-    /*
-     * Get values for the provided attributes.
-     */
-    if (attrs) {
-        int k = 0;
-        int i = 0;
-        while (attrs[k++]);
-        vals = apr_pcalloc(r->pool, sizeof(char *) * (k+1));
-        numvals = k;
-        while (attrs[i]) {
-            char **values;
-            int j = 0;
-            char *str = NULL;
-            /* get values */
-            values = ldap_get_values(ldc->ldap, entry, attrs[i]);
-            while (values && values[j]) {
-                str = str ? apr_pstrcat(r->pool, str, "; ", values[j], NULL)
-                          : apr_pstrdup(r->pool, values[j]);
-                j++;
-            }
-            ldap_value_free(values);
-            vals[i] = str;
-            i++;
-        }
-        *retvals = vals;
-    }
-
-    /*
-     * Add the new username to the search cache.
-     */
-    if (curl) {
-        LDAP_CACHE_LOCK();
-        the_search_node.username = filter;
-        the_search_node.dn = *binddn;
-        the_search_node.bindpw = bindpw;
-        the_search_node.lastbind = apr_time_now();
-        the_search_node.vals = vals;
-        the_search_node.numvals = numvals;
-
-        /* Search again to make sure that another thread didn't ready insert
-         * this node into the cache before we got here. If it does exist then
-         * update the lastbind
-         */
-        search_nodep = util_ald_cache_fetch(curl->search_cache,
-                                            &the_search_node);
-        if ((search_nodep == NULL) ||
-            (strcmp(*binddn, search_nodep->dn) != 0)) {
-
-            /* Nothing in cache, insert new entry */
-            util_ald_cache_insert(curl->search_cache, &the_search_node);
-        }
-        else if ((!search_nodep->bindpw) ||
-            (strcmp(bindpw, search_nodep->bindpw) != 0)) {
-
-            /* Entry in cache is invalid, remove it and insert new one */
-            util_ald_cache_remove(curl->search_cache, search_nodep);
-            util_ald_cache_insert(curl->search_cache, &the_search_node);
+    else if (stream->has_response) {
+        h2_ngheader *nh;
+        
+        status = h2_res_create_ngtrailer(&nh, stream->pool, headers);
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, 
+                      H2_STRM_LOG(APLOGNO(03072), stream, "submit %d trailers"), 
+                      (int)nh->nvlen);
+        if (status == APR_SUCCESS) {
+            rv = nghttp2_submit_trailer(session->ngh2, stream->id, 
+                                        nh->nv, nh->nvlen);
         }
         else {
-            /* Cache entry is valid, update lastbind */
-            search_nodep->lastbind = the_search_node.lastbind;
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          H2_STRM_LOG(APLOGNO(10024), stream, "invalid trailers"));
+            h2_stream_rst(stream, NGHTTP2_PROTOCOL_ERROR);
         }
-        LDAP_CACHE_UNLOCK();
+        goto leave;
     }
-    ldap_msgfree(res);
+    else {
+        nghttp2_data_provider provider, *pprovider = NULL;
+        h2_ngheader *ngh;
+        const char *note;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                      H2_STRM_LOG(APLOGNO(03073), stream, "submit response %d, REMOTE_WINDOW_SIZE=%u"),
+                      headers->status,
+                      (unsigned int)nghttp2_session_get_stream_remote_window_size(session->ngh2, stream->id));
+        
+        if (!eos || len > 0) {
+            memset(&provider, 0, sizeof(provider));
+            provider.source.fd = stream->id;
+            provider.read_callback = stream_data_cb;
+            pprovider = &provider;
+        }
+        
+        /* If this stream is not a pushed one itself,
+         * and HTTP/2 server push is enabled here,
+         * and the response HTTP status is not sth >= 400,
+         * and the remote side has pushing enabled,
+         * -> find and perform any pushes on this stream
+         *    *before* we submit the stream response itself.
+         *    This helps clients avoid opening new streams on Link
+         *    headers that get pushed right afterwards.
+         * 
+         * *) the response code is relevant, as we do not want to 
+         *    make pushes on 401 or 403 codes and friends. 
+         *    And if we see a 304, we do not push either
+         *    as the client, having this resource in its cache, might
+         *    also have the pushed ones as well.
+         */
+        if (!stream->initiated_on
+            && !stream->has_response
+            && stream->request && stream->request->method
+            && !strcmp("GET", stream->request->method)
+            && (headers->status < 400)
+            && (headers->status != 304)
+            && h2_session_push_enabled(session)) {
+            
+            h2_stream_submit_pushes(stream, headers);
+        }
+        
+        if (!stream->pref_priority) {
+            stream->pref_priority = h2_stream_get_priority(stream, headers);
+        }
+        h2_session_set_prio(session, stream, stream->pref_priority);
+        
+        note = apr_table_get(headers->notes, H2_FILTER_DEBUG_NOTE);
+        if (note && !strcmp("on", note)) {
+            int32_t connFlowIn, connFlowOut;
 
-    ldc->reason = "Authentication successful";
-    return LDAP_SUCCESS;
+            connFlowIn = nghttp2_session_get_effective_local_window_size(session->ngh2); 
+            connFlowOut = nghttp2_session_get_remote_window_size(session->ngh2);
+            headers = h2_headers_copy(stream->pool, headers);
+            apr_table_setn(headers->headers, "conn-flow-in", 
+                           apr_itoa(stream->pool, connFlowIn));
+            apr_table_setn(headers->headers, "conn-flow-out", 
+                           apr_itoa(stream->pool, connFlowOut));
+        }
+        
+        if (headers->status == 103 
+            && !h2_config_geti(session->config, H2_CONF_EARLY_HINTS)) {
+            /* suppress sending this to the client, it might have triggered 
+             * pushes and served its purpose nevertheless */
+            rv = 0;
+            goto leave;
+        }
+        
+        status = h2_res_create_ngheader(&ngh, stream->pool, headers);
+        if (status == APR_SUCCESS) {
+            rv = nghttp2_submit_response(session->ngh2, stream->id,
+                                         ngh->nv, ngh->nvlen, pprovider);
+            stream->has_response = h2_headers_are_response(headers);
+            session->have_written = 1;
+            
+            if (stream->initiated_on) {
+                ++session->pushes_submitted;
+            }
+            else {
+                ++session->responses_submitted;
+            }
+        }
+        else {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          H2_STRM_LOG(APLOGNO(10025), stream, "invalid response"));
+            h2_stream_rst(stream, NGHTTP2_PROTOCOL_ERROR);
+        }
+    }
+    
+leave:
+    if (nghttp2_is_fatal(rv)) {
+        status = APR_EGENERAL;
+        dispatch_event(session, H2_SESSION_EV_PROTO_ERROR, rv, nghttp2_strerror(rv));
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      APLOGNO(02940) "submit_response: %s", 
+                      nghttp2_strerror(rv));
+    }
+    
+    ++session->unsent_submits;
+    
+    /* Unsent push promises are written immediately, as nghttp2
+     * 1.5.0 realizes internal stream data structures only on 
+     * send and we might need them for other submits. 
+     * Also, to conserve memory, we send at least every 10 submits
+     * so that nghttp2 does not buffer all outbound items too 
+     * long.
+     */
+    if (status == APR_SUCCESS 
+        && (session->unsent_promises || session->unsent_submits > 10)) {
+        status = h2_session_send(session);
+    }
+    return status;
 }

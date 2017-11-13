@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
-                         ap_server_conf, APLOGNO(00482)
-                         "processor unbind failed");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "%s: found worker %s for %s",
+                          (*worker)->s->scheme, (*worker)->s->name, *url);

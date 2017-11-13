@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00153) "sigaction(SIGHUP)");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(01964)
+                  "Connection to child %ld established "
+                  "(server %s)", c->id, sc->vhost_id);

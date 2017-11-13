@@ -1,9 +1,11 @@
 fputs(
-"              If  any of these options is used more than once on the same com-\n"
-"              mand line, the data pieces specified  will  be  merged  together\n"
-"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"              full list of NSS ciphers is in the NSSCipherSuite entry at  this\n"
+"              URL:                                         https://git.fedora-\n"
+"              hosted.org/cgit/mod_nss.git/plain/docs/mod_nss.html#Directives\n"
 "\n"
-"              If  you  start  the data with the letter @, the rest should be a\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --compressed\n"
+"              (HTTP) Request a compressed response using one of the algorithms\n"
+"              curl  supports,  and  save  the  uncompressed document.  If this\n"
 , stdout);

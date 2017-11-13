@@ -1,10 +1,11 @@
 fputs(
-"              (Added in 7.39.0)\n"
+"              If curl is built against  the  NSS  SSL  library,  the  NSS  PEM\n"
+"              PKCS#11  module  (libnsspem.so)  needs  to be available for this\n"
+"              option to work properly.\n"
 "\n"
-"       -f, --fail\n"
-"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
-"              is  mostly done to better enable scripts etc to better deal with\n"
-"              failed attempts. In normal cases when an HTTP  server  fails  to\n"
-"              deliver  a  document,  it  returns  an  HTML document stating so\n"
-"              (which often also describes why and more). This flag  will  pre-\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --capath <CA certificate directory>\n"
+"              (SSL) Tells curl to use the specified certificate  directory  to\n"
+"              verify  the  peer.  Multiple paths can be provided by separating\n"
 , stdout);

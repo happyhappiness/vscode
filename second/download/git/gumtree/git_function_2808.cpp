@@ -1,35 +1,19 @@
-int set_worktree_head_symref(const char *gitdir, const char *target)
+static void *run_thread(void *data)
 {
-	static struct lock_file head_lock;
-	struct ref_lock *lock;
-	struct strbuf head_path = STRBUF_INIT;
-	const char *head_rel;
-	int ret;
+	struct async *async = data;
+	intptr_t ret;
 
-	strbuf_addf(&head_path, "%s/HEAD", absolute_path(gitdir));
-	if (hold_lock_file_for_update(&head_lock, head_path.buf,
-				      LOCK_NO_DEREF) < 0) {
-		struct strbuf err = STRBUF_INIT;
-		unable_to_lock_message(head_path.buf, errno, &err);
-		error("%s", err.buf);
-		strbuf_release(&err);
-		strbuf_release(&head_path);
-		return -1;
+	if (async->isolate_sigpipe) {
+		sigset_t mask;
+		sigemptyset(&mask);
+		sigaddset(&mask, SIGPIPE);
+		if (pthread_sigmask(SIG_BLOCK, &mask, NULL) < 0) {
+			ret = error("unable to block SIGPIPE in async thread");
+			return (void *)ret;
+		}
 	}
 
-	/* head_rel will be "HEAD" for the main tree, "worktrees/wt/HEAD" for
-	   linked trees */
-	head_rel = remove_leading_path(head_path.buf,
-				       absolute_path(get_git_common_dir()));
-	/* to make use of create_symref_locked(), initialize ref_lock */
-	lock = xcalloc(1, sizeof(struct ref_lock));
-	lock->lk = &head_lock;
-	lock->ref_name = xstrdup(head_rel);
-	lock->orig_ref_name = xstrdup(head_rel);
-
-	ret = create_symref_locked(lock, head_rel, target, NULL);
-
-	unlock_ref(lock); /* will free lock */
-	strbuf_release(&head_path);
-	return ret;
+	pthread_setspecific(async_key, async);
+	ret = async->proc(async->proc_in, async->proc_out, async->data);
+	return (void *)ret;
 }

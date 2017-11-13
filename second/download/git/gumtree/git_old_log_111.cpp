@@ -1,1 +1,0 @@
-die("bad --word-diff argument: %s", type);

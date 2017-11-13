@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                  "proxy: initialized plain memory in child %" APR_PID_T_FMT " for worker %s",
-                  getpid(), worker->name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                     "RewriteCond: NoCase option for non-regex pattern '%s' "
+                     "is not supported and will be ignored.", a2);

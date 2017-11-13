@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv,
-                             main_server,
-                             "Error writing pid %" APR_PID_T_FMT " to handler", pid);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Rejected HTTP/0.9 request");

@@ -1,1 +1,1 @@
-ap_rputs(util_ald_cache_display(r->pool, st), r);
+dav_begin_multistatus(bb, r, status, namespaces);

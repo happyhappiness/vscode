@@ -1,2 +1,1 @@
-fprintf (stderr,
-                 "WARNING: expected prefix of MUTT_ for type DT_MAGIC instead of %s\n", s);
+mutt_window_mvprintw (MuttIndexWindow, HDR_CRYPT, 0, TITLE_FMT, "Security: ");

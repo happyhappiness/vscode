@@ -1,81 +1,42 @@
-static int everything_local(struct fetch_pack_args *args,
-			    struct ref **refs,
-			    struct ref **sought, int nr_sought)
+static int add_one_reference(struct string_list_item *item, void *cb_data)
 {
-	struct ref *ref;
-	int retval;
-	unsigned long cutoff = 0;
+	char *ref_git;
+	const char *repo;
+	struct strbuf alternate = STRBUF_INIT;
 
-	save_commit_buffer = 0;
+	/* Beware: read_gitfile(), real_path() and mkpath() return static buffer */
+	ref_git = xstrdup(real_path(item->string));
 
-	for (ref = *refs; ref; ref = ref->next) {
-		struct object *o;
-
-		if (!has_object_file(&ref->old_oid))
-			continue;
-
-		o = parse_object(ref->old_oid.hash);
-		if (!o)
-			continue;
-
-		/* We already have it -- which may mean that we were
-		 * in sync with the other side at some time after
-		 * that (it is OK if we guess wrong here).
-		 */
-		if (o->type == OBJ_COMMIT) {
-			struct commit *commit = (struct commit *)o;
-			if (!cutoff || cutoff < commit->date)
-				cutoff = commit->date;
-		}
+	repo = read_gitfile(ref_git);
+	if (!repo)
+		repo = read_gitfile(mkpath("%s/.git", ref_git));
+	if (repo) {
+		free(ref_git);
+		ref_git = xstrdup(repo);
 	}
 
-	if (!args->depth) {
-		for_each_ref(mark_complete_oid, NULL);
-		for_each_alternate_ref(mark_alternate_complete, NULL);
-		commit_list_sort_by_date(&complete);
-		if (cutoff)
-			mark_recent_complete_commits(args, cutoff);
+	if (!repo && is_directory(mkpath("%s/.git/objects", ref_git))) {
+		char *ref_git_git = mkpathdup("%s/.git", ref_git);
+		free(ref_git);
+		ref_git = ref_git_git;
+	} else if (!is_directory(mkpath("%s/objects", ref_git))) {
+		struct strbuf sb = STRBUF_INIT;
+		if (get_common_dir(&sb, ref_git))
+			die(_("reference repository '%s' as a linked checkout is not supported yet."),
+			    item->string);
+		die(_("reference repository '%s' is not a local repository."),
+		    item->string);
 	}
 
-	/*
-	 * Mark all complete remote refs as common refs.
-	 * Don't mark them common yet; the server has to be told so first.
-	 */
-	for (ref = *refs; ref; ref = ref->next) {
-		struct object *o = deref_tag(lookup_object(ref->old_oid.hash),
-					     NULL, 0);
+	if (!access(mkpath("%s/shallow", ref_git), F_OK))
+		die(_("reference repository '%s' is shallow"), item->string);
 
-		if (!o || o->type != OBJ_COMMIT || !(o->flags & COMPLETE))
-			continue;
+	if (!access(mkpath("%s/info/grafts", ref_git), F_OK))
+		die(_("reference repository '%s' is grafted"), item->string);
 
-		if (!(o->flags & SEEN)) {
-			rev_list_push((struct commit *)o, COMMON_REF | SEEN);
-
-			mark_common((struct commit *)o, 1, 1);
-		}
-	}
-
-	filter_refs(args, refs, sought, nr_sought);
-
-	for (retval = 1, ref = *refs; ref ; ref = ref->next) {
-		const unsigned char *remote = ref->old_oid.hash;
-		struct object *o;
-
-		o = lookup_object(remote);
-		if (!o || !(o->flags & COMPLETE)) {
-			retval = 0;
-			if (!args->verbose)
-				continue;
-			fprintf(stderr,
-				"want %s (%s)\n", sha1_to_hex(remote),
-				ref->name);
-			continue;
-		}
-		if (!args->verbose)
-			continue;
-		fprintf(stderr,
-			"already have %s (%s)\n", sha1_to_hex(remote),
-			ref->name);
-	}
-	return retval;
+	strbuf_addf(&alternate, "%s/objects", ref_git);
+	add_to_alternates_file(alternate.buf);
+	strbuf_release(&alternate);
+	free(ref_git);
+	return 0;
 }

@@ -1,17 +1,52 @@
-static void delete_one(struct file_struct *f)
+static struct sum_struct *generate_sums(char *buf,off_t len,int n)
 {
-  if (!S_ISDIR(f->mode)) {
-    if (!dry_run && unlink(f->name) != 0) {
-      fprintf(stderr,"unlink %s : %s\n",f->name,strerror(errno));
-    } else if (verbose) {
-      fprintf(stderr,"deleting %s\n",f->name);
-    }
-  } else {    
-    if (!dry_run && rmdir(f->name) != 0) {
-      if (errno != ENOTEMPTY)
-	fprintf(stderr,"rmdir %s : %s\n",f->name,strerror(errno));
-    } else if (verbose) {
-      fprintf(stderr,"deleting directory %s\n",f->name);      
-    }
+  int i;
+  struct sum_struct *s;
+  int count;
+  int block_len = n;
+  int remainder = (len%block_len);
+  off_t offset = 0;
+
+  count = (len+(block_len-1))/block_len;
+
+  s = (struct sum_struct *)malloc(sizeof(*s));
+  if (!s) out_of_memory("generate_sums");
+
+  s->count = count;
+  s->remainder = remainder;
+  s->n = n;
+  s->flength = len;
+
+  if (count==0) {
+    s->sums = NULL;
+    return s;
   }
+
+  if (verbose > 3)
+    fprintf(stderr,"count=%d rem=%d n=%d flength=%d\n",
+	    s->count,s->remainder,s->n,(int)s->flength);
+
+  s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
+  if (!s->sums) out_of_memory("generate_sums");
+  
+  for (i=0;i<count;i++) {
+    int n1 = MIN(len,n);
+    char *map = map_ptr(buf,offset,n1);
+
+    s->sums[i].sum1 = get_checksum1(map,n1);
+    get_checksum2(map,n1,s->sums[i].sum2);
+
+    s->sums[i].offset = offset;
+    s->sums[i].len = n1;
+    s->sums[i].i = i;
+
+    if (verbose > 3)
+      fprintf(stderr,"chunk[%d] offset=%d len=%d sum1=%08x\n",
+	      i,(int)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
+
+    len -= n1;
+    offset += n1;
+  }
+
+  return s;
 }

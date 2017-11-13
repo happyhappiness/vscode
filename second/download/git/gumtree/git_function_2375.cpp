@@ -1,56 +1,46 @@
-static int pp_collect_finished(struct parallel_processes *pp)
+static int handle_boundary(void)
 {
-	int i, code;
-	int n = pp->max_processes;
-	int result = 0;
+	struct strbuf newline = STRBUF_INIT;
 
-	while (pp->nr_processes > 0) {
-		for (i = 0; i < pp->max_processes; i++)
-			if (pp->children[i].state == GIT_CP_WAIT_CLEANUP)
-				break;
-		if (i == pp->max_processes)
-			break;
+	strbuf_addch(&newline, '\n');
+again:
+	if (line.len >= (*content_top)->len + 2 &&
+	    !memcmp(line.buf + (*content_top)->len, "--", 2)) {
+		/* we hit an end boundary */
+		/* pop the current boundary off the stack */
+		strbuf_release(*content_top);
+		free(*content_top);
+		*content_top = NULL;
 
-		code = finish_command(&pp->children[i].process);
-
-		code = pp->task_finished(code,
-					 &pp->children[i].err, pp->data,
-					 &pp->children[i].data);
-
-		if (code)
-			result = code;
-		if (code < 0)
-			break;
-
-		pp->nr_processes--;
-		pp->children[i].state = GIT_CP_FREE;
-		pp->pfd[i].fd = -1;
-		child_process_init(&pp->children[i].process);
-
-		if (i != pp->output_owner) {
-			strbuf_addbuf(&pp->buffered_output, &pp->children[i].err);
-			strbuf_reset(&pp->children[i].err);
-		} else {
-			fputs(pp->children[i].err.buf, stderr);
-			strbuf_reset(&pp->children[i].err);
-
-			/* Output all other finished child processes */
-			fputs(pp->buffered_output.buf, stderr);
-			strbuf_reset(&pp->buffered_output);
-
-			/*
-			 * Pick next process to output live.
-			 * NEEDSWORK:
-			 * For now we pick it randomly by doing a round
-			 * robin. Later we may want to pick the one with
-			 * the most output or the longest or shortest
-			 * running process time.
-			 */
-			for (i = 0; i < n; i++)
-				if (pp->children[(pp->output_owner + i) % n].state == GIT_CP_WORKING)
-					break;
-			pp->output_owner = (pp->output_owner + i) % n;
+		/* technically won't happen as is_multipart_boundary()
+		   will fail first.  But just in case..
+		 */
+		if (--content_top < content) {
+			fprintf(stderr, "Detected mismatched boundaries, "
+					"can't recover\n");
+			exit(1);
 		}
+		handle_filter(&newline);
+		strbuf_release(&newline);
+
+		/* skip to the next boundary */
+		if (!find_boundary())
+			return 0;
+		goto again;
 	}
-	return result;
+
+	/* set some defaults */
+	transfer_encoding = TE_DONTCARE;
+	strbuf_reset(&charset);
+
+	/* slurp in this section's info */
+	while (read_one_header_line(&line, fin))
+		check_header(&line, p_hdr_data, 0);
+
+	strbuf_release(&newline);
+	/* replenish line */
+	if (strbuf_getline(&line, fin, '\n'))
+		return 0;
+	strbuf_addch(&line, '\n');
+	return 1;
 }

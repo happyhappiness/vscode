@@ -1,211 +1,114 @@
-static char *ap_ssi_parse_string(include_ctx_t *ctx, const char *in, char *out,
-                                 apr_size_t length, int leave_name)
+static authz_status ldapattribute_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    request_rec *r = ctx->intern->r;
-    result_item_t *result = NULL, *current = NULL;
-    apr_size_t outlen = 0, inlen, span;
-    char *ret = NULL, *eout = NULL;
-    const char *p;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    if (out) {
-        /* sanity check, out && !length is not supported */
-        ap_assert(out && length);
+    util_ldap_connection_t *ldc = NULL;
 
-        ret = out;
-        eout = out + length - 1;
+    const char *t;
+    char *w, *value;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
     }
 
-    span = strcspn(in, "\\$");
-    inlen = strlen(in);
-
-    /* fast exit */
-    if (inlen == span) {
-        if (out) {
-            apr_cpystrn(out, in, length);
-        }
-        else {
-            ret = apr_pstrmemdup(ctx->pool, in, (length && length <= inlen)
-                                                ? length - 1 : inlen);
-        }
-
-        return ret;
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
     }
 
-    /* well, actually something to do */
-    p = in + span;
-
-    if (out) {
-        if (span) {
-            memcpy(out, in, (out+span <= eout) ? span : (eout-out));
-            out += span;
-        }
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_COMPARE);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
     }
     else {
-        current = result = apr_palloc(ctx->dpool, sizeof(*result));
-        current->next = NULL;
-        current->string = in;
-        current->len = span;
-        outlen = span;
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "auth_ldap authorize: no sec->host - weird...?");
+        return AUTHZ_DENIED;
     }
 
-    /* loop for specials */
-    do {
-        if ((out && out >= eout) || (length && outlen >= length)) {
-            break;
-        }
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
 
-        /* prepare next entry */
-        if (!out && current->len) {
-            current->next = apr_palloc(ctx->dpool, sizeof(*current->next));
-            current = current->next;
-            current->next = NULL;
-            current->len = 0;
-        }
-
-        /*
-         * escaped character
-         */
-        if (*p == '\\') {
-            if (out) {
-                *out++ = (p[1] == '$') ? *++p : *p;
-                ++p;
-            }
-            else {
-                current->len = 1;
-                current->string = (p[1] == '$') ? ++p : p;
-                ++p;
-                ++outlen;
-            }
-        }
-
-        /*
-         * variable expansion
-         */
-        else {       /* *p == '$' */
-            const char *newp = NULL, *ep, *key = NULL;
-
-            if (*++p == '{') {
-                ep = ap_strchr_c(++p, '}');
-                if (!ep) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Missing '}' on "
-                                  "variable \"%s\" in %s", p, r->filename);
-                    break;
-                }
-
-                if (p < ep) {
-                    key = apr_pstrmemdup(ctx->dpool, p, ep - p);
-                    newp = ep + 1;
-                }
-                p -= 2;
-            }
-            else {
-                ep = p;
-                while (*ep == '_' || apr_isalnum(*ep)) {
-                    ++ep;
-                }
-
-                if (p < ep) {
-                    key = apr_pstrmemdup(ctx->dpool, p, ep - p);
-                    newp = ep;
-                }
-                --p;
-            }
-
-            /* empty name results in a copy of '$' in the output string */
-            if (!key) {
-                if (out) {
-                    *out++ = *p++;
-                }
-                else {
-                    current->len = 1;
-                    current->string = p++;
-                    ++outlen;
-                }
-            }
-            else {
-                const char *val = get_include_var(key, ctx);
-                apr_size_t len = 0;
-
-                if (val) {
-                    len = strlen(val);
-                }
-                else if (leave_name) {
-                    val = p;
-                    len = ep - p;
-                }
-
-                if (val && len) {
-                    if (out) {
-                        memcpy(out, val, (out+len <= eout) ? len : (eout-out));
-                        out += len;
-                    }
-                    else {
-                        current->len = len;
-                        current->string = val;
-                        outlen += len;
-                    }
-                }
-
-                p = newp;
-            }
-        }
-
-        if ((out && out >= eout) || (length && outlen >= length)) {
-            break;
-        }
-
-        /* check the remainder */
-        if (*p && (span = strcspn(p, "\\$")) > 0) {
-            if (!out && current->len) {
-                current->next = apr_palloc(ctx->dpool, sizeof(*current->next));
-                current = current->next;
-                current->next = NULL;
-            }
-
-            if (out) {
-                memcpy(out, p, (out+span <= eout) ? span : (eout-out));
-                out += span;
-            }
-            else {
-                current->len = span;
-                current->string = p;
-                outlen += span;
-            }
-
-            p += span;
-        }
-    } while (p < in+inlen);
-
-    /* assemble result */
-    if (out) {
-        if (out > eout) {
-            *eout = '\0';
-        }
-        else {
-            *out = '\0';
-        }
-    }
-    else {
-        const char *ep;
-
-        if (length && outlen > length) {
-            outlen = length - 1;
-        }
-
-        ret = out = apr_palloc(ctx->pool, outlen + 1);
-        ep = ret + outlen;
-
-        do {
-            if (result->len) {
-                memcpy(out, result->string, (out+result->len <= ep)
-                                            ? result->len : (ep-out));
-                out += result->len;
-            }
-            result = result->next;
-        } while (result && out < ep);
-
-        ret[outlen] = '\0';
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
     }
 
-    return ret;
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
+        }
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
+
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: require ldap-attribute: user's DN "
+                      "has not been defined; failing authorization");
+        return AUTHZ_DENIED;
+    }
+
+    t = require_args;
+    while (t[0]) {
+        w = ap_getword(r->pool, &t, '=');
+        value = ap_getword_conf(r->pool, &t);
+
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: checking attribute %s has value %s",
+                      w, value);
+        result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, w, value);
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: "
+                              "require attribute: authorization successful");
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
+            }
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require attribute: "
+                              "authorization failed [%s][%s]",
+                              ldc->reason, ldap_err2string(result));
+            }
+        }
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "auth_ldap authorize attribute: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

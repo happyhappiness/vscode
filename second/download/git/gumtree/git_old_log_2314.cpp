@@ -1,1 +1,1 @@
-warning("malloc failed: '%s'", strerror(errno));
+error(_("some refs could not be read"));

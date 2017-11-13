@@ -1,10 +1,12 @@
 fputs(
-"                             This is only meaningful if curl is told to  write\n"
-"                             to  a  file  with  the  --remote-name or --output\n"
-"                             option. It's most useful in combination with  the\n"
-"                             --remote-header-name option. (Added in 7.25.1)\n"
+"              select the user name and password from your environment by spec-\n"
+"              ifying a single colon with this option: \"-U :\".\n"
 "\n"
-"              ftp_entry_path The initial path curl ended up in when logging on\n"
-"                             to the remote FTP server. (Added in 7.15.4)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --url <URL>\n"
+"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
+"              want to specify URL(s) in a config file.\n"
+"\n"
+"              This option may be used any number of times.  To  control  where\n"
 , stdout);

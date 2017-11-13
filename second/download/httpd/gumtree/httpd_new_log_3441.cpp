@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01291)
-                          "Cache entry for %s doesn't exist", dn);
+cache_run_cache_status(cache->handle, r, r->headers_out,
+                    AP_CACHE_REVALIDATE,
+                    "conditional cache hit: entity refresh failed");

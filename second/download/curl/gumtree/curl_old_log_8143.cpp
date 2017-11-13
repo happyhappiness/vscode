@@ -1,10 +1,10 @@
 fputs(
-"              name to use. That will most likely cause the upload operation to\n"
-"              fail. If this is used on an HTTP(S) server, the PUT command will\n"
-"              be used.\n"
+"              NEW_ENV=<var,val> Sets an environment variable.\n"
 "\n"
-"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
-"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
-"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
-"              mode to  allow  reading  server  output  while  stdin  is  being\n"
+"       -T, --upload-file <file>\n"
+"              This transfers the specified local file to the  remote  URL.  If\n"
+"              there is no file part in the specified URL, Curl will append the\n"
+"              local file name. NOTE that you must use a trailing / on the last\n"
+"              directory  to really prove to Curl that there is no file name or\n"
+"              curl will think that your last directory name is the remote file\n"
 , stdout);

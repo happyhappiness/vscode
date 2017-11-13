@@ -1,1 +1,1 @@
-die(_("expected format: %%(align:<width>,<position>)"));
+die(_("unrecognized position:%s"), s);

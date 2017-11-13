@@ -1,2 +1,1 @@
-die("More than %d nested symlinks "
-					    "on path '%s'", MAXSYMLINKS, path);
+error("packet write failed - data exceeds max packet size");

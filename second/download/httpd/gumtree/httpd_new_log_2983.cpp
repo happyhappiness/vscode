@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00805)
-                 "data size too large for DBM socache: %d >= %d",
-                 (idlen + nData), PAIRMAX);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: require group: testing for %s: "
+                      "%s (%s)",
+                      ent[i].name,
+                      sec->group_attrib_is_dn ? req->dn : req->user, t);

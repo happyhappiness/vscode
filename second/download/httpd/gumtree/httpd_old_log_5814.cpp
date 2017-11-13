@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      "h2_stream(%ld-%d): handled, closing", 
-                      session->id, (int)stream->id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                  "h2_request(%d): written request %s %s, host=%s",
+                  req->id, req->method, req->path, req->authority);

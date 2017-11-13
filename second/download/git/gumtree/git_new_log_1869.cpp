@@ -1,1 +1,1 @@
-printf("%s", find_unique_abbrev(oid->hash, abbrev));
+die(_("'%s' is already checked out at '%s'"), new->name, gitdir.buf);

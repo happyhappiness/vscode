@@ -1,9 +1,10 @@
 puts(
-"          you  should  add a custom header that has the same name\n"
-"          as one of  the  internal  ones  curl  would  use,  your\n"
-"          externally  set  header  will  be  used  instead of the\n"
-"          internal one. This allows you  to  make  even  trickier\n"
-"          stuff  than  curl  would  normally  do.  You should not\n"
-"          replace internally set  headers  without  knowing  per�\n"
-"          fectly  well  what  you're doing. Replacing an internal\n"
+"          content-type application/x-www-form-urlencoded. Compare\n"
+"          to -F. If more than one -d/--data option is used on the\n"
+"          same  command  line,  the data pieces specified will be\n"
+"          merged together with a separating &-letter. Thus, using\n"
+"          '-d  name=daniel  -d skill=lousy' would generate a post\n"
+"          chunk that looks like 'name=daniel&skill=lousy'.\n"
+"\n"
+"          If you start the data  with  the  letter  @,  the  rest\n"
 );

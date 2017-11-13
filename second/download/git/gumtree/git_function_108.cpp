@@ -1,23 +1,71 @@
-static struct child_process *git_proxy_connect(int fd[2], char *host)
+static int parse_next_sha1(struct strbuf *input, const char **next,
+			   unsigned char *sha1,
+			   const char *command, const char *refname,
+			   int flags)
 {
-	const char *port = STR(DEFAULT_GIT_PORT);
-	const char **argv;
-	struct child_process *proxy;
+	struct strbuf arg = STRBUF_INIT;
+	int ret = 0;
 
-	get_host_and_port(&host, &port);
+	if (*next == input->buf + input->len)
+		goto eof;
 
-	argv = xmalloc(sizeof(*argv) * 4);
-	argv[0] = git_proxy_command;
-	argv[1] = host;
-	argv[2] = port;
-	argv[3] = NULL;
-	proxy = xcalloc(1, sizeof(*proxy));
-	proxy->argv = argv;
-	proxy->in = -1;
-	proxy->out = -1;
-	if (start_command(proxy))
-		die("cannot start proxy %s", argv[0]);
-	fd[0] = proxy->out; /* read from proxy stdout */
-	fd[1] = proxy->in;  /* write to proxy stdin */
-	return proxy;
+	if (line_termination) {
+		/* Without -z, consume SP and use next argument */
+		if (!**next || **next == line_termination)
+			return 1;
+		if (**next != ' ')
+			die("%s %s: expected SP but got: %s",
+			    command, refname, *next);
+		(*next)++;
+		*next = parse_arg(*next, &arg);
+		if (arg.len) {
+			if (get_sha1(arg.buf, sha1))
+				goto invalid;
+		} else {
+			/* Without -z, an empty value means all zeros: */
+			hashclr(sha1);
+		}
+	} else {
+		/* With -z, read the next NUL-terminated line */
+		if (**next)
+			die("%s %s: expected NUL but got: %s",
+			    command, refname, *next);
+		(*next)++;
+		if (*next == input->buf + input->len)
+			goto eof;
+		strbuf_addstr(&arg, *next);
+		*next += arg.len;
+
+		if (arg.len) {
+			if (get_sha1(arg.buf, sha1))
+				goto invalid;
+		} else if (flags & PARSE_SHA1_ALLOW_EMPTY) {
+			/* With -z, treat an empty value as all zeros: */
+			warning("%s %s: missing <newvalue>, treating as zero",
+				command, refname);
+			hashclr(sha1);
+		} else {
+			/*
+			 * With -z, an empty non-required value means
+			 * unspecified:
+			 */
+			ret = 1;
+		}
+	}
+
+	strbuf_release(&arg);
+
+	return ret;
+
+ invalid:
+	die(flags & PARSE_SHA1_OLD ?
+	    "%s %s: invalid <oldvalue>: %s" :
+	    "%s %s: invalid <newvalue>: %s",
+	    command, refname, arg.buf);
+
+ eof:
+	die(flags & PARSE_SHA1_OLD ?
+	    "%s %s: unexpected end of input when reading <oldvalue>" :
+	    "%s %s: unexpected end of input when reading <newvalue>",
+	    command, refname);
 }

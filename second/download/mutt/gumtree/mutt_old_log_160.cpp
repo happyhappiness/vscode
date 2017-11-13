@@ -1,2 +1,1 @@
-state_attach_puts (_("Can't verify due to a missing "
-                         "key or certificate\n"), s);
+mutt_yesorno(msg, M_YES);

@@ -1,11 +1,10 @@
 fputs(
-"                     'nocwd' but without the full penalty of 'multicwd'.\n"
-"       (Added in 7.15.1)\n"
+"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
+"                     etc and give a full path to the server for all these com-\n"
+"                     mands. This is the fastest behavior.\n"
 "\n"
-"       --ftp-pasv\n"
-"              (FTP)  Use  passive mode for the data connection. Passive is the\n"
-"              internal default behavior, but using this option can be used  to\n"
-"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
-"\n"
-"              If  this option is used several times, the following occurrences\n"
+"              singlecwd\n"
+"                     curl does one CWD with the full target directory and then\n"
+"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
+"                     case). This is somewhat  more  standards  compliant  than\n"
 , stdout);

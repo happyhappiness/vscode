@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                     "Failed to release SSL session cache lock");
+ap_rvputs(r, "<td>", balancer->sticky, " | ",
+                              balancer->sticky_path, NULL);

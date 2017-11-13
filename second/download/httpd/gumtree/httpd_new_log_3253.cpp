@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01342) "unknown parameter "
-                          "\"%s\" to tag include in %s", tag, r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, s, APLOGNO(01752)
+                     "could not find the UTF-8 charset in the file %s.",
+                     charset_confname);

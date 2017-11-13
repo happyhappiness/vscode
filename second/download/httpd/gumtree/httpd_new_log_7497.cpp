@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01913)
-                     "Unable to initialize TLS session ticket key callback "
-                     "(incompatible OpenSSL version?)");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02288)
+                 "TLS session ticket key for %s successfully loaded from %s",
+                 (mySrvConfig(s))->vhost_id, path);

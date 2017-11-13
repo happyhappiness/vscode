@@ -1,1 +1,1 @@
-state_puts (uids->uid, s);
+state_puts (t0, s);

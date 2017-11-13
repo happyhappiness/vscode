@@ -1,48 +1,27 @@
-static apr_status_t h2_task_process_request(h2_task *task, conn_rec *c)
+static int isapi_pre_config(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptemp)
 {
-    const h2_request *req = task->request;
-    conn_state_t *cs = c->cs;
-    request_rec *r;
+    apr_status_t rv;
 
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  "h2_task(%s): create request_rec", task->id);
-    r = h2_request_create_rec(req, c);
-    if (r && (r->status == HTTP_OK)) {
-        ap_update_child_status(c->sbh, SERVER_BUSY_READ, r);
-        
-        if (cs) {
-            cs->state = CONN_STATE_HANDLER;
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): start process_request", task->id);
-        ap_process_request(r);
-        if (task->frozen) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                          "h2_task(%s): process_request frozen", task->id);
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): process_request done", task->id);
-        
-        /* After the call to ap_process_request, the
-         * request pool will have been deleted.  We set
-         * r=NULL here to ensure that any dereference
-         * of r that might be added later in this function
-         * will result in a segfault immediately instead
-         * of nondeterministic failures later.
-         */
-        if (cs) 
-            cs->state = CONN_STATE_WRITE_COMPLETION;
-        r = NULL;
-    }
-    else if (!r) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): create request_rec failed, r=NULL", task->id);
-    }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): create request_rec failed, r->status=%d", 
-                      task->id, r->status);
+    apr_pool_create_ex(&loaded.pool, pconf, NULL, NULL);
+    if (!loaded.pool) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EGENERAL, NULL, APLOGNO(02118)
+                     "could not create the isapi cache pool");
+        return APR_EGENERAL;
     }
 
-    return APR_SUCCESS;
+    loaded.hash = apr_hash_make(loaded.pool);
+    if (!loaded.hash) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(02119)
+                     "Failed to create module cache");
+        return APR_EGENERAL;
+    }
+
+    rv = apr_thread_mutex_create(&loaded.lock, APR_THREAD_MUTEX_DEFAULT,
+                                 loaded.pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "Failed to create module cache lock");
+        return rv;
+    }
+    return OK;
 }

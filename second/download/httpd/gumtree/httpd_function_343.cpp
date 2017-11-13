@@ -1,48 +1,241 @@
-static int file_cache_recall_mydata(apr_file_t *fd, cache_info *info,
-                                    disk_cache_object_t *dobj, request_rec *r)
+static void test(void)
 {
-    apr_status_t rv;
-    char *urlbuff;
-    disk_cache_info_t disk_info;
-    apr_size_t len;
+    apr_time_t now;
+    apr_int16_t rv;
+    long i;
+    apr_status_t status;
+#ifdef NOT_ASCII
+    apr_size_t inbytes_left, outbytes_left;
+#endif
 
-    /* read the data from the cache file */
-    len = sizeof(disk_cache_info_t);
-    rv = apr_file_read_full(fd, &disk_info, len, &len);
-    if (rv != APR_SUCCESS) {
-        return rv;
+    if (isproxy) {
+	connecthost = apr_pstrdup(cntxt, proxyhost);
+	connectport = proxyport;
+    }
+    else {
+	connecthost = apr_pstrdup(cntxt, hostname);
+	connectport = port;
     }
 
-    if (disk_info.format != DISK_FORMAT_VERSION) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "cache_disk: URL %s had a on-disk version mismatch",
-                     r->uri);
-        return APR_EGENERAL;
+    if (!use_html) {
+	printf("Benchmarking %s ", hostname);
+	if (isproxy)
+	    printf("[through %s:%d] ", proxyhost, proxyport);
+	printf("(be patient)%s",
+	       (heartbeatres ? "\n" : "..."));
+	fflush(stdout);
     }
 
-    /* Store it away so we can get it later. */
-    dobj->disk_info = disk_info;
+    now = apr_time_now();
 
-    info->date = disk_info.date;
-    info->expire = disk_info.expire;
-    info->request_time = disk_info.request_time;
-    info->response_time = disk_info.response_time;
+    con = calloc(concurrency * sizeof(struct connection), 1);
+    
+    stats = calloc(requests * sizeof(struct data), 1);
 
-    /* Note that we could optimize this by conditionally doing the palloc
-     * depending upon the size. */
-    urlbuff = apr_palloc(r->pool, disk_info.name_len + 1);
-    len = disk_info.name_len;
-    rv = apr_file_read_full(fd, urlbuff, len, &len);
-    if (rv != APR_SUCCESS) {
-        return rv;
-    }
-    urlbuff[disk_info.name_len] = '\0';
-
-    /* check that we have the same URL */
-    /* Would strncmp be correct? */
-    if (strcmp(urlbuff, dobj->name) != 0) {
-        return APR_EGENERAL;
+    if ((status = apr_pollset_create(&readbits, concurrency, cntxt, 0)) != APR_SUCCESS) {
+        apr_err("apr_pollset_create failed", status);
     }
 
-    return APR_SUCCESS;
+    /* setup request */
+    if (posting <= 0) {
+	sprintf(request, "%s %s HTTP/1.0\r\n"
+		"User-Agent: ApacheBench/%s\r\n"
+		"%s" "%s" "%s"
+		"Host: %s%s\r\n"
+		"Accept: */*\r\n"
+		"%s" "\r\n",
+		(posting == 0) ? "GET" : "HEAD",
+		(isproxy) ? fullurl : path,
+		AP_AB_BASEREVISION,
+		keepalive ? "Connection: Keep-Alive\r\n" : "",
+		cookie, auth, host_field, colonhost, hdrs);
+    }
+    else {
+	sprintf(request, "POST %s HTTP/1.0\r\n"
+		"User-Agent: ApacheBench/%s\r\n"
+		"%s" "%s" "%s"
+		"Host: %s%s\r\n"
+		"Accept: */*\r\n"
+		"Content-length: %" APR_SIZE_T_FMT "\r\n"
+		"Content-type: %s\r\n"
+		"%s"
+		"\r\n",
+		(isproxy) ? fullurl : path,
+		AP_AB_BASEREVISION,
+		keepalive ? "Connection: Keep-Alive\r\n" : "",
+		cookie, auth,
+		host_field, colonhost, postlen,
+		(content_type[0]) ? content_type : "text/plain", hdrs);
+    }
+
+    if (verbosity >= 2)
+	printf("INFO: POST header == \n---\n%s\n---\n", request);
+
+    reqlen = strlen(request);
+
+    /*
+     * Combine headers and (optional) post file into one contineous buffer
+     */
+    if (posting == 1) {
+	char *buff = (char *) malloc(postlen + reqlen + 1);
+	strcpy(buff, request);
+	strcpy(buff + reqlen, postdata);
+	request = buff;
+    }
+
+#ifdef NOT_ASCII
+    inbytes_left = outbytes_left = reqlen;
+    status = apr_xlate_conv_buffer(to_ascii, request, &inbytes_left,
+				   request, &outbytes_left);
+    if (status || inbytes_left || outbytes_left) {
+	fprintf(stderr, "only simple translation is supported (%d/%u/%u)\n",
+		status, inbytes_left, outbytes_left);
+	exit(1);
+    }
+#endif				/* NOT_ASCII */
+
+    /* This only needs to be done once */
+#ifdef USE_SSL
+    if (ssl != 1)
+#endif
+    if ((rv = apr_sockaddr_info_get(&destsa, connecthost, APR_UNSPEC, connectport, 0, cntxt))
+	!= APR_SUCCESS) {
+	char buf[120];
+	apr_snprintf(buf, sizeof(buf),
+		     "apr_sockaddr_info_get() for %s", connecthost);
+	apr_err(buf, rv);
+    }
+
+    /* ok - lets start */
+    start = apr_time_now();
+
+    /* initialise lots of requests */
+    for (i = 0; i < concurrency; i++) {
+	con[i].socknum = i;
+	start_connect(&con[i]);
+    }
+
+    while (done < requests) {
+	apr_int32_t n;
+	apr_int32_t timed;
+        const apr_pollfd_t *pollresults;
+
+	/* check for time limit expiry */
+	now = apr_time_now();
+	timed = (apr_int32_t)apr_time_sec(now - start);
+	if (tlimit && timed >= tlimit) {
+	    requests = done;	/* so stats are correct */
+	    break;		/* no need to do another round */
+	}
+
+	n = concurrency;
+#ifdef USE_SSL
+        if (ssl == 1)
+            status = APR_SUCCESS;
+        else
+#endif
+	status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+	if (status != APR_SUCCESS)
+	    apr_err("apr_poll", status);
+
+	if (!n) {
+	    err("\nServer timed out\n\n");
+	}
+
+	for (i = 0; i < n; i++) {
+            const apr_pollfd_t *next_fd = &(pollresults[i]);
+            struct connection *c = next_fd->client_data;
+
+	    /*
+	     * If the connection isn't connected how can we check it?
+	     */
+	    if (c->state == STATE_UNCONNECTED)
+		continue;
+
+#ifdef USE_SSL
+            if (ssl == 1)
+                rv = APR_POLLIN;
+            else
+#endif
+            rv = next_fd->rtnevents;
+
+	    /*
+	     * Notes: APR_POLLHUP is set after FIN is received on some
+	     * systems, so treat that like APR_POLLIN so that we try to read
+	     * again.
+	     *
+	     * Some systems return APR_POLLERR with APR_POLLHUP.  We need to
+	     * call read_connection() for APR_POLLHUP, so check for
+	     * APR_POLLHUP first so that a closed connection isn't treated
+	     * like an I/O error.  If it is, we never figure out that the
+	     * connection is done and we loop here endlessly calling
+	     * apr_poll().
+	     */
+	    if ((rv & APR_POLLIN) || (rv & APR_POLLPRI) || (rv & APR_POLLHUP))
+		read_connection(c);
+	    if ((rv & APR_POLLERR) || (rv & APR_POLLNVAL)) {
+		bad++;
+		err_except++;
+		start_connect(c);
+		continue;
+	    }
+	    if (rv & APR_POLLOUT) {
+                if (c->state == STATE_CONNECTING) {
+                    apr_pollfd_t remove_pollfd;
+                    rv = apr_connect(c->aprsock, destsa);
+                    remove_pollfd.desc_type = APR_POLL_SOCKET;
+                    remove_pollfd.desc.s = c->aprsock;
+                    apr_pollset_remove(readbits, &remove_pollfd);
+                    if (rv != APR_SUCCESS) {
+                        apr_socket_close(c->aprsock);
+                        err_conn++;
+                        if (bad++ > 10) {
+                            fprintf(stderr,
+                                    "\nTest aborted after 10 failures\n\n");
+                            apr_err("apr_connect()", rv);
+                        }
+                        c->state = STATE_UNCONNECTED;
+                        start_connect(c);
+                        continue;
+                    }
+                    else {
+                        c->state = STATE_CONNECTED;
+                        write_request(c);
+                    }
+                }
+                else {
+                    write_request(c);
+                }
+            }
+
+	    /*
+	     * When using a select based poll every time we check the bits
+	     * are reset. In 1.3's ab we copied the FD_SET's each time
+	     * through, but here we're going to check the state and if the
+	     * connection is in STATE_READ or STATE_CONNECTING we'll add the
+	     * socket back in as APR_POLLIN.
+	     */
+#ifdef USE_SSL
+            if (ssl != 1)
+#endif
+                if (c->state == STATE_READ) {
+                    apr_pollfd_t new_pollfd;
+                    new_pollfd.desc_type = APR_POLL_SOCKET;
+                    new_pollfd.reqevents = APR_POLLIN;
+                    new_pollfd.desc.s = c->aprsock;
+                    new_pollfd.client_data = c;
+                    apr_pollset_add(readbits, &new_pollfd);
+                }
+	}
+    }
+
+    if (heartbeatres)
+	fprintf(stderr, "Finished %ld requests\n", done);
+    else
+	printf("..done\n");
+
+    if (use_html)
+	output_html_results();
+    else
+	output_results();
 }

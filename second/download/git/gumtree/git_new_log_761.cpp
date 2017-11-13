@@ -1,1 +1,2 @@
-fprintf(stderr, "%s: %s:%d\n", err.buf, src, lineno);
+warning(_("You seem to have moved HEAD. "
+			  "Not rewinding, check your HEAD!"));

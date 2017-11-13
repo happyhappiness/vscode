@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
-                              "Unknown Transfer-Encoding: %s", tenc);
+printf("INFO: %s header == \n---\n%s\n---\n", 
+                (posting == 2) ? "PUT" : "POST", request);

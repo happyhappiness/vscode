@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00428)
-                         "Parent: child process %lu exited with status %lu -- Restarting.",
-                         child_pid, exitcode);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, conn,
+                      "Certificate Verification: Temporary error (%d): %s: "
+                      "optional therefore we're accepting the certificate",
+                      errnum, X509_verify_cert_error_string(errnum));

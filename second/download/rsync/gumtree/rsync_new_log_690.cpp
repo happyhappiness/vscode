@@ -1,1 +1,1 @@
-out_of_memory("add_to_list");
+io_printf(f_out, "@ERROR: setuid failed\n");

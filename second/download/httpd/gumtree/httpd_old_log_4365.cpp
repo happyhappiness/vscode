@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                             "stapling_check_response: cached response expired");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+                     "proxy: CONNECT: Returning 200 OK Status");

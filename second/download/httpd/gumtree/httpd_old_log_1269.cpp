@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "Parent: SetEvent for child process %d failed.",
-                         event_handles[CHILD_HANDLE]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: DN: %s", getpid(), urld->lud_dn);

@@ -1,11 +1,8 @@
 fputs(
-"              If  this  option  is used several times, the last specified file\n"
-"              name will be used.\n"
-"\n"
-"       -b, --cookie <data>\n"
-"              (HTTP) Pass the data to the HTTP server in the Cookie header. It\n"
-"              is  supposedly the data previously received from the server in a\n"
-"              \"Set-Cookie:\"  line.   The  data  should  be   in   the   format\n"
-"              \"NAME1=VALUE1; NAME2=VALUE2\".\n"
-"\n"
+"              For  a  request to the given HOST:PORT pair, connect to CONNECT-\n"
+"              TO-HOST:CONNECT-TO-PORT instead.  This  option  is  suitable  to\n"
+"              direct requests at a specific server, e.g. at a specific cluster\n"
+"              node in a cluster of servers.   This  option  is  only  used  to\n"
+"              establish  the  network connection. It does NOT affect the host-\n"
+"              name/port that is used for TLS/SSL (e.g. SNI, certificate  veri-\n"
 , stdout);

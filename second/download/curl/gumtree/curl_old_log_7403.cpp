@@ -1,9 +1,11 @@
 fputs(
-"              that time. The date expression can be all sorts of date  strings\n"
-"              or  if  it  doesn't match any internal ones, it tries to get the\n"
-"              time from a given file name instead! See the curl_getdate(3) man\n"
-"              pages for date expression details.\n"
+"              If a download is slower than this given speed (in bytes per sec-\n"
+"              ond)  for  speed-time seconds it gets aborted. speed-time is set\n"
+"              with -y and is 30 if not set.\n"
 "\n"
-"              Start the date expression with a dash (-) to make it request for\n"
-"              a document that is older than the given date/time, default is  a\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -z, --time-cond <date expression>\n"
+"              (HTTP/FTP/FILE) Request a file that has been modified later than\n"
+"              the  given  time  and date, or one that has been modified before\n"
 , stdout);

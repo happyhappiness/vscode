@@ -1,43 +1,16 @@
-static int mpmt_os2_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                 apr_pool_t *ptemp, server_rec *s)
+static void register_hooks(apr_pool_t *p)
 {
-    static int restart_num = 0;
-    int startup = 0;
+    static const char *pre[] = { "mod_log_config.c", NULL };
 
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
-    }
+    ap_hook_pre_connection(logio_pre_conn, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_pre_config(logio_pre_config, NULL, NULL, APR_HOOK_REALLY_FIRST);
+    ap_hook_log_transaction(logio_transaction, pre, NULL, APR_HOOK_MIDDLE);
 
-    if (ap_daemons_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
-    }
+    ap_register_input_filter(logio_filter_name, logio_in_filter, NULL,
+                             AP_FTYPE_NETWORK - 1);
+    ap_register_output_filter(logio_filter_name, logio_out_filter, NULL,
+                              AP_FTYPE_NETWORK - 1);
 
-    if (ap_min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_min_spare_threads);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_min_spare_threads);
-        }
-        ap_min_spare_threads = 1;
-    }
-
-    return OK;
+    APR_REGISTER_OPTIONAL_FN(ap_logio_add_bytes_out);
+    APR_REGISTER_OPTIONAL_FN(ap_logio_add_bytes_in);
 }

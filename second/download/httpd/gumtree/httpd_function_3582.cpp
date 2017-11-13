@@ -1,54 +1,39 @@
-static int fsmagic(request_rec *r, const char *fn)
+static apr_status_t dbd_setup(server_rec *s, dbd_group_t *group)
 {
-    switch (r->finfo.filetype) {
-    case APR_DIR:
-        magic_rsl_puts(r, DIR_MAGIC_TYPE);
-        return DONE;
-    case APR_CHR:
-        /*
-         * (void) magic_rsl_printf(r,"character special (%d/%d)",
-         * major(sb->st_rdev), minor(sb->st_rdev));
-         */
-        (void) magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
-        return DONE;
-    case APR_BLK:
-        /*
-         * (void) magic_rsl_printf(r,"block special (%d/%d)",
-         * major(sb->st_rdev), minor(sb->st_rdev));
-         */
-        (void) magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
-        return DONE;
-        /* TODO add code to handle V7 MUX and Blit MUX files */
-    case APR_PIPE:
-        /*
-         * magic_rsl_puts(r,"fifo (named pipe)");
-         */
-        (void) magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
-        return DONE;
-    case APR_LNK:
-        /* We used stat(), the only possible reason for this is that the
-         * symlink is broken.
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    MODNAME ": broken symlink (%s)", fn);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    case APR_SOCK:
-        magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
-        return DONE;
-    case APR_REG:
-        break;
-    default:
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      MODNAME ": invalid file type %d.", r->finfo.filetype);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    dbd_cfg_t *cfg = group->cfg;
+    apr_status_t rv;
+
+    /* We create the reslist using a sub-pool of the pool passed to our
+     * child_init hook.  No other threads can be here because we're
+     * either in the child_init phase or dbd_setup_lock() acquired our mutex.
+     * No other threads will use this sub-pool after this, except via
+     * reslist calls, which have an internal mutex.
+     *
+     * We need to short-circuit the cleanup registered internally by
+     * apr_reslist_create().  We do this by registering dbd_destroy()
+     * as a cleanup afterwards, so that it will run before the reslist's
+     * internal cleanup.
+     *
+     * If we didn't do this, then we could free memory twice when the pool
+     * was destroyed.  When apr_pool_destroy() runs, it first destroys all
+     * all the per-connection sub-pools created in dbd_construct(), and
+     * then it runs the reslist's cleanup.  The cleanup calls dbd_destruct()
+     * on each resource, which would then attempt to destroy the sub-pools
+     * a second time.
+     */
+    rv = apr_reslist_create(&group->reslist,
+                            cfg->nmin, cfg->nkeep, cfg->nmax,
+                            apr_time_from_sec(cfg->exptime),
+                            dbd_construct, dbd_destruct, group,
+                            group->pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "DBD: failed to initialise");
+        return rv;
     }
 
-    /*
-     * regular file, check next possibility
-     */
-    if (r->finfo.size == 0) {
-        magic_rsl_puts(r, MIME_TEXT_UNKNOWN);
-        return DONE;
-    }
-    return OK;
+    apr_pool_cleanup_register(group->pool, group, dbd_destroy,
+                              apr_pool_cleanup_null);
+
+    return APR_SUCCESS;
 }

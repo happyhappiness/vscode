@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00598)
-                          "The \"version-control\" element does not contain "
-                          "a \"version\" element.");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01784)
+                              "applying AuthDigestEnableQueryStringHack "
+                              "to uri <%s>", resp->raw_request_uri);

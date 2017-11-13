@@ -1,1 +1,1 @@
-fprintf(FINFO,"excluding file %s\n",fname);
+fprintf(FERROR,"recv mapped %s of size %d\n",fname,(int)st.st_size);

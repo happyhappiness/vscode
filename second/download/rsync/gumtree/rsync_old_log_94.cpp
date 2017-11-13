@@ -1,1 +1,0 @@
-fprintf(am_server?stderr:stdout,"building file list ... ");

@@ -1,53 +1,71 @@
-static void check_aliased_update(struct command *cmd, struct string_list *list)
+static int check_preimage(struct apply_state *state,
+			  struct patch *patch,
+			  struct cache_entry **ce,
+			  struct stat *st)
 {
-	struct strbuf buf = STRBUF_INIT;
-	const char *dst_name;
-	struct string_list_item *item;
-	struct command *dst_cmd;
-	unsigned char sha1[GIT_SHA1_RAWSZ];
-	char cmd_oldh[GIT_SHA1_HEXSZ + 1],
-	     cmd_newh[GIT_SHA1_HEXSZ + 1],
-	     dst_oldh[GIT_SHA1_HEXSZ + 1],
-	     dst_newh[GIT_SHA1_HEXSZ + 1];
-	int flag;
+	const char *old_name = patch->old_name;
+	struct patch *previous = NULL;
+	int stat_ret = 0, status;
+	unsigned st_mode = 0;
 
-	strbuf_addf(&buf, "%s%s", get_git_namespace(), cmd->ref_name);
-	dst_name = resolve_ref_unsafe(buf.buf, 0, sha1, &flag);
-	strbuf_release(&buf);
+	if (!old_name)
+		return 0;
 
-	if (!(flag & REF_ISSYMREF))
-		return;
+	assert(patch->is_new <= 0);
+	previous = previous_patch(state, patch, &status);
 
-	if (!dst_name) {
-		rp_error("refusing update to broken symref '%s'", cmd->ref_name);
-		cmd->skip_update = 1;
-		cmd->error_string = "broken symref";
-		return;
+	if (status)
+		return error(_("path %s has been renamed/deleted"), old_name);
+	if (previous) {
+		st_mode = previous->new_mode;
+	} else if (!state->cached) {
+		stat_ret = lstat(old_name, st);
+		if (stat_ret && errno != ENOENT)
+			return error(_("%s: %s"), old_name, strerror(errno));
 	}
-	dst_name = strip_namespace(dst_name);
 
-	if ((item = string_list_lookup(list, dst_name)) == NULL)
-		return;
+	if (state->check_index && !previous) {
+		int pos = cache_name_pos(old_name, strlen(old_name));
+		if (pos < 0) {
+			if (patch->is_new < 0)
+				goto is_new;
+			return error(_("%s: does not exist in index"), old_name);
+		}
+		*ce = active_cache[pos];
+		if (stat_ret < 0) {
+			if (checkout_target(&the_index, *ce, st))
+				return -1;
+		}
+		if (!state->cached && verify_index_match(*ce, st))
+			return error(_("%s: does not match index"), old_name);
+		if (state->cached)
+			st_mode = (*ce)->ce_mode;
+	} else if (stat_ret < 0) {
+		if (patch->is_new < 0)
+			goto is_new;
+		return error(_("%s: %s"), old_name, strerror(errno));
+	}
 
-	cmd->skip_update = 1;
+	if (!state->cached && !previous)
+		st_mode = ce_mode_from_stat(*ce, st->st_mode);
 
-	dst_cmd = (struct command *) item->util;
+	if (patch->is_new < 0)
+		patch->is_new = 0;
+	if (!patch->old_mode)
+		patch->old_mode = st_mode;
+	if ((st_mode ^ patch->old_mode) & S_IFMT)
+		return error(_("%s: wrong type"), old_name);
+	if (st_mode != patch->old_mode)
+		warning(_("%s has type %o, expected %o"),
+			old_name, st_mode, patch->old_mode);
+	if (!patch->new_mode && !patch->is_delete)
+		patch->new_mode = st_mode;
+	return 0;
 
-	if (!hashcmp(cmd->old_sha1, dst_cmd->old_sha1) &&
-	    !hashcmp(cmd->new_sha1, dst_cmd->new_sha1))
-		return;
-
-	dst_cmd->skip_update = 1;
-
-	find_unique_abbrev_r(cmd_oldh, cmd->old_sha1, DEFAULT_ABBREV);
-	find_unique_abbrev_r(cmd_newh, cmd->new_sha1, DEFAULT_ABBREV);
-	find_unique_abbrev_r(dst_oldh, dst_cmd->old_sha1, DEFAULT_ABBREV);
-	find_unique_abbrev_r(dst_newh, dst_cmd->new_sha1, DEFAULT_ABBREV);
-	rp_error("refusing inconsistent update between symref '%s' (%s..%s) and"
-		 " its target '%s' (%s..%s)",
-		 cmd->ref_name, cmd_oldh, cmd_newh,
-		 dst_cmd->ref_name, dst_oldh, dst_newh);
-
-	cmd->error_string = dst_cmd->error_string =
-		"inconsistent aliased update";
+ is_new:
+	patch->is_new = 1;
+	patch->is_delete = 0;
+	free(patch->old_name);
+	patch->old_name = NULL;
+	return 0;
 }

@@ -1,45 +1,68 @@
-static int handle_autoindex(request_rec *r)
+static authz_status fileowner_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    autoindex_config_rec *d;
-    int allow_opts;
+    char *reason = NULL;
+    apr_status_t status = 0;
 
-    if(strcmp(r->handler,DIR_MAGIC_TYPE)) {
-        return DECLINED;
+#if !APR_HAS_USER
+    reason = "'Require file-owner' is not supported on this platform.";
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                  "Authorization of user %s to access %s failed, reason: %s",
+                  r->user, r->uri, reason ? reason : "unknown");
+    return AUTHZ_DENIED;
+#else  /* APR_HAS_USER */
+    char *owner = NULL;
+    apr_finfo_t finfo;
+
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
     }
 
-    allow_opts = ap_allow_options(r);
-
-    d = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config,
-                                                      &autoindex_module);
-
-    r->allowed |= (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET) {
-        return DECLINED;
+    if (!r->filename) {
+        reason = "no filename available";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
     }
 
-    /* OK, nothing easy.  Trot out the heavy artillery... */
-
-    if (allow_opts & OPT_INDEXES) {
-        int errstatus;
-
-        if ((errstatus = ap_discard_request_body(r)) != OK) {
-            return errstatus;
-        }
-
-        /* KLUDGE --- make the sub_req lookups happen in the right directory.
-         * Fixing this in the sub_req_lookup functions themselves is difficult,
-         * and would probably break virtual includes...
-         */
-
-        if (r->filename[strlen(r->filename) - 1] != '/') {
-            r->filename = apr_pstrcat(r->pool, r->filename, "/", NULL);
-        }
-        return index_directory(r, d);
+    status = apr_stat(&finfo, r->filename, APR_FINFO_USER, r->pool);
+    if (status != APR_SUCCESS) {
+        reason = apr_pstrcat(r->pool, "could not stat file ",
+                                r->filename, NULL);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
     }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Directory index forbidden by "
-                      "Options directive: %s", r->filename);
-        return HTTP_FORBIDDEN;
+
+    if (!(finfo.valid & APR_FINFO_USER)) {
+        reason = "no file owner information available";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
     }
+
+    status = apr_uid_name_get(&owner, finfo.user, r->pool);
+    if (status != APR_SUCCESS || !owner) {
+        reason = "could not get name of file owner";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
+    }
+
+    if (strcmp(owner, r->user)) {
+        reason = apr_psprintf(r->pool, "file owner %s does not match.",
+                                owner);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
+    }
+
+    /* this user is authorized */
+    return AUTHZ_GRANTED;
+#endif /* APR_HAS_USER */
 }

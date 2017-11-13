@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[strict] Invalid host name '%s'%s%.6s",
-                  host, *ch ? ", problem near: " : "", ch);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %lu: Unable to retrieve the ready event from the parent", my_pid);

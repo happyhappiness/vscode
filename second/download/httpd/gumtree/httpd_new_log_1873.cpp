@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                     "Couldn't start piped log process '%s'.",
-                     (program == NULL) ? "NULL" : program);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] util_ldap: no cached SGL for %s,"
+                      " retrieving from LDAP" , getpid(), dn);

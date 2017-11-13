@@ -1,2 +1,1 @@
-die_errno("Could not switch to '%s'",
-						  sb.buf);
+child_die(CHILD_ERR_CHDIR);

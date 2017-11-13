@@ -1,11 +1,9 @@
 fputs(
-"                7.47.0: mbedtls\n"
-"                7.49.0: PolarSSL Other SSL backends not supported.\n"
+"              method was designed by Microsoft and is used by IIS web servers.\n"
+"              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
+"              ple and implemented in curl based on their efforts. This kind of\n"
+"              behavior should not be endorsed, you should  encourage  everyone\n"
+"              who  uses  NTLM to switch to a public and documented authentica-\n"
+"              tion method instead, such as Digest.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --post301\n"
-"              (HTTP) Tells curl to respect RFC 7231/6.4.2 and not convert POST\n"
-"              requests into GET requests when following a 301 redirection. The\n"
-"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
 , stdout);

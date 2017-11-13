@@ -1,1 +1,1 @@
-fprintf(out, "%s ", oid_to_hex(&obj->oid));
+die("unable to generate diff for %s", name);

@@ -1,1 +1,0 @@
-fputs(c_plain, stdout);

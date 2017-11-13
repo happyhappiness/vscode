@@ -1,36 +1,78 @@
-static void htdbm_usage(void)
+apr_status_t h2_response_output_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 {
+    h2_task *task = f->ctx;
+    h2_from_h1 *from_h1 = task->output.from_h1;
+    request_rec *r = f->r;
+    apr_bucket *b;
+    ap_bucket_error *eb = NULL;
 
-#if (!(defined(WIN32) || defined(NETWARE)))
-#define CRYPT_OPTION "d"
-#else
-#define CRYPT_OPTION ""
-#endif
-    fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
-    fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -b[cm"CRYPT_OPTION"ptsv] [-TDBTYPE] database username password\n");
-    fprintf(stderr, "                -n[m"CRYPT_OPTION"pst]   username\n");
-    fprintf(stderr, "                -nb[m"CRYPT_OPTION"pst]  username password\n");
-    fprintf(stderr, "                -v[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -vb[m"CRYPT_OPTION"ps]   [-TDBTYPE] database username password\n");
-    fprintf(stderr, "                -x[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -l                       [-TDBTYPE] database\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "   -b   Use the password from the command line rather "
-                    "than prompting for it.\n");
-    fprintf(stderr, "   -c   Create a new database.\n");
-    fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");
-    fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");
-#if (!(defined(WIN32) || defined(NETWARE)))
-    fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");
-#endif
-    fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");
-    fprintf(stderr, "   -s   Force SHA encryption of the password.\n");
-    fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");
-    fprintf(stderr, "   -l   Display usernames from database on stdout.\n");
-    fprintf(stderr, "   -t   The last param is username comment.\n");
-    fprintf(stderr, "   -v   Verify the username/password.\n");
-    fprintf(stderr, "   -x   Remove the username record from database.\n");
-    exit(ERR_SYNTAX);
-
+    AP_DEBUG_ASSERT(from_h1 != NULL);
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_from_h1(%d): output_filter called", from_h1->stream_id);
+    
+    if (r->header_only && from_h1->response) {
+        /* throw away any data after we have compiled the response */
+        apr_brigade_cleanup(bb);
+        return OK;
+    }
+    
+    for (b = APR_BRIGADE_FIRST(bb);
+         b != APR_BRIGADE_SENTINEL(bb);
+         b = APR_BUCKET_NEXT(b))
+    {
+        if (AP_BUCKET_IS_ERROR(b) && !eb) {
+            eb = b->data;
+            continue;
+        }
+        /*
+         * If we see an EOC bucket it is a signal that we should get out
+         * of the way doing nothing.
+         */
+        if (AP_BUCKET_IS_EOC(b)) {
+            ap_remove_output_filter(f);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, f->c,
+                          "h2_from_h1(%d): eoc bucket passed", 
+                          from_h1->stream_id);
+            return ap_pass_brigade(f->next, bb);
+        }
+    }
+    
+    if (eb) {
+        int st = eb->status;
+        apr_brigade_cleanup(bb);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03047)
+                      "h2_from_h1(%d): err bucket status=%d", 
+                      from_h1->stream_id, st);
+        ap_die(st, r);
+        return AP_FILTER_ERROR;
+    }
+    
+    from_h1->response = create_response(from_h1, r);
+    if (from_h1->response == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_NOTICE, 0, f->c, APLOGNO(03048)
+                      "h2_from_h1(%d): unable to create response", 
+                      from_h1->stream_id);
+        return APR_ENOMEM;
+    }
+    
+    if (r->header_only) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_from_h1(%d): header_only, cleanup output brigade", 
+                      from_h1->stream_id);
+        apr_brigade_cleanup(bb);
+        return OK;
+    }
+    
+    r->sent_bodyct = 1;         /* Whatever follows is real body stuff... */
+    
+    ap_remove_output_filter(f);
+    if (APLOGctrace1(f->c)) {
+        apr_off_t len = 0;
+        apr_brigade_length(bb, 0, &len);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_from_h1(%d): removed header filter, passing brigade "
+                      "len=%ld", from_h1->stream_id, (long)len);
+    }
+    return ap_pass_brigade(f->next, bb);
 }

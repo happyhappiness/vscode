@@ -1,96 +1,67 @@
-static const char *add_member(cmd_parms *cmd, void *dummy, const char *arg)
+conn_rec *h2_slave_create(conn_rec *master, int slave_id, apr_pool_t *parent)
 {
-    server_rec *s = cmd->server;
-    proxy_server_conf *conf =
-    ap_get_module_config(s->module_config, &proxy_module);
-    proxy_balancer *balancer;
-    proxy_worker *worker;
-    char *path = cmd->path;
-    char *name = NULL;
-    char *word;
-    apr_table_t *params = apr_table_make(cmd->pool, 5);
-    const apr_array_header_t *arr;
-    const apr_table_entry_t *elts;
-    int reuse = 0;
-    int i;
-    /* XXX: Should this be NOT_IN_DIRECTORY|NOT_IN_FILES? */
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_HTACCESS);
-    if (err)
-        return err;
+    apr_allocator_t *allocator;
+    apr_pool_t *pool;
+    conn_rec *c;
+    void *cfg;
+    
+    ap_assert(master);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, master,
+                  "h2_conn(%ld): create slave", master->id);
+    
+    /* We create a pool with its own allocator to be used for
+     * processing a request. This is the only way to have the processing
+     * independant of its parent pool in the sense that it can work in
+     * another thread.
+     */
+    apr_allocator_create(&allocator);
+    apr_pool_create_ex(&pool, parent, NULL, allocator);
+    apr_pool_tag(pool, "h2_slave_conn");
+    apr_allocator_owner_set(allocator, pool);
 
-    if (cmd->path)
-        path = apr_pstrdup(cmd->pool, cmd->path);
-
-    while (*arg) {
-        char *val;
-        word = ap_getword_conf(cmd->pool, &arg);
-        val = strchr(word, '=');
-
-        if (!val) {
-            if (!path)
-                path = word;
-            else if (!name)
-                name = word;
-            else {
-                if (cmd->path)
-                    return "BalancerMember can not have a balancer name when defined in a location";
-                else
-                    return "Invalid BalancerMember parameter. Parameter must "
-                           "be in the form 'key=value'";
-            }
-        } else {
-            *val++ = '\0';
-            apr_table_setn(params, word, val);
-        }
+    c = (conn_rec *) apr_palloc(pool, sizeof(conn_rec));
+    if (c == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
+                      APLOGNO(02913) "h2_task: creating conn");
+        return NULL;
     }
-    if (!path)
-        return "BalancerMember must define balancer name when outside <Proxy > section";
-    if (!name)
-        return "BalancerMember must define remote proxy server";
-
-    ap_str_tolower(path);   /* lowercase scheme://hostname */
-
-    /* Try to find the balancer */
-    balancer = ap_proxy_get_balancer(cmd->temp_pool, conf, path, 0);
-    if (!balancer) {
-        err = ap_proxy_define_balancer(cmd->pool, &balancer, conf, path, "/", 0);
-        if (err)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-    }
-
-    /* Try to find existing worker */
-    worker = ap_proxy_get_worker(cmd->temp_pool, balancer, conf, name);
-    if (!worker) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01147)
-                     "Defining worker '%s' for balancer '%s'",
-                     name, balancer->s->name);
-        if ((err = ap_proxy_define_worker(cmd->pool, &worker, balancer, conf, name, 0)) != NULL)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01148)
-                     "Defined worker '%s' for balancer '%s'",
-                     worker->s->name, balancer->s->name);
-        PROXY_COPY_CONF_PARAMS(worker, conf);
-    } else {
-        reuse = 1;
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01149)
-                     "Sharing worker '%s' instead of creating new worker '%s'",
-                     worker->s->name, name);
+    
+    memcpy(c, master, sizeof(conn_rec));
+        
+    c->master                 = master;
+    c->pool                   = pool;   
+    c->conn_config            = ap_create_conn_config(pool);
+    c->notes                  = apr_table_make(pool, 5);
+    c->input_filters          = NULL;
+    c->output_filters         = NULL;
+    c->bucket_alloc           = apr_bucket_alloc_create(pool);
+    c->data_in_input_filters  = 0;
+    c->data_in_output_filters = 0;
+    c->clogging_input_filters = 1;
+    c->log                    = NULL;
+    c->log_id                 = apr_psprintf(pool, "%ld-%d", 
+                                             master->id, slave_id);
+    /* Simulate that we had already a request on this connection. */
+    c->keepalives             = 1;
+    /* We cannot install the master connection socket on the slaves, as
+     * modules mess with timeouts/blocking of the socket, with
+     * unwanted side effects to the master connection processing.
+     * Fortunately, since we never use the slave socket, we can just install
+     * a single, process-wide dummy and everyone is happy.
+     */
+    ap_set_module_config(c->conn_config, &core_module, dummy_socket);
+    /* TODO: these should be unique to this thread */
+    c->sbh                    = master->sbh;
+    /* TODO: not all mpm modules have learned about slave connections yet.
+     * copy their config from master to slave.
+     */
+    if (h2_conn_mpm_module()) {
+        cfg = ap_get_module_config(master->conn_config, h2_conn_mpm_module());
+        ap_set_module_config(c->conn_config, h2_conn_mpm_module(), cfg);
     }
 
-    arr = apr_table_elts(params);
-    elts = (const apr_table_entry_t *)arr->elts;
-    for (i = 0; i < arr->nelts; i++) {
-        if (reuse) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01150)
-                         "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
-                         elts[i].key, elts[i].val, worker->s->name);
-        } else {
-            err = set_worker_param(cmd->pool, worker, elts[i].key,
-                                               elts[i].val);
-            if (err)
-                return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-        }
-    }
-
-    return NULL;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
+                  "h2_task: creating conn, master=%ld, sid=%ld, logid=%s", 
+                  master->id, c->id, c->log_id);
+    return c;
 }

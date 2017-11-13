@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, c->base_server,
-                     "core_filter: sendfile_nonblocking: "
-                     "this should never happen");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                             "ldap_simple_bind() timed out on reused "
+                             "connection, dropped by firewall?");

@@ -1,1 +1,0 @@
-write_int(f_out, sum.remainder);

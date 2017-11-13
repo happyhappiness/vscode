@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
-                              "session proessed, unexpected status");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                         "ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
+                         "as HSE_IO_ASYNC is not supported: %s", r->filename);

@@ -1,2 +1,1 @@
-die("unable to generate combined diff for %s",
-		    sha1_to_hex(parent));
+warning(_("Failed to update main cache tree"));

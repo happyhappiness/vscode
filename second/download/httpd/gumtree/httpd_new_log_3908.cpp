@@ -1,1 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "<%3.3u %s", rc, message);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01279)
+                    "Unable to set LDAP_OPT_REFERRALS option to %s: %d.",
+                    ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"),
+                    result->rc);

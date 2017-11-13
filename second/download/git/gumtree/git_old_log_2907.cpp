@@ -1,1 +1,1 @@
-error(_("failed to remove: %s"), strerror(errno));
+error("lstat(%s): %s", ce->name, strerror(errno));

@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, loglevel, rv, r, APLOGNO(00939)
-                          "%s: attempt to connect to %pI (%s) failed",
-                          proxy_function, backend_addr, backend_name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01511)
+                      MODNAME ": unexpected state %d; could be caused by bad "
+                      "data in magic file",
+                      state);

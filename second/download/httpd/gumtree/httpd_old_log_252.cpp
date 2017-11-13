@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                     0, NULL, "Unable to open logs\n");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                         "new file descriptor %d is too large; you probably need "
+                         "to rebuild Apache with a larger FD_SETSIZE "
+                         "(currently %d)",
+                         sockdes, FD_SETSIZE);

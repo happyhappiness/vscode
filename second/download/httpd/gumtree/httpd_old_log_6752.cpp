@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01148)
-                     "Defined worker '%s' for balancer '%s'",
-                     worker->s->name, balancer->s->name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03045)
+                          "h2_session(%ld): process, closing conn", c->id);

@@ -1,2 +1,2 @@
-printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...",
+printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
                     worker_thread_count);

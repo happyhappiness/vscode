@@ -1,1 +1,0 @@
-io_printf(f_out, "@ERROR: chdir failed\n");

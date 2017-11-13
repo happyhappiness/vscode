@@ -1,11 +1,11 @@
 fputs(
-"              and the embedded user + password.\n"
+"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
+"              ytunnel option.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              User and password that might be provided in the proxy string are\n"
+"              URL decoded by curl. This allows you to pass in special  charac-\n"
+"              ters such as @ by using %40 or pass in a colon with %3a.\n"
 "\n"
-"       -X, --request <command>\n"
-"              (HTTP) Specifies a custom request method to use when communicat-\n"
-"              ing with the HTTP server.  The specified request  will  be  used\n"
-"              instead  of  the  method otherwise used (which defaults to GET).\n"
-"              Read the HTTP 1.1 specification for  details  and  explanations.\n"
+"              The  proxy host can be specified the exact same way as the proxy\n"
+"              environment variables, including the protocol  prefix  (http://)\n"
 , stdout);

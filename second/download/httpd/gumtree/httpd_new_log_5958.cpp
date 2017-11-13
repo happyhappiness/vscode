@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, 
-                  APLOGNO(03197) "h2_task(%s): passed response %d", 
-                  task->id, response->status);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, r->server, APLOGNO(03187)
+                     "Child %ld camping out on mutex for %" APR_INT64_T_FMT
+                     " microseconds",
+                     (long int) getpid(), timecamped);

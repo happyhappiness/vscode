@@ -1,2 +1,3 @@
-apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout." NL);
+apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+        " (default)"
+        "." NL);

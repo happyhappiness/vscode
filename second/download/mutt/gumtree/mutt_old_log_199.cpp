@@ -1,1 +1,1 @@
-state_attach_puts (errbuf, s);
+state_attach_puts (sig->fpr, s);

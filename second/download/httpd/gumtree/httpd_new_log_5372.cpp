@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03354)
-                    "Can't evaluate require expression: %s", err);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00297)
+                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");

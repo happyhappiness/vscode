@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
-                          APLOGNO(03471) "h2_proxy_session(%s): request %s -> %s "
-                          "not complete, was touched",
-                          ctx->engine_id, task_id, uri);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, APLOGNO(03201)
+                  "h2_session(%ld): start, INITIAL_WINDOW_SIZE=%ld, "
+                  "MAX_CONCURRENT_STREAMS=%d", 
+                  session->id, (long)win_size, (int)session->max_stream_count);

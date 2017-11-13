@@ -1,10 +1,11 @@
 fputs(
-"              There's  no  attempt to decode %-sequences (yet) in the provided\n"
-"              file name, so this option may provide you with rather unexpected\n"
-"              file names.\n"
+"              WARNING:  headers  set  with  this  option  will  be  set in all\n"
+"              requests - even after redirects are  followed,  like  when  told\n"
+"              with  -L,  --location. This can lead to the header being sent to\n"
+"              other hosts than the original host, so sensitive headers  should\n"
+"              be used with caution combined with following redirects.\n"
 "\n"
-"       -k, --insecure\n"
-"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
-"              SSL connections and transfers. All SSL connections are attempted\n"
-"              to  be  made secure by using the CA certificate bundle installed\n"
+"              This  option  can  be  used multiple times to add/replace/remove\n"
+"              multiple headers.\n"
+"\n"
 , stdout);

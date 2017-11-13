@@ -1,22 +1,24 @@
-static int check_collison(struct object_entry *entry)
+static char *get_symlink(const struct object_id *oid, const char *path)
 {
-	struct compare_data data;
-	enum object_type type;
-	unsigned long size;
+	char *data;
+	if (is_null_oid(oid)) {
+		/* The symlink is unknown to Git so read from the filesystem */
+		struct strbuf link = STRBUF_INIT;
+		if (has_symlinks) {
+			if (strbuf_readlink(&link, path, strlen(path)))
+				die(_("could not read symlink %s"), path);
+		} else if (strbuf_read_file(&link, path, 128))
+			die(_("could not read symlink file %s"), path);
 
-	if (entry->size <= big_file_threshold || entry->type != OBJ_BLOB)
-		return -1;
+		data = strbuf_detach(&link, NULL);
+	} else {
+		enum object_type type;
+		unsigned long size;
+		data = read_sha1_file(oid->hash, &type, &size);
+		if (!data)
+			die(_("could not read object %s for symlink %s"),
+				oid_to_hex(oid), path);
+	}
 
-	memset(&data, 0, sizeof(data));
-	data.entry = entry;
-	data.st = open_istream(entry->idx.sha1, &type, &size, NULL);
-	if (!data.st)
-		return -1;
-	if (size != entry->size || type != entry->type)
-		die(_("SHA1 COLLISION FOUND WITH %s !"),
-		    sha1_to_hex(entry->idx.sha1));
-	unpack_data(entry, compare_objects, &data);
-	close_istream(data.st);
-	free(data.buf);
-	return 0;
+	return data;
 }

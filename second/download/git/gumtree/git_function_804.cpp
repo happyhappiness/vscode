@@ -1,28 +1,25 @@
-static int prune_object(const unsigned char *sha1, const char *fullpath,
-			void *data)
+static struct child_process *git_proxy_connect(int fd[2], char *host)
 {
-	struct stat st;
+	const char *port = STR(DEFAULT_GIT_PORT);
+	struct child_process *proxy;
 
-	/*
-	 * Do we know about this object?
-	 * It must have been reachable
-	 */
-	if (lookup_object(sha1))
-		return 0;
+	get_host_and_port(&host, &port);
 
-	if (lstat(fullpath, &st)) {
-		/* report errors, but do not stop pruning */
-		error("Could not stat '%s'", fullpath);
-		return 0;
-	}
-	if (st.st_mtime > expire)
-		return 0;
-	if (show_only || verbose) {
-		enum object_type type = sha1_object_info(sha1, NULL);
-		printf("%s %s\n", sha1_to_hex(sha1),
-		       (type > 0) ? typename(type) : "unknown");
-	}
-	if (!show_only)
-		unlink_or_warn(fullpath);
-	return 0;
+	if (looks_like_command_line_option(host))
+		die("strange hostname '%s' blocked", host);
+	if (looks_like_command_line_option(port))
+		die("strange port '%s' blocked", port);
+
+	proxy = xmalloc(sizeof(*proxy));
+	child_process_init(proxy);
+	argv_array_push(&proxy->args, git_proxy_command);
+	argv_array_push(&proxy->args, host);
+	argv_array_push(&proxy->args, port);
+	proxy->in = -1;
+	proxy->out = -1;
+	if (start_command(proxy))
+		die("cannot start proxy %s", git_proxy_command);
+	fd[0] = proxy->out; /* read from proxy stdout */
+	fd[1] = proxy->in;  /* write to proxy stdin */
+	return proxy;
 }

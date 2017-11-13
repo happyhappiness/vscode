@@ -1,39 +1,30 @@
-apr_status_t h2_stream_write_data(h2_stream *stream,
-                                  const char *data, size_t len, int eos)
+static int submit_response(h2_session *session, h2_response *response)
 {
-    apr_status_t status = APR_SUCCESS;
+    nghttp2_data_provider provider;
+    int rv;
     
-    AP_DEBUG_ASSERT(stream);
-    if (input_closed(stream) || !stream->request->eoh) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d", 
-                      stream->session->id, stream->id, input_closed(stream),
-                      stream->request->eoh);
-        return APR_EINVAL;
-    }
-
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                  "h2_stream(%ld-%d): add %ld input bytes", 
-                  stream->session->id, stream->id, (long)len);
-
-    if (!stream->request->chunked) {
-        stream->input_remaining -= len;
-        if (stream->input_remaining < 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c,
-                          APLOGNO(02961) 
-                          "h2_stream(%ld-%d): got %ld more content bytes than announced "
-                          "in content-length header: %ld", 
-                          stream->session->id, stream->id,
-                          (long)stream->request->content_length, 
-                          -(long)stream->input_remaining);
-            h2_stream_rst(stream, H2_ERR_PROTOCOL_ERROR);
-            return APR_ECONNABORTED;
-        }
-    }
+    memset(&provider, 0, sizeof(provider));
+    provider.source.fd = response->stream_id;
+    provider.read_callback = stream_data_cb;
     
-    status = h2_mplx_in_write(stream->session->mplx, stream->id, data, len, eos);
-    if (eos) {
-        close_input(stream);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                  "h2_stream(%ld-%d): submitting response %s",
+                  session->id, response->stream_id, response->status);
+    
+    rv = nghttp2_submit_response(session->ngh2, response->stream_id,
+                                 response->ngheader->nv, 
+                                 response->ngheader->nvlen, &provider);
+    
+    if (rv != 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02939) "h2_stream(%ld-%d): submit_response: %s",
+                      session->id, response->stream_id, nghttp2_strerror(rv));
     }
-    return status;
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): submitted response %s, rv=%d",
+                      session->id, response->stream_id, 
+                      response->status, rv);
+    }
+    return rv;
 }

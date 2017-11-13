@@ -1,66 +1,120 @@
-int cmd_rerere(int argc, const char **argv, const char *prefix)
+struct child_process *git_connect(int fd[2], const char *url,
+				  const char *prog, int flags)
 {
-	struct string_list merge_rr = STRING_LIST_INIT_DUP;
-	int i, autoupdate = -1, flags = 0;
+	char *hostandport, *path;
+	struct child_process *conn = &no_fork;
+	enum protocol protocol;
+	struct strbuf cmd = STRBUF_INIT;
 
-	struct option options[] = {
-		OPT_SET_INT(0, "rerere-autoupdate", &autoupdate,
-			N_("register clean resolutions in index"), 1),
-		OPT_END(),
-	};
+	/* Without this we cannot rely on waitpid() to tell
+	 * what happened to our children.
+	 */
+	signal(SIGCHLD, SIG_DFL);
 
-	argc = parse_options(argc, argv, prefix, options, rerere_usage, 0);
+	protocol = parse_connect_url(url, &hostandport, &path);
+	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
+		printf("Diag: url=%s\n", url ? url : "NULL");
+		printf("Diag: protocol=%s\n", prot_name(protocol));
+		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
+		printf("Diag: path=%s\n", path ? path : "NULL");
+		conn = NULL;
+	} else if (protocol == PROTO_GIT) {
+		/*
+		 * Set up virtual host information based on where we will
+		 * connect, unless the user has overridden us in
+		 * the environment.
+		 */
+		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
+		if (target_host)
+			target_host = xstrdup(target_host);
+		else
+			target_host = xstrdup(hostandport);
 
-	git_config(git_xmerge_config, NULL);
+		/* These underlying connection commands die() if they
+		 * cannot connect.
+		 */
+		if (git_use_proxy(hostandport))
+			conn = git_proxy_connect(fd, hostandport);
+		else
+			git_tcp_connect(fd, hostandport, flags);
+		/*
+		 * Separate original protocol components prog and path
+		 * from extended host header with a NUL byte.
+		 *
+		 * Note: Do not add any other headers here!  Doing so
+		 * will cause older git-daemon servers to crash.
+		 */
+		packet_write(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);
+		free(target_host);
+	} else {
+		conn = xmalloc(sizeof(*conn));
+		child_process_init(conn);
 
-	if (autoupdate == 1)
-		flags = RERERE_AUTOUPDATE;
-	if (autoupdate == 0)
-		flags = RERERE_NOAUTOUPDATE;
+		strbuf_addstr(&cmd, prog);
+		strbuf_addch(&cmd, ' ');
+		sq_quote_buf(&cmd, path);
 
-	if (argc < 1)
-		return rerere(flags);
+		conn->in = conn->out = -1;
+		if (protocol == PROTO_SSH) {
+			const char *ssh;
+			int putty;
+			char *ssh_host = hostandport;
+			const char *port = NULL;
+			get_host_and_port(&ssh_host, &port);
 
-	if (!strcmp(argv[0], "forget")) {
-		struct pathspec pathspec;
-		if (argc < 2)
-			warning("'git rerere forget' without paths is deprecated");
-		parse_pathspec(&pathspec, 0, PATHSPEC_PREFER_CWD,
-			       prefix, argv + 1);
-		return rerere_forget(&pathspec);
+			if (!port)
+				port = get_port(ssh_host);
+
+			if (flags & CONNECT_DIAG_URL) {
+				printf("Diag: url=%s\n", url ? url : "NULL");
+				printf("Diag: protocol=%s\n", prot_name(protocol));
+				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+				printf("Diag: port=%s\n", port ? port : "NONE");
+				printf("Diag: path=%s\n", path ? path : "NULL");
+
+				free(hostandport);
+				free(path);
+				return NULL;
+			} else {
+				ssh = getenv("GIT_SSH_COMMAND");
+				if (ssh) {
+					conn->use_shell = 1;
+					putty = 0;
+				} else {
+					ssh = getenv("GIT_SSH");
+					if (!ssh)
+						ssh = "ssh";
+					putty = !!strcasestr(ssh, "plink");
+				}
+
+				argv_array_push(&conn->args, ssh);
+				if (putty && !strcasestr(ssh, "tortoiseplink"))
+					argv_array_push(&conn->args, "-batch");
+				if (port) {
+					/* P is for PuTTY, p is for OpenSSH */
+					argv_array_push(&conn->args, putty ? "-P" : "-p");
+					argv_array_push(&conn->args, port);
+				}
+				argv_array_push(&conn->args, ssh_host);
+			}
+		} else {
+			/* remove repo-local variables from the environment */
+			conn->env = local_repo_env;
+			conn->use_shell = 1;
+		}
+		argv_array_push(&conn->args, cmd.buf);
+
+		if (start_command(conn))
+			die("unable to fork");
+
+		fd[0] = conn->out; /* read from child's stdout */
+		fd[1] = conn->in;  /* write to child's stdin */
+		strbuf_release(&cmd);
 	}
-
-	if (!strcmp(argv[0], "clear")) {
-		rerere_clear(&merge_rr);
-	} else if (!strcmp(argv[0], "gc"))
-		rerere_gc(&merge_rr);
-	else if (!strcmp(argv[0], "status")) {
-		if (setup_rerere(&merge_rr, flags | RERERE_READONLY) < 0)
-			return 0;
-		for (i = 0; i < merge_rr.nr; i++)
-			printf("%s\n", merge_rr.items[i].string);
-	} else if (!strcmp(argv[0], "remaining")) {
-		rerere_remaining(&merge_rr);
-		for (i = 0; i < merge_rr.nr; i++) {
-			if (merge_rr.items[i].util != RERERE_RESOLVED)
-				printf("%s\n", merge_rr.items[i].string);
-			else
-				/* prepare for later call to
-				 * string_list_clear() */
-				merge_rr.items[i].util = NULL;
-		}
-	} else if (!strcmp(argv[0], "diff")) {
-		if (setup_rerere(&merge_rr, flags | RERERE_READONLY) < 0)
-			return 0;
-		for (i = 0; i < merge_rr.nr; i++) {
-			const char *path = merge_rr.items[i].string;
-			const char *name = (const char *)merge_rr.items[i].util;
-			if (diff_two(rerere_path(name, "preimage"), path, path, path))
-				die("unable to generate diff for %s", name);
-		}
-	} else
-		usage_with_options(rerere_usage, options);
-
-	string_list_clear(&merge_rr, 1);
-	return 0;
+	free(hostandport);
+	free(path);
+	return conn;
 }

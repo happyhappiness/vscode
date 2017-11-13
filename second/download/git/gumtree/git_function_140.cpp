@@ -1,70 +1,72 @@
-static void prepare_packed_git_one(char *objdir, int local)
+static int stat_opt(struct diff_options *options, const char **av)
 {
-	/* Ensure that this buffer is large enough so that we can
-	   append "/pack/" without clobbering the stack even if
-	   strlen(objdir) were PATH_MAX.  */
-	char path[PATH_MAX + 1 + 4 + 1 + 1];
-	int len;
-	DIR *dir;
-	struct dirent *de;
-	struct string_list garbage = STRING_LIST_INIT_DUP;
+	const char *arg = av[0];
+	char *end;
+	int width = options->stat_width;
+	int name_width = options->stat_name_width;
+	int graph_width = options->stat_graph_width;
+	int count = options->stat_count;
+	int argcount = 1;
 
-	sprintf(path, "%s/pack", objdir);
-	len = strlen(path);
-	dir = opendir(path);
-	if (!dir) {
-		if (errno != ENOENT)
-			error("unable to open object pack directory: %s: %s",
-			      path, strerror(errno));
-		return;
-	}
-	path[len++] = '/';
-	while ((de = readdir(dir)) != NULL) {
-		int namelen = strlen(de->d_name);
-		struct packed_git *p;
+	if (!skip_prefix(arg, "--stat", &arg))
+		die("BUG: stat option does not begin with --stat: %s", arg);
+	end = (char *)arg;
 
-		if (len + namelen + 1 > sizeof(path)) {
-			if (report_garbage) {
-				struct strbuf sb = STRBUF_INIT;
-				strbuf_addf(&sb, "%.*s/%s", len - 1, path, de->d_name);
-				report_garbage("path too long", sb.buf);
-				strbuf_release(&sb);
+	switch (*arg) {
+	case '-':
+		if (skip_prefix(arg, "-width", &arg)) {
+			if (*arg == '=')
+				width = strtoul(arg + 1, &end, 10);
+			else if (!*arg && !av[1])
+				die("Option '--stat-width' requires a value");
+			else if (!*arg) {
+				width = strtoul(av[1], &end, 10);
+				argcount = 2;
 			}
-			continue;
-		}
-
-		if (is_dot_or_dotdot(de->d_name))
-			continue;
-
-		strcpy(path + len, de->d_name);
-
-		if (has_extension(de->d_name, ".idx")) {
-			/* Don't reopen a pack we already have. */
-			for (p = packed_git; p; p = p->next) {
-				if (!memcmp(path, p->pack_name, len + namelen - 4))
-					break;
+		} else if (skip_prefix(arg, "-name-width", &arg)) {
+			if (*arg == '=')
+				name_width = strtoul(arg + 1, &end, 10);
+			else if (!*arg && !av[1])
+				die("Option '--stat-name-width' requires a value");
+			else if (!*arg) {
+				name_width = strtoul(av[1], &end, 10);
+				argcount = 2;
 			}
-			if (p == NULL &&
-			    /*
-			     * See if it really is a valid .idx file with
-			     * corresponding .pack file that we can map.
-			     */
-			    (p = add_packed_git(path, len + namelen, local)) != NULL)
-				install_packed_git(p);
+		} else if (skip_prefix(arg, "-graph-width", &arg)) {
+			if (*arg == '=')
+				graph_width = strtoul(arg + 1, &end, 10);
+			else if (!*arg && !av[1])
+				die("Option '--stat-graph-width' requires a value");
+			else if (!*arg) {
+				graph_width = strtoul(av[1], &end, 10);
+				argcount = 2;
+			}
+		} else if (skip_prefix(arg, "-count", &arg)) {
+			if (*arg == '=')
+				count = strtoul(arg + 1, &end, 10);
+			else if (!*arg && !av[1])
+				die("Option '--stat-count' requires a value");
+			else if (!*arg) {
+				count = strtoul(av[1], &end, 10);
+				argcount = 2;
+			}
 		}
-
-		if (!report_garbage)
-			continue;
-
-		if (has_extension(de->d_name, ".idx") ||
-		    has_extension(de->d_name, ".pack") ||
-		    has_extension(de->d_name, ".bitmap") ||
-		    has_extension(de->d_name, ".keep"))
-			string_list_append(&garbage, path);
-		else
-			report_garbage("garbage found", path);
+		break;
+	case '=':
+		width = strtoul(arg+1, &end, 10);
+		if (*end == ',')
+			name_width = strtoul(end+1, &end, 10);
+		if (*end == ',')
+			count = strtoul(end+1, &end, 10);
 	}
-	closedir(dir);
-	report_pack_garbage(&garbage);
-	string_list_clear(&garbage, 0);
+
+	/* Important! This checks all the error cases! */
+	if (*end)
+		return 0;
+	options->output_format |= DIFF_FORMAT_DIFFSTAT;
+	options->stat_name_width = name_width;
+	options->stat_graph_width = graph_width;
+	options->stat_width = width;
+	options->stat_count = count;
+	return argcount;
 }

@@ -1,1 +1,1 @@
-printf("%6d\t%s\n", onelines->nr, log->list.items[i].string);
+fprintf_ln(stderr, _("Enter %s (identifier %s)"), path, name);

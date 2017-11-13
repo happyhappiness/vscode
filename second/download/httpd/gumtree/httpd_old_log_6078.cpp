@@ -1,7 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00458)
-                 "pid %" APR_PID_T_FMT " taking over scoreboard slot from "
-                 "%" APR_PID_T_FMT "%s",
-                 newpid,
-                 ap_scoreboard_image->parent[slot].pid,
-                 ap_scoreboard_image->parent[slot].quiescing ?
-                 " (quiescing)" : "");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                                  "h2_stream(%ld-%d): PUSH BEFORE2, weight=%d, "
+                                  "depends=%d, returned=%d",
+                                  session->id, id_parent, ps.weight, ps.stream_id, rv);

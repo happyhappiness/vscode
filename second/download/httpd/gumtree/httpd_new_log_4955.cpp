@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(00081)
-                          "a protocol filter was added without a request: %s", frec->name);
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, rv,
+                          ap_server_conf, APLOGNO(02291)
+                         "Cannot access directory '%s' for %s", dir, desc);

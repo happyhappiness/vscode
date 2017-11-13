@@ -1,2 +1,1 @@
-error("Couldn't truncate temporary file %s: %s",
-					  freq->tmpfile, strerror(errno));
+printf("missing %s %s\n", typename(obj->type), sha1_to_hex(obj->sha1));

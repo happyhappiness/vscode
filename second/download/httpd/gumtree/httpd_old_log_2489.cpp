@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                  "Digest: cleaning up shared memory");
+printf("Total POSTed:           %" APR_INT64_T_FMT "\n", totalposted);

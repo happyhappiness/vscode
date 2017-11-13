@@ -1,1 +1,1 @@
-die("%s", buf.buf);
+die("delete %s: extra input: %s", refname, next);

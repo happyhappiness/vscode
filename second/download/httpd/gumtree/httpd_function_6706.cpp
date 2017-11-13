@@ -1,199 +1,170 @@
-apr_status_t ap_core_output_filter(ap_filter_t *f, apr_bucket_brigade *new_bb)
+static void perform_idle_server_maintenance(int child_bucket, int num_buckets)
 {
-    conn_rec *c = f->c;
-    core_net_rec *net = f->ctx;
-    core_output_filter_ctx_t *ctx = net->out_ctx;
-    apr_bucket_brigade *bb = NULL;
-    apr_bucket *bucket, *next, *flush_upto = NULL;
-    apr_size_t bytes_in_brigade, non_file_bytes_in_brigade;
-    int eor_buckets_in_brigade, morphing_bucket_in_brigade;
-    apr_status_t rv;
+    int i, j;
+    int idle_thread_count = 0;
+    worker_score *ws;
+    process_score *ps;
+    int free_length = 0;
+    int free_slots[MAX_SPAWN_RATE];
+    int last_non_dead = -1;
+    int active_thread_count = 0;
 
-    /* Fail quickly if the connection has already been aborted. */
-    if (c->aborted) {
-        if (new_bb != NULL) {
-            apr_brigade_cleanup(new_bb);
+    for (i = 0; i < server_limit; ++i) {
+        /* Initialization to satisfy the compiler. It doesn't know
+         * that threads_per_child is always > 0 */
+        int status = SERVER_DEAD;
+        int child_threads_active = 0;
+
+        if (i >= retained->max_daemons_limit &&
+            free_length == retained->idle_spawn_rate[child_bucket]) {
+            /* short cut if all active processes have been examined and
+             * enough empty scoreboard slots have been found
+             */
+
+            break;
         }
-        return APR_ECONNABORTED;
+        ps = &ap_scoreboard_image->parent[i];
+        if (ps->pid != 0) {
+            for (j = 0; j < threads_per_child; j++) {
+                ws = &ap_scoreboard_image->servers[i][j];
+                status = ws->status;
+
+                /* We consider a starting server as idle because we started it
+                 * at least a cycle ago, and if it still hasn't finished starting
+                 * then we're just going to swamp things worse by forking more.
+                 * So we hopefully won't need to fork more if we count it.
+                 * This depends on the ordering of SERVER_READY and SERVER_STARTING.
+                 */
+                if (status <= SERVER_READY && !ps->quiescing && !ps->not_accepting
+                    && ps->generation == retained->my_generation
+                    && ps->bucket == child_bucket)
+                {
+                    ++idle_thread_count;
+                }
+                if (status >= SERVER_READY && status < SERVER_GRACEFUL) {
+                    ++child_threads_active;
+                }
+            }
+            last_non_dead = i;
+        }
+        active_thread_count += child_threads_active;
+        if (!ps->pid && free_length < retained->idle_spawn_rate[child_bucket])
+            free_slots[free_length++] = i;
+        else if (child_threads_active == threads_per_child)
+            had_healthy_child = 1;
     }
 
-    if (ctx == NULL) {
-        ctx = apr_pcalloc(c->pool, sizeof(*ctx));
-        net->out_ctx = (core_output_filter_ctx_t *)ctx;
-        /*
-         * Need to create tmp brigade with correct lifetime. Passing
-         * NULL to apr_brigade_split_ex would result in a brigade
-         * allocated from bb->pool which might be wrong.
-         */
-        ctx->tmp_flush_bb = apr_brigade_create(c->pool, c->bucket_alloc);
-        /* same for buffered_bb and ap_save_brigade */
-        ctx->buffered_bb = apr_brigade_create(c->pool, c->bucket_alloc);
-    }
-
-    if (new_bb != NULL)
-        bb = new_bb;
-
-    if ((ctx->buffered_bb != NULL) &&
-        !APR_BRIGADE_EMPTY(ctx->buffered_bb)) {
-        if (new_bb != NULL) {
-            APR_BRIGADE_PREPEND(bb, ctx->buffered_bb);
+    if (retained->sick_child_detected) {
+        if (had_healthy_child) {
+            /* Assume this is a transient error, even though it may not be.  Leave
+             * the server up in case it is able to serve some requests or the
+             * problem will be resolved.
+             */
+            retained->sick_child_detected = 0;
         }
         else {
-            bb = ctx->buffered_bb;
-        }
-        c->data_in_output_filters = 0;
-    }
-    else if (new_bb == NULL) {
-        return APR_SUCCESS;
-    }
-
-    /* Scan through the brigade and decide whether to attempt a write,
-     * and how much to write, based on the following rules:
-     *
-     *  1) The new_bb is null: Do a nonblocking write of as much as
-     *     possible: do a nonblocking write of as much data as possible,
-     *     then save the rest in ctx->buffered_bb.  (If new_bb == NULL,
-     *     it probably means that the MPM is doing asynchronous write
-     *     completion and has just determined that this connection
-     *     is writable.)
-     *
-     *  2) Determine if and up to which bucket we need to do a blocking
-     *     write:
-     *
-     *  a) The brigade contains a flush bucket: Do a blocking write
-     *     of everything up that point.
-     *
-     *  b) The request is in CONN_STATE_HANDLER state, and the brigade
-     *     contains at least THRESHOLD_MAX_BUFFER bytes in non-file
-     *     buckets: Do blocking writes until the amount of data in the
-     *     buffer is less than THRESHOLD_MAX_BUFFER.  (The point of this
-     *     rule is to provide flow control, in case a handler is
-     *     streaming out lots of data faster than the data can be
-     *     sent to the client.)
-     *
-     *  c) The request is in CONN_STATE_HANDLER state, and the brigade
-     *     contains at least MAX_REQUESTS_IN_PIPELINE EOR buckets:
-     *     Do blocking writes until less than MAX_REQUESTS_IN_PIPELINE EOR
-     *     buckets are left. (The point of this rule is to prevent too many
-     *     FDs being kept open by pipelined requests, possibly allowing a
-     *     DoS).
-     *
-     *  d) The brigade contains a morphing bucket: If there was no other
-     *     reason to do a blocking write yet, try reading the bucket. If its
-     *     contents fit into memory before THRESHOLD_MAX_BUFFER is reached,
-     *     everything is fine. Otherwise we need to do a blocking write the
-     *     up to and including the morphing bucket, because ap_save_brigade()
-     *     would read the whole bucket into memory later on.
-     *
-     *  3) Actually do the blocking write up to the last bucket determined
-     *     by rules 2a-d. The point of doing only one flush is to make as
-     *     few calls to writev() as possible.
-     *
-     *  4) If the brigade contains at least THRESHOLD_MIN_WRITE
-     *     bytes: Do a nonblocking write of as much data as possible,
-     *     then save the rest in ctx->buffered_bb.
-     */
-
-    if (new_bb == NULL) {
-        rv = send_brigade_nonblocking(net->client_socket, bb,
-                                      &(ctx->bytes_written), c);
-        if (APR_STATUS_IS_EAGAIN(rv)) {
-            rv = APR_SUCCESS;
-        }
-        else if (rv != APR_SUCCESS) {
-            /* The client has aborted the connection */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
-                          "core_output_filter: writing data to the network");
-            c->aborted = 1;
-        }
-        setaside_remaining_output(f, ctx, bb, c);
-        return rv;
-    }
-
-    bytes_in_brigade = 0;
-    non_file_bytes_in_brigade = 0;
-    eor_buckets_in_brigade = 0;
-    morphing_bucket_in_brigade = 0;
-
-    for (bucket = APR_BRIGADE_FIRST(bb); bucket != APR_BRIGADE_SENTINEL(bb);
-         bucket = next) {
-        next = APR_BUCKET_NEXT(bucket);
-
-        if (!APR_BUCKET_IS_METADATA(bucket)) {
-            if (bucket->length == (apr_size_t)-1) {
-                /*
-                 * A setaside of morphing buckets would read everything into
-                 * memory. Instead, we will flush everything up to and
-                 * including this bucket.
-                 */
-                morphing_bucket_in_brigade = 1;
-            }
-            else {
-                bytes_in_brigade += bucket->length;
-                if (!APR_BUCKET_IS_FILE(bucket))
-                    non_file_bytes_in_brigade += bucket->length;
-            }
-        }
-        else if (AP_BUCKET_IS_EOR(bucket)) {
-            eor_buckets_in_brigade++;
-        }
-
-        if (APR_BUCKET_IS_FLUSH(bucket)
-            || non_file_bytes_in_brigade >= THRESHOLD_MAX_BUFFER
-            || morphing_bucket_in_brigade
-            || eor_buckets_in_brigade > MAX_REQUESTS_IN_PIPELINE) {
-            /* this segment of the brigade MUST be sent before returning. */
-
-            if (APLOGctrace6(c)) {
-                char *reason = APR_BUCKET_IS_FLUSH(bucket) ?
-                               "FLUSH bucket" :
-                               (non_file_bytes_in_brigade >= THRESHOLD_MAX_BUFFER) ?
-                               "THRESHOLD_MAX_BUFFER" :
-                               morphing_bucket_in_brigade ? "morphing bucket" :
-                               "MAX_REQUESTS_IN_PIPELINE";
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, c,
-                              "core_output_filter: flushing because of %s",
-                              reason);
-            }
-            /*
-             * Defer the actual blocking write to avoid doing many writes.
+            /* looks like a basket case, as no child ever fully initialized; give up.
              */
-            flush_upto = next;
-
-            bytes_in_brigade = 0;
-            non_file_bytes_in_brigade = 0;
-            eor_buckets_in_brigade = 0;
-            morphing_bucket_in_brigade = 0;
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf, APLOGNO(02324)
+                         "A resource shortage or other unrecoverable failure "
+                         "was encountered before any child process initialized "
+                         "successfully... httpd is exiting!");
+            /* the child already logged the failure details */
+            return;
         }
     }
 
-    if (flush_upto != NULL) {
-        ctx->tmp_flush_bb = apr_brigade_split_ex(bb, flush_upto,
-                                                 ctx->tmp_flush_bb);
-        rv = send_brigade_blocking(net->client_socket, bb,
-                                   &(ctx->bytes_written), c);
-        if (rv != APR_SUCCESS) {
-            /* The client has aborted the connection */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
-                          "core_output_filter: writing data to the network");
-            c->aborted = 1;
-            return rv;
-        }
-        APR_BRIGADE_CONCAT(bb, ctx->tmp_flush_bb);
-    }
+    retained->max_daemons_limit = last_non_dead + 1;
 
-    if (bytes_in_brigade >= THRESHOLD_MIN_WRITE) {
-        rv = send_brigade_nonblocking(net->client_socket, bb,
-                                      &(ctx->bytes_written), c);
-        if ((rv != APR_SUCCESS) && (!APR_STATUS_IS_EAGAIN(rv))) {
-            /* The client has aborted the connection */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
-                          "core_output_filter: writing data to the network");
-            c->aborted = 1;
-            return rv;
+    if (idle_thread_count > max_spare_threads / num_buckets)
+    {
+        /*
+         * Child processes that we ask to shut down won't die immediately
+         * but may stay around for a long time when they finish their
+         * requests. If the server load changes many times, many such
+         * gracefully finishing processes may accumulate, filling up the
+         * scoreboard. To avoid running out of scoreboard entries, we
+         * don't shut down more processes when the total number of processes
+         * is high.
+         *
+         * XXX It would be nice if we could
+         * XXX - kill processes without keepalive connections first
+         * XXX - tell children to stop accepting new connections, and
+         * XXX   depending on server load, later be able to resurrect them
+         *       or kill them
+         */
+        if (retained->total_daemons <= active_daemons_limit &&
+            retained->total_daemons < server_limit) {
+            /* Kill off one child */
+            ap_mpm_podx_signal(all_buckets[child_bucket].pod,
+                               AP_MPM_PODX_GRACEFUL);
+            retained->idle_spawn_rate[child_bucket] = 1;
+            active_daemons--;
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_TRACE5, 0, ap_server_conf,
+                         "Not shutting down child: total daemons %d / "
+                         "active limit %d / ServerLimit %d",
+                         retained->total_daemons, active_daemons_limit,
+                         server_limit);
         }
     }
-
-    setaside_remaining_output(f, ctx, bb, c);
-    return APR_SUCCESS;
+    else if (idle_thread_count < min_spare_threads / num_buckets) {
+        if (active_thread_count >= max_workers) {
+            if (!retained->maxclients_reported) {
+                /* only report this condition once */
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00484)
+                             "server reached MaxRequestWorkers setting, "
+                             "consider raising the MaxRequestWorkers "
+                             "setting");
+                retained->maxclients_reported = 1;
+            }
+            retained->idle_spawn_rate[child_bucket] = 1;
+        }
+        else if (free_length == 0) { /* scoreboard is full, can't fork */
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO()
+                         "scoreboard is full, not at MaxRequestWorkers."
+                         "Increase ServerLimit.");
+            retained->idle_spawn_rate[child_bucket] = 1;
+        }
+        else {
+            if (free_length > retained->idle_spawn_rate[child_bucket]) {
+                free_length = retained->idle_spawn_rate[child_bucket];
+            }
+            if (retained->idle_spawn_rate[child_bucket] >= 8) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf, APLOGNO(00486)
+                             "server seems busy, (you may need "
+                             "to increase StartServers, ThreadsPerChild "
+                             "or Min/MaxSpareThreads), "
+                             "spawning %d children, there are around %d idle "
+                             "threads, %d active children, and %d children "
+                             "that are shutting down", free_length,
+                             idle_thread_count, active_daemons,
+                             retained->total_daemons);
+            }
+            for (i = 0; i < free_length; ++i) {
+                ap_log_error(APLOG_MARK, APLOG_TRACE5, 0, ap_server_conf,
+                             "Spawning new child: slot %d active / "
+                             "total daemons: %d/%d",
+                             free_slots[i], active_daemons,
+                             retained->total_daemons);
+                make_child(ap_server_conf, free_slots[i], child_bucket);
+            }
+            /* the next time around we want to spawn twice as many if this
+             * wasn't good enough, but not if we've just done a graceful
+             */
+            if (retained->hold_off_on_exponential_spawning) {
+                --retained->hold_off_on_exponential_spawning;
+            }
+            else if (retained->idle_spawn_rate[child_bucket]
+                     < MAX_SPAWN_RATE / num_buckets) {
+                retained->idle_spawn_rate[child_bucket] *= 2;
+            }
+        }
+    }
+    else {
+        retained->idle_spawn_rate[child_bucket] = 1;
+    }
 }

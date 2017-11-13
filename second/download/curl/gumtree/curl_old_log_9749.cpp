@@ -1,9 +1,10 @@
 fputs(
-"              If  the nickname contains \":\", it needs to be preceded by \"\\\" so\n"
-"              that it is not recognized as password delimiter.  If  the  nick-\n"
-"              name  contains \"\\\", it needs to be escaped as \"\\\\\" so that it is\n"
-"              not recognized as an escape character.\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
+"              only such one.  (Added in 7.33.0)\n"
 "\n"
-"              (iOS and Mac OS X only) If curl is built against  Secure  Trans-\n"
-"              port,  then  the  certificate string can either be the name of a\n"
+"       -e, --referer <URL>\n"
+"              (HTTP) Sends the \"Referrer Page\" information to the HTTP server.\n"
+"              This can also be set with the -H, --header flag of course.  When\n"
+"              used with -L, --location you can append \";auto\" to the --referer\n"
+"              URL to make curl automatically set the previous URL when it fol-\n"
 , stdout);

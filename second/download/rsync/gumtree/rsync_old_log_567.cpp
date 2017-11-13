@@ -1,1 +1,1 @@
-fprintf(FINFO,"generate_files phase=%d\n",phase);
+fprintf(FERROR,"unlink %s : %s\n",f_name(f),strerror(errno));

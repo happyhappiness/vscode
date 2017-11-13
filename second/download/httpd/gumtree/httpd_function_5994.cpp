@@ -1,92 +1,78 @@
-static ssize_t stream_request_data(nghttp2_session *ngh2, int32_t stream_id, 
-                                   uint8_t *buf, size_t length,
-                                   uint32_t *data_flags, 
-                                   nghttp2_data_source *source, void *user_data)
+apr_status_t h2_response_output_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 {
-    h2_proxy_stream *stream;
-    apr_status_t status = APR_SUCCESS;
-    
-    *data_flags = 0;
-    stream = nghttp2_session_get_stream_user_data(ngh2, stream_id);
-    if (!stream) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(03361)
-                     "h2_proxy_stream(%s): data_read, stream %d not found", 
-                     stream->session->id, stream_id);
-        return NGHTTP2_ERR_CALLBACK_FAILURE;
-    }
-    
-    if (stream->session->check_ping) {
-        /* suspend until we hear from the other side */
-        stream->waiting_on_ping = 1;
-        status = APR_EAGAIN;
-    }
-    else if (stream->r->expecting_100) {
-        /* suspend until the answer comes */
-        stream->waiting_on_100 = 1;
-        status = APR_EAGAIN;
-    }
-    else if (APR_BRIGADE_EMPTY(stream->input)) {
-        status = ap_get_brigade(stream->r->input_filters, stream->input,
-                                AP_MODE_READBYTES, APR_NONBLOCK_READ,
-                                H2MAX(APR_BUCKET_BUFF_SIZE, length));
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, status, stream->r, 
-                      "h2_proxy_stream(%s-%d): request body read", 
-                      stream->session->id, stream->id);
-    }
+    h2_task *task = f->ctx;
+    h2_from_h1 *from_h1 = task->output? task->output->from_h1 : NULL;
+    request_rec *r = f->r;
+    apr_bucket *b;
+    ap_bucket_error *eb = NULL;
 
-    if (status == APR_SUCCESS) {
-        ssize_t readlen = 0;
-        while (status == APR_SUCCESS 
-               && (readlen < length)
-               && !APR_BRIGADE_EMPTY(stream->input)) {
-            apr_bucket* b = APR_BRIGADE_FIRST(stream->input);
-            if (APR_BUCKET_IS_METADATA(b)) {
-                if (APR_BUCKET_IS_EOS(b)) {
-                    *data_flags |= NGHTTP2_DATA_FLAG_EOF;
-                }
-                else {
-                    /* we do nothing more regarding any meta here */
-                }
-            }
-            else {
-                const char *bdata = NULL;
-                apr_size_t blen = 0;
-                status = apr_bucket_read(b, &bdata, &blen, APR_BLOCK_READ);
-                
-                if (status == APR_SUCCESS && blen > 0) {
-                    ssize_t copylen = H2MIN(length - readlen, blen);
-                    memcpy(buf, bdata, copylen);
-                    buf += copylen;
-                    readlen += copylen;
-                    if (copylen < blen) {
-                        /* We have data left in the bucket. Split it. */
-                        status = apr_bucket_split(b, copylen);
-                    }
-                }
-            }
-            apr_bucket_delete(b);
+    AP_DEBUG_ASSERT(from_h1 != NULL);
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_from_h1(%d): output_filter called", from_h1->stream_id);
+    
+    if (r->header_only && task->output && from_h1->response) {
+        /* throw away any data after we have compiled the response */
+        apr_brigade_cleanup(bb);
+        return OK;
+    }
+    
+    for (b = APR_BRIGADE_FIRST(bb);
+         b != APR_BRIGADE_SENTINEL(bb);
+         b = APR_BUCKET_NEXT(b))
+    {
+        if (AP_BUCKET_IS_ERROR(b) && !eb) {
+            eb = b->data;
+            continue;
         }
-
-        stream->data_sent += readlen;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, stream->r, APLOGNO(03468) 
-                      "h2_proxy_stream(%d): request DATA %ld, %ld"
-                      " total, flags=%d", 
-                      stream->id, (long)readlen, (long)stream->data_sent,
-                      (int)*data_flags);
-        return readlen;
+        /*
+         * If we see an EOC bucket it is a signal that we should get out
+         * of the way doing nothing.
+         */
+        if (AP_BUCKET_IS_EOC(b)) {
+            ap_remove_output_filter(f);
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                          "h2_from_h1(%d): eoc bucket passed", 
+                          from_h1->stream_id);
+            return ap_pass_brigade(f->next, bb);
+        }
     }
-    else if (APR_STATUS_IS_EAGAIN(status)) {
-        /* suspended stream, needs to be re-awakened */
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, status, stream->r, 
-                      "h2_proxy_stream(%s-%d): suspending", 
-                      stream->session->id, stream_id);
-        stream->suspended = 1;
-        h2_proxy_iq_add(stream->session->suspended, stream->id, NULL, NULL);
-        return NGHTTP2_ERR_DEFERRED;
+    
+    if (eb) {
+        int st = eb->status;
+        apr_brigade_cleanup(bb);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                      "h2_from_h1(%d): err bucket status=%d", 
+                      from_h1->stream_id, st);
+        ap_die(st, r);
+        return AP_FILTER_ERROR;
     }
-    else {
-        nghttp2_submit_rst_stream(ngh2, NGHTTP2_FLAG_NONE, 
-                                  stream_id, NGHTTP2_STREAM_CLOSED);
-        return NGHTTP2_ERR_STREAM_CLOSING;
+    
+    from_h1->response = create_response(from_h1, r);
+    if (from_h1->response == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                      "h2_from_h1(%d): unable to create response", 
+                      from_h1->stream_id);
+        return APR_ENOMEM;
     }
+    
+    if (r->header_only) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_from_h1(%d): header_only, cleanup output brigade", 
+                      from_h1->stream_id);
+        apr_brigade_cleanup(bb);
+        return OK;
+    }
+    
+    r->sent_bodyct = 1;         /* Whatever follows is real body stuff... */
+    
+    ap_remove_output_filter(f);
+    if (APLOGctrace1(f->c)) {
+        apr_off_t len = 0;
+        apr_brigade_length(bb, 0, &len);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_from_h1(%d): removed header filter, passing brigade "
+                      "len=%ld", from_h1->stream_id, (long)len);
+    }
+    return ap_pass_brigade(f->next, bb);
 }

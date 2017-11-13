@@ -1,33 +1,63 @@
-static int check_object(struct object *obj, int type, void *data, struct fsck_options *options)
+static const char *branch_get_push_1(struct branch *branch, struct strbuf *err)
 {
-	struct obj_buffer *obj_buf;
+	struct remote *remote;
 
-	if (!obj)
-		return 1;
+	if (!branch)
+		return error_buf(err, _("HEAD does not point to a branch"));
 
-	if (obj->flags & FLAG_WRITTEN)
-		return 0;
+	remote = remote_get(pushremote_for_branch(branch, NULL));
+	if (!remote)
+		return error_buf(err,
+				 _("branch '%s' has no remote for pushing"),
+				 branch->name);
 
-	if (type != OBJ_ANY && obj->type != type)
-		die("object type mismatch");
+	if (remote->push_refspec_nr) {
+		char *dst;
+		const char *ret;
 
-	if (!(obj->flags & FLAG_OPEN)) {
-		unsigned long size;
-		int type = sha1_object_info(obj->sha1, &size);
-		if (type != obj->type || type <= 0)
-			die("object of unexpected type");
-		obj->flags |= FLAG_WRITTEN;
-		return 0;
+		dst = apply_refspecs(remote->push, remote->push_refspec_nr,
+				     branch->refname);
+		if (!dst)
+			return error_buf(err,
+					 _("push refspecs for '%s' do not include '%s'"),
+					 remote->name, branch->name);
+
+		ret = tracking_for_push_dest(remote, dst, err);
+		free(dst);
+		return ret;
 	}
 
-	obj_buf = lookup_object_buffer(obj);
-	if (!obj_buf)
-		die("Whoops! Cannot find object '%s'", sha1_to_hex(obj->sha1));
-	if (fsck_object(obj, obj_buf->buffer, obj_buf->size, &fsck_options))
-		die("Error in object");
-	fsck_options.walk = check_object;
-	if (fsck_walk(obj, NULL, &fsck_options))
-		die("Error on reachable objects of %s", sha1_to_hex(obj->sha1));
-	write_cached_object(obj, obj_buf);
-	return 0;
+	if (remote->mirror)
+		return tracking_for_push_dest(remote, branch->refname, err);
+
+	switch (push_default) {
+	case PUSH_DEFAULT_NOTHING:
+		return error_buf(err, _("push has no destination (push.default is 'nothing')"));
+
+	case PUSH_DEFAULT_MATCHING:
+	case PUSH_DEFAULT_CURRENT:
+		return tracking_for_push_dest(remote, branch->refname, err);
+
+	case PUSH_DEFAULT_UPSTREAM:
+		return branch_get_upstream(branch, err);
+
+	case PUSH_DEFAULT_UNSPECIFIED:
+	case PUSH_DEFAULT_SIMPLE:
+		{
+			const char *up, *cur;
+
+			up = branch_get_upstream(branch, err);
+			if (!up)
+				return NULL;
+			cur = tracking_for_push_dest(remote, branch->refname, err);
+			if (!cur)
+				return NULL;
+			if (strcmp(cur, up))
+				return error_buf(err,
+						 _("cannot resolve 'simple' push to a single destination"));
+			return cur;
+		}
+	}
+
+	die("BUG: unhandled push situation");
 }

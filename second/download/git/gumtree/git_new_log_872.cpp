@@ -1,1 +1,1 @@
-die(_("format: %%(then) atom used more than once"));
+die("Error reading %s", path);

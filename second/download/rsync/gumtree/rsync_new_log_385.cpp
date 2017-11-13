@@ -1,1 +1,1 @@
-rprintf(FINFO,"skipping directory %s\n",fname);
+fprintf(FINFO,"redoing %s(%d)\n",fname,i);

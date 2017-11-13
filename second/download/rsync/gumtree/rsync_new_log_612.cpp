@@ -1,1 +1,1 @@
-out_of_memory("add_include_line");
+rprintf(FERROR, "inflateIncomp returned %d\n", r);

@@ -1,121 +1,115 @@
-static int show_sig_summary (unsigned long sum,
-                              gpgme_ctx_t ctx, gpgme_key_t key, int idx,
-                              STATE *s, gpgme_signature_t sig)
+char *pgp_findKeys (ADDRESS *adrlist, int oppenc_mode)
 {
-  int severe = 0;
+  LIST *crypt_hook_list, *crypt_hook = NULL;
+  char *keyID, *keylist = NULL;
+  size_t keylist_size = 0;
+  size_t keylist_used = 0;
+  ADDRESS *addr = NULL;
+  ADDRESS *p, *q;
+  pgp_key_t k_info = NULL;
+  char buf[LONG_STRING];
+  int r;
+  int key_selected;
 
-  if ((sum & GPGME_SIGSUM_KEY_REVOKED))
-    {
-      state_attach_puts (_("Warning: One of the keys has been revoked\n"),s);
-      severe = 1;
-    }
+  const char *fqdn = mutt_fqdn (1);
 
-  if ((sum & GPGME_SIGSUM_KEY_EXPIRED))
+  for (p = adrlist; p ; p = p->next)
+  {
+    key_selected = 0;
+    crypt_hook_list = crypt_hook = mutt_crypt_hook (p);
+    do
     {
-      time_t at = key->subkeys->expires ? key->subkeys->expires : 0;
-      if (at)
+      q = p;
+      k_info = NULL;
+
+      if (crypt_hook != NULL)
+      {
+        keyID = crypt_hook->data;
+        r = M_YES;
+        if (! oppenc_mode && option(OPTCRYPTCONFIRMHOOK))
         {
-          state_attach_puts (_("Warning: The key used to create the "
-                               "signature expired at: "), s);
-          print_time (at , s);
-          state_attach_puts ("\n", s);
+          snprintf (buf, sizeof (buf), _("Use keyID = \"%s\" for %s?"), keyID, p->mailbox);
+          r = mutt_yesorno (buf, M_YES);
         }
-      else
-        state_attach_puts (_("Warning: At least one certification key "
-                             "has expired\n"), s);
-    }
-
-  if ((sum & GPGME_SIGSUM_SIG_EXPIRED))
-    {
-      gpgme_verify_result_t result;
-      gpgme_signature_t sig;
-      unsigned int i;
-      
-      result = gpgme_op_verify_result (ctx);
-
-      for (sig = result->signatures, i = 0; sig && (i < idx);
-           sig = sig->next, i++)
-        ;
-      
-      state_attach_puts (_("Warning: The signature expired at: "), s);
-      print_time (sig ? sig->exp_timestamp : 0, s);
-      state_attach_puts ("\n", s);
-    }
-
-  if ((sum & GPGME_SIGSUM_KEY_MISSING))
-    state_attach_puts (_("Can't verify due to a missing "
-                         "key or certificate\n"), s);
-
-  if ((sum & GPGME_SIGSUM_CRL_MISSING))
-    {
-      state_attach_puts (_("The CRL is not available\n"), s);
-      severe = 1;
-    }
-
-  if ((sum & GPGME_SIGSUM_CRL_TOO_OLD))
-    {
-      state_attach_puts (_("Available CRL is too old\n"), s);
-      severe = 1;
-    }
-
-  if ((sum & GPGME_SIGSUM_BAD_POLICY))
-    state_attach_puts (_("A policy requirement was not met\n"), s);
-
-  if ((sum & GPGME_SIGSUM_SYS_ERROR))
-    {
-      const char *t0 = NULL, *t1 = NULL;
-      gpgme_verify_result_t result;
-      gpgme_signature_t sig;
-      unsigned int i;
-
-      state_attach_puts (_("A system error occurred"), s );
-
-      /* Try to figure out some more detailed system error information. */
-      result = gpgme_op_verify_result (ctx);
-      for (sig = result->signatures, i = 0; sig && (i < idx);
-           sig = sig->next, i++)
-        ;
-      if (sig)
-	{
-	  t0 = "";
-	  t1 = sig->wrong_key_usage ? "Wrong_Key_Usage" : "";
-	}
-
-      if (t0 || t1)
+        if (r == M_YES)
         {
-          state_attach_puts (": ", s);
-          if (t0)
-              state_attach_puts (t0, s);
-          if (t1 && !(t0 && !strcmp (t0, t1)))
-            {
-              if (t0)
-                state_attach_puts (",", s);
-              state_attach_puts (t1, s);
-            }
+          if (crypt_is_numerical_keyid (keyID))
+          {
+            if (strncmp (keyID, "0x", 2) == 0)
+              keyID += 2;
+            goto bypass_selection;		/* you don't see this. */
+          }
+
+          /* check for e-mail address */
+          if (strchr (keyID, '@') &&
+              (addr = rfc822_parse_adrlist (NULL, keyID)))
+          {
+            if (fqdn) rfc822_qualify (addr, fqdn);
+            q = addr;
+          }
+          else if (! oppenc_mode)
+          {
+            k_info = pgp_getkeybystr (keyID, KEYFLAG_CANENCRYPT, PGP_PUBRING);
+          }
         }
-      state_attach_puts ("\n", s);
-    }
+        else if (r == M_NO)
+        {
+          if (key_selected || (crypt_hook->next != NULL))
+          {
+            crypt_hook = crypt_hook->next;
+            continue;
+          }
+        }
+        else if (r == -1)
+        {
+          FREE (&keylist);
+          rfc822_free_address (&addr);
+          mutt_free_list (&crypt_hook_list);
+          return NULL;
+        }
+      }
 
-#ifdef HAVE_GPGME_PKA_TRUST
+      if (k_info == NULL)
+      {
+        pgp_invoke_getkeys (q);
+        k_info = pgp_getkeybyaddr (q, KEYFLAG_CANENCRYPT, PGP_PUBRING, oppenc_mode);
+      }
 
-  if (option (OPTCRYPTUSEPKA))
-    {
-      if (sig->pka_trust == 1 && sig->pka_address)
-	{
-	  state_attach_puts (_("WARNING: PKA entry does not match "
-			       "signer's address: "), s);
-	  state_attach_puts (sig->pka_address, s);
-	  state_attach_puts ("\n", s);
-	}
-      else if (sig->pka_trust == 2 && sig->pka_address)
-	{
-	  state_attach_puts (_("PKA verified signer's address is: "), s);
-	  state_attach_puts (sig->pka_address, s);
-	  state_attach_puts ("\n", s);
-	}
-    }
+      if ((k_info == NULL) && (! oppenc_mode))
+      {
+        snprintf (buf, sizeof (buf), _("Enter keyID for %s: "), q->mailbox);
+        k_info = pgp_ask_for_key (buf, q->mailbox,
+                              KEYFLAG_CANENCRYPT, PGP_PUBRING);
+      }
 
-#endif
+      if (k_info == NULL)
+      {
+        FREE (&keylist);
+        rfc822_free_address (&addr);
+        mutt_free_list (&crypt_hook_list);
+        return NULL;
+      }
 
-  return severe;
+      keyID = pgp_fpr_or_lkeyid (k_info);
+
+    bypass_selection:
+      keylist_size += mutt_strlen (keyID) + 4;
+      safe_realloc (&keylist, keylist_size);
+      sprintf (keylist + keylist_used, "%s0x%s", keylist_used ? " " : "",	/* __SPRINTF_CHECKED__ */
+              keyID);
+      keylist_used = mutt_strlen (keylist);
+
+      key_selected = 1;
+
+      pgp_free_key (&k_info);
+      rfc822_free_address (&addr);
+
+      if (crypt_hook != NULL)
+        crypt_hook = crypt_hook->next;
+
+    } while (crypt_hook != NULL);
+
+    mutt_free_list (&crypt_hook_list);
+  }
+  return (keylist);
 }

@@ -1,234 +1,149 @@
-static int event_check_config(apr_pool_t *p, apr_pool_t *plog,
-                              apr_pool_t *ptemp, server_rec *s)
+static void ap_die_r(int type, request_rec *r, int recursive_error)
 {
-    int startup = 0;
+    char *custom_response;
+    request_rec *r_1st_err = r;
 
-    /* the reverse of pre_config, we want this only the first time around */
-    if (retained->module_loads == 1) {
-        startup = 1;
+    if (type == OK || type == DONE) {
+        ap_finalize_request_protocol(r);
+        return;
     }
 
-    if (server_limit > MAX_SERVER_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00497)
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00498)
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
+    if (!ap_is_HTTP_VALID_RESPONSE(type)) {
+        ap_filter_t *next;
+
+        /*
+         * Check if we still have the ap_http_header_filter in place. If
+         * this is the case we should not ignore the error here because
+         * it means that we have not sent any response at all and never
+         * will. This is bad. Sent an internal server error instead.
+         */
+        next = r->output_filters;
+        while (next && (next->frec != ap_http_header_filter_handle)) {
+               next = next->next;
         }
-        server_limit = MAX_SERVER_LIMIT;
-    }
-    else if (server_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00499)
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00500)
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
+
+        /*
+         * If next != NULL then we left the while above because of
+         * next->frec == ap_http_header_filter
+         */
+        if (next) {
+            if (type != AP_FILTER_ERROR) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01579)
+                              "Invalid response status %i", type);
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02831)
+                              "Response from AP_FILTER_ERROR");
+            }
+            type = HTTP_INTERNAL_SERVER_ERROR;
         }
-        server_limit = 1;
+        else {
+            return;
+        }
     }
 
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
+    /*
+     * The following takes care of Apache redirects to custom response URLs
+     * Note that if we are already dealing with the response to some other
+     * error condition, we just report on the original error, and give up on
+     * any attempt to handle the other thing "intelligently"...
      */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
+    if (recursive_error != HTTP_OK) {
+        while (r_1st_err->prev && (r_1st_err->prev->status != HTTP_OK))
+            r_1st_err = r_1st_err->prev;  /* Get back to original error */
+
+        if (r_1st_err != r) {
+            /* The recursive error was caused by an ErrorDocument specifying
+             * an internal redirect to a bad URI.  ap_internal_redirect has
+             * changed the filter chains to point to the ErrorDocument's
+             * request_rec.  Back out those changes so we can safely use the
+             * original failing request_rec to send the canned error message.
+             *
+             * ap_send_error_response gets rid of existing resource filters
+             * on the output side, so we can skip those.
+             */
+            update_r_in_filters(r_1st_err->proto_output_filters, r, r_1st_err);
+            update_r_in_filters(r_1st_err->input_filters, r, r_1st_err);
+        }
+
+        custom_response = NULL; /* Do NOT retry the custom thing! */
     }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00501)
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
+    else {
+        int error_index = ap_index_of_response(type);
+        custom_response = ap_response_code_string(r, error_index);
+        recursive_error = 0;
     }
 
-    if (thread_limit > MAX_THREAD_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00502)
-                         "WARNING: ThreadLimit of %d exceeds compile-time "
-                         "limit of", thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00503)
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
-        }
-        thread_limit = MAX_THREAD_LIMIT;
-    }
-    else if (thread_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00504)
-                         "WARNING: ThreadLimit of %d not allowed, "
-                         "increasing to 1.", thread_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00505)
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
-        }
-        thread_limit = 1;
-    }
+    r->status = type;
 
-    /* you cannot change ThreadLimit across a restart; ignore
-     * any such attempts
+    /*
+     * This test is done here so that none of the auth modules needs to know
+     * about proxy authentication.  They treat it like normal auth, and then
+     * we tweak the status.
      */
-    if (!retained->first_thread_limit) {
-        retained->first_thread_limit = thread_limit;
-    }
-    else if (thread_limit != retained->first_thread_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00506)
-                     "changing ThreadLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     thread_limit, retained->first_thread_limit);
-        thread_limit = retained->first_thread_limit;
+    if (HTTP_UNAUTHORIZED == r->status && PROXYREQ_PROXY == r->proxyreq) {
+        r->status = HTTP_PROXY_AUTHENTICATION_REQUIRED;
     }
 
-    if (threads_per_child > thread_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00507)
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d threads, decreasing to %d.",
-                         thread_limit, thread_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ThreadLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00508)
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         threads_per_child, thread_limit);
-        }
-        threads_per_child = thread_limit;
-    }
-    else if (threads_per_child < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00509)
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", threads_per_child);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00510)
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         threads_per_child);
-        }
-        threads_per_child = 1;
+    /* If we don't want to keep the connection, make sure we mark that the
+     * connection is not eligible for keepalive.  If we want to keep the
+     * connection, be sure that the request body (if any) has been read.
+     */
+    if (ap_status_drops_connection(r->status)) {
+        r->connection->keepalive = AP_CONN_CLOSE;
     }
 
-    if (max_workers < threads_per_child) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00511)
-                         "WARNING: MaxRequestWorkers of %d is less than "
-                         "ThreadsPerChild of", max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d, increasing to %d.  MaxRequestWorkers must be at "
-                         "least as large",
-                         threads_per_child, threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " as the number of threads in a single server.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00512)
-                         "MaxRequestWorkers of %d is less than ThreadsPerChild "
-                         "of %d, increasing to match",
-                         max_workers, threads_per_child);
-        }
-        max_workers = threads_per_child;
-    }
-
-    ap_daemons_limit = max_workers / threads_per_child;
-
-    if (max_workers % threads_per_child) {
-        int tmp_max_workers = ap_daemons_limit * threads_per_child;
-
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00513)
-                         "WARNING: MaxRequestWorkers of %d is not an integer "
-                         "multiple of", max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d,", threads_per_child,
-                         tmp_max_workers);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " for a maximum of %d servers.",
-                         ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00514)
-                         "MaxRequestWorkers of %d is not an integer multiple "
-                         "of ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d", max_workers, threads_per_child,
-                         tmp_max_workers);
-        }
-        max_workers = tmp_max_workers;
-    }
-
-    if (ap_daemons_limit > server_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00515)
-                         "WARNING: MaxRequestWorkers of %d would require %d "
-                         "servers and ", max_workers, ap_daemons_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " would exceed ServerLimit of %d, decreasing to %d.",
-                         server_limit, server_limit * threads_per_child);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ServerLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00516)
-                         "MaxRequestWorkers of %d would require %d servers and "
-                         "exceed ServerLimit of %d, decreasing to %d",
-                         max_workers, ap_daemons_limit, server_limit,
-                         server_limit * threads_per_child);
-        }
-        ap_daemons_limit = server_limit;
-    }
-
-    /* ap_daemons_to_start > ap_daemons_limit checked in ap_mpm_run() */
-    if (ap_daemons_to_start < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00517)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00518)
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
-    }
-
-    if (min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00519)
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", min_spare_threads);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00520)
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         min_spare_threads);
-        }
-        min_spare_threads = 1;
-    }
-
-    /* max_spare_threads < min_spare_threads + threads_per_child
-     * checked in ap_mpm_run()
+    /*
+     * Two types of custom redirects --- plain text, and URLs. Plain text has
+     * a leading '"', so the URL code, here, is triggered on its absence
      */
 
-    return OK;
+    if (custom_response && custom_response[0] != '"') {
+
+        if (ap_is_url(custom_response)) {
+            /*
+             * The URL isn't local, so lets drop through the rest of this
+             * apache code, and continue with the usual REDIRECT handler.
+             * But note that the client will ultimately see the wrong
+             * status...
+             */
+            r->status = HTTP_MOVED_TEMPORARILY;
+            apr_table_setn(r->headers_out, "Location", custom_response);
+        }
+        else if (custom_response[0] == '/') {
+            const char *error_notes;
+            r->no_local_copy = 1;       /* Do NOT send HTTP_NOT_MODIFIED for
+                                         * error documents! */
+            /*
+             * This redirect needs to be a GET no matter what the original
+             * method was.
+             */
+            apr_table_setn(r->subprocess_env, "REQUEST_METHOD", r->method);
+
+            /*
+             * Provide a special method for modules to communicate
+             * more informative (than the plain canned) messages to us.
+             * Propagate them to ErrorDocuments via the ERROR_NOTES variable:
+             */
+            if ((error_notes = apr_table_get(r->notes,
+                                             "error-notes")) != NULL) {
+                apr_table_setn(r->subprocess_env, "ERROR_NOTES", error_notes);
+            }
+            r->method = "GET";
+            r->method_number = M_GET;
+            ap_internal_redirect(custom_response, r);
+            return;
+        }
+        else {
+            /*
+             * Dumb user has given us a bad url to redirect to --- fake up
+             * dying with a recursive server error...
+             */
+            recursive_error = HTTP_INTERNAL_SERVER_ERROR;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01580)
+                        "Invalid error redirection directive: %s",
+                        custom_response);
+        }
+    }
+    ap_send_error_response(r_1st_err, recursive_error);
 }

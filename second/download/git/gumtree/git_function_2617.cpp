@@ -1,88 +1,193 @@
-void log_write_email_headers(struct rev_info *opt, struct commit *commit,
-			     const char **subject_p,
-			     const char **extra_headers_p,
-			     int *need_8bit_cte_p)
+static void create_pack_file(void)
 {
-	const char *subject = NULL;
-	const char *extra_headers = opt->extra_headers;
-	const char *name = oid_to_hex(opt->zero_commit ?
-				      &null_oid : &commit->object.oid);
+	struct child_process pack_objects = CHILD_PROCESS_INIT;
+	char data[8193], progress[128];
+	char abort_msg[] = "aborting due to possible repository "
+		"corruption on the remote side.";
+	int buffered = -1;
+	ssize_t sz;
+	const char *argv[13];
+	int i, arg = 0;
+	FILE *pipe_fd;
 
-	*need_8bit_cte_p = 0; /* unknown */
-	if (opt->total > 0) {
-		static char buffer[64];
-		snprintf(buffer, sizeof(buffer),
-			 "Subject: [%s%s%0*d/%d] ",
-			 opt->subject_prefix,
-			 *opt->subject_prefix ? " " : "",
-			 digits_in_number(opt->total),
-			 opt->nr, opt->total);
-		subject = buffer;
-	} else if (opt->total == 0 && opt->subject_prefix && *opt->subject_prefix) {
-		static char buffer[256];
-		snprintf(buffer, sizeof(buffer),
-			 "Subject: [%s] ",
-			 opt->subject_prefix);
-		subject = buffer;
-	} else {
-		subject = "Subject: ";
+	if (shallow_nr) {
+		argv[arg++] = "--shallow-file";
+		argv[arg++] = "";
+	}
+	argv[arg++] = "pack-objects";
+	argv[arg++] = "--revs";
+	if (use_thin_pack)
+		argv[arg++] = "--thin";
+
+	argv[arg++] = "--stdout";
+	if (shallow_nr)
+		argv[arg++] = "--shallow";
+	if (!no_progress)
+		argv[arg++] = "--progress";
+	if (use_ofs_delta)
+		argv[arg++] = "--delta-base-offset";
+	if (use_include_tag)
+		argv[arg++] = "--include-tag";
+	argv[arg++] = NULL;
+
+	pack_objects.in = -1;
+	pack_objects.out = -1;
+	pack_objects.err = -1;
+	pack_objects.git_cmd = 1;
+	pack_objects.argv = argv;
+
+	if (start_command(&pack_objects))
+		die("git upload-pack: unable to fork git-pack-objects");
+
+	pipe_fd = xfdopen(pack_objects.in, "w");
+
+	if (shallow_nr)
+		for_each_commit_graft(write_one_shallow, pipe_fd);
+
+	for (i = 0; i < want_obj.nr; i++)
+		fprintf(pipe_fd, "%s\n",
+			sha1_to_hex(want_obj.objects[i].item->sha1));
+	fprintf(pipe_fd, "--not\n");
+	for (i = 0; i < have_obj.nr; i++)
+		fprintf(pipe_fd, "%s\n",
+			sha1_to_hex(have_obj.objects[i].item->sha1));
+	for (i = 0; i < extra_edge_obj.nr; i++)
+		fprintf(pipe_fd, "%s\n",
+			sha1_to_hex(extra_edge_obj.objects[i].item->sha1));
+	fprintf(pipe_fd, "\n");
+	fflush(pipe_fd);
+	fclose(pipe_fd);
+
+	/* We read from pack_objects.err to capture stderr output for
+	 * progress bar, and pack_objects.out to capture the pack data.
+	 */
+
+	while (1) {
+		struct pollfd pfd[2];
+		int pe, pu, pollsize;
+		int ret;
+
+		reset_timeout();
+
+		pollsize = 0;
+		pe = pu = -1;
+
+		if (0 <= pack_objects.out) {
+			pfd[pollsize].fd = pack_objects.out;
+			pfd[pollsize].events = POLLIN;
+			pu = pollsize;
+			pollsize++;
+		}
+		if (0 <= pack_objects.err) {
+			pfd[pollsize].fd = pack_objects.err;
+			pfd[pollsize].events = POLLIN;
+			pe = pollsize;
+			pollsize++;
+		}
+
+		if (!pollsize)
+			break;
+
+		ret = poll(pfd, pollsize,
+			keepalive < 0 ? -1 : 1000 * keepalive);
+
+		if (ret < 0) {
+			if (errno != EINTR) {
+				error("poll failed, resuming: %s",
+				      strerror(errno));
+				sleep(1);
+			}
+			continue;
+		}
+		if (0 <= pe && (pfd[pe].revents & (POLLIN|POLLHUP))) {
+			/* Status ready; we ship that in the side-band
+			 * or dump to the standard error.
+			 */
+			sz = xread(pack_objects.err, progress,
+				  sizeof(progress));
+			if (0 < sz)
+				send_client_data(2, progress, sz);
+			else if (sz == 0) {
+				close(pack_objects.err);
+				pack_objects.err = -1;
+			}
+			else
+				goto fail;
+			/* give priority to status messages */
+			continue;
+		}
+		if (0 <= pu && (pfd[pu].revents & (POLLIN|POLLHUP))) {
+			/* Data ready; we keep the last byte to ourselves
+			 * in case we detect broken rev-list, so that we
+			 * can leave the stream corrupted.  This is
+			 * unfortunate -- unpack-objects would happily
+			 * accept a valid packdata with trailing garbage,
+			 * so appending garbage after we pass all the
+			 * pack data is not good enough to signal
+			 * breakage to downstream.
+			 */
+			char *cp = data;
+			ssize_t outsz = 0;
+			if (0 <= buffered) {
+				*cp++ = buffered;
+				outsz++;
+			}
+			sz = xread(pack_objects.out, cp,
+				  sizeof(data) - outsz);
+			if (0 < sz)
+				;
+			else if (sz == 0) {
+				close(pack_objects.out);
+				pack_objects.out = -1;
+			}
+			else
+				goto fail;
+			sz += outsz;
+			if (1 < sz) {
+				buffered = data[sz-1] & 0xFF;
+				sz--;
+			}
+			else
+				buffered = -1;
+			sz = send_client_data(1, data, sz);
+			if (sz < 0)
+				goto fail;
+		}
+
+		/*
+		 * We hit the keepalive timeout without saying anything; send
+		 * an empty message on the data sideband just to let the other
+		 * side know we're still working on it, but don't have any data
+		 * yet.
+		 *
+		 * If we don't have a sideband channel, there's no room in the
+		 * protocol to say anything, so those clients are just out of
+		 * luck.
+		 */
+		if (!ret && use_sideband) {
+			static const char buf[] = "0005\1";
+			write_or_die(1, buf, 5);
+		}
 	}
 
-	printf("From %s Mon Sep 17 00:00:00 2001\n", name);
-	graph_show_oneline(opt->graph);
-	if (opt->message_id) {
-		printf("Message-Id: <%s>\n", opt->message_id);
-		graph_show_oneline(opt->graph);
+	if (finish_command(&pack_objects)) {
+		error("git upload-pack: git-pack-objects died with error.");
+		goto fail;
 	}
-	if (opt->ref_message_ids && opt->ref_message_ids->nr > 0) {
-		int i, n;
-		n = opt->ref_message_ids->nr;
-		printf("In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);
-		for (i = 0; i < n; i++)
-			printf("%s<%s>\n", (i > 0 ? "\t" : "References: "),
-			       opt->ref_message_ids->items[i].string);
-		graph_show_oneline(opt->graph);
-	}
-	if (opt->mime_boundary) {
-		static char subject_buffer[1024];
-		static char buffer[1024];
-		struct strbuf filename =  STRBUF_INIT;
-		*need_8bit_cte_p = -1; /* NEVER */
-		snprintf(subject_buffer, sizeof(subject_buffer) - 1,
-			 "%s"
-			 "MIME-Version: 1.0\n"
-			 "Content-Type: multipart/mixed;"
-			 " boundary=\"%s%s\"\n"
-			 "\n"
-			 "This is a multi-part message in MIME "
-			 "format.\n"
-			 "--%s%s\n"
-			 "Content-Type: text/plain; "
-			 "charset=UTF-8; format=fixed\n"
-			 "Content-Transfer-Encoding: 8bit\n\n",
-			 extra_headers ? extra_headers : "",
-			 mime_boundary_leader, opt->mime_boundary,
-			 mime_boundary_leader, opt->mime_boundary);
-		extra_headers = subject_buffer;
 
-		if (opt->numbered_files)
-			strbuf_addf(&filename, "%d", opt->nr);
-		else
-			fmt_output_commit(&filename, commit, opt);
-		snprintf(buffer, sizeof(buffer) - 1,
-			 "\n--%s%s\n"
-			 "Content-Type: text/x-patch;"
-			 " name=\"%s\"\n"
-			 "Content-Transfer-Encoding: 8bit\n"
-			 "Content-Disposition: %s;"
-			 " filename=\"%s\"\n\n",
-			 mime_boundary_leader, opt->mime_boundary,
-			 filename.buf,
-			 opt->no_inline ? "attachment" : "inline",
-			 filename.buf);
-		opt->diffopt.stat_sep = buffer;
-		strbuf_release(&filename);
+	/* flush the data */
+	if (0 <= buffered) {
+		data[0] = buffered;
+		sz = send_client_data(1, data, 1);
+		if (sz < 0)
+			goto fail;
+		fprintf(stderr, "flushed.\n");
 	}
-	*subject_p = subject;
-	*extra_headers_p = extra_headers;
+	if (use_sideband)
+		packet_flush(1);
+	return;
+
+ fail:
+	send_client_data(3, abort_msg, sizeof(abort_msg));
+	die("git upload-pack: %s", abort_msg);
 }

@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, m->c, APLOGNO(10021)
-                          "h2_mplx(%ld): register at workers", m->id);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, status, workers->s,
+                     "h2_workers: register mplx(%ld), idle=%d", 
+                     m->id, workers->idle_workers);

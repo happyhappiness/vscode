@@ -1,10 +1,12 @@
 fputs(
+"                     This  will make curl URL-encode the content part and pass\n"
+"                     that on. Note that the name part is expected to  be  URL-\n"
+"                     encoded already.\n"
+"\n"
+"              @filename\n"
 "                     This  will  make  curl  load  data  from  the  given file\n"
 "                     (including any newlines), URL-encode that data  and  pass\n"
-"                     it  on  in  the  POST.  The  name part gets an equal sign\n"
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
-"                     that the name is expected to be URL-encoded already.\n"
+"                     it on in the POST.\n"
 "\n"
-"       --delegation LEVEL\n"
-"              Set LEVEL to tell the server what it is allowed to delegate when\n"
+"              name@filename\n"
 , stdout);

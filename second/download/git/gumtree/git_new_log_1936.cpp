@@ -1,2 +1,1 @@
-packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
-			     vhost, 0);
+printf("\n%s\n", _(common_cmd_groups[common_cmds[i].group]));

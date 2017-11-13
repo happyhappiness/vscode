@@ -1,121 +1,57 @@
-static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static int proxy_ajp_canon(request_rec *r, char *url)
 {
-    int startup = 0;
+    char *host, *path, sport[7];
+    char *search = NULL;
+    const char *err;
+    apr_port_t port = AJP13_DEF_PORT;
 
-    /* the reverse of pre_config, we want this only the first time around */
-    if (retained->module_loads == 1) {
-        startup = 1;
+    /* ap_port_of_scheme() */
+    if (strncasecmp(url, "ajp:", 4) == 0) {
+        url += 4;
+    }
+    else {
+        return DECLINED;
     }
 
-    if (server_limit > MAX_SERVER_LIMIT) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
-        }
-        server_limit = MAX_SERVER_LIMIT;
-    }
-    else if (server_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
-        }
-        server_limit = 1;
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: AJP: canonicalising URL %s", url);
 
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
+    /*
+     * do syntactic check.
+     * We break the URL into host, port, path, search
      */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
-    }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "error parsing URL %s: %s",
+                      url, err);
+        return HTTP_BAD_REQUEST;
     }
 
-    if (ap_daemons_limit > server_limit) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d exceeds ServerLimit "
-                         "value of", ap_daemons_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing MaxClients to %d.",
-                         server_limit, server_limit);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ServerLimit "
-                         "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d exceeds ServerLimit value "
-                         "of %d, decreasing to match",
-                         ap_daemons_limit, server_limit);
-        }
-        ap_daemons_limit = server_limit;
+    /*
+     * now parse path/search args, according to rfc1738:
+     * process the path. With proxy-noncanon set (by
+     * mod_proxy) we use the raw, unparsed uri
+     */
+    if (apr_table_get(r->notes, "proxy-nocanon")) {
+        path = url;   /* this is the raw path */
     }
-    else if (ap_daemons_limit < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d not allowed, "
-                         "increasing to 1.", ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d not allowed, increasing to 1",
-                         ap_daemons_limit);
-        }
-        ap_daemons_limit = 1;
+    else {
+        path = ap_proxy_canonenc(r->pool, url, strlen(url), enc_path, 0,
+                                 r->proxyreq);
+        search = r->args;
     }
+    if (path == NULL)
+        return HTTP_BAD_REQUEST;
 
-    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
-    if (ap_daemons_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
+    apr_snprintf(sport, sizeof(sport), ":%d", port);
+
+    if (ap_strchr_c(host, ':')) {
+        /* if literal IPv6 address */
+        host = apr_pstrcat(r->pool, "[", host, "]", NULL);
     }
-
-    if (ap_daemons_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareServers of %d not allowed, "
-                         "increasing to 1", ap_daemons_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareServers of %d not allowed, increasing to 1",
-                         ap_daemons_min_free);
-        }
-        ap_daemons_min_free = 1;
-    }
-
-    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
-
+    r->filename = apr_pstrcat(r->pool, "proxy:ajp://", host, sport,
+                              "/", path, (search) ? "?" : "",
+                              (search) ? search : "", NULL);
     return OK;
 }

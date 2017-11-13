@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00513)
-                         "WARNING: MaxRequestWorkers of %d is not an integer "
-                         "multiple of", max_workers);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(02555)
+                              "Unknown Transfer-Encoding: %s;"
+                              " using read-until-close", tenc);

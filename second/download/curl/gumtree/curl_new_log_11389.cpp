@@ -1,11 +1,11 @@
 fputs(
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.\n"
+"              This option requires a library built with GSS-API or  SSPI  sup-\n"
+"              port.  Use  -V,  --version  to  see  if  your curl supports GSS-\n"
+"              API/SSPI and SPNEGO.\n"
 "\n"
-"       -o, --output <file>\n"
-"              Write output to <file> instead of stdout. If you are using {} or\n"
-"              [] to fetch multiple documents, you can use '#'  followed  by  a\n"
-"              number  in  the <file> specifier. That variable will be replaced\n"
-"              with the current string for the URL being fetched. Like in:\n"
+"              When using this option, you must also provide a fake -u,  --user\n"
+"              option  to  activate the authentication code properly. Sending a\n"
+"              '-u :' is enough as the user  name  and  password  from  the  -u\n"
+"              option aren't actually used.\n"
 "\n"
 , stdout);

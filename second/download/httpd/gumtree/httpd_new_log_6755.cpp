@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01068)
-                              "Got bogus version %d", (int)version);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, status, master, 
+                      APLOGNO(10004) "h2_session(%ld-%d): create slave pool",
+                      master->id, slave_id);

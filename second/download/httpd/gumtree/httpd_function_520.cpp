@@ -1,265 +1,165 @@
-static int authenticate_digest_user(request_rec *r)
+static void perform_idle_server_maintenance(void)
 {
-    digest_config_rec *conf;
-    digest_header_rec *resp;
-    request_rec       *mainreq;
-    const char        *t;
-    int                res;
-    authn_status       return_code;
+    int i, j;
+    int idle_thread_count;
+    worker_score *ws;
+    process_score *ps;
+    int free_length;
+    int totally_free_length = 0;
+    int free_slots[MAX_SPAWN_RATE];
+    int last_non_dead;
+    int total_non_dead;
+    int active_thread_count = 0;
 
-    /* do we require Digest auth for this URI? */
+    /* initialize the free_list */
+    free_length = 0;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest")) {
-        return DECLINED;
-    }
+    idle_thread_count = 0;
+    last_non_dead = -1;
+    total_non_dead = 0;
 
-    if (!ap_auth_name(r)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: need AuthName: %s", r->uri);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    for (i = 0; i < ap_daemons_limit; ++i) {
+        /* Initialization to satisfy the compiler. It doesn't know
+         * that ap_threads_per_child is always > 0 */
+        int status = SERVER_DEAD;
+        int any_dying_threads = 0;
+        int any_dead_threads = 0;
+        int all_dead_threads = 1;
 
+        if (i >= ap_max_daemons_limit && totally_free_length == idle_spawn_rate)
+            break;
+        ps = &ap_scoreboard_image->parent[i];
+        for (j = 0; j < ap_threads_per_child; j++) {
+            ws = &ap_scoreboard_image->servers[i][j];
+            status = ws->status;
 
-    /* get the client response and mark */
+            /* XXX any_dying_threads is probably no longer needed    GLA */
+            any_dying_threads = any_dying_threads || 
+                                (status == SERVER_GRACEFUL);
+            any_dead_threads = any_dead_threads || (status == SERVER_DEAD);
+            all_dead_threads = all_dead_threads &&
+                                   (status == SERVER_DEAD ||
+                                    status == SERVER_GRACEFUL);
 
-    mainreq = r;
-    while (mainreq->main != NULL) {
-        mainreq = mainreq->main;
-    }
-    while (mainreq->prev != NULL) {
-        mainreq = mainreq->prev;
-    }
-    resp = (digest_header_rec *) ap_get_module_config(mainreq->request_config,
-                                                      &auth_digest_module);
-    resp->needed_auth = 1;
-
-
-    /* get our conf */
-
-    conf = (digest_config_rec *) ap_get_module_config(r->per_dir_config,
-                                                      &auth_digest_module);
-
-
-    /* check for existence and syntax of Auth header */
-
-    if (resp->auth_hdr_sts != VALID) {
-        if (resp->auth_hdr_sts == NOT_DIGEST) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: client used wrong authentication scheme "
-                          "`%s': %s", resp->scheme, r->uri);
-        }
-        else if (resp->auth_hdr_sts == INVALID) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: missing user, realm, nonce, uri, digest, "
-                          "cnonce, or nonce_count in authorization header: %s",
-                          r->uri);
-        }
-        /* else (resp->auth_hdr_sts == NO_HEADER) */
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-
-    r->user         = (char *) resp->username;
-    r->ap_auth_type = (char *) "Digest";
-
-    /* check the auth attributes */
-
-    if (strcmp(resp->uri, resp->raw_request_uri)) {
-        /* Hmm, the simple match didn't work (probably a proxy modified the
-         * request-uri), so lets do a more sophisticated match
-         */
-        apr_uri_t r_uri, d_uri;
-
-        copy_uri_components(&r_uri, resp->psd_request_uri, r);
-        if (apr_uri_parse(r->pool, resp->uri, &d_uri) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: invalid uri <%s> in Authorization header",
-                          resp->uri);
-            return HTTP_BAD_REQUEST;
-        }
-
-        if (d_uri.hostname) {
-            ap_unescape_url(d_uri.hostname);
-        }
-        if (d_uri.path) {
-            ap_unescape_url(d_uri.path);
-        }
-
-        if (d_uri.query) {
-            ap_unescape_url(d_uri.query);
-        }
-        else if (r_uri.query) {
-            /* MSIE compatibility hack.  MSIE has some RFC issues - doesn't
-             * include the query string in the uri Authorization component
-             * or when computing the response component.  the second part
-             * works out ok, since we can hash the header and get the same
-             * result.  however, the uri from the request line won't match
-             * the uri Authorization component since the header lacks the
-             * query string, leaving us incompatable with a (broken) MSIE.
-             *
-             * the workaround is to fake a query string match if in the proper
-             * environment - BrowserMatch MSIE, for example.  the cool thing
-             * is that if MSIE ever fixes itself the simple match ought to
-             * work and this code won't be reached anyway, even if the
-             * environment is set.
+            /* We consider a starting server as idle because we started it
+             * at least a cycle ago, and if it still hasn't finished starting
+             * then we're just going to swamp things worse by forking more.
+             * So we hopefully won't need to fork more if we count it.
+             * This depends on the ordering of SERVER_READY and SERVER_STARTING.
              */
-
-            if (apr_table_get(r->subprocess_env,
-                              "AuthDigestEnableQueryStringHack")) {
-
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "Digest: "
-                              "applying AuthDigestEnableQueryStringHack "
-                              "to uri <%s>", resp->raw_request_uri);
-
-               d_uri.query = r_uri.query;
+            if (ps->pid != 0) { /* XXX just set all_dead_threads in outer for
+                                   loop if no pid?  not much else matters */
+                if (status <= SERVER_READY && status != SERVER_DEAD &&
+                        !ps->quiescing &&
+                        ps->generation == ap_my_generation) {
+                    ++idle_thread_count;
+                }
+                if (status >= SERVER_READY && status < SERVER_GRACEFUL) {
+                    ++active_thread_count;
+                }
             }
         }
+        if (any_dead_threads && totally_free_length < idle_spawn_rate
+                && free_length < MAX_SPAWN_RATE
+                && (!ps->pid               /* no process in the slot */
+                    || ps->quiescing)) {   /* or at least one is going away */
+            if (all_dead_threads) {
+                /* great! we prefer these, because the new process can
+                 * start more threads sooner.  So prioritize this slot 
+                 * by putting it ahead of any slots with active threads.
+                 *
+                 * first, make room by moving a slot that's potentially still
+                 * in use to the end of the array
+                 */
+                free_slots[free_length] = free_slots[totally_free_length];
+                free_slots[totally_free_length++] = i;
+            }
+            else {
+                /* slot is still in use - back of the bus
+                 */
+            free_slots[free_length] = i;
+            }
+            ++free_length;
+        }
+        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
+        if (!any_dying_threads) {
+            last_non_dead = i;
+            ++total_non_dead;
+        }
+    }
 
-        if (r->method_number == M_CONNECT) {
-            if (!r_uri.hostinfo || strcmp(resp->uri, r_uri.hostinfo)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Digest: uri mismatch - <%s> does not match "
-                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
-                return HTTP_BAD_REQUEST;
+    if (sick_child_detected) {
+        if (active_thread_count > 0) {
+            /* some child processes appear to be working.  don't kill the
+             * whole server.
+             */
+            sick_child_detected = 0;
+        }
+        else {
+            /* looks like a basket case.  give up.  
+             */
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf,
+                         "No active workers found..."
+                         " Apache is exiting!");
+            /* the child already logged the failure details */
+            return;
+        }
+    }
+                                                    
+    ap_max_daemons_limit = last_non_dead + 1;
+
+    if (idle_thread_count > max_spare_threads) {
+        /* Kill off one child */
+        ap_mpm_pod_signal(pod, TRUE);
+        idle_spawn_rate = 1;
+    }
+    else if (idle_thread_count < min_spare_threads) {
+        /* terminate the free list */
+        if (free_length == 0) {
+            /* only report this condition once */
+            static int reported = 0;
+            
+            if (!reported) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, 
+                             ap_server_conf,
+                             "server reached MaxClients setting, consider"
+                             " raising the MaxClients setting");
+                reported = 1;
+            }
+            idle_spawn_rate = 1;
+        }
+        else {
+            if (free_length > idle_spawn_rate) {
+                free_length = idle_spawn_rate;
+            }
+            if (idle_spawn_rate >= 8) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, 
+                             ap_server_conf,
+                             "server seems busy, (you may need "
+                             "to increase StartServers, ThreadsPerChild "
+                             "or Min/MaxSpareThreads), "
+                             "spawning %d children, there are around %d idle "
+                             "threads, and %d total children", free_length,
+                             idle_thread_count, total_non_dead);
+            }
+            for (i = 0; i < free_length; ++i) {
+                make_child(ap_server_conf, free_slots[i]);
+            }
+            /* the next time around we want to spawn twice as many if this
+             * wasn't good enough, but not if we've just done a graceful
+             */
+            if (hold_off_on_exponential_spawning) {
+                --hold_off_on_exponential_spawning;
+            }
+            else if (idle_spawn_rate < MAX_SPAWN_RATE) {
+                idle_spawn_rate *= 2;
             }
         }
-        else if (
-            /* check hostname matches, if present */
-            (d_uri.hostname && d_uri.hostname[0] != '\0'
-              && strcasecmp(d_uri.hostname, r_uri.hostname))
-            /* check port matches, if present */
-            || (d_uri.port_str && d_uri.port != r_uri.port)
-            /* check that server-port is default port if no port present */
-            || (d_uri.hostname && d_uri.hostname[0] != '\0'
-                && !d_uri.port_str && r_uri.port != ap_default_port(r))
-            /* check that path matches */
-            || (d_uri.path != r_uri.path
-                /* either exact match */
-                && (!d_uri.path || !r_uri.path
-                    || strcmp(d_uri.path, r_uri.path))
-                /* or '*' matches empty path in scheme://host */
-                && !(d_uri.path && !r_uri.path && resp->psd_request_uri->hostname
-                    && d_uri.path[0] == '*' && d_uri.path[1] == '\0'))
-            /* check that query matches */
-            || (d_uri.query != r_uri.query
-                && (!d_uri.query || !r_uri.query
-                    || strcmp(d_uri.query, r_uri.query)))
-            ) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: uri mismatch - <%s> does not match "
-                          "request-uri <%s>", resp->uri, resp->raw_request_uri);
-            return HTTP_BAD_REQUEST;
-        }
-    }
-
-    if (resp->opaque && resp->opaque_num == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: received invalid opaque - got `%s'",
-                      resp->opaque);
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-
-    if (strcmp(resp->realm, conf->realm)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: realm mismatch - got `%s' but expected `%s'",
-                      resp->realm, conf->realm);
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-
-    if (resp->algorithm != NULL
-        && strcasecmp(resp->algorithm, "MD5")
-        && strcasecmp(resp->algorithm, "MD5-sess")) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: unknown algorithm `%s' received: %s",
-                      resp->algorithm, r->uri);
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-
-    return_code = get_hash(r, r->user, conf);
-
-    if (return_code == AUTH_USER_NOT_FOUND) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: user `%s' in realm `%s' not found: %s",
-                      r->user, conf->realm, r->uri);
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-    else if (return_code == AUTH_USER_FOUND) {
-        /* we have a password, so continue */
-    }
-    else if (return_code == AUTH_DENIED) {
-        /* authentication denied in the provider before attempting a match */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: user `%s' in realm `%s' denied by provider: %s",
-                      r->user, conf->realm, r->uri);
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
     }
     else {
-        /* AUTH_GENERAL_ERROR (or worse)
-         * We'll assume that the module has already said what its error
-         * was in the logs.
-         */
-        return HTTP_INTERNAL_SERVER_ERROR;
+      idle_spawn_rate = 1;
     }
-
-    if (resp->message_qop == NULL) {
-        /* old (rfc-2069) style digest */
-        if (strcmp(resp->digest, old_digest(r, resp, conf->ha1))) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: user %s: password mismatch: %s", r->user,
-                          r->uri);
-            note_digest_auth_failure(r, conf, resp, 0);
-            return HTTP_UNAUTHORIZED;
-        }
-    }
-    else {
-        const char *exp_digest;
-        int match = 0, idx;
-        for (idx = 0; conf->qop_list[idx] != NULL; idx++) {
-            if (!strcasecmp(conf->qop_list[idx], resp->message_qop)) {
-                match = 1;
-                break;
-            }
-        }
-
-        if (!match
-            && !(conf->qop_list[0] == NULL
-                 && !strcasecmp(resp->message_qop, "auth"))) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: invalid qop `%s' received: %s",
-                          resp->message_qop, r->uri);
-            note_digest_auth_failure(r, conf, resp, 0);
-            return HTTP_UNAUTHORIZED;
-        }
-
-        exp_digest = new_digest(r, resp, conf);
-        if (!exp_digest) {
-            /* we failed to allocate a client struct */
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        if (strcmp(resp->digest, exp_digest)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: user %s: password mismatch: %s", r->user,
-                          r->uri);
-            note_digest_auth_failure(r, conf, resp, 0);
-            return HTTP_UNAUTHORIZED;
-        }
-    }
-
-    if (check_nc(r, resp, conf) != OK) {
-        note_digest_auth_failure(r, conf, resp, 0);
-        return HTTP_UNAUTHORIZED;
-    }
-
-    /* Note: this check is done last so that a "stale=true" can be
-       generated if the nonce is old */
-    if ((res = check_nonce(r, resp, conf))) {
-        return res;
-    }
-
-    return OK;
 }

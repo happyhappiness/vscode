@@ -1,2 +1,1 @@
-apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password\n\n");
+ap_fatal_signal_setup(ap_server_conf, pconf);

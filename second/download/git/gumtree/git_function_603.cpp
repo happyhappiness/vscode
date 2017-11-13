@@ -1,40 +1,27 @@
-static int mark_object(struct object *obj, int type, void *data, struct fsck_options *options)
+static int fetch_dumb(int nr_heads, struct ref **to_fetch)
 {
-	struct object *parent = data;
+	struct walker *walker;
+	char **targets;
+	int ret, i;
 
-	/*
-	 * The only case data is NULL or type is OBJ_ANY is when
-	 * mark_object_reachable() calls us.  All the callers of
-	 * that function has non-NULL obj hence ...
-	 */
-	if (!obj) {
-		/* ... these references to parent->fld are safe here */
-		printf("broken link from %7s %s\n",
-			   typename(parent->type), describe_object(parent));
-		printf("broken link from %7s %s\n",
-			   (type == OBJ_ANY ? "unknown" : typename(type)), "unknown");
-		errors_found |= ERROR_REACHABLE;
-		return 1;
-	}
+	ALLOC_ARRAY(targets, nr_heads);
+	if (options.depth)
+		die("dumb http transport does not support --depth");
+	for (i = 0; i < nr_heads; i++)
+		targets[i] = xstrdup(oid_to_hex(&to_fetch[i]->old_oid));
 
-	if (type != OBJ_ANY && obj->type != type)
-		/* ... and the reference to parent is safe here */
-		objerror(parent, "wrong object type in link");
+	walker = get_http_walker(url.buf);
+	walker->get_all = 1;
+	walker->get_tree = 1;
+	walker->get_history = 1;
+	walker->get_verbosely = options.verbosity >= 3;
+	walker->get_recover = 0;
+	ret = walker_fetch(walker, nr_heads, targets, NULL, NULL);
+	walker_free(walker);
 
-	if (obj->flags & REACHABLE)
-		return 0;
-	obj->flags |= REACHABLE;
-	if (!(obj->flags & HAS_OBJ)) {
-		if (parent && !has_object_file(&obj->oid)) {
-			printf("broken link from %7s %s\n",
-				 typename(parent->type), describe_object(parent));
-			printf("              to %7s %s\n",
-				 typename(obj->type), describe_object(obj));
-			errors_found |= ERROR_REACHABLE;
-		}
-		return 1;
-	}
+	for (i = 0; i < nr_heads; i++)
+		free(targets[i]);
+	free(targets);
 
-	add_object_array(obj, NULL, &pending);
-	return 0;
+	return ret ? error("fetch failed.") : 0;
 }

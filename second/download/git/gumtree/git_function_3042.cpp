@@ -1,25 +1,25 @@
-void mingw_open_html(const char *unixpath)
+static struct child_process *git_proxy_connect(int fd[2], char *host)
 {
-	const char *htmlpath = make_backslash_path(unixpath);
-	typedef HINSTANCE (WINAPI *T)(HWND, const char *,
-			const char *, const char *, const char *, INT);
-	T ShellExecute;
-	HMODULE shell32;
-	int r;
+	const char *port = STR(DEFAULT_GIT_PORT);
+	struct child_process *proxy;
 
-	shell32 = LoadLibrary("shell32.dll");
-	if (!shell32)
-		die("cannot load shell32.dll");
-	ShellExecute = (T)GetProcAddress(shell32, "ShellExecuteA");
-	if (!ShellExecute)
-		die("cannot run browser");
+	get_host_and_port(&host, &port);
 
-	printf("Launching default browser to display HTML ...\n");
-	r = HCAST(int, ShellExecute(NULL, "open", htmlpath,
-				NULL, "\\", SW_SHOWNORMAL));
-	FreeLibrary(shell32);
-	/* see the MSDN documentation referring to the result codes here */
-	if (r <= 32) {
-		die("failed to launch browser for %.*s", MAX_PATH, unixpath);
-	}
+	if (looks_like_command_line_option(host))
+		die("strange hostname '%s' blocked", host);
+	if (looks_like_command_line_option(port))
+		die("strange port '%s' blocked", port);
+
+	proxy = xmalloc(sizeof(*proxy));
+	child_process_init(proxy);
+	argv_array_push(&proxy->args, git_proxy_command);
+	argv_array_push(&proxy->args, host);
+	argv_array_push(&proxy->args, port);
+	proxy->in = -1;
+	proxy->out = -1;
+	if (start_command(proxy))
+		die("cannot start proxy %s", git_proxy_command);
+	fd[0] = proxy->out; /* read from proxy stdout */
+	fd[1] = proxy->in;  /* write to proxy stdin */
+	return proxy;
 }

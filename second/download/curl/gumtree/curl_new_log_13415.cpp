@@ -1,10 +1,9 @@
 fputs(
-"              Set a preferred number or range of local port numbers to use for\n"
-"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
-"              scarce resource that will be busy at times so setting this range\n"
-"              to something too narrow might cause unnecessary connection setup\n"
-"              failures. (Added in 7.15.2)\n"
+"              authentication is used, curl only sends its credentials  to  the\n"
+"              initial  host.  If a redirect takes curl to a different host, it\n"
+"              won't be able to intercept the user+password. See  also  --loca-\n"
+"              tion-trusted  on how to change this. You can limit the amount of\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS)  Like  -L,  --location,  but will allow sending the\n"
+"              When curl follows a redirect and the request is not a plain  GET\n"
 , stdout);

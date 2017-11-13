@@ -1,10 +1,9 @@
 fputs(
-"              requests into GET requests when following a 302 redirection. The\n"
-"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
-"              the  conversion  by  default to maintain consistency. However, a\n"
-"              server may require a POST to remain a POST after  such  a  redi-\n"
-"              rection.  This  option is meaningful only when using -L, --loca-\n"
-"              tion.\n"
+"              method was designed by Microsoft and is used by IIS web servers.\n"
+"              It  is a proprietary protocol, reverse-engineered by clever peo-\n"
+"              ple and implemented in curl based on their efforts. This kind of\n"
+"              behavior  should  not be endorsed, you should encourage everyone\n"
+"              who uses NTLM to switch to a public and  documented  authentica-\n"
+"              tion method instead, such as Digest.\n"
 "\n"
-"              See also --post301 and --post303 and -L,  --location.  Added  in\n"
 , stdout);

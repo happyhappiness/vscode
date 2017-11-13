@@ -1,1 +1,2 @@
-ap_fatal_signal_setup(ap_server_conf, pconf);
+ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Pre-configuration failed");

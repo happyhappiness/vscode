@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00987)
-               "ajp_send_header: ajp_msg_create failed");
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server, APLOGNO(01612)
+                         "ProtocolEcho: Error - read empty brigade from %s!",
+                         c->client_ip);

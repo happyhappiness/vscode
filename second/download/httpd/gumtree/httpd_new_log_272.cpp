@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: Failed to create a qwait event.", my_pid);
+printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");

@@ -1,1 +1,2 @@
-ap_fatal_signal_setup(ap_server_conf, pconf);
+fprintf(stderr, "%s: Include directory '%s' not found",
+                    ap_server_argv0, path);

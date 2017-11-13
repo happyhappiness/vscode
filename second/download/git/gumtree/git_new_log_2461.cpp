@@ -1,1 +1,1 @@
-die(_("reading bisect refs failed"));
+error("object %s: %s", oid_to_hex(&obj->oid), message);

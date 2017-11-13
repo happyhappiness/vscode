@@ -1,2 +1,2 @@
-ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
-                      "Releasing mutex %s:%d", l->file, l->line);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "access to %s failed", r->uri);

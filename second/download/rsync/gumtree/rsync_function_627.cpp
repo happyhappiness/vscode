@@ -1,27 +1,49 @@
-static void flist_expand(struct file_list *flist)
+int copy_file(char *source, char *dest, mode_t mode)
 {
-	if (flist->count >= flist->malloced) {
-		size_t new_bytes;
-		void *new_ptr;
-		
-		if (flist->malloced < 1000)
-			flist->malloced += 1000;
-		else
-			flist->malloced *= 2;
+	int ifd;
+	int ofd;
+	char buf[1024 * 8];
+	int len;   /* Number of bytes read into `buf'. */
 
-		new_bytes = sizeof(flist->files[0]) * flist->malloced;
-		
-		new_ptr = realloc(flist->files, new_bytes);
-
-		if (verbose >= 2) {
-			rprintf(FINFO, RSYNC_NAME ": expand file_list to %.0f bytes, did%s move\n",
-				(double) new_bytes,
-				(new_ptr == flist->files) ? " not" : "");
-		}
-		
-		flist->files = (struct file_struct **) new_ptr;
-
-		if (!flist->files)
-			out_of_memory("flist_expand");
+	ifd = open(source, O_RDONLY);
+	if (ifd == -1) {
+		fprintf(FERROR,"open %s: %s\n",
+			source,strerror(errno));
+		return -1;
 	}
+
+	if (do_unlink(dest) && errno != ENOENT) {
+		fprintf(FERROR,"unlink %s: %s\n",
+			dest,strerror(errno));
+		return -1;
+	}
+
+	ofd = do_open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode);
+	if (ofd < 0) {
+		fprintf(FERROR,"open %s: %s\n",
+			dest,strerror(errno));
+		close(ifd);
+		return -1;
+	}
+
+	while ((len = safe_read(ifd, buf, sizeof(buf))) > 0) {
+		if (full_write(ofd, buf, len) < 0) {
+			fprintf(FERROR,"write %s: %s\n",
+				dest,strerror(errno));
+			close(ifd);
+			close(ofd);
+			return -1;
+		}
+	}
+
+	close(ifd);
+	close(ofd);
+
+	if (len < 0) {
+		fprintf(FERROR,"read %s: %s\n",
+			source,strerror(errno));
+		return -1;
+	}
+
+	return 0;
 }

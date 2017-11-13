@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(03462)
-                              "proxying is explicitly disabled for URI path "
-                              "'%s'; declining", r->uri);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03072)
+                          "h2_stream(%ld-%d): submit %d trailers",
+                          session->id, (int)stream_id,(int) nh->nvlen);

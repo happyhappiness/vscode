@@ -1,1 +1,1 @@
-fprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");
+fprintf(FERROR,"out of memory in delete_already_done");

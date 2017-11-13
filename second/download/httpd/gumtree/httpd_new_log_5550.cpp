@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03085)
-                          "upgrade without HTTP2-Settings declined");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02671)
+                          "ServerSupportFunction "
+                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
+                          r->filename);

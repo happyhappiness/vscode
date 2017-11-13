@@ -1,2 +1,1 @@
-error(_("no note found for object %s."),
-			       sha1_to_hex(object));
+die("replace ref '%s' already exists", ref);

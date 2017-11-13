@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "Statistics:" APR_EOL_STR);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                         "Cannot reinit SSLMutex");

@@ -1,1 +1,1 @@
-die(_("name consists only of disallowed characters: %s"), name);
+die("BUG: inbody_header_accum, if not empty, must always contain a valid in-body header");

@@ -1,243 +1,86 @@
-static filter_rule *parse_rule_tok(const char **rulestr_ptr,
-				   const filter_rule *template, int xflags,
-				   const char **pat_ptr, unsigned int *pat_len_ptr)
+int start_daemon(int f_in, int f_out)
 {
-	const uchar *s = (const uchar *)*rulestr_ptr;
-	filter_rule *rule;
-	unsigned int len;
+	char line[1024];
+	char *motd, *addr, *host;
+	int i;
 
-	if (template->rflags & FILTRULE_WORD_SPLIT) {
-		/* Skip over any initial whitespace. */
-		while (isspace(*s))
-			s++;
-		/* Update to point to real start of rule. */
-		*rulestr_ptr = (const char *)s;
-	}
-	if (!*s)
-		return NULL;
+	io_set_sock_fds(f_in, f_out);
 
-	if (!(rule = new0(filter_rule)))
-		out_of_memory("parse_rule_tok");
-
-	/* Inherit from the template.  Don't inherit FILTRULES_SIDES; we check
-	 * that later. */
-	rule->rflags = template->rflags & FILTRULES_FROM_CONTAINER;
-
-	/* Figure out what kind of a filter rule "s" is pointing at.  Note
-	 * that if FILTRULE_NO_PREFIXES is set, the rule is either an include
-	 * or an exclude based on the inheritance of the FILTRULE_INCLUDE
-	 * flag (above).  XFLG_OLD_PREFIXES indicates a compatibility mode
-	 * for old include/exclude patterns where just "+ " and "- " are
-	 * allowed as optional prefixes.  */
-	if (template->rflags & FILTRULE_NO_PREFIXES) {
-		if (*s == '!' && template->rflags & FILTRULE_CVS_IGNORE)
-			rule->rflags |= FILTRULE_CLEAR_LIST; /* Tentative! */
-	} else if (xflags & XFLG_OLD_PREFIXES) {
-		if (*s == '-' && s[1] == ' ') {
-			rule->rflags &= ~FILTRULE_INCLUDE;
-			s += 2;
-		} else if (*s == '+' && s[1] == ' ') {
-			rule->rflags |= FILTRULE_INCLUDE;
-			s += 2;
-		} else if (*s == '!')
-			rule->rflags |= FILTRULE_CLEAR_LIST; /* Tentative! */
-	} else {
-		char ch = 0;
-		BOOL prefix_specifies_side = False;
-		switch (*s) {
-		case 'c':
-			if ((s = RULE_STRCMP(s, "clear")) != NULL)
-				ch = '!';
-			break;
-		case 'd':
-			if ((s = RULE_STRCMP(s, "dir-merge")) != NULL)
-				ch = ':';
-			break;
-		case 'e':
-			if ((s = RULE_STRCMP(s, "exclude")) != NULL)
-				ch = '-';
-			break;
-		case 'h':
-			if ((s = RULE_STRCMP(s, "hide")) != NULL)
-				ch = 'H';
-			break;
-		case 'i':
-			if ((s = RULE_STRCMP(s, "include")) != NULL)
-				ch = '+';
-			break;
-		case 'm':
-			if ((s = RULE_STRCMP(s, "merge")) != NULL)
-				ch = '.';
-			break;
-		case 'p':
-			if ((s = RULE_STRCMP(s, "protect")) != NULL)
-				ch = 'P';
-			break;
-		case 'r':
-			if ((s = RULE_STRCMP(s, "risk")) != NULL)
-				ch = 'R';
-			break;
-		case 's':
-			if ((s = RULE_STRCMP(s, "show")) != NULL)
-				ch = 'S';
-			break;
-		default:
-			ch = *s;
-			if (s[1] == ',')
-				s++;
-			break;
-		}
-		switch (ch) {
-		case ':':
-			rule->rflags |= FILTRULE_PERDIR_MERGE
-				       | FILTRULE_FINISH_SETUP;
-			/* FALL THROUGH */
-		case '.':
-			rule->rflags |= FILTRULE_MERGE_FILE;
-			break;
-		case '+':
-			rule->rflags |= FILTRULE_INCLUDE;
-			break;
-		case '-':
-			break;
-		case 'S':
-			rule->rflags |= FILTRULE_INCLUDE;
-			/* FALL THROUGH */
-		case 'H':
-			rule->rflags |= FILTRULE_SENDER_SIDE;
-			prefix_specifies_side = True;
-			break;
-		case 'R':
-			rule->rflags |= FILTRULE_INCLUDE;
-			/* FALL THROUGH */
-		case 'P':
-			rule->rflags |= FILTRULE_RECEIVER_SIDE;
-			prefix_specifies_side = True;
-			break;
-		case '!':
-			rule->rflags |= FILTRULE_CLEAR_LIST;
-			break;
-		default:
-			rprintf(FERROR, "Unknown filter rule: `%s'\n", *rulestr_ptr);
-			exit_cleanup(RERR_SYNTAX);
-		}
-		while (ch != '!' && *++s && *s != ' ' && *s != '_') {
-			if (template->rflags & FILTRULE_WORD_SPLIT && isspace(*s)) {
-				s--;
-				break;
-			}
-			switch (*s) {
-			default:
-			    invalid:
-				rprintf(FERROR,
-					"invalid modifier '%c' at position %d in filter rule: %s\n",
-					*s, (int)(s - (const uchar *)*rulestr_ptr), *rulestr_ptr);
-				exit_cleanup(RERR_SYNTAX);
-			case '-':
-				if (!BITS_SETnUNSET(rule->rflags, FILTRULE_MERGE_FILE, FILTRULE_NO_PREFIXES))
-					goto invalid;
-				rule->rflags |= FILTRULE_NO_PREFIXES;
-				break;
-			case '+':
-				if (!BITS_SETnUNSET(rule->rflags, FILTRULE_MERGE_FILE, FILTRULE_NO_PREFIXES))
-					goto invalid;
-				rule->rflags |= FILTRULE_NO_PREFIXES
-					      | FILTRULE_INCLUDE;
-				break;
-			case '/':
-				rule->rflags |= FILTRULE_ABS_PATH;
-				break;
-			case '!':
-				/* Negation really goes with the pattern, so it
-				 * isn't useful as a merge-file default. */
-				if (rule->rflags & FILTRULE_MERGE_FILE)
-					goto invalid;
-				rule->rflags |= FILTRULE_NEGATE;
-				break;
-			case 'C':
-				if (rule->rflags & FILTRULE_NO_PREFIXES || prefix_specifies_side)
-					goto invalid;
-				rule->rflags |= FILTRULE_NO_PREFIXES
-					      | FILTRULE_WORD_SPLIT
-					      | FILTRULE_NO_INHERIT
-					      | FILTRULE_CVS_IGNORE;
-				break;
-			case 'e':
-				if (!(rule->rflags & FILTRULE_MERGE_FILE))
-					goto invalid;
-				rule->rflags |= FILTRULE_EXCLUDE_SELF;
-				break;
-			case 'n':
-				if (!(rule->rflags & FILTRULE_MERGE_FILE))
-					goto invalid;
-				rule->rflags |= FILTRULE_NO_INHERIT;
-				break;
-			case 'p':
-				rule->rflags |= FILTRULE_PERISHABLE;
-				break;
-			case 'r':
-				if (prefix_specifies_side)
-					goto invalid;
-				rule->rflags |= FILTRULE_RECEIVER_SIDE;
-				break;
-			case 's':
-				if (prefix_specifies_side)
-					goto invalid;
-				rule->rflags |= FILTRULE_SENDER_SIDE;
-				break;
-			case 'w':
-				if (!(rule->rflags & FILTRULE_MERGE_FILE))
-					goto invalid;
-				rule->rflags |= FILTRULE_WORD_SPLIT;
-				break;
-			}
-		}
-		if (*s)
-			s++;
-	}
-	if (template->rflags & FILTRULES_SIDES) {
-		if (rule->rflags & FILTRULES_SIDES) {
-			/* The filter and template both specify side(s).  This
-			 * is dodgy (and won't work correctly if the template is
-			 * a one-sided per-dir merge rule), so reject it. */
-			rprintf(FERROR,
-				"specified-side merge file contains specified-side filter: %s\n",
-				*rulestr_ptr);
-			exit_cleanup(RERR_SYNTAX);
-		}
-		rule->rflags |= template->rflags & FILTRULES_SIDES;
-	}
-
-	if (template->rflags & FILTRULE_WORD_SPLIT) {
-		const uchar *cp = s;
-		/* Token ends at whitespace or the end of the string. */
-		while (!isspace(*cp) && *cp != '\0')
-			cp++;
-		len = cp - s;
-	} else
-		len = strlen((char*)s);
-
-	if (rule->rflags & FILTRULE_CLEAR_LIST) {
-		if (!(rule->rflags & FILTRULE_NO_PREFIXES)
-		 && !(xflags & XFLG_OLD_PREFIXES) && len) {
-			rprintf(FERROR,
-				"'!' rule has trailing characters: %s\n", *rulestr_ptr);
-			exit_cleanup(RERR_SYNTAX);
-		}
-		if (len > 1)
-			rule->rflags &= ~FILTRULE_CLEAR_LIST;
-	} else if (!len && !(rule->rflags & FILTRULE_CVS_IGNORE)) {
-		rprintf(FERROR, "unexpected end of filter rule: %s\n", *rulestr_ptr);
+	/* We must load the config file before calling any function that
+	 * might cause log-file output to occur.  This ensures that the
+	 * "log file" param gets honored for the 2 non-forked use-cases
+	 * (when rsync is run by init and run by a remote shell). */
+	if (!lp_load(config_file, 0))
 		exit_cleanup(RERR_SYNTAX);
+
+	addr = client_addr(f_in);
+	host = client_name(f_in);
+	rprintf(FLOG, "connect from %s (%s)\n", host, addr);
+
+	if (!am_server) {
+		set_socket_options(f_in, "SO_KEEPALIVE");
+		if (sockopts)
+			set_socket_options(f_in, sockopts);
+		else
+			set_socket_options(f_in, lp_socket_options());
+		set_nonblocking(f_in);
 	}
 
-	/* --delete-excluded turns an un-modified include/exclude into a sender-side rule.  */
-	if (delete_excluded
-	 && !(rule->rflags & (FILTRULES_SIDES|FILTRULE_MERGE_FILE|FILTRULE_PERDIR_MERGE)))
-		rule->rflags |= FILTRULE_SENDER_SIDE;
+	io_printf(f_out, "@RSYNCD: %d\n", protocol_version);
 
-	*pat_ptr = (const char *)s;
-	*pat_len_ptr = len;
-	*rulestr_ptr = *pat_ptr + len;
-	return rule;
+	motd = lp_motd_file();
+	if (motd && *motd) {
+		FILE *f = fopen(motd,"r");
+		while (f && !feof(f)) {
+			int len = fread(line, 1, sizeof line - 1, f);
+			if (len > 0) {
+				line[len] = 0;
+				io_printf(f_out, "%s", line);
+			}
+		}
+		if (f)
+			fclose(f);
+		io_printf(f_out, "\n");
+	}
+
+	if (!read_line(f_in, line, sizeof line - 1))
+		return -1;
+
+	if (sscanf(line,"@RSYNCD: %d", &remote_protocol) != 1) {
+		io_printf(f_out, "@ERROR: protocol startup error\n");
+		return -1;
+	}
+	if (protocol_version > remote_protocol)
+		protocol_version = remote_protocol;
+
+	line[0] = 0;
+	if (!read_line(f_in, line, sizeof line - 1))
+		return -1;
+
+	if (!*line || strcmp(line, "#list") == 0) {
+		rprintf(FLOG, "module-list request from %s (%s)\n",
+			host, addr);
+		send_listing(f_out);
+		return -1;
+	}
+
+	if (*line == '#') {
+		/* it's some sort of command that I don't understand */
+		io_printf(f_out, "@ERROR: Unknown command '%s'\n", line);
+		return -1;
+	}
+
+	if ((i = lp_number(line)) < 0) {
+		rprintf(FLOG, "unknown module '%s' tried from %s (%s)\n",
+			line, host, addr);
+		io_printf(f_out, "@ERROR: Unknown module '%s'\n", line);
+		return -1;
+	}
+
+#ifdef HAVE_SIGACTION
+	sigact.sa_flags = SA_NOCLDSTOP;
+#endif
+	SIGACTION(SIGCHLD, remember_children);
+
+	return rsync_module(f_in, f_out, i, addr, host);
 }

@@ -1,2 +1,2 @@
-fprintf(FERROR,"generator starting pid=%d count=%d\n",
-	    (int)getpid(),flist->count);
+fprintf(FERROR,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);

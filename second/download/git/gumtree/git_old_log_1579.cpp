@@ -1,1 +1,2 @@
-packet_buf_write(sb, "shallow %s\n", sha1_to_hex(graft->sha1));
+error("copy-fd: read returned %s",
+				     strerror(read_error));

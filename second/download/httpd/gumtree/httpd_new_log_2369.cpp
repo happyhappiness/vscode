@@ -1,2 +1,3 @@
-printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
-               (double) timetaken * 1000 / done);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ThreadLimit "
+                         "directive.");

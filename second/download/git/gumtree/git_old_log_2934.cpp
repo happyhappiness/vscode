@@ -1,2 +1,2 @@
-error("unable to create file %s (%s)",
-				path, strerror(errno));
+error("unable to unlink old '%s' (%s)",
+				     path.buf, strerror(errno));

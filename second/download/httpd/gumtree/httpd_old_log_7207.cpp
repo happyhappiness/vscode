@@ -1,2 +1,1 @@
-fprintf(stderr, "crypt() failed: %s\n", 
-                        apr_strerror(errno, errbuf, sizeof errbuf));
+fprintf(stderr, "CRYPT is now deprecated, use MD5 instead!\n");

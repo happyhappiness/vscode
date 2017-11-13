@@ -1,10 +1,11 @@
 fputs(
-"              ters, and the ';type=' string in the value have no special mean-\n"
-"              ing. Use this in preference to --form if there's any possibility\n"
-"              that  the  string  value may accidentally trigger the '@' or '<'\n"
-"              features of --form.\n"
+"              (Added in 7.15.1)\n"
 "\n"
-"       -g, --globoff\n"
-"              This option switches off the \"URL globbing parser\". When you set\n"
-"              this  option, you can specify URLs that contain the letters {}[]\n"
+"       --ftp-pasv\n"
+"              (FTP)  Use  passive mode for the data connection. Passive is the\n"
+"              internal default behavior, but using this option can be used  to\n"
+"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
+"\n"
+"              If  this  option  is  used  several times, only the first one is\n"
+"              used. Undoing an enforced passive really isn't  doable  but  you\n"
 , stdout);

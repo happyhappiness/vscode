@@ -1,70 +1,75 @@
-static void prepare_pack(int window, int depth)
+static void create_tag(const unsigned char *object, const char *tag,
+		       struct strbuf *buf, struct create_tag_options *opt,
+		       unsigned char *prev, unsigned char *result)
 {
-	struct object_entry **delta_list;
-	uint32_t i, nr_deltas;
-	unsigned n;
+	enum object_type type;
+	char header_buf[1024];
+	int header_len;
+	char *path = NULL;
 
-	get_object_details();
+	type = sha1_object_info(object, NULL);
+	if (type <= OBJ_NONE)
+	    die(_("bad object type."));
 
-	/*
-	 * If we're locally repacking then we need to be doubly careful
-	 * from now on in order to make sure no stealth corruption gets
-	 * propagated to the new pack.  Clients receiving streamed packs
-	 * should validate everything they get anyway so no need to incur
-	 * the additional cost here in that case.
-	 */
-	if (!pack_to_stdout)
-		do_check_packed_object_crc = 1;
+	header_len = snprintf(header_buf, sizeof(header_buf),
+			  "object %s\n"
+			  "type %s\n"
+			  "tag %s\n"
+			  "tagger %s\n\n",
+			  sha1_to_hex(object),
+			  typename(type),
+			  tag,
+			  git_committer_info(IDENT_STRICT));
 
-	if (!to_pack.nr_objects || !window || !depth)
-		return;
+	if (header_len > sizeof(header_buf) - 1)
+		die(_("tag header too big."));
 
-	ALLOC_ARRAY(delta_list, to_pack.nr_objects);
-	nr_deltas = n = 0;
+	if (!opt->message_given) {
+		int fd;
 
-	for (i = 0; i < to_pack.nr_objects; i++) {
-		struct object_entry *entry = to_pack.objects + i;
+		/* write the template message before editing: */
+		path = git_pathdup("TAG_EDITMSG");
+		fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+		if (fd < 0)
+			die_errno(_("could not create file '%s'"), path);
 
-		if (entry->delta)
-			/* This happens if we decided to reuse existing
-			 * delta from a pack.  "reuse_delta &&" is implied.
-			 */
-			continue;
-
-		if (entry->size < 50)
-			continue;
-
-		if (entry->no_try_delta)
-			continue;
-
-		if (!entry->preferred_base) {
-			nr_deltas++;
-			if (entry->type < 0)
-				die("unable to get type of object %s",
-				    sha1_to_hex(entry->idx.sha1));
+		if (!is_null_sha1(prev)) {
+			write_tag_body(fd, prev);
 		} else {
-			if (entry->type < 0) {
-				/*
-				 * This object is not found, but we
-				 * don't have to include it anyway.
-				 */
-				continue;
-			}
+			struct strbuf buf = STRBUF_INIT;
+			strbuf_addch(&buf, '\n');
+			if (opt->cleanup_mode == CLEANUP_ALL)
+				strbuf_commented_addf(&buf, _(tag_template), tag, comment_line_char);
+			else
+				strbuf_commented_addf(&buf, _(tag_template_nocleanup), tag, comment_line_char);
+			write_or_die(fd, buf.buf, buf.len);
+			strbuf_release(&buf);
 		}
+		close(fd);
 
-		delta_list[n++] = entry;
+		if (launch_editor(path, buf, NULL)) {
+			fprintf(stderr,
+			_("Please supply the message using either -m or -F option.\n"));
+			exit(1);
+		}
 	}
 
-	if (nr_deltas && n > 1) {
-		unsigned nr_done = 0;
-		if (progress)
-			progress_state = start_progress(_("Compressing objects"),
-							nr_deltas);
-		QSORT(delta_list, n, type_size_sort);
-		ll_find_deltas(delta_list, n, window+1, depth, &nr_done);
-		stop_progress(&progress_state);
-		if (nr_done != nr_deltas)
-			die("inconsistency with delta count");
+	if (opt->cleanup_mode != CLEANUP_NONE)
+		strbuf_stripspace(buf, opt->cleanup_mode == CLEANUP_ALL);
+
+	if (!opt->message_given && !buf->len)
+		die(_("no tag message?"));
+
+	strbuf_insert(buf, 0, header_buf, header_len);
+
+	if (build_tag_object(buf, opt->sign, result) < 0) {
+		if (path)
+			fprintf(stderr, _("The tag message has been left in %s\n"),
+				path);
+		exit(128);
 	}
-	free(delta_list);
+	if (path) {
+		unlink_or_warn(path);
+		free(path);
+	}
 }

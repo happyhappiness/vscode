@@ -1,37 +1,26 @@
-static apr_status_t out_open(h2_mplx *m, int stream_id, h2_response *response,
-                             ap_filter_t* f, apr_bucket_brigade *bb,
-                             struct apr_thread_cond_t *iowait)
+static apr_status_t make_h2_headers(h2_from_h1 *from_h1, request_rec *r)
 {
-    apr_status_t status = APR_SUCCESS;
+    from_h1->response = h2_response_create(from_h1->stream_id, 
+                                       from_h1->status, from_h1->hlines,
+                                       from_h1->pool);
+    if (from_h1->response == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, r->connection,
+                      APLOGNO(02915) 
+                      "h2_from_h1(%d): unable to create resp_head",
+                      from_h1->stream_id);
+        return APR_EINVAL;
+    }
+    from_h1->content_length = from_h1->response->content_length;
+    from_h1->chunked = r->chunked;
     
-    h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
-    if (io && !io->orphaned) {
-        if (f) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                          "h2_mplx(%ld-%d): open response: %d, rst=%d",
-                          m->id, stream_id, response->http_status, 
-                          response->rst_error);
-        }
-        
-        h2_io_set_response(io, response);
-        h2_io_set_add(m->ready_ios, io);
-        if (response && response->http_status < 300) {
-            /* we might see some file buckets in the output, see
-             * if we have enough handles reserved. */
-            check_tx_reservation(m);
-        }
-        if (bb) {
-            status = out_write(m, io, f, 0, bb, iowait);
-            if (status == APR_INCOMPLETE) {
-                /* write will have transferred as much data as possible.
-                   caller has to deal with non-empty brigade */
-                status = APR_SUCCESS;
-            }
-        }
-        have_out_data_for(m, stream_id);
-    }
-    else {
-        status = APR_ECONNABORTED;
-    }
-    return status;
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection,
+                  "h2_from_h1(%d): converted headers, content-length: %d"
+                  ", chunked=%d",
+                  from_h1->stream_id, (int)from_h1->content_length, 
+                  (int)from_h1->chunked);
+    
+    set_state(from_h1, ((from_h1->chunked || from_h1->content_length > 0)?
+                        H2_RESP_ST_BODY : H2_RESP_ST_DONE));
+    /* We are ready to be sent to the client */
+    return APR_SUCCESS;
 }

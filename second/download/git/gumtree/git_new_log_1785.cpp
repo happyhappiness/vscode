@@ -1,1 +1,1 @@
-die_errno("unable to fdopen alternates lockfile");
+printf("prune %s", message);

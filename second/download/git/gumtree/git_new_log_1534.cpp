@@ -1,2 +1,1 @@
-die("an empty %s object %s?",
-		    typename(type), oid_to_hex(oid));
+die("malformed push certificate %.*s", 100, push_cert->buf);

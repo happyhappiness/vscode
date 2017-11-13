@@ -1,1 +1,1 @@
-die("user.useConfigOnly set but no name given");
+die(_("Could not format %s."), todo_file);

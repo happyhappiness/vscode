@@ -1,9 +1,11 @@
 fputs(
-"       -n, --netrc\n"
-"              Makes  curl  scan  the  .netrc  (_netrc  on Windows) file in the\n"
-"              user's home directory for login name and password. This is typi-\n"
-"              cally  used for FTP on Unix. If used with HTTP, curl will enable\n"
-"              user authentication. See netrc(5) ftp(1) for details on the file\n"
-"              format.  Curl  will  not  complain if that file doesn't have the\n"
-"              right permissions (it should not be either world- or group-read-\n"
+"              fer  ends  up  being larger than this given limit. This concerns\n"
+"              both FTP and HTTP transfers.\n"
+"\n"
+"              See also --limit-rate.\n"
+"\n"
+"       --max-redirs <num>\n"
+"              (HTTP) Set maximum  number  of  redirection-followings  allowed.\n"
+"              When  -L,  --location is used, is used to prevent curl from fol-\n"
+"              lowing redirections \"in absurdum\". By default, the limit is  set\n"
 , stdout);

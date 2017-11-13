@@ -1,1 +1,0 @@
-error_errno("file write error");

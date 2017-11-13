@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, c,
-                          APLOGNO(02908) "protocol switch to '%s' failed",
-                          proposed);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00294)
+                "Accept mutex: %s (default: %s)",
+                apr_proc_mutex_name(accept_mutex),
+                apr_proc_mutex_defname());

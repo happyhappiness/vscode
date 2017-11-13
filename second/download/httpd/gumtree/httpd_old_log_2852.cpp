@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "parent waiting for child");
+fprintf(stderr, "    -T content-type Content-type header for POSTing\n");

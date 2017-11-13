@@ -1,73 +1,60 @@
-static int exchange_protocols(int f_in, int f_out, char *buf, size_t bufsiz, int am_client)
+static int is_in_group(gid_t gid)
 {
-	int remote_sub = -1;
-#if SUBPROTOCOL_VERSION != 0
-	int our_sub = protocol_version < PROTOCOL_VERSION ? 0 : SUBPROTOCOL_VERSION;
-#else
-	int our_sub = 0;
-#endif
-	char *motd;
+#ifdef HAVE_GETGROUPS
+	static gid_t last_in = GID_NONE, last_out;
+	static int ngroups = -2;
+	static GETGROUPS_T *gidset;
+	int n;
 
-	io_printf(f_out, "@RSYNCD: %d.%d\n", protocol_version, our_sub);
-
-	if (!am_client) {
-		motd = lp_motd_file();
-		if (motd && *motd) {
-			FILE *f = fopen(motd,"r");
-			while (f && !feof(f)) {
-				int len = fread(buf, 1, bufsiz - 1, f);
-				if (len > 0)
-					write_buf(f_out, buf, len);
+	if (gid == last_in)
+		return last_out;
+	if (ngroups < -1) {
+		gid_t mygid = MY_GID();
+		if ((ngroups = getgroups(0, NULL)) < 0)
+			ngroups = 0;
+		gidset = new_array(GETGROUPS_T, ngroups+1);
+		if (!gidset)
+			out_of_memory("is_in_group");
+		if (ngroups > 0)
+			ngroups = getgroups(ngroups, gidset);
+		/* The default gid might not be in the list on some systems. */
+		for (n = 0; n < ngroups; n++) {
+			if (gidset[n] == mygid)
+				break;
+		}
+		if (n == ngroups)
+			gidset[ngroups++] = mygid;
+		if (verbose > 3) {
+			int pos;
+			char *gidbuf = new_array(char, ngroups*21+32);
+			if (!gidbuf)
+				out_of_memory("is_in_group");
+			sprintf(gidbuf, "process has %d gid%s: ",
+			    ngroups, ngroups == 1? "" : "s");
+			pos = strlen(gidbuf);
+			for (n = 0; n < ngroups; n++) {
+				sprintf(gidbuf+pos, " %d", (int)gidset[n]);
+				pos += strlen(gidbuf+pos);
 			}
-			if (f)
-				fclose(f);
-			write_sbuf(f_out, "\n");
+			rprintf(FINFO, "%s\n", gidbuf);
+			free(gidbuf);
 		}
 	}
 
-	/* This strips the \n. */
-	if (!read_line_old(f_in, buf, bufsiz)) {
-		if (am_client)
-			rprintf(FERROR, "rsync: did not see server greeting\n");
-		return -1;
+	last_in = gid;
+	for (n = 0; n < ngroups; n++) {
+		if (gidset[n] == gid)
+			return last_out = 1;
 	}
+	return last_out = 0;
 
-	if (sscanf(buf, "@RSYNCD: %d.%d", &remote_protocol, &remote_sub) < 1) {
-		if (am_client)
-			rprintf(FERROR, "rsync: server sent \"%s\" rather than greeting\n", buf);
-		else
-			io_printf(f_out, "@ERROR: protocol startup error\n");
-		return -1;
+#else
+	static gid_t mygid = GID_NONE;
+	if (mygid == GID_NONE) {
+		mygid = MY_GID();
+		if (verbose > 3)
+			rprintf(FINFO, "process has gid %d\n", (int)mygid);
 	}
-
-	if (remote_sub < 0) {
-		if (remote_protocol == 30) {
-			if (am_client)
-				rprintf(FERROR, "rsync: server is speaking an incompatible beta of protocol 30\n");
-			else
-				io_printf(f_out, "@ERROR: your client is speaking an incompatible beta of protocol 30\n");
-			return -1;
-		}
-		remote_sub = 0;
-	}
-
-	if (protocol_version > remote_protocol) {
-		protocol_version = remote_protocol;
-		if (remote_sub)
-			protocol_version--;
-	} else if (protocol_version == remote_protocol) {
-		if (remote_sub != our_sub)
-			protocol_version--;
-	}
-#if SUBPROTOCOL_VERSION != 0
-	else if (protocol_version < remote_protocol) {
-		if (our_sub)
-			protocol_version--;
-	}
+	return gid == mygid;
 #endif
-
-	if (protocol_version >= 30)
-		rl_nulls = 1;
-
-	return 0;
 }

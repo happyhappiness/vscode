@@ -1,2 +1,1 @@
-error("Unexpected line '%s', expected %s-server",
-			     line ? line : "<flush packet>", welcome_prefix);
+error(_("could not close '%s'"), tempfile->filename.buf);

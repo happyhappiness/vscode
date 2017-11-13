@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                r, APLOGNO(00761) "Replacing CACHE with CACHE_OUT filter for %s",
-                r->uri);
+ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
+                      "Releasing mutex %s:%d", l->file, l->line);

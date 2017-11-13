@@ -1,1 +1,1 @@
-printf(" %s", find_unique_abbrev(parent->object.oid.hash, abbrev));
+die("%s aborted reading request", prog_name);

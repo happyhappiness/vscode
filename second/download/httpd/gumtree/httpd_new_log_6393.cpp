@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01298)
-                 "LDAP cache: Setting shared memory cache file to %s.",
-                 st->cache_file);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c, APLOGNO(03394)
+                  "h2_ngn_shed(%ld): abort", shed->c->id);

@@ -1,1 +1,0 @@
-ap_rvputs(r, ap_proxy_parse_wstatus(r->pool, *worker), NULL);

@@ -1,1 +1,2 @@
-printf("\nMatch succeeded again at offset %d\n", ovector[0]);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -f file            : specify an alternate ServerConfigFile");

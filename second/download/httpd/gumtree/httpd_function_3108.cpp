@@ -1,34 +1,25 @@
-static apr_status_t dbd_setup_lock(server_rec *s, dbd_group_t *group)
+static apr_status_t initialize_secret(server_rec *s)
 {
-    apr_status_t rv = APR_SUCCESS, rv2;
+    apr_status_t status;
 
-    /* several threads could be here at the same time, all trying to
-     * initialize the reslist because dbd_setup_init failed to do so
-     */
-    if (!group->mutex) {
-        /* we already logged an error when the mutex couldn't be created */
-        return APR_EGENERAL;
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                 "Digest: generating secret for digest authentication ...");
+
+#if APR_HAS_RANDOM
+    status = apr_generate_random_bytes(secret, sizeof(secret));
+#else
+#error APR random number support is missing; you probably need to install the truerand library.
+#endif
+
+    if (status != APR_SUCCESS) {
+        char buf[120];
+        ap_log_error(APLOG_MARK, APLOG_CRIT, status, s,
+                     "Digest: error generating secret: %s",
+                     apr_strerror(status, buf, sizeof(buf)));
+        return status;
     }
 
-    rv2 = apr_thread_mutex_lock(group->mutex);
-    if (rv2 != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv2, s,
-                     "DBD: Failed to acquire thread mutex");
-        return rv2;
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "Digest: done");
 
-    if (!group->reslist) {
-        rv = dbd_setup(s, group);
-    }
-
-    rv2 = apr_thread_mutex_unlock(group->mutex);
-    if (rv2 != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv2, s,
-                     "DBD: Failed to release thread mutex");
-        if (rv == APR_SUCCESS) {
-            rv = rv2;
-        }
-    }
-
-    return rv;
+    return APR_SUCCESS;
 }

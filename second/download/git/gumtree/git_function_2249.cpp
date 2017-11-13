@@ -1,37 +1,65 @@
-static int split_mail_stgit_series(struct am_state *state, const char **paths,
-					int keep_cr)
+static void show_rebase_in_progress(struct wt_status *s,
+				struct wt_status_state *state,
+				const char *color)
 {
-	const char *series_dir;
-	char *series_dir_buf;
-	FILE *fp;
-	struct argv_array patches = ARGV_ARRAY_INIT;
-	struct strbuf sb = STRBUF_INIT;
-	int ret;
+	struct stat st;
 
-	if (!paths[0] || paths[1])
-		return error(_("Only one StGIT patch series can be applied at once"));
-
-	series_dir_buf = xstrdup(*paths);
-	series_dir = dirname(series_dir_buf);
-
-	fp = fopen(*paths, "r");
-	if (!fp)
-		return error(_("could not open '%s' for reading: %s"), *paths,
-				strerror(errno));
-
-	while (!strbuf_getline_lf(&sb, fp)) {
-		if (*sb.buf == '#')
-			continue; /* skip comment lines */
-
-		argv_array_push(&patches, mkpath("%s/%s", series_dir, sb.buf));
+	if (has_unmerged(s)) {
+		if (state->branch)
+			status_printf_ln(s, color,
+					 _("You are currently rebasing branch '%s' on '%s'."),
+					 state->branch,
+					 state->onto);
+		else
+			status_printf_ln(s, color,
+					 _("You are currently rebasing."));
+		if (s->hints) {
+			status_printf_ln(s, color,
+				_("  (fix conflicts and then run \"git rebase --continue\")"));
+			status_printf_ln(s, color,
+				_("  (use \"git rebase --skip\" to skip this patch)"));
+			status_printf_ln(s, color,
+				_("  (use \"git rebase --abort\" to check out the original branch)"));
+		}
+	} else if (state->rebase_in_progress || !stat(git_path("MERGE_MSG"), &st)) {
+		if (state->branch)
+			status_printf_ln(s, color,
+					 _("You are currently rebasing branch '%s' on '%s'."),
+					 state->branch,
+					 state->onto);
+		else
+			status_printf_ln(s, color,
+					 _("You are currently rebasing."));
+		if (s->hints)
+			status_printf_ln(s, color,
+				_("  (all conflicts fixed: run \"git rebase --continue\")"));
+	} else if (split_commit_in_progress(s)) {
+		if (state->branch)
+			status_printf_ln(s, color,
+					 _("You are currently splitting a commit while rebasing branch '%s' on '%s'."),
+					 state->branch,
+					 state->onto);
+		else
+			status_printf_ln(s, color,
+					 _("You are currently splitting a commit during a rebase."));
+		if (s->hints)
+			status_printf_ln(s, color,
+				_("  (Once your working directory is clean, run \"git rebase --continue\")"));
+	} else {
+		if (state->branch)
+			status_printf_ln(s, color,
+					 _("You are currently editing a commit while rebasing branch '%s' on '%s'."),
+					 state->branch,
+					 state->onto);
+		else
+			status_printf_ln(s, color,
+					 _("You are currently editing a commit during a rebase."));
+		if (s->hints && !s->amend) {
+			status_printf_ln(s, color,
+				_("  (use \"git commit --amend\" to amend the current commit)"));
+			status_printf_ln(s, color,
+				_("  (use \"git rebase --continue\" once you are satisfied with your changes)"));
+		}
 	}
-
-	fclose(fp);
-	strbuf_release(&sb);
-	free(series_dir_buf);
-
-	ret = split_mail_conv(stgit_patch_to_mail, state, patches.argv, keep_cr);
-
-	argv_array_clear(&patches);
-	return ret;
+	wt_status_print_trailer(s);
 }

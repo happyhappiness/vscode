@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "proxy: BALANCER: (%s). Forcing recovery for worker (%s)",
+                         balancer->name, (*worker)->hostname);

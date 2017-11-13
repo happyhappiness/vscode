@@ -1,27 +1,22 @@
-apr_status_t h2_stream_set_response(h2_stream *stream, h2_response *response,
-                                    h2_bucket_beam *output)
+apr_array_header_t *h2_push_collect_update(h2_stream *stream, 
+                                           const struct h2_request *req, 
+                                           const struct h2_response *res)
 {
-    apr_status_t status = APR_SUCCESS;
-    conn_rec *c = stream->session->c;
+    h2_session *session = stream->session;
+    const char *cache_digest = apr_table_get(req->headers, "Cache-Digest");
+    apr_array_header_t *pushes;
+    apr_status_t status;
     
-    if (!output_open(stream)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_stream(%ld-%d): output closed", 
-                      stream->session->id, stream->id);
-        return APR_ECONNRESET;
+    if (cache_digest && session->push_diary) {
+        status = h2_push_diary_digest64_set(session->push_diary, req->authority, 
+                                            cache_digest, stream->pool);
+        if (status != APR_SUCCESS) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          APLOGNO(03057)
+                          "h2_session(%ld): push diary set from Cache-Digest: %s", 
+                          session->id, cache_digest);
+        }
     }
-    
-    stream->response = response;
-    stream->output = output;
-    stream->buffer = apr_brigade_create(stream->pool, c->bucket_alloc);
-    
-    h2_stream_filter(stream);
-    if (stream->output) {
-        status = fill_buffer(stream, 0);
-    }
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
-                  "h2_stream(%ld-%d): set_response(%d)", 
-                  stream->session->id, stream->id, 
-                  stream->response->http_status);
-    return status;
+    pushes = h2_push_collect(stream->pool, req, res);
+    return h2_push_diary_update(stream->session, pushes);
 }

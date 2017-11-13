@@ -1,1 +1,1 @@
-die("BUG: reverse reflog parser had leftover data");
+die(_("unable to parse object: %s"), name ? name : oid_to_hex(oid));

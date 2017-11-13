@@ -1,1 +1,2 @@
-ap_rvputs(r, "<tr>\n<td>", (*worker)->scheme, "</td>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "No group file was specified in the configuration");

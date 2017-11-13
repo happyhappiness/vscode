@@ -1,12 +1,10 @@
 fputs(
-"                             only enables http and https\n"
+"              Tells   curl  to  use  the  listed  protocols  for  its  initial\n"
+"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
+"              arated,  and  are each a protocol name or 'all', optionally pre-\n"
+"              fixed by zero or more modifiers. Available modifiers are:\n"
 "\n"
-"              --proto =http,https\n"
-"                             also only enables http and https\n"
-"\n"
-"              Unknown protocols produce a  warning.  This  allows  scripts  to\n"
-"              safely  rely on being able to disable potentially dangerous pro-\n"
-"              tocols, without relying upon support  for  that  protocol  being\n"
-"              built into curl to avoid an error.\n"
+"              +  Permit this protocol in addition to protocols already permit-\n"
+"                 ted (this is the default if no modifier is used).\n"
 "\n"
 , stdout);

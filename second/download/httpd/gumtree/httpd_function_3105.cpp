@@ -1,39 +1,27 @@
-static apr_status_t dbd_setup_init(apr_pool_t *pool, server_rec *s)
+static apr_status_t cleanup_tables(void *not_used)
 {
-    dbd_group_t *group;
-    apr_status_t rv = APR_SUCCESS;
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
+                  "Digest: cleaning up shared memory");
 
-    for (group = group_list; group; group = group->next) {
-        apr_status_t rv2;
-
-        rv2 = apr_pool_create(&group->pool, pool);
-        if (rv2 != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv2, s,
-                         "DBD: Failed to create reslist cleanup memory pool");
-            return rv2;
-        }
-
-#if APR_HAS_THREADS
-        rv2 = dbd_setup(s, group);
-        if (rv2 == APR_SUCCESS) {
-            continue;
-        }
-        else if (rv == APR_SUCCESS) {
-            rv = rv2;
-        }
-
-        /* we failed, so create a mutex so that subsequent competing callers
-         * to ap_dbd_open can serialize themselves while they retry
-         */
-        rv2 = apr_thread_mutex_create(&group->mutex,
-                                      APR_THREAD_MUTEX_DEFAULT, pool);
-        if (rv2 != APR_SUCCESS) {
-             ap_log_error(APLOG_MARK, APLOG_CRIT, rv2, s,
-                          "DBD: Failed to create thread mutex");
-             return rv2;
-        }
-#endif
+    if (client_rmm) {
+        apr_rmm_destroy(client_rmm);
+        client_rmm = NULL;
     }
 
-    return rv;
+    if (client_shm) {
+        apr_shm_destroy(client_shm);
+        client_shm = NULL;
+    }
+
+    if (client_lock) {
+        apr_global_mutex_destroy(client_lock);
+        client_lock = NULL;
+    }
+
+    if (opaque_lock) {
+        apr_global_mutex_destroy(opaque_lock);
+        opaque_lock = NULL;
+    }
+
+    return APR_SUCCESS;
 }

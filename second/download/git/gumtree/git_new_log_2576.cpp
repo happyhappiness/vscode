@@ -1,1 +1,1 @@
-die("BUG: unknown config origin type");
+!string_list_has_string(skip, extra_refname);

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
-                         "Parent: child process exited with status %u -- Aborting.", exitcode);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Access to %s denied for %s "
+                          "(requirement expression not fulfilled)",
+                          r->filename, r->connection->remote_ip);

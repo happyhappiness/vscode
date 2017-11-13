@@ -1,1 +1,1 @@
-die(_("negative values not allowed for submodule.fetchJobs"));
+die(_("invalid value for %s"), var);

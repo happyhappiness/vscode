@@ -1,9 +1,12 @@
 fputs(
-"              NAME2=VALUE2\".\n"
+"              and --tlsv1.2 to control the TLS version more precisely (if  the\n"
+"              SSL backend in use supports such a level of control).\n"
 "\n"
-"              If no '=' symbol is used in the line, it is treated as  a  file-\n"
-"              name  to  use to read previously stored cookie lines from, which\n"
-"              should be used in this session if they match. Using this  method\n"
-"              also  activates  the  cookie  engine which will make curl record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
+"       -2, --sslv2\n"
+"              (SSL)  Forces  curl to use SSL version 2 when negotiating with a\n"
+"              remote SSL server. Sometimes curl is built  without  SSLv2  sup-\n"
+"              port. SSLv2 is widely considered insecure (see RFC 6176).\n"
+"\n"
+"       -3, --sslv3\n"
+"              (SSL)  Forces  curl to use SSL version 3 when negotiating with a\n"
 , stdout);

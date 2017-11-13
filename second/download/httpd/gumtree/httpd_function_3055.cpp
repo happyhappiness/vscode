@@ -1,69 +1,43 @@
-static int hb_monitor(hb_ctx_t *ctx, apr_pool_t *p)
+static void do_rewritelog(request_rec *r, int level, char *perdir,
+                          const char *fmt, ...)
 {
-    apr_size_t len;
-    apr_socket_t *sock = NULL;
-    char buf[256];
-    int i, j;
-    apr_uint32_t ready = 0;
-    apr_uint32_t busy = 0;
-    ap_generation_t mpm_generation;
+    char *logline, *text;
+    const char *rhost, *rname;
+    int redir;
+    request_rec *req;
+    va_list ap;
 
-    ap_mpm_query(AP_MPMQ_GENERATION, &mpm_generation);
+    rhost = ap_get_remote_host(r->connection, r->per_dir_config,
+                               REMOTE_NOLOOKUP, NULL);
+    rname = ap_get_remote_logname(r);
 
-    for (i = 0; i < ctx->server_limit; i++) {
-        process_score *ps;
-        ps = ap_get_scoreboard_process(i);
-
-        for (j = 0; j < ctx->thread_limit; j++) {
-            int res;
-
-            worker_score *ws = NULL;
-
-            ws = &ap_scoreboard_image->servers[i][j];
-
-            res = ws->status;
-
-            if (res == SERVER_READY && ps->generation == mpm_generation) {
-                ready++;
-            }
-            else if (res != SERVER_DEAD &&
-                     res != SERVER_STARTING && res != SERVER_IDLE_KILL &&
-                     ps->generation == mpm_generation) {
-                busy++;
-            }
-        }
+    for (redir=0, req=r; req->prev; req = req->prev) {
+        ++redir;
     }
 
-    len = apr_snprintf(buf, sizeof(buf), msg_format, MSG_VERSION, ready, busy);
+    va_start(ap, fmt);
+    text = apr_pvsprintf(r->pool, fmt, ap);
+    va_end(ap);
 
-    do {
-        apr_status_t rv;
-        rv = apr_socket_create(&sock, ctx->mcast_addr->family,
-                               SOCK_DGRAM, APR_PROTO_UDP, p);
-        if (rv) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
-                         NULL, "Heartbeat: apr_socket_create failed");
-            break;
-        }
+    logline = apr_psprintf(r->pool, "%s %s %s [%s/sid#%pp][rid#%pp/%s%s%s] "
+                                    "%s%s%s%s" APR_EOL_STR,
+                           rhost ? rhost : "UNKNOWN-HOST",
+                           rname ? rname : "-",
+                           r->user ? (*r->user ? r->user : "\"\"") : "-",
+                           ap_get_server_name(r),
+                           (void *)(r->server),
+                           (void *)r,
+                           r->main ? "subreq" : "initial",
+                           redir ? "/redir#" : "",
+                           redir ? apr_itoa(r->pool, redir) : "",
+                           perdir ? "[perdir " : "",
+                           perdir ? perdir : "",
+                           perdir ? "] ": "",
+                           text);
 
-        rv = apr_mcast_loopback(sock, 1);
-        if (rv) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
-                         NULL, "Heartbeat: apr_mcast_loopback failed");
-            break;
-        }
+    AP_REWRITE_LOG((uintptr_t)r, level, r->main ? 0 : 1, (char *)ap_get_server_name(r), logline);
 
-        rv = apr_socket_sendto(sock, ctx->mcast_addr, 0, buf, &len);
-        if (rv) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
-                         NULL, "Heartbeat: apr_socket_sendto failed");
-            break;
-        }
-    } while (0);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG + level, 0, r, logline);
 
-    if (sock) {
-        apr_socket_close(sock);
-    }
-
-    return OK;
+    return;
 }

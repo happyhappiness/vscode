@@ -1,1 +1,1 @@
-fprintf(FERROR,"redoing %s(%d)\n",fname,i);
+fprintf(FERROR,"calling match_sums %s\n",fname);

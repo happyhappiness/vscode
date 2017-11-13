@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01027)
-                                  "client was readable");
+copy_brigade_range(bb, tmpbb, range_start, range_end);

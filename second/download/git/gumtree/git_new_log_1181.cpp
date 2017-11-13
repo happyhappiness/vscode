@@ -1,1 +1,1 @@
-die("%s", err.buf);
+fprintf(stderr, "%s%s\n", prefix, msg);

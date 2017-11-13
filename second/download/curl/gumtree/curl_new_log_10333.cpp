@@ -1,11 +1,9 @@
 fputs(
-"              out will decrease in accuracy as the specified timeout increases\n"
-"              in decimal precision.  See also the --connect-timeout option.\n"
+"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --login-options <options>\n"
-"              Specify the login options to use during server authentication.\n"
-"\n"
-"              You can use the  login  options  to  specify  protocol  specific\n"
+"              The  given  rate  is the average speed counted during the entire\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
+"              If  you  also use the -Y, --speed-limit option, that option will\n"
 , stdout);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03002)
-                              "%d:  userdata", i);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
+                                  "Got error '%.*s'", (int)readbuflen, iobuf);

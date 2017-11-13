@@ -1,55 +1,58 @@
-static void copy_templates(const char *template_dir)
+int init_db(const char *template_dir, unsigned int flags)
 {
-	struct strbuf path = STRBUF_INIT;
-	struct strbuf template_path = STRBUF_INIT;
-	size_t template_len;
-	DIR *dir;
-	char *to_free = NULL;
+	int reinit;
+	const char *git_dir = get_git_dir();
 
-	if (!template_dir)
-		template_dir = getenv(TEMPLATE_DIR_ENVIRONMENT);
-	if (!template_dir)
-		template_dir = init_db_template_dir;
-	if (!template_dir)
-		template_dir = to_free = system_path(DEFAULT_GIT_TEMPLATE_DIR);
-	if (!template_dir[0]) {
-		free(to_free);
-		return;
+	if (git_link)
+		separate_git_dir(git_dir);
+
+	safe_create_dir(git_dir, 0);
+
+	init_is_bare_repository = is_bare_repository();
+
+	/* Check to see if the repository version is right.
+	 * Note that a newly created repository does not have
+	 * config file, so this will not fail.  What we are catching
+	 * is an attempt to reinitialize new repository with an old tool.
+	 */
+	check_repository_format();
+
+	reinit = create_default_files(template_dir);
+
+	create_object_directory();
+
+	if (shared_repository) {
+		char buf[10];
+		/* We do not spell "group" and such, so that
+		 * the configuration can be read by older version
+		 * of git. Note, we use octal numbers for new share modes,
+		 * and compatibility values for PERM_GROUP and
+		 * PERM_EVERYBODY.
+		 */
+		if (shared_repository < 0)
+			/* force to the mode value */
+			xsnprintf(buf, sizeof(buf), "0%o", -shared_repository);
+		else if (shared_repository == PERM_GROUP)
+			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_GROUP);
+		else if (shared_repository == PERM_EVERYBODY)
+			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_EVERYBODY);
+		else
+			die("BUG: invalid value for shared_repository");
+		git_config_set("core.sharedrepository", buf);
+		git_config_set("receive.denyNonFastforwards", "true");
 	}
 
-	strbuf_addstr(&template_path, template_dir);
-	strbuf_complete(&template_path, '/');
-	template_len = template_path.len;
+	if (!(flags & INIT_DB_QUIET)) {
+		int len = strlen(git_dir);
 
-	dir = opendir(template_path.buf);
-	if (!dir) {
-		warning(_("templates not found %s"), template_dir);
-		goto free_return;
+		/* TRANSLATORS: The first '%s' is either "Reinitialized
+		   existing" or "Initialized empty", the second " shared" or
+		   "", and the last '%s%s' is the verbatim directory name. */
+		printf(_("%s%s Git repository in %s%s\n"),
+		       reinit ? _("Reinitialized existing") : _("Initialized empty"),
+		       shared_repository ? _(" shared") : "",
+		       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
 	}
 
-	/* Make sure that template is from the correct vintage */
-	strbuf_addstr(&template_path, "config");
-	repository_format_version = 0;
-	git_config_from_file(check_repository_format_version,
-			     template_path.buf, NULL);
-	strbuf_setlen(&template_path, template_len);
-
-	if (repository_format_version &&
-	    repository_format_version != GIT_REPO_VERSION) {
-		warning(_("not copying templates of "
-			"a wrong format version %d from '%s'"),
-			repository_format_version,
-			template_dir);
-		goto close_free_return;
-	}
-
-	strbuf_addstr(&path, get_git_dir());
-	strbuf_complete(&path, '/');
-	copy_templates_1(&path, &template_path, dir);
-close_free_return:
-	closedir(dir);
-free_return:
-	free(to_free);
-	strbuf_release(&path);
-	strbuf_release(&template_path);
+	return 0;
 }

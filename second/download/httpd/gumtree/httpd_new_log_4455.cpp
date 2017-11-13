@@ -1,4 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p, APLOGNO(00070)
-                          "make_sock: failed to set SendBufferSize for "
-                          "address %pI, using default",
-                          server->bind_addr);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01094)
+                      "client %s (%s) requested Transfer-Encoding "
+                      "chunked body with Content-Length (C-L ignored)",
+                      c->client_ip, c->remote_host ? c->remote_host: "");

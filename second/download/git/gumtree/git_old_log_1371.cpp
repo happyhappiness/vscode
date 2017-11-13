@@ -1,2 +1,2 @@
-die("attempting to allocate %"PRIuMAX" over limit %d",
-		    (intmax_t)size, limit);
+die("Could not parse local commit %s (%s)",
+		    sha1_to_hex(local_sha1), o->local_ref);

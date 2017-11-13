@@ -1,10 +1,12 @@
 fputs(
-"              makes curl record and use cookies. Another way to activate it is\n"
-"              to use the -b, --cookie option.\n"
+"              Maximum time in seconds that  you  allow  curl's  connection  to\n"
+"              take.   This  only  limits the connection phase, so if curl con-\n"
+"              nects within the given period it will continue - if not it  will\n"
+"              exit.  Since version 7.32.0, this option accepts decimal values.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              If the cookie jar can't be created or written to, the whole curl\n"
-"              operation  won't fail or even report an error clearly. Using -v,\n"
-"              --verbose will get a warning displayed, but  that  is  the  only\n"
-"              visible feedback you get about this possibly lethal situation.\n"
+"              See also -m, --max-time.\n"
+"\n"
+"       --connect-to <HOST1:PORT1:HOST2:PORT2>\n"
 "\n"
 , stdout);

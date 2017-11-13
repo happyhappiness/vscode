@@ -1,11 +1,9 @@
 fputs(
-"                             low redirects, this variable will show the actual\n"
-"                             URL a redirect  would  take  you  to.  (Added  in\n"
-"                             7.18.2)\n"
+"              with  any  number of variables. The format can be specified as a\n"
+"              literal \"string\", or you can have curl read the  format  from  a\n"
+"              file  with  \"@filename\" and to tell curl to read the format from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"              remote_ip      The  remote  IP address of the most recently done\n"
-"                             connection - can be either IPv4 or IPv6 (Added in\n"
-"                             7.29.0)\n"
-"\n"
-"              remote_port    The  remote port number of the most recently done\n"
+"              The variables present in the output format will  be  substituted\n"
+"              by  the  value or text that curl thinks fit, as described below.\n"
 , stdout);

@@ -1,1 +1,2 @@
-out_of_memory("writefd");
+rprintf(FINFO,"generator starting pid=%d count=%d\n",
+	    (int)getpid(),flist->count);

@@ -1,1 +1,1 @@
-die(_("'%s' is already checked out at '%s'"), new->name, gitdir.buf);
+die(_("invalid --decorate option: %s"), arg);

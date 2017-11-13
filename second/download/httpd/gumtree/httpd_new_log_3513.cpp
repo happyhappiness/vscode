@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00673)
-                              "incomplete redirection target of '%s' for "
-                              "URI '%s' modified to '%s'",
-                              orig_target, r->uri, ret);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00837)
+                 "socache_shmcb_remove (0x%02x -> subcache %d)",
+                 SHMCB_MASK_DBG(header, id));

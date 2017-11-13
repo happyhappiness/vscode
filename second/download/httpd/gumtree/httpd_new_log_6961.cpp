@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, APLOGNO(10023)
-                      "giving up after %d reconnects, %d requests todo",
-                      reconnects, h2_proxy_fifo_count(ctx->requests));
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(03016)
+                     "mod_lua: Failed to reopen mutex lua-ivm-shm in child");

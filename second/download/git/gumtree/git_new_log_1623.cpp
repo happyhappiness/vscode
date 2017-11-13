@@ -1,1 +1,1 @@
-die_errno("mmap failed");
+die("BUG: lockfile filename corrupt");

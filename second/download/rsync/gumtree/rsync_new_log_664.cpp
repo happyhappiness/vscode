@@ -1,1 +1,1 @@
-fprintf(fp, " %s\n", POPT_("[OPTION...]"));
+out_of_memory("string_area_new buffer");

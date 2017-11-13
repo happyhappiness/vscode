@@ -1,35 +1,92 @@
-static void delete_files(struct file_list *flist)
+static void hash_search(int f,struct sum_struct *s,
+			struct map_struct *buf,off_t len)
 {
-  struct file_list *local_file_list;
-  int i, j;
+  int offset,j,k;
+  int end;
+  char sum2[SUM_LENGTH];
+  uint32 s1, s2, sum; 
+  signed char *map;
 
-  if (cvs_exclude)
-    add_cvs_excludes();
+  if (verbose > 2)
+    fprintf(FERROR,"hash search b=%d len=%d\n",s->n,(int)len);
 
-  if (io_error) {
-	  fprintf(FINFO,"IO error encountered - skipping file deletion\n");
-	  return;
-  }
+  k = MIN(len, s->n);
 
-  for (j=0;j<flist->count;j++) {
-	  char *name = f_name(flist->files[j]);
+  map = (signed char *)map_ptr(buf,0,k);
 
-	  if (!S_ISDIR(flist->files[j]->mode)) continue;
+  sum = get_checksum1((char *)map, k);
+  s1 = sum & 0xFFFF;
+  s2 = sum >> 16;
+  if (verbose > 3)
+    fprintf(FERROR, "sum=%.8x k=%d\n", sum, k);
 
-	  if (delete_already_done(flist, j)) continue;
+  offset = 0;
 
-	  if (!(local_file_list = send_file_list(-1,1,&name)))
-		  continue;
+  end = len + 1 - s->sums[s->count-1].len;
 
-	  if (verbose > 1)
-		  fprintf(FINFO,"deleting in %s\n", name);
+  if (verbose > 3)
+    fprintf(FERROR,"hash search s->n=%d len=%d count=%d\n",
+	    s->n,(int)len,s->count);
 
-	  for (i=local_file_list->count-1;i>=0;i--) {
-		  if (!local_file_list->files[i]->basename) continue;
-		  if (-1 == flist_find(flist,local_file_list->files[i])) {
-			  delete_one(local_file_list->files[i]);
-		  }    
+  do {
+    tag t = gettag2(s1,s2);
+    j = tag_table[t];
+    if (verbose > 4)
+      fprintf(FERROR,"offset=%d sum=%08x\n",
+	      offset,sum);
+
+    if (j != NULL_TAG) {
+      int done_csum2 = 0;
+
+      sum = (s1 & 0xffff) | (s2 << 16);
+      tag_hits++;
+      do {
+	int i = targets[j].i;
+
+	if (sum == s->sums[i].sum1) {
+	  if (verbose > 3)
+	    fprintf(FERROR,"potential match at %d target=%d %d sum=%08x\n",
+		    offset,j,i,sum);
+
+	  if (!done_csum2) {
+	    int l = MIN(s->n,len-offset);
+	    map = (signed char *)map_ptr(buf,offset,l);
+	    get_checksum2((char *)map,l,sum2);
+	    done_csum2 = 1;
 	  }
-	  flist_free(local_file_list);
-  }
+	  if (memcmp(sum2,s->sums[i].sum2,csum_length) == 0) {
+	    matched(f,s,buf,offset,i);
+	    offset += s->sums[i].len - 1;
+	    k = MIN((len-offset), s->n);
+	    map = (signed char *)map_ptr(buf,offset,k);
+	    sum = get_checksum1((char *)map, k);
+	    s1 = sum & 0xFFFF;
+	    s2 = sum >> 16;
+	    ++matches;
+	    break;
+	  } else {
+	    false_alarms++;
+	  }
+	}
+	j++;
+      } while (j<s->count && targets[j].t == t);
+    }
+
+    /* Trim off the first byte from the checksum */
+    map = (signed char *)map_ptr(buf,offset,k+1);
+    s1 -= map[0] + CHAR_OFFSET;
+    s2 -= k * (map[0]+CHAR_OFFSET);
+
+    /* Add on the next byte (if there is one) to the checksum */
+    if (k < (len-offset)) {
+      s1 += (map[k]+CHAR_OFFSET);
+      s2 += s1;
+    } else {
+      --k;
+    }
+
+  } while (++offset < end);
+
+  matched(f,s,buf,len,-1);
+  map_ptr(buf,len-1,1);
 }

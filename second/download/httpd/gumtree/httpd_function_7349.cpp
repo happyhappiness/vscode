@@ -1,15 +1,14 @@
-static int uldap_cache_comparedn(request_rec *r, util_ldap_connection_t *ldc,
-                                 const char *url, const char *dn,
-                                 const char *reqdn, int compare_dn_on_server)
+static int uldap_cache_compare(request_rec *r, util_ldap_connection_t *ldc,
+                               const char *url, const char *dn,
+                               const char *attrib, const char *value)
 {
     int result = 0;
     util_url_node_t *curl;
     util_url_node_t curnode;
-    util_dn_compare_node_t *node;
-    util_dn_compare_node_t newnode;
+    util_compare_node_t *compare_nodep;
+    util_compare_node_t the_compare_node;
+    apr_time_t curtime = 0; /* silence gcc -Wall */
     int failures = 0;
-    LDAPMessage *res, *entry;
-    char *searchdn;
 
     util_ldap_state_t *st = (util_ldap_state_t *)
                             ap_get_module_config(r->server->module_config,
@@ -17,7 +16,6 @@ static int uldap_cache_comparedn(request_rec *r, util_ldap_connection_t *ldc,
 
     /* get cache entry (or create one) */
     LDAP_CACHE_LOCK();
-
     curnode.url = url;
     curl = util_ald_cache_fetch(st->util_ldap_cache, &curnode);
     if (curl == NULL) {
@@ -25,34 +23,49 @@ static int uldap_cache_comparedn(request_rec *r, util_ldap_connection_t *ldc,
     }
     LDAP_CACHE_UNLOCK();
 
-    /* a simple compare? */
-    if (!compare_dn_on_server) {
-        /* unlock this read lock */
-        if (strcmp(dn, reqdn)) {
-            ldc->reason = "DN Comparison FALSE (direct strcmp())";
-            return LDAP_COMPARE_FALSE;
-        }
-        else {
-            ldc->reason = "DN Comparison TRUE (direct strcmp())";
-            return LDAP_COMPARE_TRUE;
-        }
-    }
-
     if (curl) {
-        /* no - it's a server side compare */
+        /* make a comparison to the cache */
         LDAP_CACHE_LOCK();
+        curtime = apr_time_now();
 
-        /* is it in the compare cache? */
-        newnode.reqdn = (char *)reqdn;
-        node = util_ald_cache_fetch(curl->dn_compare_cache, &newnode);
-        if (node != NULL) {
-            /* If it's in the cache, it's good */
-            /* unlock this read lock */
-            LDAP_CACHE_UNLOCK();
-            ldc->reason = "DN Comparison TRUE (cached)";
-            return LDAP_COMPARE_TRUE;
+        the_compare_node.dn = (char *)dn;
+        the_compare_node.attrib = (char *)attrib;
+        the_compare_node.value = (char *)value;
+        the_compare_node.result = 0;
+        the_compare_node.sgl_processed = 0;
+        the_compare_node.subgroupList = NULL;
+
+        compare_nodep = util_ald_cache_fetch(curl->compare_cache,
+                                             &the_compare_node);
+
+        if (compare_nodep != NULL) {
+            /* found it... */
+            if (curtime - compare_nodep->lastcompare > st->compare_cache_ttl) {
+                /* ...but it is too old */
+                util_ald_cache_remove(curl->compare_cache, compare_nodep);
+            }
+            else {
+                /* ...and it is good */
+                if (LDAP_COMPARE_TRUE == compare_nodep->result) {
+                    ldc->reason = "Comparison true (cached)";
+                }
+                else if (LDAP_COMPARE_FALSE == compare_nodep->result) {
+                    ldc->reason = "Comparison false (cached)";
+                }
+                else if (LDAP_NO_SUCH_ATTRIBUTE == compare_nodep->result) {
+                    ldc->reason = "Comparison no such attribute (cached)";
+                }
+                else {
+                    ldc->reason = "Comparison undefined (cached)";
+                }
+
+                /* record the result code to return with the reason... */
+                result = compare_nodep->result;
+                /* and unlock this read lock */
+                LDAP_CACHE_UNLOCK();
+                return result;
+            }
         }
-
         /* unlock this read lock */
         LDAP_CACHE_UNLOCK();
     }
@@ -66,20 +79,18 @@ start_over:
         apr_sleep(st->retry_delay);
     }
 
-    /* make a server connection */
     if (LDAP_SUCCESS != (result = uldap_connection_open(r, ldc))) {
-        /* connect to server failed */
+        /* connect failed */
         return result;
     }
 
-    /* search for reqdn */
-    result = ldap_search_ext_s(ldc->ldap, (char *)reqdn, LDAP_SCOPE_BASE,
-                               "(objectclass=*)", NULL, 1,
-                               NULL, NULL, st->opTimeout, APR_LDAP_SIZELIMIT, &res);
-    if (AP_LDAP_IS_SERVER_DOWN(result))
-    {
-        ldc->reason = "DN Comparison ldap_search_ext_s() "
-                      "failed with server down";
+    result = ldap_compare_s(ldc->ldap,
+                            (char *)dn,
+                            (char *)attrib,
+                            (char *)value);
+    if (AP_LDAP_IS_SERVER_DOWN(result)) {
+        /* connection failed - try again */
+        ldc->reason = "ldap_compare_s() failed with server down";
         uldap_connection_unbind(ldc);
         failures++;
         ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
@@ -90,48 +101,62 @@ start_over:
          * we are reusing a connection that doesn't seem to be active anymore
          * (firewall state drop?), let's try a new connection.
          */
-        ldc->reason = "DN Comparison ldap_search_ext_s() "
-                      "failed with timeout";
+        ldc->reason = "ldap_compare_s() failed with timeout";
         uldap_connection_unbind(ldc);
         failures++;
         ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
         goto start_over;
     }
-    if (result != LDAP_SUCCESS) {
-        /* search for reqdn failed - no match */
-        ldc->reason = "DN Comparison ldap_search_ext_s() failed";
-        return result;
-    }
 
-    entry = ldap_first_entry(ldc->ldap, res);
-    searchdn = ldap_get_dn(ldc->ldap, entry);
-
-    ldap_msgfree(res);
-    if (strcmp(dn, searchdn) != 0) {
-        /* compare unsuccessful */
-        ldc->reason = "DN Comparison FALSE (checked on server)";
-        result = LDAP_COMPARE_FALSE;
-    }
-    else {
+    ldc->reason = "Comparison complete";
+    if ((LDAP_COMPARE_TRUE == result) ||
+        (LDAP_COMPARE_FALSE == result) ||
+        (LDAP_NO_SUCH_ATTRIBUTE == result)) {
         if (curl) {
-            /* compare successful - add to the compare cache */
+            /* compare completed; caching result */
             LDAP_CACHE_LOCK();
-            newnode.reqdn = (char *)reqdn;
-            newnode.dn = (char *)dn;
+            the_compare_node.lastcompare = curtime;
+            the_compare_node.result = result;
+            the_compare_node.sgl_processed = 0;
+            the_compare_node.subgroupList = NULL;
 
-            node = util_ald_cache_fetch(curl->dn_compare_cache, &newnode);
-            if (   (node == NULL)
-                || (strcmp(reqdn, node->reqdn) != 0)
-                || (strcmp(dn, node->dn) != 0))
+            /* If the node doesn't exist then insert it, otherwise just update
+             * it with the last results
+             */
+            compare_nodep = util_ald_cache_fetch(curl->compare_cache,
+                                                 &the_compare_node);
+            if (   (compare_nodep == NULL)
+                || (strcmp(the_compare_node.dn, compare_nodep->dn) != 0)
+                || (strcmp(the_compare_node.attrib,compare_nodep->attrib) != 0)
+                || (strcmp(the_compare_node.value, compare_nodep->value) != 0))
             {
-                util_ald_cache_insert(curl->dn_compare_cache, &newnode);
+                void *junk;
+
+                junk = util_ald_cache_insert(curl->compare_cache,
+                                             &the_compare_node);
+                if (junk == NULL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01287)
+                                  "cache_compare: Cache insertion failure.");
+                }
+            }
+            else {
+                compare_nodep->lastcompare = curtime;
+                compare_nodep->result = result;
             }
             LDAP_CACHE_UNLOCK();
         }
-        ldc->reason = "DN Comparison TRUE (checked on server)";
-        result = LDAP_COMPARE_TRUE;
+        if (LDAP_COMPARE_TRUE == result) {
+            ldc->reason = "Comparison true (adding to cache)";
+            return LDAP_COMPARE_TRUE;
+        }
+        else if (LDAP_COMPARE_FALSE == result) {
+            ldc->reason = "Comparison false (adding to cache)";
+            return LDAP_COMPARE_FALSE;
+        }
+        else {
+            ldc->reason = "Comparison no such attribute (adding to cache)";
+            return LDAP_NO_SUCH_ATTRIBUTE;
+        }
     }
-    ldap_memfree(searchdn);
     return result;
-
 }

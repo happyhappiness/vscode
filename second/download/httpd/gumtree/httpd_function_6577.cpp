@@ -1,91 +1,39 @@
-static void check_args(int argc, const char *const argv[],
-                       struct passwd_ctx *ctx, int *mask, char **user,
-                       char **pwfilename)
+static int h2_h2_post_read_req(request_rec *r)
 {
-    const char *arg;
-    int args_left = 2;
-    int i, ret;
-    apr_getopt_t *state;
-    apr_status_t rv;
-    char opt;
-    const char *opt_arg;
-    apr_pool_t *pool = ctx->pool;
-
-    rv = apr_getopt_init(&state, pool, argc, argv);
-    if (rv != APR_SUCCESS)
-        exit(ERR_SYNTAX);
-
-    while ((rv = apr_getopt(state, "cnmspdBbDiC:", &opt, &opt_arg)) == APR_SUCCESS) {
-        switch (opt) {
-        case 'c':
-            *mask |= APHTP_NEWFILE;
-            break;
-        case 'n':
-            args_left--;
-            *mask |= APHTP_NOFILE;
-            break;
-        case 'D':
-            *mask |= APHTP_DELUSER;
-            break;
-        default:
-            ret = parse_common_options(ctx, opt, opt_arg);
-            if (ret) {
-                apr_file_printf(errfile, "%s: %s" NL, argv[0], ctx->errstr);
-                exit(ret);
+    /* slave connection? */
+    if (r->connection->master) {
+        h2_ctx *ctx = h2_ctx_rget(r);
+        struct h2_task *task = h2_ctx_get_task(ctx);
+        /* This hook will get called twice on internal redirects. Take care
+         * that we manipulate filters only once. */
+        if (task && !task->filters_set) {
+            ap_filter_t *f;
+            
+            /* setup the correct output filters to process the response
+             * on the proper mod_http2 way. */
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "adding task output filter");
+            if (task->ser_headers) {
+                ap_add_output_filter("H1_TO_H2_RESP", task, r, r->connection);
             }
+            else {
+                /* replace the core http filter that formats response headers
+                 * in HTTP/1 with our own that collects status and headers */
+                ap_remove_output_filter_byhandle(r->output_filters, "HTTP_HEADER");
+                ap_add_output_filter("H2_RESPONSE", task, r, r->connection);
+            }
+            
+            /* trailers processing. Incoming trailers are added to this
+             * request via our h2 input filter, outgoing trailers
+             * in a special h2 out filter. */
+            for (f = r->input_filters; f; f = f->next) {
+                if (!strcmp("H2_TO_H1", f->frec->name)) {
+                    f->r = r;
+                    break;
+                }
+            }
+            ap_add_output_filter("H2_TRAILERS", task, r, r->connection);
+            task->filters_set = 1;
         }
     }
-    if (ctx->passwd_src == PW_ARG)
-        args_left++;
-    if (rv != APR_EOF)
-        usage();
-
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
-        apr_file_printf(errfile, "%s: -c and -n options conflict" NL, argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "%s: -c and -D options conflict" NL, argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    if ((*mask & APHTP_NOFILE) && (*mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "%s: -n and -D options conflict" NL, argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    /*
-     * Make sure we still have exactly the right number of arguments left
-     * (the filename, the username, and possibly the password if -b was
-     * specified).
-     */
-    i = state->ind;
-    if ((argc - i) != args_left) {
-        usage();
-    }
-
-    if (!(*mask & APHTP_NOFILE)) {
-        if (strlen(argv[i]) > (APR_PATH_MAX - 1)) {
-            apr_file_printf(errfile, "%s: filename too long" NL, argv[0]);
-            exit(ERR_OVERFLOW);
-        }
-        *pwfilename = apr_pstrdup(pool, argv[i++]);
-    }
-    if (strlen(argv[i]) > (MAX_STRING_LEN - 1)) {
-        apr_file_printf(errfile, "%s: username too long (> %d)" NL,
-                        argv[0], MAX_STRING_LEN - 1);
-        exit(ERR_OVERFLOW);
-    }
-    *user = apr_pstrdup(pool, argv[i++]);
-    if ((arg = strchr(*user, ':')) != NULL) {
-        apr_file_printf(errfile, "%s: username contains illegal "
-                        "character '%c'" NL, argv[0], *arg);
-        exit(ERR_BADUSER);
-    }
-    if (ctx->passwd_src == PW_ARG) {
-        if (strlen(argv[i]) > (MAX_STRING_LEN - 1)) {
-            apr_file_printf(errfile, "%s: password too long (> %d)" NL,
-                argv[0], MAX_STRING_LEN);
-            exit(ERR_OVERFLOW);
-        }
-        ctx->passwd = apr_pstrdup(pool, argv[i]);
-    }
+    return DECLINED;
 }

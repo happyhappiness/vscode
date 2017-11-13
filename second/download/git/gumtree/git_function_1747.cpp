@@ -1,32 +1,33 @@
-static int write_ref_to_lockfile(struct ref_lock *lock,
-				 const unsigned char *sha1)
+static int ask_each_cmd(void)
 {
-	static char term = '\n';
-	struct object *o;
+	struct strbuf confirm = STRBUF_INIT;
+	struct strbuf buf = STRBUF_INIT;
+	struct string_list_item *item;
+	const char *qname;
+	int changed = 0, eof = 0;
 
-	o = parse_object(sha1);
-	if (!o) {
-		error("Trying to write ref %s with nonexistent object %s",
-			lock->ref_name, sha1_to_hex(sha1));
-		unlock_ref(lock);
-		errno = EINVAL;
-		return -1;
+	for_each_string_list_item(item, &del_list) {
+		/* Ctrl-D should stop removing files */
+		if (!eof) {
+			qname = quote_path_relative(item->string, NULL, &buf);
+			printf(_("remove %s? "), qname);
+			if (strbuf_getline(&confirm, stdin, '\n') != EOF) {
+				strbuf_trim(&confirm);
+			} else {
+				putchar('\n');
+				eof = 1;
+			}
+		}
+		if (!confirm.len || strncasecmp(confirm.buf, "yes", confirm.len)) {
+			*item->string = '\0';
+			changed++;
+		}
 	}
-	if (o->type != OBJ_COMMIT && is_branch(lock->ref_name)) {
-		error("Trying to write non-commit object %s to branch %s",
-			sha1_to_hex(sha1), lock->ref_name);
-		unlock_ref(lock);
-		errno = EINVAL;
-		return -1;
-	}
-	if (write_in_full(lock->lk->fd, sha1_to_hex(sha1), 40) != 40 ||
-	    write_in_full(lock->lk->fd, &term, 1) != 1 ||
-	    close_ref(lock) < 0) {
-		int save_errno = errno;
-		error("Couldn't write %s", lock->lk->filename.buf);
-		unlock_ref(lock);
-		errno = save_errno;
-		return -1;
-	}
-	return 0;
+
+	if (changed)
+		string_list_remove_empty_items(&del_list, 0);
+
+	strbuf_release(&buf);
+	strbuf_release(&confirm);
+	return MENU_RETURN_NO_LOOP;
 }

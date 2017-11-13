@@ -1,1 +1,1 @@
-report_invalid_attr(name, namelen, src, lineno);
+argv_array_push(argv, sha1_to_hex(sha1));

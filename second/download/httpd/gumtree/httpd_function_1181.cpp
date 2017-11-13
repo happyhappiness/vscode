@@ -1,43 +1,40 @@
-static void xlate_insert_filter(request_rec *r)
+static void usage(const char *progname)
 {
-    /* Hey... don't be so quick to use reqinfo->dc here; reqinfo may be NULL */
-    charset_req_t *reqinfo = ap_get_module_config(r->request_config,
-                                                  &charset_lite_module);
-    charset_dir_t *dc = ap_get_module_config(r->per_dir_config,
-                                             &charset_lite_module);
-
-    if (dc && (dc->implicit_add == IA_NOIMPADD)) { 
-        if (dc->debug >= DBGLVL_GORY) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate output filter not added implicitly because "
-                          "CharsetOptions included 'NoImplicitAdd'");
-        }
-        return;
-    }
-
-    if (reqinfo) {
-        if (reqinfo->output_ctx && !configured_on_output(r, XLATEOUT_FILTER_NAME)) {
-            ap_add_output_filter(XLATEOUT_FILTER_NAME, reqinfo->output_ctx, r,
-                                 r->connection);
-        }
-        else if (dc->debug >= DBGLVL_FLOW) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate output filter not added implicitly because %s",
-                          !reqinfo->output_ctx ?
-                          "no output configuration available" :
-                          "another module added the filter");
-        }
-
-        if (reqinfo->input_ctx && !configured_on_input(r, XLATEIN_FILTER_NAME)) {
-            ap_add_input_filter(XLATEIN_FILTER_NAME, reqinfo->input_ctx, r,
-                                r->connection);
-        }
-        else if (dc->debug >= DBGLVL_FLOW) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate input filter not added implicitly because %s",
-                          !reqinfo->input_ctx ?
-                          "no input configuration available" :
-                          "another module added the filter");
-        }
-    }
+    fprintf(stderr, "Usage: %s [options] [http"
+#ifdef USE_SSL
+        "[s]"
+#endif
+        "://]hostname[:port]/path\n", progname);
+    fprintf(stderr, "Options are:\n");
+    fprintf(stderr, "    -n requests     Number of requests to perform\n");
+    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
+    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
+    fprintf(stderr, "    -p postfile     File containing data to POST\n");
+    fprintf(stderr, "    -T content-type Content-type header for POSTing\n");
+    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
+    fprintf(stderr, "    -w              Print out results in HTML tables\n");
+    fprintf(stderr, "    -i              Use HEAD instead of GET\n");
+    fprintf(stderr, "    -x attributes   String to insert as table attributes\n");
+    fprintf(stderr, "    -y attributes   String to insert as tr attributes\n");
+    fprintf(stderr, "    -z attributes   String to insert as td or th attributes\n");
+    fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234. (repeatable)\n");
+    fprintf(stderr, "    -H attribute    Add Arbitrary header line, eg. 'Accept-Encoding: gzip'\n");
+    fprintf(stderr, "                    Inserted after all normal header lines. (repeatable)\n");
+    fprintf(stderr, "    -A attribute    Add Basic WWW Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -P attribute    Add Basic Proxy Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -X proxy:port   Proxyserver and port number to use\n");
+    fprintf(stderr, "    -V              Print version number and exit\n");
+    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
+    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+#endif
+    exit(EINVAL);
 }

@@ -1,12 +1,7 @@
-static void error_clnt(const char *fmt, ...)
+static int advertise_shallow_grafts_cb(const struct commit_graft *graft, void *cb)
 {
-	char buf[1024];
-	va_list params;
-	int len;
-
-	va_start(params, fmt);
-	len = vsprintf(buf, fmt, params);
-	va_end(params);
-	send_sideband(1, 3, buf, len, LARGE_PACKET_MAX);
-	die("sent error to the client: %s", buf);
+	struct strbuf *sb = cb;
+	if (graft->nr_parent == -1)
+		packet_buf_write(sb, "shallow %s\n", sha1_to_hex(graft->sha1));
+	return 0;
 }

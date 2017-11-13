@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01948)
-                     "Failed to acquire OCSP %s lock", name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00161)
+                            "server reached MaxRequestWorkers setting, consider"
+                            " raising the MaxRequestWorkers setting");

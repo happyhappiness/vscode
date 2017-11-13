@@ -1,1 +1,2 @@
-print_verbose(args, _("done"));
+die("--batch-all-objects cannot be combined with "
+			    "--textconv nor with --filters");

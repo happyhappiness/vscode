@@ -1,28 +1,41 @@
-h2_response *h2_response_rcreate(int stream_id, request_rec *r,
-                                 apr_table_t *header, apr_pool_t *pool)
+apr_status_t ap_init_ebcdic(apr_pool_t *pool)
 {
-    h2_response *response = apr_pcalloc(pool, sizeof(h2_response));
-    if (response == NULL) {
-        return NULL;
-    }
-    
-    response->stream_id = stream_id;
-    response->http_status = r->status;
-    response->content_length = -1;
-    response->headers = header;
+    apr_status_t rv;
 
-    if (response->http_status == HTTP_FORBIDDEN) {
-        const char *cause = apr_table_get(r->notes, "ssl-renegotiate-forbidden");
-        if (cause) {
-            /* This request triggered a TLS renegotiation that is now allowed 
-             * in HTTP/2. Tell the client that it should use HTTP/1.1 for this.
-             */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, response->http_status, r, 
-                          "h2_response(%ld-%d): renegotiate forbidden, cause: %s",
-                          (long)r->connection->id, stream_id, cause);
-            response->rst_error = H2_ERR_HTTP_1_1_REQUIRED;
-        }
+    rv = apr_xlate_open(&ap_hdrs_to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, pool);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_xlate_open() failed");
+        return rv;
     }
-    
-    return response;
+
+    rv = apr_xlate_open(&ap_hdrs_from_ascii, APR_DEFAULT_CHARSET, "ISO-8859-1", pool);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_xlate_open() failed");
+        return rv;
+    }
+
+    rv = apr_MD5InitEBCDIC(ap_hdrs_to_ascii);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_MD5InitEBCDIC() failed");
+        return rv;
+    }
+
+    rv = apr_base64init_ebcdic(ap_hdrs_to_ascii, ap_hdrs_from_ascii);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_base64init_ebcdic() failed");
+        return rv;
+    }
+
+    rv = apr_SHA1InitEBCDIC(ap_hdrs_to_ascii);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_SHA1InitEBCDIC() failed");
+        return rv;
+    }
+
+    return APR_SUCCESS;
 }

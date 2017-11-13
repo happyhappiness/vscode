@@ -1,12 +1,11 @@
 fputs(
-"                             proxy) was completed.\n"
+"                             was successful. (Added in 7.19.0)\n"
 "\n"
-"              time_namelookup\n"
+"              time_appconnect\n"
 "                             The time, in seconds,  it  took  from  the  start\n"
-"                             until the name resolving was completed.\n"
+"                             until  the  SSL/SSH/etc  connect/handshake to the\n"
+"                             remote host was completed. (Added in 7.19.0)\n"
 "\n"
-"              time_pretransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the file transfer was just about to  begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
+"              time_connect   The time, in seconds,  it  took  from  the  start\n"
+"                             until  the  TCP  connect  to  the remote host (or\n"
 , stdout);

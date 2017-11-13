@@ -1,43 +1,67 @@
-static int mpmt_os2_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                 apr_pool_t *ptemp, server_rec *s)
+static int config_log_transaction(request_rec *r, config_log_state *cls,
+                                  apr_array_header_t *default_format)
 {
-    static int restart_num = 0;
-    int startup = 0;
+    log_format_item *items;
+    const char **strs;
+    int *strl;
+    request_rec *orig;
+    int i;
+    apr_size_t len = 0;
+    apr_array_header_t *format;
+    char *envar;
+    apr_status_t rv;
 
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
+    if (cls->fname == NULL) {
+        return DECLINED;
     }
 
-    if (ap_daemons_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
+    /*
+     * See if we've got any conditional envariable-controlled logging decisions
+     * to make.
+     */
+    if (cls->condition_var != NULL) {
+        envar = cls->condition_var;
+        if (*envar != '!') {
+            if (apr_table_get(r->subprocess_env, envar) == NULL) {
+                return DECLINED;
+            }
         }
-        ap_daemons_to_start = 1;
-    }
-
-    if (ap_min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_min_spare_threads);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_min_spare_threads);
+        else {
+            if (apr_table_get(r->subprocess_env, &envar[1]) != NULL) {
+                return DECLINED;
+            }
         }
-        ap_min_spare_threads = 1;
     }
 
+    format = cls->format ? cls->format : default_format;
+
+    strs = apr_palloc(r->pool, sizeof(char *) * (format->nelts));
+    strl = apr_palloc(r->pool, sizeof(int) * (format->nelts));
+    items = (log_format_item *) format->elts;
+
+    orig = r;
+    while (orig->prev) {
+        orig = orig->prev;
+    }
+    while (r->next) {
+        r = r->next;
+    }
+
+    for (i = 0; i < format->nelts; ++i) {
+        strs[i] = process_item(r, orig, &items[i]);
+    }
+
+    for (i = 0; i < format->nelts; ++i) {
+        len += strl[i] = strlen(strs[i]);
+    }
+    if (!log_writer) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                "log writer isn't correctly setup");
+         return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    rv = log_writer(r, cls->log_writer, strs, strl, format->nelts, len);
+    if (rv != APR_SUCCESS)
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, "Error writing to %s",
+                      cls->fname);
     return OK;
 }

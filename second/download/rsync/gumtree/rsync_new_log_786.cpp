@@ -1,1 +1,1 @@
-out_of_memory("open_socket_out_wrapped");
+out_of_memory("push_local_filters");

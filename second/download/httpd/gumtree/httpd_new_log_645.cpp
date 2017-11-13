@@ -1,3 +1,2 @@
-ap_rputs
-        ("</dl>\n<hr />\n<h2><a name=\"request_hooks\">Request Hooks</a></h2>\n<dl>",
-         r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
+                          "\"%s\" in tag echo of %s", tag, r->filename);

@@ -1,71 +1,77 @@
-static int make_child(server_rec *s, int slot)
+apr_array_header_t *ssl_ext_list(apr_pool_t *p, conn_rec *c, int peer,
+                                 const char *extension)
 {
-    int pid;
+    SSLConnRec *sslconn = myConnConfig(c);
+    SSL *ssl = NULL;
+    apr_array_header_t *array = NULL;
+    X509 *xs = NULL;
+    ASN1_OBJECT *oid = NULL;
+    int count = 0, j;
 
-    if (slot + 1 > max_daemons_limit) {
-        max_daemons_limit = slot + 1;
+    if (!sslconn || !sslconn->ssl || !extension) {
+        return NULL;
+    }
+    ssl = sslconn->ssl;
+
+    /* We accept the "extension" string to be converted as
+     * a long name (nsComment), short name (DN) or
+     * numeric OID (1.2.3.4).
+     */
+    oid = OBJ_txt2obj(extension, 0);
+    if (!oid) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "could not parse OID '%s'", extension);
+        ERR_clear_error();
+        return NULL;
     }
 
-    if (one_process) {
-        set_signals();
-        ap_scoreboard_image->parent[slot].pid = getpid();
-        child_main(slot);
+    xs = peer ? SSL_get_peer_certificate(ssl) : SSL_get_certificate(ssl);
+    if (xs == NULL) {
+        return NULL;
     }
 
-    if ((pid = fork()) == -1) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, s,
-                     "fork: Unable to fork new process");
-        /* fork didn't succeed.  There's no need to touch the scoreboard;
-         * if we were trying to replace a failed child process, then
-         * server_main_loop() marked its workers SERVER_DEAD, and if
-         * we were trying to replace a child process that exited normally,
-         * its worker_thread()s left SERVER_DEAD or SERVER_GRACEFUL behind.
-         */
+    count = X509_get_ext_count(xs);
+    /* Create an array large enough to accomodate every extension. This is
+     * likely overkill, but safe.
+     */
+    array = apr_array_make(p, count, sizeof(char *));
+    for (j = 0; j < count; j++) {
+        X509_EXTENSION *ext = X509_get_ext(xs, j);
 
-        /* In case system resources are maxxed out, we don't want
-           Apache running away with the CPU trying to fork over and
-           over and over again. */
-        apr_sleep(apr_time_from_sec(10));
+        if (OBJ_cmp(ext->object, oid) == 0) {
+            BIO *bio = BIO_new(BIO_s_mem());
 
-        return -1;
+            /* We want to obtain a string representation of the extensions
+             * value and add it to the array we're building.
+             * X509V3_EXT_print() doesn't know about all the possible
+             * data types, but the value is stored as an ASN1_OCTET_STRING
+             * allowing us a fallback in case of X509V3_EXT_print
+             * not knowing how to handle the data.
+             */
+            if (X509V3_EXT_print(bio, ext, 0, 0) == 1 ||
+                dump_extn_value(bio, X509_EXTENSION_get_data(ext)) == 1) {
+                BUF_MEM *buf;
+                char **ptr = apr_array_push(array);
+                BIO_get_mem_ptr(bio, &buf);
+                *ptr = apr_pstrmemdup(p, buf->data, buf->length);
+            } else {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "Found an extension '%s', but failed to "
+                              "create a string from it", extension);
+            }
+            BIO_vfree(bio);
+        }
     }
 
-    if (!pid) {
-#ifdef HAVE_BINDPROCESSOR
-        /* By default, AIX binds to a single processor.  This bit unbinds
-         * children which will then bind to another CPU.
-         */
-        int status = bindprocessor(BINDPROCESS, (int)getpid(),
-                               PROCESSOR_CLASS_ANY);
-        if (status != OK)
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
-                         ap_server_conf,
-                         "processor unbind failed");
-#endif
-        RAISE_SIGSTOP(MAKE_CHILD);
+    if (array->nelts == 0)
+        array = NULL;
 
-        apr_signal(SIGTERM, just_die);
-        child_main(slot);
+    if (peer) {
+        /* only SSL_get_peer_certificate raises the refcount */
+        X509_free(xs);
+    }
 
-        clean_child_exit(0);
-    }
-    /* else */
-    if (ap_scoreboard_image->parent[slot].pid != 0) {
-        /* This new child process is squatting on the scoreboard
-         * entry owned by an exiting child process, which cannot
-         * exit until all active requests complete.
-         * Don't forget about this exiting child process, or we
-         * won't be able to kill it if it doesn't exit by the
-         * time the server is shut down.
-         */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                     "taking over scoreboard slot from %" APR_PID_T_FMT "%s",
-                     ap_scoreboard_image->parent[slot].pid,
-                     ap_scoreboard_image->parent[slot].quiescing ?
-                         " (quiescing)" : "");
-        ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid);
-    }
-    ap_scoreboard_image->parent[slot].quiescing = 0;
-    ap_scoreboard_image->parent[slot].pid = pid;
-    return 0;
+    ASN1_OBJECT_free(oid);
+    ERR_clear_error();
+    return array;
 }

@@ -1,121 +1,58 @@
-static int show_sig_summary (unsigned long sum,
-                              gpgme_ctx_t ctx, gpgme_key_t key, int idx,
-                              STATE *s, gpgme_signature_t sig)
+int mx_commit_message (MESSAGE *msg, CONTEXT *ctx)
 {
-  int severe = 0;
+  int r = 0;
 
-  if ((sum & GPGME_SIGSUM_KEY_REVOKED))
+  if (!(msg->write && ctx->append))
+  {
+    dprint (1, (debugfile, "mx_commit_message(): msg->write = %d, ctx->append = %d\n",
+		msg->write, ctx->append));
+    return -1;
+  }
+
+  switch (msg->magic)
+  {
+    case M_MMDF:
     {
-      state_attach_puts (_("Warning: One of the keys has been revoked\n"),s);
-      severe = 1;
+      if (fputs (MMDF_SEP, msg->fp) == EOF)
+	r = -1;
+      break;
+    }
+    
+    case M_MBOX:
+    {
+      if (fputc ('\n', msg->fp) == EOF)
+	r = -1;
+      break;
     }
 
-  if ((sum & GPGME_SIGSUM_KEY_EXPIRED))
+#ifdef USE_IMAP
+    case M_IMAP:
     {
-      time_t at = key->subkeys->expires ? key->subkeys->expires : 0;
-      if (at)
-        {
-          state_attach_puts (_("Warning: The key used to create the "
-                               "signature expired at: "), s);
-          print_time (at , s);
-          state_attach_puts ("\n", s);
-        }
-      else
-        state_attach_puts (_("Warning: At least one certification key "
-                             "has expired\n"), s);
+      if ((r = safe_fclose (&msg->fp)) == 0)
+	r = imap_append_message (ctx, msg);
+      break;
     }
-
-  if ((sum & GPGME_SIGSUM_SIG_EXPIRED))
-    {
-      gpgme_verify_result_t result;
-      gpgme_signature_t sig;
-      unsigned int i;
-      
-      result = gpgme_op_verify_result (ctx);
-
-      for (sig = result->signatures, i = 0; sig && (i < idx);
-           sig = sig->next, i++)
-        ;
-      
-      state_attach_puts (_("Warning: The signature expired at: "), s);
-      print_time (sig ? sig->exp_timestamp : 0, s);
-      state_attach_puts ("\n", s);
-    }
-
-  if ((sum & GPGME_SIGSUM_KEY_MISSING))
-    state_attach_puts (_("Can't verify due to a missing "
-                         "key or certificate\n"), s);
-
-  if ((sum & GPGME_SIGSUM_CRL_MISSING))
-    {
-      state_attach_puts (_("The CRL is not available\n"), s);
-      severe = 1;
-    }
-
-  if ((sum & GPGME_SIGSUM_CRL_TOO_OLD))
-    {
-      state_attach_puts (_("Available CRL is too old\n"), s);
-      severe = 1;
-    }
-
-  if ((sum & GPGME_SIGSUM_BAD_POLICY))
-    state_attach_puts (_("A policy requirement was not met\n"), s);
-
-  if ((sum & GPGME_SIGSUM_SYS_ERROR))
-    {
-      const char *t0 = NULL, *t1 = NULL;
-      gpgme_verify_result_t result;
-      gpgme_signature_t sig;
-      unsigned int i;
-
-      state_attach_puts (_("A system error occurred"), s );
-
-      /* Try to figure out some more detailed system error information. */
-      result = gpgme_op_verify_result (ctx);
-      for (sig = result->signatures, i = 0; sig && (i < idx);
-           sig = sig->next, i++)
-        ;
-      if (sig)
-	{
-	  t0 = "";
-	  t1 = sig->wrong_key_usage ? "Wrong_Key_Usage" : "";
-	}
-
-      if (t0 || t1)
-        {
-          state_attach_puts (": ", s);
-          if (t0)
-              state_attach_puts (t0, s);
-          if (t1 && !(t0 && !strcmp (t0, t1)))
-            {
-              if (t0)
-                state_attach_puts (",", s);
-              state_attach_puts (t1, s);
-            }
-        }
-      state_attach_puts ("\n", s);
-    }
-
-#ifdef HAVE_GPGME_PKA_TRUST
-
-  if (option (OPTCRYPTUSEPKA))
-    {
-      if (sig->pka_trust == 1 && sig->pka_address)
-	{
-	  state_attach_puts (_("WARNING: PKA entry does not match "
-			       "signer's address: "), s);
-	  state_attach_puts (sig->pka_address, s);
-	  state_attach_puts ("\n", s);
-	}
-      else if (sig->pka_trust == 2 && sig->pka_address)
-	{
-	  state_attach_puts (_("PKA verified signer's address is: "), s);
-	  state_attach_puts (sig->pka_address, s);
-	  state_attach_puts ("\n", s);
-	}
-    }
-
 #endif
-
-  return severe;
+    
+    case M_MAILDIR:
+    {
+      r = maildir_commit_message (ctx, msg, NULL);
+      break;
+    }
+    
+    case M_MH:
+    {
+      r = mh_commit_message (ctx, msg, NULL);
+      break;
+    }
+  }
+  
+  if (r == 0 && (ctx->magic == M_MBOX || ctx->magic == M_MMDF)
+      && (fflush (msg->fp) == EOF || fsync (fileno (msg->fp)) == -1))
+  {
+    mutt_perror _("Can't write message");
+    r = -1;
+  }
+ 
+  return r;
 }

@@ -1,11 +1,11 @@
 fputs(
-"              returns and newlines will be stripped out. If you don't want the\n"
-"              @ character to have  a  special  interpretation  use  --data-raw\n"
-"              instead.\n"
+"                     This will make curl URL-encode the content and pass  that\n"
+"                     on.  Just  be careful so that the content doesn't contain\n"
+"                     any = or @ symbols, as that will  then  make  the  syntax\n"
+"                     match one of the other cases below!\n"
 "\n"
-"              See also --data-binary and --data-urlencode and --data-raw. This\n"
-"              option overrides -F, --form and -I, --head and --upload.\n"
+"              =content\n"
+"                     This  will make curl URL-encode the content and pass that\n"
+"                     on. The preceding = symbol is not included in the data.\n"
 "\n"
-"       --delegation <LEVEL>\n"
-"              (GSS/kerberos) Set LEVEL to tell the server what it  is  allowed\n"
 , stdout);

@@ -1,84 +1,96 @@
-int ap_signal_server(int *exit_status, apr_pool_t *pconf)
+static int stapling_cb(SSL *ssl, void *arg)
 {
-    apr_status_t rv;
-    pid_t otherpid;
-    int running = 0;
-    const char *status;
+    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
+    server_rec *s       = mySrvFromConn(conn);
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    SSLConnRec *sslconn = myConnConfig(conn);
+    modssl_ctx_t *mctx  = myCtxConfig(sslconn, sc);
+    certinfo *cinf = NULL;
+    OCSP_RESPONSE *rsp = NULL;
+    int rv;
+    BOOL ok;
 
-    *exit_status = 0;
-
-    rv = ap_read_pid(pconf, ap_pid_fname, &otherpid);
-    if (rv != APR_SUCCESS) {
-        if (rv != APR_ENOENT) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rv, NULL,
-                         "Error retrieving pid file %s", ap_pid_fname);
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Remove it before continuing if it is corrupted.");
-            *exit_status = 1;
-            return 1;
-        }
-        status = "httpd (no pid file) not running";
-    }
-    else {
-        if (kill(otherpid, 0) == 0) {
-            running = 1;
-            status = apr_psprintf(pconf,
-                                  "httpd (pid %" APR_PID_T_FMT ") already "
-                                  "running", otherpid);
-        }
-        else {
-            status = apr_psprintf(pconf,
-                                  "httpd (pid %" APR_PID_T_FMT "?) not running",
-                                  otherpid);
-        }
+    if (sc->server->stapling_enabled != TRUE) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_cb: OCSP Stapling disabled");
+        return SSL_TLSEXT_ERR_NOACK;
     }
 
-    if (!strcmp(dash_k_arg, "start")) {
-        if (running) {
-            printf("%s\n", status);
-            return 1;
-        }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_cb: OCSP Stapling callback called");
+
+    cinf = stapling_get_cert_info(s, mctx, ssl);
+    if (cinf == NULL) {
+        return SSL_TLSEXT_ERR_NOACK;
     }
 
-    if (!strcmp(dash_k_arg, "stop")) {
-        if (!running) {
-            printf("%s\n", status);
-        }
-        else {
-            send_signal(otherpid, SIGTERM);
-        }
-        return 1;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_cb: retrieved cached certificate data");
+
+    /* Check to see if we already have a response for this certificate */
+    stapling_mutex_on(s);
+
+    rv = stapling_get_cached_response(s, &rsp, &ok, cinf, conn->pool);
+    if (rv == FALSE) {
+        stapling_mutex_off(s);
+        return SSL_TLSEXT_ERR_ALERT_FATAL;
     }
 
-    if (!strcmp(dash_k_arg, "restart")) {
-        if (!running) {
-            printf("httpd not running, trying to start\n");
+    if (rsp) {
+        /* see if response is acceptable */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_cb: retrieved cached response");
+        rv = stapling_check_response(s, mctx, cinf, rsp, NULL);
+        if (rv == SSL_TLSEXT_ERR_ALERT_FATAL) {
+            OCSP_RESPONSE_free(rsp);
+            stapling_mutex_off(s);
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
         }
-        else {
-            *exit_status = send_signal(otherpid, SIGHUP);
-            return 1;
-        }
-    }
-
-    if (!strcmp(dash_k_arg, "graceful")) {
-        if (!running) {
-            printf("httpd not running, trying to start\n");
-        }
-        else {
-            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL);
-            return 1;
+        else if (rv == SSL_TLSEXT_ERR_NOACK) {
+            /* Error in response. If this error was not present when it was
+             * stored (i.e. response no longer valid) then it can be
+             * renewed straight away.
+             *
+             * If the error *was* present at the time it was stored then we
+             * don't renew the response straight away we just wait for the
+             * cached response to expire.
+             */
+            if (ok) {
+                OCSP_RESPONSE_free(rsp);
+                rsp = NULL;
+            }
+            else if (!mctx->stapling_return_errors) {
+                OCSP_RESPONSE_free(rsp);
+                stapling_mutex_off(s);
+                return SSL_TLSEXT_ERR_NOACK;
+            }
         }
     }
 
-    if (!strcmp(dash_k_arg, "graceful-stop")) {
-        if (!running) {
-            printf("%s\n", status);
-        }
-        else {
-            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL_STOP);
-        }
-        return 1;
-    }
+    if (rsp == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_cb: renewing cached response");
+        rv = stapling_renew_response(s, mctx, ssl, cinf, &rsp, conn->pool);
 
-    return 0;
+        if (rv == FALSE) {
+            stapling_mutex_off(s);
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "stapling_cb: fatal error");
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
+        }
+    }
+    stapling_mutex_off(s);
+
+    if (rsp) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_cb: setting response");
+        if (!stapling_set_response(ssl, rsp))
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
+        return SSL_TLSEXT_ERR_OK;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_cb: no response available");
+
+    return SSL_TLSEXT_ERR_NOACK;
+
 }

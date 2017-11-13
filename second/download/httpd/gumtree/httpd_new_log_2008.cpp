@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     "Failed to open the WinNT service manager, perhaps "
-                     "you forgot to log in as Adminstrator?");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "apr_socket_opt_set(SO_RCVBUF): Failed to set "
+                          "ProxyReceiveBufferSize, using default");

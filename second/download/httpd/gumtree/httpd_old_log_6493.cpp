@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01040)
-                                  "error creating EPSV socket");
+ap_rvputs(r, "<a href=\"", ap_escape_uri(r->pool, r->uri), "?b=",
+                      balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
+                      "&nonce=", balancer->s->nonce,
+                      "\">", NULL);

@@ -1,3 +1,2 @@
-fprintf(stderr,
-				"want %s (%s)\n", sha1_to_hex(remote),
-				ref->name);
+die(_("reference repository '%s' as a linked checkout is not supported yet."),
+			    item->string);

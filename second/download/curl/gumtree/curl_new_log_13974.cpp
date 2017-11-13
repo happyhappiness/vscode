@@ -1,11 +1,11 @@
 fputs(
-"              underlying libcurl was built to support TLS. Added in 7.36.0.\n"
+"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
+"              allow  curl to FTP to the machine host.domain.com with user name\n"
+"              'myself' and password 'secret' should look similar to:\n"
 "\n"
-"       --no-sessionid\n"
-"              (TLS) Disable curl's use of SSL session-ID caching.  By  default\n"
-"              all  transfers are done using the cache. Note that while nothing\n"
-"              should ever get hurt by attempting  to  reuse  SSL  session-IDs,\n"
-"              there seem to be broken SSL implementations in the wild that may\n"
-"              require you to disable this in order for you to succeed.\n"
+"              machine host.domain.com login myself password secret\n"
 "\n"
+"       -:, --next\n"
+"              Tells curl to use a separate operation for the following URL and\n"
+"              associated   options.  This  allows  you  to  send  several  URL\n"
 , stdout);

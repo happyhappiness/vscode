@@ -1,12 +1,10 @@
 fputs(
-"              If  this option is used several times, the following occurrences\n"
-"              make no difference. This is because undoing a GET  doesn't  make\n"
-"              sense,  but  you  should  then  instead  enforce the alternative\n"
-"              method you prefer.\n"
+"              When  used,  this  option  will  make  all  data  specified with\n"
+"              -d/--data or --data-binary to be used  in  a  HTTP  GET  request\n"
+"              instead  of  the  POST request that otherwise would be used. The\n"
+"              data will be appended to the URL with a '?' separator.\n"
 "\n"
-"       -h/--help\n"
-"              Usage help.\n"
+"              If used in combination with -I, the POST data  will  instead  be\n"
+"              appended to the URL with a HEAD request.\n"
 "\n"
-"       -H/--header <header>\n"
-"              (HTTP) Extra header to use when getting  a  web  page.  You  may\n"
 , stdout);

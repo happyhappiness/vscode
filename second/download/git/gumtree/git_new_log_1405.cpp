@@ -1,1 +1,1 @@
-fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);
+die("BUG: free called on a prepared reference transaction");

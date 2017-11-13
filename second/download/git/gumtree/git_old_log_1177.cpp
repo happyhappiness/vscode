@@ -1,1 +1,2 @@
-die_errno("Could not switch to '%s'", buf);
+die_errno("exec '%s': cd to '%s' failed", cmd->argv[0],
+			    cmd->dir);

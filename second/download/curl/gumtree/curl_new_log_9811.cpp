@@ -1,10 +1,11 @@
 fputs(
-"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
+"              option is used and the server  sends  an  unsupported  encoding,\n"
+"              curl will report an error.\n"
 "\n"
-"              -d,  --data  is  the  same  as --data-ascii. To post data purely\n"
-"              binary, you should instead use the --data-binary option. To URL-\n"
-"              encode the value of a form field you may use --data-urlencode.\n"
+"       --connect-timeout <seconds>\n"
+"              Maximum  time  in  seconds  that  you allow curl's connection to\n"
+"              take.  This only limits the connection phase, so  if  curl  con-\n"
+"              nects  within the given period it will continue - if not it will\n"
+"              exit.  Since version 7.32.0, this option accepts decimal values.\n"
 "\n"
-"              If  any of these options is used more than once on the same com-\n"
-"              mand line, the data pieces specified  will  be  merged  together\n"
 , stdout);

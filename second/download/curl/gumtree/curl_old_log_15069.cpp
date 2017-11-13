@@ -1,11 +1,11 @@
 fputs(
-"              requires that the underlying libcurl was  built  to  support  c-\n"
-"              ares. Added in 7.33.0.\n"
+"              returns and newlines will be stripped out. If you don't want the\n"
+"              @ character to have  a  special  interpretation  use  --data-raw\n"
+"              instead.\n"
 "\n"
-"       --dns-ipv6-addr <address>\n"
-"              (DNS)  Tell  curl  to  bind to <ip-address> when making IPv6 DNS\n"
-"              requests, so that the DNS requests originate from this  address.\n"
-"              The argument should be a single IPv6 address.\n"
+"              See also --data-binary and --data-urlencode and --data-raw. This\n"
+"              option overrides -F, --form and -I, --head and --upload.\n"
 "\n"
-"              See  also  --dns-interface  and --dns-ipv4-addr. --dns-ipv6-addr\n"
+"       --delegation <LEVEL>\n"
+"              (GSS/kerberos) Set LEVEL to tell the server what it  is  allowed\n"
 , stdout);

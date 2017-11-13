@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                      "LDAP: SSL verify server certificate - %s",
-                      mode?"TRUE":"FALSE");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "could not use default path '%s' for DBM socache",
+                         path);

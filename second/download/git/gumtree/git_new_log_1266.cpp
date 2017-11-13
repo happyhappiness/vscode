@@ -1,1 +1,1 @@
-git_die_config(key, NULL);
+printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);

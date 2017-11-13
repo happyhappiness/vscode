@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the start mutex to the child");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "could not setaside bucket for SSL buffer");

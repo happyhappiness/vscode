@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
-                  "h2_task: creating conn, master=%ld, sid=%ld, logid=%s", 
-                  master->id, c->id, c->log_id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
+                     APLOGNO(02972) "%sWatchdog (%s) running",
+                     w->singleton ? "Singleton " : "", w->name);

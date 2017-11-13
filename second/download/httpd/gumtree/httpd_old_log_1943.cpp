@@ -1,2 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                 "Child %lu: Starting thread to listen on port %d.", my_pid, lr->bind_addr->port);
+ap_rvputs(r, "<tr>\n<td><a href=\"",
+                          ap_escape_uri(r->pool, r->uri), "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "&nonce=", balancer_nonce, 
+                          "\">", NULL);

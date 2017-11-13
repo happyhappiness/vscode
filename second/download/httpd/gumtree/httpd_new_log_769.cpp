@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                     "Failed to release SSL session cache lock");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "mod_rewrite: can't access text RewriteMap file %s",
+                          s->checkfile);

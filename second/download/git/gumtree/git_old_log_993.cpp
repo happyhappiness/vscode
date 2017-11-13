@@ -1,1 +1,1 @@
-error(_("Cannot open patch file %s"), filename.buf);
+die("object not found: %s", sha1_to_hex(sha1));

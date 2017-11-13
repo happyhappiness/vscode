@@ -1,174 +1,96 @@
-void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
-{  
-  int fd;
-  struct stat st;
-  struct map_struct *buf;
-  struct sum_struct *s;
-  int statret;
-  struct file_struct *file = flist->files[i];
+static void hash_search(int f,struct sum_struct *s,
+			struct map_struct *buf,off_t len)
+{
+	off_t offset;
+	int j,k;
+	int end;
+	char sum2[SUM_LENGTH];
+	uint32 s1, s2, sum; 
+	signed char *map;
 
-  if (verbose > 2)
-    fprintf(FINFO,"recv_generator(%s,%d)\n",fname,i);
+	if (verbose > 2)
+		fprintf(FINFO,"hash search b=%d len=%d\n",s->n,(int)len);
 
-  statret = link_stat(fname,&st);
+	k = MIN(len, s->n);
+	
+	map = (signed char *)map_ptr(buf,0,k);
+	
+	sum = get_checksum1((char *)map, k);
+	s1 = sum & 0xFFFF;
+	s2 = sum >> 16;
+	if (verbose > 3)
+		fprintf(FINFO, "sum=%.8x k=%d\n", sum, k);
+	
+	offset = 0;
+	
+	end = len + 1 - s->sums[s->count-1].len;
+	
+	if (verbose > 3)
+		fprintf(FINFO,"hash search s->n=%d len=%d count=%d\n",
+			s->n,(int)len,s->count);
+	
+	do {
+		tag t = gettag2(s1,s2);
+		int done_csum2 = 0;
+			
+		j = tag_table[t];
+		if (verbose > 4)
+			fprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);
+		
+		if (j == NULL_TAG) {
+			goto null_tag;
+		}
 
-  if (S_ISDIR(file->mode)) {
-    if (dry_run) return;
-    if (statret == 0 && !S_ISDIR(st.st_mode)) {
-      if (do_unlink(fname) != 0) {
-	fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
-	return;
-      }
-      statret = -1;
-    }
-    if (statret != 0 && do_mkdir(fname,file->mode) != 0 && errno != EEXIST) {
-	    if (!(relative_paths && errno==ENOENT && 
-		  create_directory_path(fname)==0 && 
-		  do_mkdir(fname,file->mode)==0)) {
-		    fprintf(FERROR,"mkdir %s : %s (2)\n",
-			    fname,strerror(errno));
-	    }
-    }
-    if (set_perms(fname,file,NULL,0) && verbose) 
-      fprintf(FINFO,"%s/\n",fname);
-    return;
-  }
-
-  if (preserve_links && S_ISLNK(file->mode)) {
-#if SUPPORT_LINKS
-    char lnk[MAXPATHLEN];
-    int l;
-    if (statret == 0) {
-      l = readlink(fname,lnk,MAXPATHLEN-1);
-      if (l > 0) {
-	lnk[l] = 0;
-	if (strcmp(lnk,file->link) == 0) {
-	  set_perms(fname,file,&st,1);
-	  return;
-	}
-      }
-    }
-    delete_file(fname);
-    if (do_symlink(file->link,fname) != 0) {
-      fprintf(FERROR,"link %s -> %s : %s\n",
-	      fname,file->link,strerror(errno));
-    } else {
-      set_perms(fname,file,NULL,0);
-      if (verbose) 
-	fprintf(FINFO,"%s -> %s\n",
-		fname,file->link);
-    }
-#endif
-    return;
-  }
-
-#ifdef HAVE_MKNOD
-  if (am_root && preserve_devices && IS_DEVICE(file->mode)) {
-    if (statret != 0 || 
-	st.st_mode != file->mode ||
-	st.st_rdev != file->rdev) {	
-      delete_file(fname);
-      if (verbose > 2)
-	fprintf(FINFO,"mknod(%s,0%o,0x%x)\n",
-		fname,(int)file->mode,(int)file->rdev);
-      if (do_mknod(fname,file->mode,file->rdev) != 0) {
-	fprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));
-      } else {
-	set_perms(fname,file,NULL,0);
-	if (verbose)
-	  fprintf(FINFO,"%s\n",fname);
-      }
-    } else {
-      set_perms(fname,file,&st,1);
-    }
-    return;
-  }
-#endif
-
-  if (preserve_hard_links && check_hard_link(file)) {
-    if (verbose > 1)
-      fprintf(FINFO,"%s is a hard link\n",f_name(file));
-    return;
-  }
-
-  if (!S_ISREG(file->mode)) {
-    fprintf(FINFO,"skipping non-regular file %s\n",fname);
-    return;
-  }
-
-  if (statret == -1) {
-    if (errno == ENOENT) {
-      write_int(f_out,i);
-      if (!dry_run) send_sums(NULL,f_out);
-    } else {
-      if (verbose > 1)
-	fprintf(FERROR,"recv_generator failed to open %s\n",fname);
-    }
-    return;
-  }
-
-  if (!S_ISREG(st.st_mode)) {
-    if (delete_file(fname) != 0) {
-      return;
-    }
-
-    /* now pretend the file didn't exist */
-    write_int(f_out,i);
-    if (!dry_run) send_sums(NULL,f_out);    
-    return;
-  }
-
-  if (update_only && st.st_mtime > file->modtime) {
-    if (verbose > 1)
-      fprintf(FINFO,"%s is newer\n",fname);
-    return;
-  }
-
-  if (skip_file(fname, file, &st)) {
-    set_perms(fname,file,&st,1);
-    return;
-  }
-
-  if (dry_run) {
-    write_int(f_out,i);
-    return;
-  }
-
-  if (whole_file) {
-    write_int(f_out,i);
-    send_sums(NULL,f_out);    
-    return;
-  }
-
-  /* open the file */  
-  fd = open(fname,O_RDONLY);
-
-  if (fd == -1) {
-    fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
-    fprintf(FERROR,"skipping %s\n",fname);
-    return;
-  }
-
-  if (st.st_size > 0) {
-    buf = map_file(fd,st.st_size);
-  } else {
-    buf = NULL;
-  }
-
-  if (verbose > 3)
-    fprintf(FINFO,"gen mapped %s of size %d\n",fname,(int)st.st_size);
-
-  s = generate_sums(buf,st.st_size,adapt_block_size(file, block_size));
-
-  if (verbose > 2)
-    fprintf(FINFO,"sending sums for %d\n",i);
-
-  write_int(f_out,i);
-  send_sums(s,f_out);
-  write_flush(f_out);
-
-  close(fd);
-  if (buf) unmap_file(buf);
-
-  free_sums(s);
+		sum = (s1 & 0xffff) | (s2 << 16);
+		tag_hits++;
+		for (; j<s->count && targets[j].t == t; j++) {
+			int i = targets[j].i;
+			
+			if (sum != s->sums[i].sum1) continue;
+			
+			if (verbose > 3)
+				fprintf(FINFO,"potential match at %d target=%d %d sum=%08x\n",
+					(int)offset,j,i,sum);
+			
+			if (!done_csum2) {
+				int l = MIN(s->n,len-offset);
+				map = (signed char *)map_ptr(buf,offset,l);
+				get_checksum2((char *)map,l,sum2);
+				done_csum2 = 1;
+			}
+			
+			if (memcmp(sum2,s->sums[i].sum2,csum_length) != 0) {
+				false_alarms++;
+				continue;
+			}
+			
+			matched(f,s,buf,offset,i);
+			offset += s->sums[i].len - 1;
+			k = MIN((len-offset), s->n);
+			map = (signed char *)map_ptr(buf,offset,k);
+			sum = get_checksum1((char *)map, k);
+			s1 = sum & 0xFFFF;
+			s2 = sum >> 16;
+			matches++;
+			break;
+		}
+		
+	null_tag:
+		/* Trim off the first byte from the checksum */
+		map = (signed char *)map_ptr(buf,offset,k+1);
+		s1 -= map[0] + CHAR_OFFSET;
+		s2 -= k * (map[0]+CHAR_OFFSET);
+		
+		/* Add on the next byte (if there is one) to the checksum */
+		if (k < (len-offset)) {
+			s1 += (map[k]+CHAR_OFFSET);
+			s2 += s1;
+		} else {
+			--k;
+		}
+		
+	} while (++offset < end);
+	
+	matched(f,s,buf,len,-1);
+	map_ptr(buf,len-1,1);
 }

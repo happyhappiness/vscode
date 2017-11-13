@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r, APLOGNO(01101)
-                              "could not set 100-Continue timeout");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00651)
+                         "could not open forensic log file %s.", fname);

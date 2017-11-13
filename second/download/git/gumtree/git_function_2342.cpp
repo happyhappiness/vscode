@@ -1,33 +1,40 @@
-static int grep_source_load_file(struct grep_source *gs)
+static int mark_object(struct object *obj, int type, void *data, struct fsck_options *options)
 {
-	const char *filename = gs->identifier;
-	struct stat st;
-	char *data;
-	size_t size;
-	int i;
+	struct object *parent = data;
 
-	if (lstat(filename, &st) < 0) {
-	err_ret:
-		if (errno != ENOENT)
-			error(_("'%s': %s"), filename, strerror(errno));
-		return -1;
+	/*
+	 * The only case data is NULL or type is OBJ_ANY is when
+	 * mark_object_reachable() calls us.  All the callers of
+	 * that function has non-NULL obj hence ...
+	 */
+	if (!obj) {
+		/* ... these references to parent->fld are safe here */
+		printf("broken link from %7s %s\n",
+			   typename(parent->type), sha1_to_hex(parent->sha1));
+		printf("broken link from %7s %s\n",
+			   (type == OBJ_ANY ? "unknown" : typename(type)), "unknown");
+		errors_found |= ERROR_REACHABLE;
+		return 1;
 	}
-	if (!S_ISREG(st.st_mode))
-		return -1;
-	size = xsize_t(st.st_size);
-	i = open(filename, O_RDONLY);
-	if (i < 0)
-		goto err_ret;
-	data = xmallocz(size);
-	if (st.st_size != read_in_full(i, data, size)) {
-		error(_("'%s': short read %s"), filename, strerror(errno));
-		close(i);
-		free(data);
-		return -1;
-	}
-	close(i);
 
-	gs->buf = data;
-	gs->size = size;
+	if (type != OBJ_ANY && obj->type != type)
+		/* ... and the reference to parent is safe here */
+		objerror(parent, "wrong object type in link");
+
+	if (obj->flags & REACHABLE)
+		return 0;
+	obj->flags |= REACHABLE;
+	if (!(obj->flags & HAS_OBJ)) {
+		if (parent && !has_sha1_file(obj->sha1)) {
+			printf("broken link from %7s %s\n",
+				 typename(parent->type), sha1_to_hex(parent->sha1));
+			printf("              to %7s %s\n",
+				 typename(obj->type), sha1_to_hex(obj->sha1));
+			errors_found |= ERROR_REACHABLE;
+		}
+		return 1;
+	}
+
+	add_object_array(obj, NULL, &pending);
 	return 0;
 }

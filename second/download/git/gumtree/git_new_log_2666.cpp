@@ -1,1 +1,1 @@
-error("%s does not point to a valid object!", refname);
+die(_("invalid number of threads specified (%d)"), num_threads);

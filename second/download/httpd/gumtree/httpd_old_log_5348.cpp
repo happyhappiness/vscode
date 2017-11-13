@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, f->c,
-                          APLOGNO(02958) "h2_task_input(%s): brigade length fail", 
-                          input->env->id);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                             "apr_thread_join: unable to join listener thread");

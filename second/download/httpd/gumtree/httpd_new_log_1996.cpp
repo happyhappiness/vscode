@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "changing ThreadLimit to %d from original value "
-                         "of %d not allowed during restart",
-                         thread_limit, first_thread_limit);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                  "Headers received from backend:");

@@ -1,8 +1,12 @@
 fputs(
-"              request on the new place. If used together with -i, --include or\n"
-"              -I, --head, headers from all requested pages will be shown. When\n"
-"              authentication is used, curl only sends its credentials  to  the\n"
-"              initial  host.  If a redirect takes curl to a different host, it\n"
-"              won't be able to intercept the user+password. See  also  --loca-\n"
-"              tion-trusted  on how to change this. You can limit the amount of\n"
+"              'private' will instead be used.\n"
+"\n"
+"              This  option  requires  a library built with kerberos4 or GSSAPI\n"
+"              (GSS-Negotiate) support. This is not very common. Use -V, --ver-\n"
+"              sion to see if your curl supports it.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -l, --list-only\n"
+"              (FTP)  When listing an FTP directory, this switch forces a name-\n"
 , stdout);

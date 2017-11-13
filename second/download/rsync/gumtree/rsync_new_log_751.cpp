@@ -1,1 +1,1 @@
-putenv(p);
+out_of_memory("read_unbuffered");

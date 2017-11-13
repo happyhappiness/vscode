@@ -1,2 +1,1 @@
-fprintf(FINFO,"%s => %s\n",
-			f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));
+fprintf(FINFO,"got file_sum\n");

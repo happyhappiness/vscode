@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03011) 
-                      "Websocket: Got websocket key: %s", key);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                                 APLOGNO(02552) "at EOF... bypassing md5 match check (old persist file?)");

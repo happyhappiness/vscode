@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-                r->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00373)
+                        "%s: OpenService failed", mpm_display_name);

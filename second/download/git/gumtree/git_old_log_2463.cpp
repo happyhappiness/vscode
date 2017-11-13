@@ -1,2 +1,2 @@
-fprintf(stderr, "No testable commit found.\n"
-			"Maybe you started with bad path parameters?\n");
+die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

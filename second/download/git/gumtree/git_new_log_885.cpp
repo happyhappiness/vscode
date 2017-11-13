@@ -1,2 +1,1 @@
-die("BUG: unknown ref type %d of ref %s",
-		    ref_type(refname), refname);
+error("corrupt loose object '%s'", sha1_to_hex(expected_sha1));

@@ -1,1 +1,0 @@
-fprintf(FINFO,"receiving file list ... ");

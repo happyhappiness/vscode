@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, APLOGNO(02313)
-                  "%s details: scope: %s, file: %s, func: %s",
-                  what, scope_to_string(spec->scope), spec->file,
-                  function ? function : "-");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, entry->task->c, APLOGNO(03398)
+                      "h2_ngn_shed(%ld): pulled request %s for engine %s", 
+                      shed->c->id, entry->task->id, ngn->id);

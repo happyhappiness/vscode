@@ -1,1 +1,1 @@
-out_of_memory("set_env_num");
+io_printf(f_out, "@ERROR: invalid gid setting.\n");

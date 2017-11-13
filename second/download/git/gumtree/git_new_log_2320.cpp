@@ -1,1 +1,1 @@
-error_errno("could not write config file %s", config_filename);
+die(_("no tag exactly matches '%s'"), oid_to_hex(&cmit->object.oid));

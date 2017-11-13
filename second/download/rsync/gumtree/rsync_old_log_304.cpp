@@ -1,2 +1,1 @@
-fprintf(FERROR,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,sender,recurse);
+out_of_memory("receive_file_entry");

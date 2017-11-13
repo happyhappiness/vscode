@@ -1,1 +1,1 @@
-printf("Diag: port=%s\n", port ? port : "NONE");
+strbuf_addstr(&sb, path);

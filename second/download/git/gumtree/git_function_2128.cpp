@@ -1,23 +1,8 @@
-int git_config_get_untracked_cache(void)
+struct date_mode *date_mode_from_type(enum date_mode_type type)
 {
-	int val = -1;
-	const char *v;
-
-	/* Hack for test programs like test-dump-untracked-cache */
-	if (ignore_untracked_cache_config)
-		return -1;
-
-	if (!git_config_get_maybe_bool("core.untrackedcache", &val))
-		return val;
-
-	if (!git_config_get_value("core.untrackedcache", &v)) {
-		if (!strcasecmp(v, "keep"))
-			return -1;
-
-		error("unknown core.untrackedCache value '%s'; "
-		      "using 'keep' default value", v);
-		return -1;
-	}
-
-	return -1; /* default value */
+	static struct date_mode mode;
+	if (type == DATE_STRFTIME)
+		die("BUG: cannot create anonymous strftime date_mode struct");
+	mode.type = type;
+	return &mode;
 }

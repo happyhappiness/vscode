@@ -1,10 +1,9 @@
 fputs(
-"              URL decoded by libcurl. This allows you to pass in special char-\n"
-"              acters such as @ by using %40 or pass in a colon with %3a.\n"
+"              All operations that are performed over a HTTP proxy will  trans-\n"
+"              parently  be  converted  to HTTP. It means that certain protocol\n"
+"              specific operations might not be available. This is not the case\n"
+"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
+"              ytunnel option.\n"
 "\n"
-"              The proxy host can be specified the exact same way as the  proxy\n"
-"              environment  variables,  including the protocol prefix (http://)\n"
-"              and the embedded user + password.\n"
-"\n"
-"              From 7.21.7, the proxy string may be  specified  with  a  proto-\n"
+"              User and password that might be provided in the proxy string are\n"
 , stdout);

@@ -1,1 +1,1 @@
-die("BUG: unexpected reference transaction state");
+die(_("Cannot change to '%s'"), dir.buf);

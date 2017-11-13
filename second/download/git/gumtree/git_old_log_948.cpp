@@ -1,0 +1,1 @@
+die("empty ident name (for <%s>) not allowed", email);

@@ -1,37 +1,63 @@
-static client_entry *get_client(unsigned long key, const request_rec *r)
+static apr_status_t dbd_construct(void **db, void *params, apr_pool_t *pool)
 {
-    int bucket;
-    client_entry *entry, *prev = NULL;
+    svr_cfg *svr = (svr_cfg*) params;
+    ap_dbd_t *rec = apr_pcalloc(pool, sizeof(ap_dbd_t));
+    apr_status_t rv;
 
-
-    if (!key || !client_shm)  return NULL;
-
-    bucket = key % client_list->tbl_len;
-    entry  = client_list->table[bucket];
-
-    apr_global_mutex_lock(client_lock);
-
-    while (entry && key != entry->key) {
-        prev  = entry;
-        entry = entry->next;
+    /* this pool is mostly so dbd_close can destroy the prepared stmts */
+    rv = apr_pool_create(&rec->pool, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to create memory pool");
     }
 
-    if (entry && prev) {                /* move entry to front of list */
-        prev->next  = entry->next;
-        entry->next = client_list->table[bucket];
-        client_list->table[bucket] = entry;
+/* The driver is loaded at config time now, so this just checks a hash.
+ * If that changes, the driver DSO could be registered to unload against
+ * our pool, which is probably not what we want.  Error checking isn't
+ * necessary now, but in case that changes in the future ...
+ */
+    rv = apr_dbd_get_driver(rec->pool, svr->name, &rec->driver);
+    switch (rv) {
+    case APR_ENOTIMPL:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: driver for %s not available", svr->name);
+        return rv;
+    case APR_EDSOOPEN:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: can't find driver for %s", svr->name);
+        return rv;
+    case APR_ESYMNOTFOUND:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: driver for %s is invalid or corrupted", svr->name);
+        return rv;
+    default:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: mod_dbd not compatible with apr in get_driver");
+        return rv;
+    case APR_SUCCESS:
+        break;
     }
 
-    apr_global_mutex_unlock(client_lock);
-
-    if (entry) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "get_client(): client %lu found", key);
+    rv = apr_dbd_open(rec->driver, rec->pool, svr->params, &rec->handle);
+    switch (rv) {
+    case APR_EGENERAL:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: Can't connect to %s", svr->name);
+        return rv;
+    default:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: mod_dbd not compatible with apr in open");
+        return rv;
+    case APR_SUCCESS:
+        break;
     }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "get_client(): client %lu not found", key);
+    *db = rec;
+    rv = dbd_prepared_init(rec->pool, svr, rec);
+    if (rv != APR_SUCCESS) {
+        const char *errmsg = apr_dbd_error(rec->driver, rec->handle, rv);
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: failed to initialise prepared SQL statements: %s",
+                      (errmsg ? errmsg : "[???]"));
     }
-
-    return entry;
+    return rv;
 }

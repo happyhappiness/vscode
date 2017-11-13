@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02146)
-                          "Error setting group");
+apr_file_printf(errfile, "Unable to generate random bytes: %pm" NL, &rv);

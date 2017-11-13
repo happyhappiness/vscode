@@ -1,2 +1,1 @@
-die(N_("Could not read ref %s"),
-					    (*tail)->name);
+die("Reference has invalid name: '%s'", refname);

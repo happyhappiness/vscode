@@ -1,293 +1,115 @@
-static int balancer_handler(request_rec *r)
+static void perform_idle_server_maintenance(apr_pool_t *p)
 {
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf = (proxy_server_conf *)
-        ap_get_module_config(sconf, &proxy_module);
-    proxy_balancer *balancer, *bsel = NULL;
-    proxy_worker *worker, *wsel = NULL;
-    apr_table_t *params = apr_table_make(r->pool, 10);
-    int access_status;
-    int i, n;
-    const char *name;
+    int i;
+    int to_kill;
+    int idle_count;
+    worker_score *ws;
+    int free_length;
+    int free_slots[MAX_SPAWN_RATE];
+    int last_non_dead;
+    int total_non_dead;
 
-    /* is this for us? */
-    if (strcmp(r->handler, "balancer-manager"))
-        return DECLINED;
-    r->allowed = (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
-        return DECLINED;
+    /* initialize the free_list */
+    free_length = 0;
 
-    if (r->args) {
-        char *args = apr_pstrdup(r->pool, r->args);
-        char *tok, *val;
-        while (args && *args) {
-            if ((val = ap_strchr(args, '='))) {
-                *val++ = '\0';
-                if ((tok = ap_strchr(val, '&')))
-                    *tok++ = '\0';
-                /*
-                 * Special case: workers are allowed path information
+    to_kill = -1;
+    idle_count = 0;
+    last_non_dead = -1;
+    total_non_dead = 0;
+
+    for (i = 0; i < ap_daemons_limit; ++i) {
+        int status;
+
+        if (i >= ap_max_daemons_limit && free_length == idle_spawn_rate)
+            break;
+        ws = &ap_scoreboard_image->servers[i][0];
+        status = ws->status;
+        if (status == SERVER_DEAD) {
+            /* try to keep children numbers as low as possible */
+            if (free_length < idle_spawn_rate) {
+                free_slots[free_length] = i;
+                ++free_length;
+            }
+        }
+        else {
+            /* We consider a starting server as idle because we started it
+             * at least a cycle ago, and if it still hasn't finished starting
+             * then we're just going to swamp things worse by forking more.
+             * So we hopefully won't need to fork more if we count it.
+             * This depends on the ordering of SERVER_READY and SERVER_STARTING.
+             */
+            if (status <= SERVER_READY) {
+                ++ idle_count;
+                /* always kill the highest numbered child if we have to...
+                 * no really well thought out reason ... other than observing
+                 * the server behaviour under linux where lower numbered children
+                 * tend to service more hits (and hence are more likely to have
+                 * their data in cpu caches).
                  */
-                if ((access_status = ap_unescape_url(val)) != OK)
-                    if (strcmp(args, "w") || (access_status !=  HTTP_NOT_FOUND))
-                        return access_status;
-                apr_table_setn(params, args, val);
-                args = tok;
+                to_kill = i;
             }
-            else
-                return HTTP_BAD_REQUEST;
+
+            ++total_non_dead;
+            last_non_dead = i;
         }
     }
-    if ((name = apr_table_get(params, "b")))
-        bsel = ap_proxy_get_balancer(r->pool, conf,
-            apr_pstrcat(r->pool, "balancer://", name, NULL));
-    if ((name = apr_table_get(params, "w"))) {
-        proxy_worker *ws;
+    ap_max_daemons_limit = last_non_dead + 1;
+    if (idle_count > ap_daemons_max_free) {
+        /* kill off one child... we use the pod because that'll cause it to
+         * shut down gracefully, in case it happened to pick up a request
+         * while we were counting
+         */
+        ap_mpm_pod_signal(pod);
+        idle_spawn_rate = 1;
+    }
+    else if (idle_count < ap_daemons_min_free) {
+        /* terminate the free list */
+        if (free_length == 0) {
+            /* only report this condition once */
+            static int reported = 0;
 
-        ws = ap_proxy_get_worker(r->pool, conf, name);
-        if (ws) {
-            worker = (proxy_worker *)bsel->workers->elts;
-            for (n = 0; n < bsel->workers->nelts; n++) {
-                if (strcasecmp(worker->name, ws->name) == 0) {
-                    wsel = worker;
-                    break;
+            if (!reported) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
+                            "server reached MaxClients setting, consider"
+                            " raising the MaxClients setting");
+                reported = 1;
+            }
+            idle_spawn_rate = 1;
+        }
+        else {
+            if (idle_spawn_rate >= 8) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                    "server seems busy, (you may need "
+                    "to increase StartServers, or Min/MaxSpareServers), "
+                    "spawning %d children, there are %d idle, and "
+                    "%d total children", idle_spawn_rate,
+                    idle_count, total_non_dead);
+            }
+            for (i = 0; i < free_length; ++i) {
+#ifdef TPF
+                if (make_child(ap_server_conf, free_slots[i]) == -1) {
+                    if(free_length == 1) {
+                        shutdown_pending = 1;
+                        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, ap_server_conf,
+                                    "No active child processes: shutting down");
+                    }
                 }
-                ++worker;
+#else
+                make_child(ap_server_conf, free_slots[i]);
+#endif /* TPF */
+            }
+            /* the next time around we want to spawn twice as many if this
+             * wasn't good enough, but not if we've just done a graceful
+             */
+            if (hold_off_on_exponential_spawning) {
+                --hold_off_on_exponential_spawning;
+            }
+            else if (idle_spawn_rate < MAX_SPAWN_RATE) {
+                idle_spawn_rate *= 2;
             }
         }
-    }
-    /* First set the params */
-    if (bsel) {
-        const char *val;
-        if ((val = apr_table_get(params, "ss"))) {
-            if (strlen(val))
-                bsel->sticky = apr_pstrdup(conf->pool, val);
-            else
-                bsel->sticky = NULL;
-        }
-        if ((val = apr_table_get(params, "tm"))) {
-            int ival = atoi(val);
-            if (ival >= 0)
-                bsel->timeout = apr_time_from_sec(ival);
-        }
-        if ((val = apr_table_get(params, "fa"))) {
-            int ival = atoi(val);
-            if (ival >= 0)
-                bsel->max_attempts = ival;
-            bsel->max_attempts_set = 1;
-        }
-        if ((val = apr_table_get(params, "lm"))) {
-            proxy_balancer_method *provider;
-            provider = ap_lookup_provider(PROXY_LBMETHOD, val, "0");
-            if (provider) {
-                bsel->lbmethod = provider;
-            }
-        }
-    }
-    if (wsel) {
-        const char *val;
-        if ((val = apr_table_get(params, "lf"))) {
-            int ival = atoi(val);
-            if (ival >= 1 && ival <= 100) {
-                wsel->s->lbfactor = ival;
-                if (bsel)
-                    recalc_factors(bsel);
-            }
-        }
-        if ((val = apr_table_get(params, "wr"))) {
-            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
-                strcpy(wsel->s->route, val);
-            else
-                *wsel->s->route = '\0';
-        }
-        if ((val = apr_table_get(params, "rr"))) {
-            if (strlen(val) && strlen(val) < PROXY_WORKER_MAX_ROUTE_SIZ)
-                strcpy(wsel->s->redirect, val);
-            else
-                *wsel->s->redirect = '\0';
-        }
-        if ((val = apr_table_get(params, "dw"))) {
-            if (!strcasecmp(val, "Disable"))
-                wsel->s->status |= PROXY_WORKER_DISABLED;
-            else if (!strcasecmp(val, "Enable"))
-                wsel->s->status &= ~PROXY_WORKER_DISABLED;
-        }
-        if ((val = apr_table_get(params, "ls"))) {
-            int ival = atoi(val);
-            if (ival >= 0 && ival <= 99) {
-                wsel->s->lbset = ival;
-             }
-        }
-
-    }
-    if (apr_table_get(params, "xml")) {
-        ap_set_content_type(r, "text/xml");
-        ap_rputs("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", r);
-        ap_rputs("<httpd:manager xmlns:httpd=\"http://httpd.apache.org\">\n", r);
-        ap_rputs("  <httpd:balancers>\n", r);
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++) {
-            ap_rputs("    <httpd:balancer>\n", r);
-            ap_rvputs(r, "      <httpd:name>", balancer->name, "</httpd:name>\n", NULL);
-            ap_rputs("      <httpd:workers>\n", r);
-            worker = (proxy_worker *)balancer->workers->elts;
-            for (n = 0; n < balancer->workers->nelts; n++) {
-                ap_rputs("        <httpd:worker>\n", r);
-                ap_rvputs(r, "          <httpd:scheme>", worker->scheme,
-                          "</httpd:scheme>\n", NULL);
-                ap_rvputs(r, "          <httpd:hostname>", worker->hostname,
-                          "</httpd:hostname>\n", NULL);
-               ap_rprintf(r, "          <httpd:loadfactor>%d</httpd:loadfactor>\n",
-                          worker->s->lbfactor);
-                ap_rputs("        </httpd:worker>\n", r);
-                ++worker;
-            }
-            ap_rputs("      </httpd:workers>\n", r);
-            ap_rputs("    </httpd:balancer>\n", r);
-            ++balancer;
-        }
-        ap_rputs("  </httpd:balancers>\n", r);
-        ap_rputs("</httpd:manager>", r);
     }
     else {
-        ap_set_content_type(r, "text/html");
-        ap_rputs(DOCTYPE_HTML_3_2
-                 "<html><head><title>Balancer Manager</title></head>\n", r);
-        ap_rputs("<body><h1>Load Balancer Manager for ", r);
-        ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
-        ap_rvputs(r, "<dl><dt>Server Version: ",
-                  ap_get_server_description(), "</dt>\n", NULL);
-        ap_rvputs(r, "<dt>Server Built: ",
-                  ap_get_server_built(), "\n</dt></dl>\n", NULL);
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++) {
-
-            ap_rputs("<hr />\n<h3>LoadBalancer Status for ", r);
-            ap_rvputs(r, "<a href=\"", r->uri, "?b=",
-                      balancer->name + sizeof("balancer://") - 1,
-                      "\">", NULL);
-            ap_rvputs(r, balancer->name, "</a></h3>\n\n", NULL);
-            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>StickySession</th><th>Timeout</th><th>FailoverAttempts</th><th>Method</th>"
-                "</tr>\n<tr>", r);
-            ap_rvputs(r, "<td>", balancer->sticky, NULL);
-            ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
-                apr_time_sec(balancer->timeout));
-            ap_rprintf(r, "<td>%d</td>\n", balancer->max_attempts);
-            ap_rprintf(r, "<td>%s</td>\n",
-                       balancer->lbmethod->name);
-            ap_rputs("</table>\n<br />", r);
-            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>Worker URL</th>"
-                "<th>Route</th><th>RouteRedir</th>"
-                "<th>Factor</th><th>Set</th><th>Status</th>"
-                "<th>Elected</th><th>To</th><th>From</th>"
-                "</tr>\n", r);
-
-            worker = (proxy_worker *)balancer->workers->elts;
-            for (n = 0; n < balancer->workers->nelts; n++) {
-                char fbuf[50];
-                ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
-                          balancer->name + sizeof("balancer://") - 1, "&w=",
-                          ap_escape_uri(r->pool, worker->name),
-                          "\">", NULL);
-                ap_rvputs(r, worker->name, "</a></td>", NULL);
-                ap_rvputs(r, "<td>", worker->s->route, NULL);
-                ap_rvputs(r, "</td><td>", worker->s->redirect, NULL);
-                ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
-                ap_rprintf(r, "<td>%d</td><td>", worker->s->lbset);
-                if (worker->s->status & PROXY_WORKER_DISABLED)
-                   ap_rputs("Dis ", r);
-                if (worker->s->status & PROXY_WORKER_IN_ERROR)
-                   ap_rputs("Err ", r);
-                if (worker->s->status & PROXY_WORKER_STOPPED)
-                   ap_rputs("Stop ", r);
-                if (worker->s->status & PROXY_WORKER_HOT_STANDBY)
-                   ap_rputs("Stby ", r);
-                if (PROXY_WORKER_IS_USABLE(worker))
-                    ap_rputs("Ok", r);
-                if (!PROXY_WORKER_IS_INITIALIZED(worker))
-                    ap_rputs("-", r);
-                ap_rputs("</td>", r);
-                ap_rprintf(r, "<td>%" APR_SIZE_T_FMT "</td><td>", worker->s->elected);
-                ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
-                ap_rputs("</td><td>", r);
-                ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
-                ap_rputs("</td></tr>\n", r);
-
-                ++worker;
-            }
-            ap_rputs("</table>\n", r);
-            ++balancer;
-        }
-        ap_rputs("<hr />\n", r);
-        if (wsel && bsel) {
-            ap_rputs("<h3>Edit worker settings for ", r);
-            ap_rvputs(r, wsel->name, "</h3>\n", NULL);
-            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
-            ap_rvputs(r, r->uri, "\">\n<dl>", NULL);
-            ap_rputs("<table><tr><td>Load factor:</td><td><input name=\"lf\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbfactor);
-            ap_rputs("<tr><td>LB Set:</td><td><input name=\"ls\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbset);
-            ap_rputs("<tr><td>Route:</td><td><input name=\"wr\" type=text ", r);
-            ap_rvputs(r, "value=\"", wsel->route, NULL);
-            ap_rputs("\"></td></tr>\n", r);
-            ap_rputs("<tr><td>Route Redirect:</td><td><input name=\"rr\" type=text ", r);
-            ap_rvputs(r, "value=\"", wsel->redirect, NULL);
-            ap_rputs("\"></td></tr>\n", r);
-            ap_rputs("<tr><td>Status:</td><td>Disabled: <input name=\"dw\" value=\"Disable\" type=radio", r);
-            if (wsel->s->status & PROXY_WORKER_DISABLED)
-                ap_rputs(" checked", r);
-            ap_rputs("> | Enabled: <input name=\"dw\" value=\"Enable\" type=radio", r);
-            if (!(wsel->s->status & PROXY_WORKER_DISABLED))
-                ap_rputs(" checked", r);
-            ap_rputs("></td></tr>\n", r);
-            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
-            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
-            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
-            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
-            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
-                      "\">\n</form>\n", NULL);
-            ap_rputs("<hr />\n", r);
-        }
-        else if (bsel) {
-            ap_rputs("<h3>Edit balancer settings for ", r);
-            ap_rvputs(r, bsel->name, "</h3>\n", NULL);
-            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
-            ap_rvputs(r, r->uri, "\">\n<dl>", NULL);
-            ap_rputs("<table><tr><td>StickySession Identifier:</td><td><input name=\"ss\" type=text ", r);
-            if (bsel->sticky)
-                ap_rvputs(r, "value=\"", bsel->sticky, "\"", NULL);
-            ap_rputs("></td><tr>\n<tr><td>Timeout:</td><td><input name=\"tm\" type=text ", r);
-            ap_rprintf(r, "value=\"%" APR_TIME_T_FMT "\"></td></tr>\n",
-                       apr_time_sec(bsel->timeout));
-            ap_rputs("<tr><td>Failover Attempts:</td><td><input name=\"fa\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n",
-                       bsel->max_attempts);
-            ap_rputs("<tr><td>LB Method:</td><td><select name=\"lm\">", r);
-            {
-                apr_array_header_t *methods;
-                ap_list_provider_names_t *method;
-                int i;
-                methods = ap_list_provider_names(r->pool, PROXY_LBMETHOD, "0");
-                method = (ap_list_provider_names_t *)methods->elts;
-                for (i = 0; i < methods->nelts; i++) {
-                    ap_rprintf(r, "<option value=\"%s\" %s>%s</option>", method->provider_name,
-                       (!strcasecmp(bsel->lbmethod->name, method->provider_name)) ? "selected" : "",
-                       method->provider_name);
-                    method++;
-                }
-            }
-            ap_rputs("</select></td></tr>\n", r);
-            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
-            ap_rvputs(r, "</table>\n<input type=hidden name=\"b\" ", NULL);
-            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
-                      "\">\n</form>\n", NULL);
-            ap_rputs("<hr />\n", r);
-        }
-        ap_rputs(ap_psignature("",r), r);
-        ap_rputs("</body></html>\n", r);
+        idle_spawn_rate = 1;
     }
-    return OK;
 }

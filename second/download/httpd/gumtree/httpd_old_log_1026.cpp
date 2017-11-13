@@ -1,2 +1,1 @@
-apr_file_printf(errfile,
-            "On all other systems, the '-p' flag will probably not work.\n");
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, msg);

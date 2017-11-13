@@ -1,1 +1,1 @@
-die("Invalid gitfile format: %s", path);
+die("BUG: delete called with old_sha1 set to zeros");

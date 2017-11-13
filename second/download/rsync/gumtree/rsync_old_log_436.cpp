@@ -1,1 +1,1 @@
-fprintf(f,"-v, --verbose            increase verbosity\n");
+fprintf(FINFO,"received %d names\n",flist->count);

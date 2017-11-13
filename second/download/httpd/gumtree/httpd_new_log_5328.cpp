@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d, bbin=%d", 
-                      stream->session->id, stream->id, input_closed(stream),
-                      stream->request->eoh, !!stream->bbin);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00378)
+                     "%s: Failed to start the service process.",
+                     mpm_display_name);

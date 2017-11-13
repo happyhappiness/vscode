@@ -1,1 +1,0 @@
-fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");

@@ -1,1 +1,1 @@
-die(_("--stdin requires a git repository"));
+fprintf(stderr, "No prefix given for --super-prefix.\n" );

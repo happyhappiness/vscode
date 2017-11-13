@@ -1,97 +1,94 @@
-int cmd_pull(int argc, const char **argv, const char *prefix)
+int git_config_rename_section_in_file(const char *config_filename,
+				      const char *old_name, const char *new_name)
 {
-	const char *repo, **refspecs;
-	struct sha1_array merge_heads = SHA1_ARRAY_INIT;
-	unsigned char orig_head[GIT_SHA1_RAWSZ], curr_head[GIT_SHA1_RAWSZ];
-	unsigned char rebase_fork_point[GIT_SHA1_RAWSZ];
+	int ret = 0, remove = 0;
+	char *filename_buf = NULL;
+	struct lock_file *lock;
+	int out_fd;
+	char buf[1024];
+	FILE *config_file;
+	struct stat st;
 
-	if (!getenv("GIT_REFLOG_ACTION"))
-		set_reflog_message(argc, argv);
-
-	argc = parse_options(argc, argv, prefix, pull_options, pull_usage, 0);
-
-	parse_repo_refspecs(argc, argv, &repo, &refspecs);
-
-	if (!opt_ff)
-		opt_ff = xstrdup_or_null(config_get_ff());
-
-	if (opt_rebase < 0)
-		opt_rebase = config_get_rebase();
-
-	git_config(git_pull_config, NULL);
-
-	if (read_cache_unmerged())
-		die_resolve_conflict("Pull");
-
-	if (file_exists(git_path("MERGE_HEAD")))
-		die_conclude_merge();
-
-	if (get_sha1("HEAD", orig_head))
-		hashclr(orig_head);
-
-	if (!opt_rebase && opt_autostash != -1)
-		die(_("--[no-]autostash option is only valid with --rebase."));
-
-	if (opt_rebase) {
-		int autostash = config_autostash;
-		if (opt_autostash != -1)
-			autostash = opt_autostash;
-
-		if (is_null_sha1(orig_head) && !is_cache_unborn())
-			die(_("Updating an unborn branch with changes added to the index."));
-
-		if (!autostash)
-			die_on_unclean_work_tree(prefix);
-
-		if (get_rebase_fork_point(rebase_fork_point, repo, *refspecs))
-			hashclr(rebase_fork_point);
+	if (new_name && !section_name_is_ok(new_name)) {
+		ret = error("invalid section name: %s", new_name);
+		goto out;
 	}
 
-	if (run_fetch(repo, refspecs))
-		return 1;
+	if (!config_filename)
+		config_filename = filename_buf = git_pathdup("config");
 
-	if (opt_dry_run)
-		return 0;
-
-	if (get_sha1("HEAD", curr_head))
-		hashclr(curr_head);
-
-	if (!is_null_sha1(orig_head) && !is_null_sha1(curr_head) &&
-			hashcmp(orig_head, curr_head)) {
-		/*
-		 * The fetch involved updating the current branch.
-		 *
-		 * The working tree and the index file are still based on
-		 * orig_head commit, but we are merging into curr_head.
-		 * Update the working tree to match curr_head.
-		 */
-
-		warning(_("fetch updated the current branch head.\n"
-			"fast-forwarding your working tree from\n"
-			"commit %s."), sha1_to_hex(orig_head));
-
-		if (checkout_fast_forward(orig_head, curr_head, 0))
-			die(_("Cannot fast-forward your working tree.\n"
-				"After making sure that you saved anything precious from\n"
-				"$ git diff %s\n"
-				"output, run\n"
-				"$ git reset --hard\n"
-				"to recover."), sha1_to_hex(orig_head));
+	lock = xcalloc(1, sizeof(struct lock_file));
+	out_fd = hold_lock_file_for_update(lock, config_filename, 0);
+	if (out_fd < 0) {
+		ret = error("could not lock config file %s", config_filename);
+		goto out;
 	}
 
-	get_merge_heads(&merge_heads);
+	if (!(config_file = fopen(config_filename, "rb"))) {
+		/* no config file means nothing to rename, no error */
+		goto unlock_and_out;
+	}
 
-	if (!merge_heads.nr)
-		die_no_merge_candidates(repo, refspecs);
+	fstat(fileno(config_file), &st);
 
-	if (is_null_sha1(orig_head)) {
-		if (merge_heads.nr > 1)
-			die(_("Cannot merge multiple branches into empty head."));
-		return pull_into_void(*merge_heads.sha1, curr_head);
-	} else if (opt_rebase) {
-		if (merge_heads.nr > 1)
-			die(_("Cannot rebase onto multiple branches."));
-		return run_rebase(curr_head, *merge_heads.sha1, rebase_fork_point);
-	} else
-		return run_merge();
+	if (chmod(get_lock_file_path(lock), st.st_mode & 07777) < 0) {
+		ret = error("chmod on %s failed: %s",
+			    get_lock_file_path(lock), strerror(errno));
+		goto out;
+	}
+
+	while (fgets(buf, sizeof(buf), config_file)) {
+		int i;
+		int length;
+		char *output = buf;
+		for (i = 0; buf[i] && isspace(buf[i]); i++)
+			; /* do nothing */
+		if (buf[i] == '[') {
+			/* it's a section */
+			int offset = section_name_match(&buf[i], old_name);
+			if (offset > 0) {
+				ret++;
+				if (new_name == NULL) {
+					remove = 1;
+					continue;
+				}
+				store.baselen = strlen(new_name);
+				if (!store_write_section(out_fd, new_name)) {
+					ret = write_error(get_lock_file_path(lock));
+					goto out;
+				}
+				/*
+				 * We wrote out the new section, with
+				 * a newline, now skip the old
+				 * section's length
+				 */
+				output += offset + i;
+				if (strlen(output) > 0) {
+					/*
+					 * More content means there's
+					 * a declaration to put on the
+					 * next line; indent with a
+					 * tab
+					 */
+					output -= 1;
+					output[0] = '\t';
+				}
+			}
+			remove = 0;
+		}
+		if (remove)
+			continue;
+		length = strlen(output);
+		if (write_in_full(out_fd, output, length) != length) {
+			ret = write_error(get_lock_file_path(lock));
+			goto out;
+		}
+	}
+	fclose(config_file);
+unlock_and_out:
+	if (commit_lock_file(lock) < 0)
+		ret = error("could not commit config file %s", config_filename);
+out:
+	free(filename_buf);
+	return ret;
 }

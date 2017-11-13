@@ -1,1 +1,0 @@
-io_printf(f_out, "@ERROR: invalid gid %s\n", p);

@@ -1,1 +1,1 @@
-fprintf(f, "%d\n", todo_list->done_nr);
+fprintf(f, "%s(revision walker failed)\n", line_prefix);

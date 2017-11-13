@@ -1,1 +1,1 @@
-rprintf(FERROR, "deflate returned %d\n", r);
+rprintf(FINFO,"added %s to delete list\n", f_name(file));

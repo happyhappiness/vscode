@@ -1,26 +1,21 @@
-static APR_INLINE int re_check(include_ctx_t *ctx, const char *string,
-                               const char *rexp)
+static void create_listener_thread(thread_starter * ts)
 {
-    ap_regex_t *compiled;
-    backref_t *re = ctx->intern->re;
+    int my_child_num = ts->child_num_arg;
+    apr_threadattr_t *thread_attr = ts->threadattr;
+    proc_info *my_info;
+    apr_status_t rv;
 
-    compiled = ap_pregcomp(ctx->dpool, rexp, AP_REG_EXTENDED);
-    if (!compiled) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "unable to "
-                      "compile pattern \"%s\"", rexp);
-        return -1;
+    my_info = (proc_info *) malloc(sizeof(proc_info));
+    my_info->pid = my_child_num;
+    my_info->tid = -1;          /* listener thread doesn't have a thread slot */
+    my_info->sd = 0;
+    rv = apr_thread_create(&ts->listener, thread_attr, listener_thread,
+                           my_info, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "apr_thread_create: unable to create listener thread");
+        /* let the parent decide how bad this really is */
+        clean_child_exit(APEXIT_CHILDSICK);
     }
-
-    if (!re) {
-        re = ctx->intern->re = apr_palloc(ctx->pool, sizeof(*re));
-    }
-
-    re->source = apr_pstrdup(ctx->pool, string);
-    re->rexp = apr_pstrdup(ctx->pool, rexp);
-    re->nsub = compiled->re_nsub;
-    re->have_match = !ap_regexec(compiled, string, AP_MAX_REG_MATCH,
-                                 re->match, 0);
-
-    ap_pregfree(ctx->dpool, compiled);
-    return re->have_match;
+    apr_os_thread_get(&listener_os_thread, ts->listener);
 }

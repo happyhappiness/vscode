@@ -1,1 +1,1 @@
-die("HEAD does not match the named branch in the superproject");
+die(_("invalid ident line: %.*s"), (int)ident_len, ident_line);

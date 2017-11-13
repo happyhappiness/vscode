@@ -1,32 +1,111 @@
-int ref_transaction_create(struct ref_transaction *transaction,
-			   const char *refname,
-			   const unsigned char *new_sha1,
-			   int flags, const char *msg,
-			   struct strbuf *err)
+static void wt_longstatus_print(struct wt_status *s)
 {
-	struct ref_update *update;
+	const char *branch_color = color(WT_STATUS_ONBRANCH, s);
+	const char *branch_status_color = color(WT_STATUS_HEADER, s);
+	struct wt_status_state state;
 
-	assert(err);
+	memset(&state, 0, sizeof(state));
+	wt_status_get_state(&state,
+			    s->branch && !strcmp(s->branch, "HEAD"));
 
-	if (transaction->state != REF_TRANSACTION_OPEN)
-		die("BUG: create called for transaction that is not open");
-
-	if (!new_sha1 || is_null_sha1(new_sha1))
-		die("BUG: create ref with null new_sha1");
-
-	if (check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
-		strbuf_addf(err, "refusing to create ref with bad name %s",
-			    refname);
-		return -1;
+	if (s->branch) {
+		const char *on_what = _("On branch ");
+		const char *branch_name = s->branch;
+		if (!strcmp(branch_name, "HEAD")) {
+			branch_status_color = color(WT_STATUS_NOBRANCH, s);
+			if (state.rebase_in_progress || state.rebase_interactive_in_progress) {
+				if (state.rebase_interactive_in_progress)
+					on_what = _("interactive rebase in progress; onto ");
+				else
+					on_what = _("rebase in progress; onto ");
+				branch_name = state.onto;
+			} else if (state.detached_from) {
+				branch_name = state.detached_from;
+				if (state.detached_at)
+					on_what = _("HEAD detached at ");
+				else
+					on_what = _("HEAD detached from ");
+			} else {
+				branch_name = "";
+				on_what = _("Not currently on any branch.");
+			}
+		} else
+			skip_prefix(branch_name, "refs/heads/", &branch_name);
+		status_printf(s, color(WT_STATUS_HEADER, s), "%s", "");
+		status_printf_more(s, branch_status_color, "%s", on_what);
+		status_printf_more(s, branch_color, "%s\n", branch_name);
+		if (!s->is_initial)
+			wt_longstatus_print_tracking(s);
 	}
 
-	update = add_update(transaction, refname);
+	wt_longstatus_print_state(s, &state);
+	free(state.branch);
+	free(state.onto);
+	free(state.detached_from);
 
-	hashcpy(update->new_sha1, new_sha1);
-	hashclr(update->old_sha1);
-	update->flags = flags;
-	update->have_old = 1;
-	if (msg)
-		update->msg = xstrdup(msg);
-	return 0;
+	if (s->is_initial) {
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
+	}
+
+	wt_longstatus_print_updated(s);
+	wt_longstatus_print_unmerged(s);
+	wt_longstatus_print_changed(s);
+	if (s->submodule_summary &&
+	    (!s->ignore_submodule_arg ||
+	     strcmp(s->ignore_submodule_arg, "all"))) {
+		wt_longstatus_print_submodule_summary(s, 0);  /* staged */
+		wt_longstatus_print_submodule_summary(s, 1);  /* unstaged */
+	}
+	if (s->show_untracked_files) {
+		wt_longstatus_print_other(s, &s->untracked, _("Untracked files"), "add");
+		if (s->show_ignored_files)
+			wt_longstatus_print_other(s, &s->ignored, _("Ignored files"), "add -f");
+		if (advice_status_u_option && 2000 < s->untracked_in_ms) {
+			status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");
+			status_printf_ln(s, GIT_COLOR_NORMAL,
+					 _("It took %.2f seconds to enumerate untracked files. 'status -uno'\n"
+					   "may speed it up, but you have to be careful not to forget to add\n"
+					   "new files yourself (see 'git help status')."),
+					 s->untracked_in_ms / 1000.0);
+		}
+	} else if (s->commitable)
+		status_printf_ln(s, GIT_COLOR_NORMAL, _("Untracked files not listed%s"),
+			s->hints
+			? _(" (use -u option to show untracked files)") : "");
+
+	if (s->verbose)
+		wt_longstatus_print_verbose(s);
+	if (!s->commitable) {
+		if (s->amend)
+			status_printf_ln(s, GIT_COLOR_NORMAL, _("No changes"));
+		else if (s->nowarn)
+			; /* nothing */
+		else if (s->workdir_dirty) {
+			if (s->hints)
+				printf(_("no changes added to commit "
+					 "(use \"git add\" and/or \"git commit -a\")\n"));
+			else
+				printf(_("no changes added to commit\n"));
+		} else if (s->untracked.nr) {
+			if (s->hints)
+				printf(_("nothing added to commit but untracked files "
+					 "present (use \"git add\" to track)\n"));
+			else
+				printf(_("nothing added to commit but untracked files present\n"));
+		} else if (s->is_initial) {
+			if (s->hints)
+				printf(_("nothing to commit (create/copy files "
+					 "and use \"git add\" to track)\n"));
+			else
+				printf(_("nothing to commit\n"));
+		} else if (!s->show_untracked_files) {
+			if (s->hints)
+				printf(_("nothing to commit (use -u to show untracked files)\n"));
+			else
+				printf(_("nothing to commit\n"));
+		} else
+			printf(_("nothing to commit, working tree clean\n"));
+	}
 }

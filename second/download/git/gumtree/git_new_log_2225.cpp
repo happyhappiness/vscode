@@ -1,1 +1,1 @@
-warning("%s", err.buf);
+die_errno("unable to move new alternates file into place");

@@ -1,12 +1,9 @@
 fputs(
-"              Use  --engine  list  to  print  a  list  of build-time supported\n"
-"              engines. Note that not all (or  none)  of  the  engines  may  be\n"
-"              available at run-time.\n"
+"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
+"              optional password isn't specified, it will be queried for on the\n"
+"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
+"              that is the private key and  the  private  certificate  concate-\n"
+"              nated! See --cert and --key to specify them independently.\n"
 "\n"
-"       --environment\n"
-"              (RISC  OS ONLY) Sets a range of environment variables, using the\n"
-"              names the -w option supports, to allow easier extraction of use-\n"
-"              ful information after having run curl.\n"
-"\n"
-"       --egd-file <file>\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
 , stdout);

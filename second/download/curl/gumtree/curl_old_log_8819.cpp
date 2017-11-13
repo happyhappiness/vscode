@@ -1,10 +1,8 @@
 fputs(
-"              default and this option is usually pointless, unless you use  it\n"
-"              to  override  a  previously  set  option  that  sets a different\n"
-"              authentication method (such as --ntlm,  --digest,  or  --negoti-\n"
-"              ate).\n"
-"\n"
-"       -c, --cookie-jar <file name>\n"
-"              (HTTP)  Specify to which file you want curl to write all cookies\n"
-"              after a completed operation. Curl writes all cookies  previously\n"
+"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
+"              name to use to read previously stored cookie lines  from,  which\n"
+"              should  be used in this session if they match. Using this method\n"
+"              also activates the \"cookie parser\" which will make  curl  record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination with the -L, --location option. The file  format  of\n"
 , stdout);

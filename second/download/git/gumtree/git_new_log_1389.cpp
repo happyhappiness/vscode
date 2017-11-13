@@ -1,1 +1,2 @@
-die_errno(_("could not create file '%s'"), d->edit_path);
+die(_("missing object %s for %s"),
+		    oid_to_hex(&ref->objectname), ref->refname);

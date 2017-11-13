@@ -1,1 +1,1 @@
-fprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));
+fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");

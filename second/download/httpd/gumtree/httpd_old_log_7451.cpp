@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01146)
-                             "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
-                             elts[i].key, elts[i].val, worker->s->name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01148)
+                     "Defined worker '%s' for balancer '%s'",
+                     worker->s->name, balancer->s->name);

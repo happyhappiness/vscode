@@ -1,71 +1,26 @@
-static int parse_next_sha1(struct strbuf *input, const char **next,
-			   unsigned char *sha1,
-			   const char *command, const char *refname,
-			   int flags)
+static int parse_sort_string(const char *var, const char *arg, int *sort)
 {
-	struct strbuf arg = STRBUF_INIT;
-	int ret = 0;
+	int type = 0, flags = 0;
 
-	if (*next == input->buf + input->len)
-		goto eof;
+	if (skip_prefix(arg, "-", &arg))
+		flags |= REVERSE_SORT;
 
-	if (line_termination) {
-		/* Without -z, consume SP and use next argument */
-		if (!**next || **next == line_termination)
-			return 1;
-		if (**next != ' ')
-			die("%s %s: expected SP but got: %s",
-			    command, refname, *next);
-		(*next)++;
-		*next = parse_arg(*next, &arg);
-		if (arg.len) {
-			if (get_sha1(arg.buf, sha1))
-				goto invalid;
-		} else {
-			/* Without -z, an empty value means all zeros: */
-			hashclr(sha1);
-		}
-	} else {
-		/* With -z, read the next NUL-terminated line */
-		if (**next)
-			die("%s %s: expected NUL but got: %s",
-			    command, refname, *next);
-		(*next)++;
-		if (*next == input->buf + input->len)
-			goto eof;
-		strbuf_addstr(&arg, *next);
-		*next += arg.len;
+	if (skip_prefix(arg, "version:", &arg) || skip_prefix(arg, "v:", &arg))
+		type = VERCMP_SORT;
+	else
+		type = STRCMP_SORT;
 
-		if (arg.len) {
-			if (get_sha1(arg.buf, sha1))
-				goto invalid;
-		} else if (flags & PARSE_SHA1_ALLOW_EMPTY) {
-			/* With -z, treat an empty value as all zeros: */
-			warning("%s %s: missing <newvalue>, treating as zero",
-				command, refname);
-			hashclr(sha1);
-		} else {
-			/*
-			 * With -z, an empty non-required value means
-			 * unspecified:
-			 */
-			ret = 1;
+	if (strcmp(arg, "refname")) {
+		if (!var)
+			return error(_("unsupported sort specification '%s'"), arg);
+		else {
+			warning(_("unsupported sort specification '%s' in variable '%s'"),
+				var, arg);
+			return -1;
 		}
 	}
 
-	strbuf_release(&arg);
+	*sort = (type | flags);
 
-	return ret;
-
- invalid:
-	die(flags & PARSE_SHA1_OLD ?
-	    "%s %s: invalid <oldvalue>: %s" :
-	    "%s %s: invalid <newvalue>: %s",
-	    command, refname, arg.buf);
-
- eof:
-	die(flags & PARSE_SHA1_OLD ?
-	    "%s %s: unexpected end of input when reading <oldvalue>" :
-	    "%s %s: unexpected end of input when reading <newvalue>",
-	    command, refname);
+	return 0;
 }

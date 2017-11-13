@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t -D DUMP_MODULES : show all loaded modules ");
+apr_file_printf(writetty, "\n"
+                            "OK: Pass Phrase Dialog successful.\n");

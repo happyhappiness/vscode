@@ -1,21 +1,33 @@
-static void compile_fixed_regexp(struct grep_pat *p, struct grep_opt *opt)
+static int show_reference(const char *refname, const struct object_id *oid,
+			  int flag, void *cb_data)
 {
-	struct strbuf sb = STRBUF_INIT;
-	int err;
-	int regflags;
+	struct tag_filter *filter = cb_data;
 
-	basic_regex_quote_buf(&sb, p->pattern);
-	regflags = opt->regflags & ~REG_EXTENDED;
-	if (opt->ignore_case)
-		regflags |= REG_ICASE;
-	err = regcomp(&p->regexp, sb.buf, regflags);
-	if (opt->debug)
-		fprintf(stderr, "fixed %s\n", sb.buf);
-	strbuf_release(&sb);
-	if (err) {
-		char errbuf[1024];
-		regerror(err, &p->regexp, errbuf, sizeof(errbuf));
-		regfree(&p->regexp);
-		compile_regexp_failed(p, errbuf);
+	if (match_pattern(filter->patterns, refname)) {
+		if (filter->with_commit) {
+			struct commit *commit;
+
+			commit = lookup_commit_reference_gently(oid->hash, 1);
+			if (!commit)
+				return 0;
+			if (!contains(commit, filter->with_commit))
+				return 0;
+		}
+
+		if (points_at.nr && !match_points_at(refname, oid->hash))
+			return 0;
+
+		if (!filter->lines) {
+			if (filter->sort)
+				string_list_append(&filter->tags, refname);
+			else
+				printf("%s\n", refname);
+			return 0;
+		}
+		printf("%-15s ", refname);
+		show_tag_lines(oid, filter->lines);
+		putchar('\n');
 	}
+
+	return 0;
 }

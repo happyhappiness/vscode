@@ -1,8 +1,10 @@
 fputs(
-"  from sites that require valid certificates. The only drawback is that the\n"
-"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
-"  store certificates with, but it is not used by the most commonly used\n"
-"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
-"  want curl to use the certificates you use with your (favourite) browser, you\n"
-"  may need to download/compile a converter that can convert your browser's\n"
+"  field is a file description. We want to post the file we have written named\n"
+"  \"cooltext.txt\". To let curl do the posting of this data instead of your\n"
+"  favourite browser, you have to read the HTML source of the form page and\n"
+"  find the names of the input fields. In our example, the input field names\n"
+"  are 'file', 'yourname' and 'filedescription'.\n"
+"\n"
+"        curl -F \"file=@cooltext.txt\" -F \"yourname=Daniel\" \\\n"
+"             -F \"filedescription=Cool text file with cool text inside\" \\\n"
 , stdout);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
-            "mod_lua: Failed to create shared memory segment on file %s",
-                     lua_ivm_shmfile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02557)
+                          "Can't evaluate value expression: %s", err);

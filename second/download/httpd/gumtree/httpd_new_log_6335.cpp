@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, s, APLOGNO(03312)
-                                 "apr_thread_pool_create() with %d threads failed",
-                                 tpsize);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 APLOGNO(02303)
+                 "attach found %s: %"APR_SIZE_T_FMT"/%u", fname,
+                 *item_size, *item_num);

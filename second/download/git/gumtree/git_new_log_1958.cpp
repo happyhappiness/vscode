@@ -1,1 +1,1 @@
-printf("worktree %s\n", wt->path);
+(fprintf(fp, "%s	%s\n", oid_to_hex(oid), path) <;

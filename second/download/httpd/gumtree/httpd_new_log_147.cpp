@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                     "buggy client used un-escaped hash in Request-URI");
+ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                     "make_secure_socket: for %s, WSAIoctl: "
+                     "(SO_SSL_SET_SERVER)", addr);

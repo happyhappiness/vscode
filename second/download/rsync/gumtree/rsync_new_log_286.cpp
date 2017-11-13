@@ -1,1 +1,1 @@
-fprintf(FINFO,"received %d names\n",flist->count);
+fprintf(f,"-W, --whole-file         copy whole files, no incremental checks\n");

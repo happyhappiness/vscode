@@ -1,52 +1,79 @@
-static void usage(const char *progname)
+static int open_error_log(server_rec *s, int is_main, apr_pool_t *p)
 {
-    fprintf(stderr, "Usage: %s [options] [http"
-#ifdef USE_SSL
-        "[s]"
+    const char *fname;
+    int rc;
+
+    if (*s->error_fname == '|') {
+        apr_file_t *dummy = NULL;
+        apr_cmdtype_e cmdtype = APR_PROGRAM_ENV;
+        fname = s->error_fname + 1;
+
+        /* In 2.4 favor PROGRAM_ENV, accept "||prog" syntax for compatibility
+         * and "|$cmd" to override the default.
+         * Any 2.2 backport would continue to favor SHELLCMD_ENV so there 
+         * accept "||prog" to override, and "|$cmd" to ease conversion.
+         */
+        if (*fname == '|')
+            ++fname;
+        if (*fname == '$') {
+            cmdtype = APR_SHELLCMD_ENV;
+            ++fname;
+        }
+	
+        /* Spawn a new child logger.  If this is the main server_rec,
+         * the new child must use a dummy stderr since the current
+         * stderr might be a pipe to the old logger.  Otherwise, the
+         * child inherits the parents stderr. */
+        rc = log_child(p, fname, &dummy, cmdtype, is_main);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                         "Couldn't start ErrorLog process '%s'.",
+                         s->error_fname + 1);
+            return DONE;
+        }
+
+        s->error_log = dummy;
+    }
+
+#ifdef HAVE_SYSLOG
+    else if (!strncasecmp(s->error_fname, "syslog", 6)) {
+        if ((fname = strchr(s->error_fname, ':'))) {
+            const TRANS *fac;
+
+            fname++;
+            for (fac = facilities; fac->t_name; fac++) {
+                if (!strcasecmp(fname, fac->t_name)) {
+                    openlog(ap_server_argv0, LOG_NDELAY|LOG_CONS|LOG_PID,
+                            fac->t_val);
+                    s->error_log = NULL;
+                    return OK;
+                }
+            }
+        }
+        else {
+            openlog(ap_server_argv0, LOG_NDELAY|LOG_CONS|LOG_PID, LOG_LOCAL7);
+        }
+
+        s->error_log = NULL;
+    }
 #endif
-        "://]hostname[:port]/path\n", progname);
-/* 80 column ruler:  ********************************************************************************
- */
-    fprintf(stderr, "Options are:\n");
-    fprintf(stderr, "    -n requests     Number of requests to perform\n");
-    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
-    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
-    fprintf(stderr, "    -b windowsize   Size of TCP send/receive buffer, in bytes\n");
-    fprintf(stderr, "    -B address      Address to bind to when making outgoing connections\n");
-    fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");
-    fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");
-    fprintf(stderr, "    -T content-type Content-type header for POSTing, eg.\n");
-    fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
-    fprintf(stderr, "                    Default is 'text/plain'\n");
-    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
-    fprintf(stderr, "    -w              Print out results in HTML tables\n");
-    fprintf(stderr, "    -i              Use HEAD instead of GET\n");
-    fprintf(stderr, "    -x attributes   String to insert as table attributes\n");
-    fprintf(stderr, "    -y attributes   String to insert as tr attributes\n");
-    fprintf(stderr, "    -z attributes   String to insert as td or th attributes\n");
-    fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234'. (repeatable)\n");
-    fprintf(stderr, "    -H attribute    Add Arbitrary header line, eg. 'Accept-Encoding: gzip'\n");
-    fprintf(stderr, "                    Inserted after all normal header lines. (repeatable)\n");
-    fprintf(stderr, "    -A attribute    Add Basic WWW Authentication, the attributes\n");
-    fprintf(stderr, "                    are a colon separated username and password.\n");
-    fprintf(stderr, "    -P attribute    Add Basic Proxy Authentication, the attributes\n");
-    fprintf(stderr, "                    are a colon separated username and password.\n");
-    fprintf(stderr, "    -X proxy:port   Proxyserver and port number to use\n");
-    fprintf(stderr, "    -V              Print version number and exit\n");
-    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
-    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
-    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
-    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
-    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
-    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
-    fprintf(stderr, "    -h              Display usage information (this message)\n");
-#ifdef USE_SSL
-    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
-#ifndef OPENSSL_NO_SSL2
-    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
-#else
-    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL3, TLS1, or ALL)\n");
-#endif
-#endif
-    exit(EINVAL);
+    else {
+        fname = ap_server_root_relative(p, s->error_fname);
+        if (!fname) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, APR_EBADPATH, NULL,
+                         "%s: Invalid error log path %s.",
+                         ap_server_argv0, s->error_fname);
+            return DONE;
+        }
+        if ((rc = apr_file_open(&s->error_log, fname,
+                               APR_APPEND | APR_WRITE | APR_CREATE | APR_LARGEFILE,
+                               APR_OS_DEFAULT, p)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                         "%s: could not open error log file %s.",
+                         ap_server_argv0, fname);
+            return DONE;
+        }
+    }
+
+    return OK;
 }

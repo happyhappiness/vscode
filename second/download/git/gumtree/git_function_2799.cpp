@@ -1,12 +1,4 @@
-void git_config_set_multivar_in_file(const char *config_filename,
-				     const char *key, const char *value,
-				     const char *value_regex, int multi_replace)
+int config_error_nonbool(const char *var)
 {
-	if (!git_config_set_multivar_in_file_gently(config_filename, key, value,
-						    value_regex, multi_replace))
-		return;
-	if (value)
-		die(_("could not set '%s' to '%s'"), key, value);
-	else
-		die(_("could not unset '%s'"), key);
+	return error("Missing value for '%s'", var);
 }

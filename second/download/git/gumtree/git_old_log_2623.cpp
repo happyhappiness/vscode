@@ -1,3 +1,3 @@
-printf(" (from %s)",
-			       find_unique_abbrev(parent->object.oid.hash,
-						  abbrev_commit));
+error("Unable to determine requirements "
+		     "of type %s for %s",
+		     typename(obj->type), sha1_to_hex(obj->sha1));

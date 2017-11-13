@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r, APLOGNO(00756) "Adding CACHE_SAVE_SUBREQ filter for %s",
-                            r->uri);
+ap_log_perror(file, line, APLOG_ERR, rv, dynlockpool, 
+                       "Failed to create subpool for dynamic lock");

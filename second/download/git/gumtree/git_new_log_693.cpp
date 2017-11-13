@@ -1,1 +1,1 @@
-error("object file %s is empty", path);
+error("%s", err.buf);

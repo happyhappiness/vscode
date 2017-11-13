@@ -1,47 +1,86 @@
-int checkout_entry(struct cache_entry *ce,
-		   const struct checkout *state, char *topath)
+static void write_crash_report(const char *err)
 {
-	static struct strbuf path = STRBUF_INIT;
-	struct stat st;
+	char *loc = git_pathdup("fast_import_crash_%"PRIuMAX, (uintmax_t) getpid());
+	FILE *rpt = fopen(loc, "w");
+	struct branch *b;
+	unsigned long lu;
+	struct recent_command *rc;
 
-	if (topath)
-		return write_entry(ce, topath, state, 1);
+	if (!rpt) {
+		error("can't write crash report %s: %s", loc, strerror(errno));
+		free(loc);
+		return;
+	}
 
-	strbuf_reset(&path);
-	strbuf_add(&path, state->base_dir, state->base_dir_len);
-	strbuf_add(&path, ce->name, ce_namelen(ce));
+	fprintf(stderr, "fast-import: dumping crash report to %s\n", loc);
 
-	if (!check_path(path.buf, path.len, &st, state->base_dir_len)) {
-		unsigned changed = ce_match_stat(ce, &st, CE_MATCH_IGNORE_VALID|CE_MATCH_IGNORE_SKIP_WORKTREE);
-		if (!changed)
-			return 0;
-		if (!state->force) {
-			if (!state->quiet)
-				fprintf(stderr,
-					"%s already exists, no checkout\n",
-					path.buf);
-			return -1;
+	fprintf(rpt, "fast-import crash report:\n");
+	fprintf(rpt, "    fast-import process: %"PRIuMAX"\n", (uintmax_t) getpid());
+	fprintf(rpt, "    parent process     : %"PRIuMAX"\n", (uintmax_t) getppid());
+	fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_MODE(ISO8601)));
+	fputc('\n', rpt);
+
+	fputs("fatal: ", rpt);
+	fputs(err, rpt);
+	fputc('\n', rpt);
+
+	fputc('\n', rpt);
+	fputs("Most Recent Commands Before Crash\n", rpt);
+	fputs("---------------------------------\n", rpt);
+	for (rc = cmd_hist.next; rc != &cmd_hist; rc = rc->next) {
+		if (rc->next == &cmd_hist)
+			fputs("* ", rpt);
+		else
+			fputs("  ", rpt);
+		fputs(rc->buf, rpt);
+		fputc('\n', rpt);
+	}
+
+	fputc('\n', rpt);
+	fputs("Active Branch LRU\n", rpt);
+	fputs("-----------------\n", rpt);
+	fprintf(rpt, "    active_branches = %lu cur, %lu max\n",
+		cur_active_branches,
+		max_active_branches);
+	fputc('\n', rpt);
+	fputs("  pos  clock name\n", rpt);
+	fputs("  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n", rpt);
+	for (b = active_branches, lu = 0; b; b = b->active_next_branch)
+		fprintf(rpt, "  %2lu) %6" PRIuMAX" %s\n",
+			++lu, b->last_commit, b->name);
+
+	fputc('\n', rpt);
+	fputs("Inactive Branches\n", rpt);
+	fputs("-----------------\n", rpt);
+	for (lu = 0; lu < branch_table_sz; lu++) {
+		for (b = branch_table[lu]; b; b = b->table_next_branch)
+			write_branch_report(rpt, b);
+	}
+
+	if (first_tag) {
+		struct tag *tg;
+		fputc('\n', rpt);
+		fputs("Annotated Tags\n", rpt);
+		fputs("--------------\n", rpt);
+		for (tg = first_tag; tg; tg = tg->next_tag) {
+			fputs(sha1_to_hex(tg->sha1), rpt);
+			fputc(' ', rpt);
+			fputs(tg->name, rpt);
+			fputc('\n', rpt);
 		}
+	}
 
-		/*
-		 * We unlink the old file, to get the new one with the
-		 * right permissions (including umask, which is nasty
-		 * to emulate by hand - much easier to let the system
-		 * just do the right thing)
-		 */
-		if (S_ISDIR(st.st_mode)) {
-			/* If it is a gitlink, leave it alone! */
-			if (S_ISGITLINK(ce->ce_mode))
-				return 0;
-			if (!state->force)
-				return error("%s is a directory", path.buf);
-			remove_subtree(&path);
-		} else if (unlink(path.buf))
-			return error("unable to unlink old '%s' (%s)",
-				     path.buf, strerror(errno));
-	} else if (state->not_new)
-		return 0;
+	fputc('\n', rpt);
+	fputs("Marks\n", rpt);
+	fputs("-----\n", rpt);
+	if (export_marks_file)
+		fprintf(rpt, "  exported to %s\n", export_marks_file);
+	else
+		dump_marks_helper(rpt, 0, marks);
 
-	create_directories(path.buf, path.len, state);
-	return write_entry(ce, path.buf, state, 0);
+	fputc('\n', rpt);
+	fputs("-------------------\n", rpt);
+	fputs("END OF CRASH REPORT\n", rpt);
+	fclose(rpt);
+	free(loc);
 }

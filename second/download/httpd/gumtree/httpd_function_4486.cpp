@@ -1,51 +1,56 @@
-static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
+static int scgi_handler(request_rec *r, proxy_worker *worker,
+                        proxy_server_conf *conf, char *url,
+                        const char *proxyname, apr_port_t proxyport)
 {
-    piped_log *pl = data;
-    apr_status_t stats;
-    int mpm_state;
+    int status;
+    proxy_conn_rec *backend = NULL;
+    apr_pool_t *p = r->pool;
+    apr_uri_t *uri = apr_palloc(r->pool, sizeof(*uri));
+    char dummy;
 
-    switch (reason) {
-    case APR_OC_REASON_DEATH:
-    case APR_OC_REASON_LOST:
-        pl->pid = NULL; /* in case we don't get it going again, this
-                         * tells other logic not to try to kill it
-                         */
-        apr_proc_other_child_unregister(pl);
-        stats = ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state);
-        if (stats != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "can't query MPM state; not restarting "
-                         "piped log program '%s'",
-                         pl->program);
-        }
-        else if (mpm_state != AP_MPMQ_STOPPING) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "piped log program '%s' failed unexpectedly",
-                         pl->program);
-            if ((stats = piped_log_spawn(pl)) != APR_SUCCESS) {
-                /* what can we do?  This could be the error log we're having
-                 * problems opening up... */
-                char buf[120];
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "piped_log_maintenance: unable to respawn '%s': %s",
-                             pl->program, apr_strerror(stats, buf, sizeof(buf)));
-            }
-        }
-        break;
-
-    case APR_OC_REASON_UNWRITABLE:
-        /* We should not kill off the pipe here, since it may only be full.
-         * If it really is locked, we should kill it off manually. */
-    break;
-
-    case APR_OC_REASON_RESTART:
-        if (pl->pid != NULL) {
-            apr_proc_kill(pl->pid, SIGTERM);
-            pl->pid = NULL;
-        }
-        break;
-
-    case APR_OC_REASON_UNREGISTER:
-        break;
+    if (strncasecmp(url, SCHEME "://", sizeof(SCHEME) + 2)) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "proxy: " PROXY_FUNCTION ": declining URL %s", url);
+        return DECLINED;
     }
+
+    /* Create space for state information */
+    status = ap_proxy_acquire_connection(PROXY_FUNCTION, &backend, worker,
+                                         r->server);
+    if (status != OK) {
+        goto cleanup;
+    }
+    backend->is_ssl = 0;
+
+    /* Step One: Determine Who To Connect To */
+    status = ap_proxy_determine_connection(p, r, conf, worker, backend,
+                                           uri, &url, proxyname, proxyport,
+                                           &dummy, 1);
+    if (status != OK) {
+        goto cleanup;
+    }
+
+    /* Step Two: Make the Connection */
+    if (ap_proxy_connect_backend(PROXY_FUNCTION, backend, worker, r->server)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "proxy: " PROXY_FUNCTION ": failed to make connection "
+                     "to backend: %s:%u", backend->hostname, backend->port);
+        status = HTTP_SERVICE_UNAVAILABLE;
+        goto cleanup;
+    }
+
+    /* Step Three: Process the Request */
+    if (   ((status = ap_setup_client_block(r, REQUEST_CHUNKED_ERROR)) != OK)
+        || ((status = send_headers(r, backend)) != OK)
+        || ((status = send_request_body(r, backend)) != OK)
+        || ((status = pass_response(r, backend)) != OK)) {
+        goto cleanup;
+    }
+
+cleanup:
+    if (backend) {
+        backend->close = 1; /* always close the socket */
+        ap_proxy_release_connection(PROXY_FUNCTION, backend, r->server);
+    }
+    return status;
 }

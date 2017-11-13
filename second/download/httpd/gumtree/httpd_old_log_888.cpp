@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
-                            "apr_accept: (client socket)");
+fprintf (stderr, "Reducing via rule %d (line %d), ",
+	       ssl_expr_yyn, ssl_expr_yyrline[ssl_expr_yyn]);

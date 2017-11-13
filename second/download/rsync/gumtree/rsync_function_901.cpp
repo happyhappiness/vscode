@@ -1,79 +1,31 @@
-static void print_rsync_version(enum logcode f)
+int sock_exec(const char *prog)
 {
-	char *subprotocol = "";
-	char const *got_socketpair = "no ";
-	char const *have_inplace = "no ";
-	char const *hardlinks = "no ";
-	char const *symtimes = "no ";
-	char const *acls = "no ";
-	char const *xattrs = "no ";
-	char const *links = "no ";
-	char const *iconv = "no ";
-	char const *ipv6 = "no ";
-	STRUCT_STAT *dumstat;
+	pid_t pid;
+	int fd[2];
 
-#if SUBPROTOCOL_VERSION != 0
-	if (asprintf(&subprotocol, ".PR%d", SUBPROTOCOL_VERSION) < 0)
-		out_of_memory("print_rsync_version");
-#endif
-#ifdef HAVE_SOCKETPAIR
-	got_socketpair = "";
-#endif
-#ifdef HAVE_FTRUNCATE
-	have_inplace = "";
-#endif
-#ifdef SUPPORT_HARD_LINKS
-	hardlinks = "";
-#endif
-#ifdef SUPPORT_ACLS
-	acls = "";
-#endif
-#ifdef SUPPORT_XATTRS
-	xattrs = "";
-#endif
-#ifdef SUPPORT_LINKS
-	links = "";
-#endif
-#ifdef INET6
-	ipv6 = "";
-#endif
-#ifdef ICONV_OPTION
-	iconv = "";
-#endif
-#if defined HAVE_LUTIMES && defined HAVE_UTIMES
-	symtimes = "";
-#endif
+	if (socketpair_tcp(fd) != 0) {
+		rsyserr(FERROR, errno, "socketpair_tcp failed");
+		return -1;
+	}
+	if (verbose >= 2)
+		rprintf(FINFO, "Running socket program: \"%s\"\n", prog);
 
-	rprintf(f, "%s  version %s  protocol version %d%s\n",
-		RSYNC_NAME, RSYNC_VERSION, PROTOCOL_VERSION, subprotocol);
-	rprintf(f, "Copyright (C) 1996-2008 by Andrew Tridgell, Wayne Davison, and others.\n");
-	rprintf(f, "Web site: http://rsync.samba.org/\n");
-	rprintf(f, "Capabilities:\n");
-	rprintf(f, "    %d-bit files, %d-bit inums, %d-bit timestamps, %d-bit long ints,\n",
-		(int)(sizeof (OFF_T) * 8),
-		(int)(sizeof dumstat->st_ino * 8), /* Don't check ino_t! */
-		(int)(sizeof (time_t) * 8),
-		(int)(sizeof (int64) * 8));
-	rprintf(f, "    %ssocketpairs, %shardlinks, %ssymlinks, %sIPv6, batchfiles, %sinplace,\n",
-		got_socketpair, hardlinks, links, ipv6, have_inplace);
-	rprintf(f, "    %sappend, %sACLs, %sxattrs, %siconv, %ssymtimes\n",
-		have_inplace, acls, xattrs, iconv, symtimes);
-
-#ifdef MAINTAINER_MODE
-	rprintf(f, "Panic Action: \"%s\"\n", get_panic_action());
-#endif
-
-#if SIZEOF_INT64 < 8
-	rprintf(f, "WARNING: no 64-bit integers on this platform!\n");
-#endif
-	if (sizeof (int64) != SIZEOF_INT64) {
-		rprintf(f,
-			"WARNING: size mismatch in SIZEOF_INT64 define (%d != %d)\n",
-			(int) SIZEOF_INT64, (int) sizeof (int64));
+	pid = fork();
+	if (pid < 0) {
+		rsyserr(FERROR, errno, "fork");
+		exit_cleanup(RERR_IPC);
 	}
 
-	rprintf(f,"\n");
-	rprintf(f,"rsync comes with ABSOLUTELY NO WARRANTY.  This is free software, and you\n");
-	rprintf(f,"are welcome to redistribute it under certain conditions.  See the GNU\n");
-	rprintf(f,"General Public Licence for details.\n");
+	if (pid == 0) {
+		close(fd[0]);
+		if (dup2(fd[1], STDIN_FILENO) < 0
+		 || dup2(fd[1], STDOUT_FILENO) < 0) {
+			fprintf(stderr, "Failed to run \"%s\"\n", prog);
+			exit(1);
+		}
+		exit(system(prog));
+	}
+
+	close(fd[1]);
+	return fd[0];
 }

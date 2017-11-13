@@ -1,98 +1,277 @@
-static int add_worktree(const char *path, const char **child_argv)
+int cmd_clone(int argc, const char **argv, const char *prefix)
 {
-	struct strbuf sb_git = STRBUF_INIT, sb_repo = STRBUF_INIT;
-	struct strbuf sb = STRBUF_INIT;
-	const char *name;
-	struct stat st;
-	struct child_process cp;
-	int counter = 0, len, ret;
-	unsigned char rev[20];
+	int is_bundle = 0, is_local;
+	struct stat buf;
+	const char *repo_name, *repo, *work_tree, *git_dir;
+	char *path, *dir;
+	int dest_exists;
+	const struct ref *refs, *remote_head;
+	const struct ref *remote_head_points_at;
+	const struct ref *our_head_points_at;
+	struct ref *mapped_refs;
+	const struct ref *ref;
+	struct strbuf key = STRBUF_INIT, value = STRBUF_INIT;
+	struct strbuf branch_top = STRBUF_INIT, reflog_msg = STRBUF_INIT;
+	struct transport *transport = NULL;
+	const char *src_ref_prefix = "refs/heads/";
+	struct remote *remote;
+	int err = 0, complete_refs_before_fetch = 1;
 
-	if (file_exists(path) && !is_empty_dir(path))
-		die(_("'%s' already exists"), path);
+	struct refspec *refspec;
+	const char *fetch_pattern;
 
-	name = worktree_basename(path, &len);
-	strbuf_addstr(&sb_repo,
-		      git_path("worktrees/%.*s", (int)(path + len - name), name));
-	len = sb_repo.len;
-	if (safe_create_leading_directories_const(sb_repo.buf))
-		die_errno(_("could not create leading directories of '%s'"),
-			  sb_repo.buf);
-	while (!stat(sb_repo.buf, &st)) {
-		counter++;
-		strbuf_setlen(&sb_repo, len);
-		strbuf_addf(&sb_repo, "%d", counter);
+	packet_trace_identity("clone");
+	argc = parse_options(argc, argv, prefix, builtin_clone_options,
+			     builtin_clone_usage, 0);
+
+	if (argc > 2)
+		usage_msg_opt(_("Too many arguments."),
+			builtin_clone_usage, builtin_clone_options);
+
+	if (argc == 0)
+		usage_msg_opt(_("You must specify a repository to clone."),
+			builtin_clone_usage, builtin_clone_options);
+
+	if (option_single_branch == -1)
+		option_single_branch = option_depth ? 1 : 0;
+
+	if (option_mirror)
+		option_bare = 1;
+
+	if (option_bare) {
+		if (option_origin)
+			die(_("--bare and --origin %s options are incompatible."),
+			    option_origin);
+		if (real_git_dir)
+			die(_("--bare and --separate-git-dir are incompatible."));
+		option_no_checkout = 1;
 	}
-	name = strrchr(sb_repo.buf, '/') + 1;
 
-	junk_pid = getpid();
+	if (!option_origin)
+		option_origin = "origin";
+
+	repo_name = argv[0];
+
+	path = get_repo_path(repo_name, &is_bundle);
+	if (path)
+		repo = xstrdup(absolute_path(repo_name));
+	else if (!strchr(repo_name, ':'))
+		die(_("repository '%s' does not exist"), repo_name);
+	else
+		repo = repo_name;
+
+	/* no need to be strict, transport_set_option() will validate it again */
+	if (option_depth && atoi(option_depth) < 1)
+		die(_("depth %s is not a positive number"), option_depth);
+
+	if (argc == 2)
+		dir = xstrdup(argv[1]);
+	else
+		dir = guess_dir_name(repo_name, is_bundle, option_bare);
+	strip_trailing_slashes(dir);
+
+	dest_exists = !stat(dir, &buf);
+	if (dest_exists && !is_empty_dir(dir))
+		die(_("destination path '%s' already exists and is not "
+			"an empty directory."), dir);
+
+	strbuf_addf(&reflog_msg, "clone: from %s", repo);
+
+	if (option_bare)
+		work_tree = NULL;
+	else {
+		work_tree = getenv("GIT_WORK_TREE");
+		if (work_tree && !stat(work_tree, &buf))
+			die(_("working tree '%s' already exists."), work_tree);
+	}
+
+	if (option_bare || work_tree)
+		git_dir = xstrdup(dir);
+	else {
+		work_tree = dir;
+		git_dir = mkpathdup("%s/.git", dir);
+	}
+
+	if (!option_bare) {
+		junk_work_tree = work_tree;
+		if (safe_create_leading_directories_const(work_tree) < 0)
+			die_errno(_("could not create leading directories of '%s'"),
+				  work_tree);
+		if (!dest_exists && mkdir(work_tree, 0777))
+			die_errno(_("could not create work tree dir '%s'."),
+				  work_tree);
+		set_git_work_tree(work_tree);
+	}
+	junk_git_dir = git_dir;
 	atexit(remove_junk);
 	sigchain_push_common(remove_junk_on_signal);
 
-	if (mkdir(sb_repo.buf, 0777))
-		die_errno(_("could not create directory of '%s'"), sb_repo.buf);
-	junk_git_dir = xstrdup(sb_repo.buf);
-	is_junk = 1;
+	if (safe_create_leading_directories_const(git_dir) < 0)
+		die(_("could not create leading directories of '%s'"), git_dir);
 
-	/*
-	 * lock the incomplete repo so prune won't delete it, unlock
-	 * after the preparation is over.
-	 */
-	strbuf_addf(&sb, "%s/locked", sb_repo.buf);
-	write_file(sb.buf, 1, "initializing\n");
-
-	strbuf_addf(&sb_git, "%s/.git", path);
-	if (safe_create_leading_directories_const(sb_git.buf))
-		die_errno(_("could not create leading directories of '%s'"),
-			  sb_git.buf);
-	junk_work_tree = xstrdup(path);
-
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "%s/gitdir", sb_repo.buf);
-	write_file(sb.buf, 1, "%s\n", real_path(sb_git.buf));
-	write_file(sb_git.buf, 1, "gitdir: %s/worktrees/%s\n",
-		   real_path(get_git_common_dir()), name);
-	/*
-	 * This is to keep resolve_ref() happy. We need a valid HEAD
-	 * or is_git_directory() will reject the directory. Moreover, HEAD
-	 * in the new worktree must resolve to the same value as HEAD in
-	 * the current tree since the command invoked to populate the new
-	 * worktree will be handed the branch/ref specified by the user.
-	 * For instance, if the user asks for the new worktree to be based
-	 * at HEAD~5, then the resolved HEAD~5 in the new worktree must
-	 * match the resolved HEAD~5 in the current tree in order to match
-	 * the user's expectation.
-	 */
-	if (!resolve_ref_unsafe("HEAD", 0, rev, NULL))
-		die(_("unable to resolve HEAD"));
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "%s/HEAD", sb_repo.buf);
-	write_file(sb.buf, 1, "%s\n", sha1_to_hex(rev));
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "%s/commondir", sb_repo.buf);
-	write_file(sb.buf, 1, "../..\n");
-
-	fprintf_ln(stderr, _("Enter %s (identifier %s)"), path, name);
-
-	setenv("GIT_CHECKOUT_NEW_WORKTREE", "1", 1);
-	setenv(GIT_DIR_ENVIRONMENT, sb_git.buf, 1);
-	setenv(GIT_WORK_TREE_ENVIRONMENT, path, 1);
-	memset(&cp, 0, sizeof(cp));
-	cp.git_cmd = 1;
-	cp.argv = child_argv;
-	ret = run_command(&cp);
-	if (!ret) {
-		is_junk = 0;
-		free(junk_work_tree);
-		free(junk_git_dir);
-		junk_work_tree = NULL;
-		junk_git_dir = NULL;
+	set_git_dir_init(git_dir, real_git_dir, 0);
+	if (real_git_dir) {
+		git_dir = real_git_dir;
+		junk_git_dir = real_git_dir;
 	}
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "%s/locked", sb_repo.buf);
-	unlink_or_warn(sb.buf);
-	strbuf_release(&sb);
-	strbuf_release(&sb_repo);
-	strbuf_release(&sb_git);
-	return ret;
+
+	if (0 <= option_verbosity) {
+		if (option_bare)
+			fprintf(stderr, _("Cloning into bare repository '%s'...\n"), dir);
+		else
+			fprintf(stderr, _("Cloning into '%s'...\n"), dir);
+	}
+	init_db(option_template, INIT_DB_QUIET);
+	write_config(&option_config);
+
+	git_config(git_default_config, NULL);
+
+	if (option_bare) {
+		if (option_mirror)
+			src_ref_prefix = "refs/";
+		strbuf_addstr(&branch_top, src_ref_prefix);
+
+		git_config_set("core.bare", "true");
+	} else {
+		strbuf_addf(&branch_top, "refs/remotes/%s/", option_origin);
+	}
+
+	strbuf_addf(&value, "+%s*:%s*", src_ref_prefix, branch_top.buf);
+	strbuf_addf(&key, "remote.%s.url", option_origin);
+	git_config_set(key.buf, repo);
+	strbuf_reset(&key);
+
+	if (option_reference.nr)
+		setup_reference();
+	else if (option_dissociate) {
+		warning(_("--dissociate given, but there is no --reference"));
+		option_dissociate = 0;
+	}
+
+	fetch_pattern = value.buf;
+	refspec = parse_fetch_refspec(1, &fetch_pattern);
+
+	strbuf_reset(&value);
+
+	remote = remote_get(option_origin);
+	transport = transport_get(remote, remote->url[0]);
+	path = get_repo_path(remote->url[0], &is_bundle);
+	is_local = option_local != 0 && path && !is_bundle;
+	if (is_local) {
+		if (option_depth)
+			warning(_("--depth is ignored in local clones; use file:// instead."));
+		if (!access(mkpath("%s/shallow", path), F_OK)) {
+			if (option_local > 0)
+				warning(_("source repository is shallow, ignoring --local"));
+			is_local = 0;
+		}
+	}
+	if (option_local > 0 && !is_local)
+		warning(_("--local is ignored"));
+	transport->cloning = 1;
+
+	if (!transport->get_refs_list || (!is_local && !transport->fetch))
+		die(_("Don't know how to clone %s"), transport->url);
+
+	transport_set_option(transport, TRANS_OPT_KEEP, "yes");
+
+	if (option_depth)
+		transport_set_option(transport, TRANS_OPT_DEPTH,
+				     option_depth);
+	if (option_single_branch)
+		transport_set_option(transport, TRANS_OPT_FOLLOWTAGS, "1");
+
+	transport_set_verbosity(transport, option_verbosity, option_progress);
+
+	if (option_upload_pack)
+		transport_set_option(transport, TRANS_OPT_UPLOADPACK,
+				     option_upload_pack);
+
+	if (transport->smart_options && !option_depth)
+		transport->smart_options->check_self_contained_and_connected = 1;
+
+	refs = transport_get_remote_refs(transport);
+
+	if (refs) {
+		mapped_refs = wanted_peer_refs(refs, refspec);
+		/*
+		 * transport_get_remote_refs() may return refs with null sha-1
+		 * in mapped_refs (see struct transport->get_refs_list
+		 * comment). In that case we need fetch it early because
+		 * remote_head code below relies on it.
+		 *
+		 * for normal clones, transport_get_remote_refs() should
+		 * return reliable ref set, we can delay cloning until after
+		 * remote HEAD check.
+		 */
+		for (ref = refs; ref; ref = ref->next)
+			if (is_null_sha1(ref->old_sha1)) {
+				complete_refs_before_fetch = 0;
+				break;
+			}
+
+		if (!is_local && !complete_refs_before_fetch)
+			transport_fetch_refs(transport, mapped_refs);
+
+		remote_head = find_ref_by_name(refs, "HEAD");
+		remote_head_points_at =
+			guess_remote_head(remote_head, mapped_refs, 0);
+
+		if (option_branch) {
+			our_head_points_at =
+				find_remote_branch(mapped_refs, option_branch);
+
+			if (!our_head_points_at)
+				die(_("Remote branch %s not found in upstream %s"),
+				    option_branch, option_origin);
+		}
+		else
+			our_head_points_at = remote_head_points_at;
+	}
+	else {
+		if (option_branch)
+			die(_("Remote branch %s not found in upstream %s"),
+					option_branch, option_origin);
+
+		warning(_("You appear to have cloned an empty repository."));
+		mapped_refs = NULL;
+		our_head_points_at = NULL;
+		remote_head_points_at = NULL;
+		remote_head = NULL;
+		option_no_checkout = 1;
+		if (!option_bare)
+			install_branch_config(0, "master", option_origin,
+					      "refs/heads/master");
+	}
+
+	write_refspec_config(src_ref_prefix, our_head_points_at,
+			remote_head_points_at, &branch_top);
+
+	if (is_local)
+		clone_local(path, git_dir);
+	else if (refs && complete_refs_before_fetch)
+		transport_fetch_refs(transport, mapped_refs);
+
+	update_remote_refs(refs, mapped_refs, remote_head_points_at,
+			   branch_top.buf, reflog_msg.buf, transport, !is_local);
+
+	update_head(our_head_points_at, remote_head, reflog_msg.buf);
+
+	transport_unlock_pack(transport);
+	transport_disconnect(transport);
+
+	if (option_dissociate)
+		dissociate_from_references();
+
+	junk_mode = JUNK_LEAVE_REPO;
+	err = checkout();
+
+	strbuf_release(&reflog_msg);
+	strbuf_release(&branch_top);
+	strbuf_release(&key);
+	strbuf_release(&value);
+	junk_mode = JUNK_LEAVE_ALL;
+
+	free(refspec);
+	return err;
 }

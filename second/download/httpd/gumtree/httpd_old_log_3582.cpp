@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      MODNAME ": invalid file type %d.", r->finfo.filetype);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "DBD: failed to initialise");

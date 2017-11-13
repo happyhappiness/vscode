@@ -1,1 +1,2 @@
-printf(" %s", find_unique_abbrev(p->item->object.oid.hash, abbrev));
+error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));

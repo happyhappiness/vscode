@@ -1,39 +1,27 @@
-struct object *parse_object(const unsigned char *sha1)
+int parse_opt_merge_filter(const struct option *opt, const char *arg, int unset)
 {
-	unsigned long size;
-	enum object_type type;
-	int eaten;
-	const unsigned char *repl = lookup_replace_object(sha1);
-	void *buffer;
-	struct object *obj;
+	struct ref_filter *rf = opt->value;
+	unsigned char sha1[20];
+	int no_merged = starts_with(opt->long_name, "no");
 
-	obj = lookup_object(sha1);
-	if (obj && obj->parsed)
-		return obj;
-
-	if ((obj && obj->type == OBJ_BLOB) ||
-	    (!obj && has_sha1_file(sha1) &&
-	     sha1_object_info(sha1, NULL) == OBJ_BLOB)) {
-		if (check_sha1_signature(repl, NULL, 0, NULL) < 0) {
-			error("sha1 mismatch %s", sha1_to_hex(repl));
-			return NULL;
+	if (rf->merge) {
+		if (no_merged) {
+			return opterror(opt, "is incompatible with --merged", 0);
+		} else {
+			return opterror(opt, "is incompatible with --no-merged", 0);
 		}
-		parse_blob_buffer(lookup_blob(sha1), NULL, 0);
-		return lookup_object(sha1);
 	}
 
-	buffer = read_sha1_file(sha1, &type, &size);
-	if (buffer) {
-		if (check_sha1_signature(repl, buffer, size, typename(type)) < 0) {
-			free(buffer);
-			error("sha1 mismatch %s", sha1_to_hex(repl));
-			return NULL;
-		}
+	rf->merge = no_merged
+		? REF_FILTER_MERGED_OMIT
+		: REF_FILTER_MERGED_INCLUDE;
 
-		obj = parse_object_buffer(sha1, type, size, buffer, &eaten);
-		if (!eaten)
-			free(buffer);
-		return obj;
-	}
-	return NULL;
+	if (get_sha1(arg, sha1))
+		die(_("malformed object name %s"), arg);
+
+	rf->merge_commit = lookup_commit_reference_gently(sha1, 0);
+	if (!rf->merge_commit)
+		return opterror(opt, "must point to a commit", 0);
+
+	return 0;
 }

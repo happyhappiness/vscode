@@ -1,11 +1,11 @@
 fputs(
-"              This option requires a library built with GSS-API or  SSPI  sup-\n"
-"              port.  Use  -V,  --version  to  see  if  your curl supports GSS-\n"
-"              API/SSPI and SPNEGO.\n"
+"              to use a local Metalink file at the time of this  writing.  Also\n"
+"              note  that  if  --metalink  and  --include  are  used  together,\n"
+"              --include will be ignored. This is because including headers  in\n"
+"              the  response  will break Metalink parser and if the headers are\n"
+"              included in the file described in Metalink file, hash check will\n"
+"              fail.\n"
 "\n"
-"              When using this option, you must also provide a fake -u,  --user\n"
-"              option  to  activate the authentication code properly. Sending a\n"
-"              '-u :' is enough as the user  name  and  password  from  the  -u\n"
-"              option aren't actually used.\n"
+"              (Added in 7.27.0, if built against the libmetalink library.)\n"
 "\n"
 , stdout);

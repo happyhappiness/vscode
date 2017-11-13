@@ -1,1 +1,1 @@
-error("%s: invalid sha1 pointer %s", refname, oid_to_hex(oid));
+die(_("git show %s: bad file"), obj_name);

@@ -1,1 +1,2 @@
-die(_("expected format: %%(color:<color>)"));
+error("unable to generate patch-id diff for %s",
+				     p->one->path);

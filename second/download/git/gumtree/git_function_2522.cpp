@@ -1,25 +1,12 @@
-static int default_edit_option(void)
+static int write_packed_entry_fn(struct ref_entry *entry, void *cb_data)
 {
-	static const char name[] = "GIT_MERGE_AUTOEDIT";
-	const char *e = getenv(name);
-	struct stat st_stdin, st_stdout;
+	enum peel_status peel_status = peel_entry(entry, 0);
 
-	if (have_message)
-		/* an explicit -m msg without --[no-]edit */
-		return 0;
-
-	if (e) {
-		int v = git_config_maybe_bool(name, e);
-		if (v < 0)
-			die("Bad value '%s' in environment '%s'", e, name);
-		return v;
-	}
-
-	/* Use editor if stdin and stdout are the same and is a tty */
-	return (!fstat(0, &st_stdin) &&
-		!fstat(1, &st_stdout) &&
-		isatty(0) && isatty(1) &&
-		st_stdin.st_dev == st_stdout.st_dev &&
-		st_stdin.st_ino == st_stdout.st_ino &&
-		st_stdin.st_mode == st_stdout.st_mode);
+	if (peel_status != PEEL_PEELED && peel_status != PEEL_NON_TAG)
+		error("internal error: %s is not a valid packed reference!",
+		      entry->name);
+	write_packed_entry(cb_data, entry->name, entry->u.value.oid.hash,
+			   peel_status == PEEL_PEELED ?
+			   entry->u.value.peeled.hash : NULL);
+	return 0;
 }

@@ -1,1 +1,1 @@
-die(_("Failed to resolve '%s' as a valid ref."), upstream);
+die(_("Could not find exact merge base."));

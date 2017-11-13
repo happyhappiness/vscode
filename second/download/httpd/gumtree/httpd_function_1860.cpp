@@ -1,50 +1,61 @@
-static int set_group_privs(void)
+static apr_status_t send_all_header_fields(header_struct *h,
+                                           const request_rec *r)
 {
-    if (!geteuid()) {
-        const char *name;
+    const apr_array_header_t *elts;
+    const apr_table_entry_t *t_elt;
+    const apr_table_entry_t *t_end;
+    struct iovec *vec;
+    struct iovec *vec_next;
 
-        /* Get username if passed as a uid */
-
-        if (unixd_config.user_name[0] == '#') {
-            struct passwd *ent;
-            uid_t uid = atoi(&unixd_config.user_name[1]);
-
-            if ((ent = getpwuid(uid)) == NULL) {
-                ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                         "getpwuid: couldn't determine user name from uid %u, "
-                         "you probably need to modify the User directive",
-                         (unsigned)uid);
-                return -1;
-            }
-
-            name = ent->pw_name;
-        }
-        else
-            name = unixd_config.user_name;
-
-#if !defined(OS2) && !defined(TPF)
-        /* OS/2 and TPF don't support groups. */
-
-        /*
-         * Set the GID before initgroups(), since on some platforms
-         * setgid() is known to zap the group list.
-         */
-        if (setgid(unixd_config.group_id) == -1) {
-            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                        "setgid: unable to set group id to Group %u",
-                        (unsigned)unixd_config.group_id);
-            return -1;
-        }
-
-        /* Reset `groups' attributes. */
-
-        if (initgroups(name, unixd_config.group_id) == -1) {
-            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                        "initgroups: unable to set groups for User %s "
-                        "and Group %u", name, (unsigned)unixd_config.group_id);
-            return -1;
-        }
-#endif /* !defined(OS2) && !defined(TPF) */
+    elts = apr_table_elts(r->headers_out);
+    if (elts->nelts == 0) {
+        return APR_SUCCESS;
     }
-    return 0;
+    t_elt = (const apr_table_entry_t *)(elts->elts);
+    t_end = t_elt + elts->nelts;
+    vec = (struct iovec *)apr_palloc(h->pool, 4 * elts->nelts *
+                                     sizeof(struct iovec));
+    vec_next = vec;
+
+    /* For each field, generate
+     *    name ": " value CRLF
+     */
+    do {
+        vec_next->iov_base = (void*)(t_elt->key);
+        vec_next->iov_len = strlen(t_elt->key);
+        vec_next++;
+        vec_next->iov_base = ": ";
+        vec_next->iov_len = sizeof(": ") - 1;
+        vec_next++;
+        vec_next->iov_base = (void*)(t_elt->val);
+        vec_next->iov_len = strlen(t_elt->val);
+        vec_next++;
+        vec_next->iov_base = CRLF;
+        vec_next->iov_len = sizeof(CRLF) - 1;
+        vec_next++;
+        t_elt++;
+    } while (t_elt < t_end);
+
+    if (APLOGrtrace4(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                      "Headers sent to client:");
+        t_elt = (const apr_table_entry_t *)(elts->elts);
+        do {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "%s: %s",
+                          ap_escape_logitem(r->pool, t_elt->key),
+                          ap_escape_logitem(r->pool, t_elt->val));
+            t_elt++;
+        } while (t_elt < t_end);
+    }
+
+#if APR_CHARSET_EBCDIC
+    {
+        apr_size_t len;
+        char *tmp = apr_pstrcatv(r->pool, vec, vec_next - vec, &len);
+        ap_xlate_proto_to_ascii(tmp, len);
+        return apr_brigade_write(h->bb, NULL, NULL, tmp, len);
+    }
+#else
+    return apr_brigade_writev(h->bb, NULL, NULL, vec, vec_next - vec);
+#endif
 }

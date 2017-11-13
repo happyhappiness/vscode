@@ -1,0 +1,1 @@
+fprintf(out, "local const unsigned long FAR ");

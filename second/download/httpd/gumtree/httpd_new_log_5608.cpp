@@ -1,2 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03009)
-                              "%d:  <function>", i);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02824)
+                         "%s: connection established with %pI (%s)",
+                         proxy_function,
+                         backend_addr,
+                         worker->s->hostname);

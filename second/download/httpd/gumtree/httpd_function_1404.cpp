@@ -1,33 +1,43 @@
-static void filter_insert(request_rec *r)
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
 {
-    mod_filter_chain *p;
-    ap_filter_rec_t *filter;
-    mod_filter_cfg *cfg = ap_get_module_config(r->per_dir_config,
-                                               &filter_module);
-#ifndef NO_PROTOCOL
-    int ranges = 1;
-    mod_filter_ctx *ctx = apr_pcalloc(r->pool, sizeof(mod_filter_ctx));
-    ap_set_module_config(r->request_config, &filter_module, ctx);
-#endif
 
-    for (p = cfg->chain; p; p = p->next) {
-        filter = apr_hash_get(cfg->live_filters, p->fname, APR_HASH_KEY_STRING);
-        if (filter == NULL) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "Unknown filter %s not added", p->fname);
-            continue;
+    apr_status_t rv;
+
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Lock failed for post_request",
+            balancer->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (!apr_is_empty_array(balancer->errstatuses)) {
+        int i;
+        for (i = 0; i < balancer->errstatuses->nelts; i++) {
+            int val = ((int *)balancer->errstatuses->elts)[i];
+            if (r->status == val) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "proxy: BALANCER: (%s).  Forcing recovery for worker (%s), failonstatus %d",
+                             balancer->name, worker->name, val);
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+                break;
+            }
         }
-        ap_add_output_filter_handle(filter, NULL, r, r->connection);
-#ifndef NO_PROTOCOL
-        if (ranges && (filter->proto_flags
-                       & (AP_FILTER_PROTO_NO_BYTERANGE
-                          | AP_FILTER_PROTO_CHANGE_LENGTH))) {
-            ctx->range = apr_table_get(r->headers_in, "Range");
-            apr_table_unset(r->headers_in, "Range");
-            ranges = 0;
-        }
-#endif
     }
 
-    return;
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
+
+    if (worker && worker->s->busy)
+        worker->s->busy--;
+
+    return OK;
+
 }

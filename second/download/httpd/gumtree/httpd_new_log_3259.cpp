@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01348) "unknown value "
-                              "\"%s\" to parameter \"sizefmt\" of tag config "
-                              "in %s", parsed_string, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r, APLOGNO(01629)
+                          "authorization failure (no authenticated user): %s",
+                          r->uri);

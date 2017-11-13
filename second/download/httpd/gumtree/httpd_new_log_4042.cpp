@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00936)
-                          "apr_socket_opt_set(SO_RCVBUF): Failed to set "
-                          "ProxyReceiveBufferSize, using default");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, r, APLOGNO(01507)
+                    MODNAME ": request config should not be NULL");

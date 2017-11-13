@@ -1,1 +1,2 @@
-die(_("positive width expected with the %%(align) atom"));
+die("unknown %.*s format %s",
+				    (int)(formatp - name), name, formatp);

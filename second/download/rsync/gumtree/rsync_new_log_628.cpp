@@ -1,1 +1,2 @@
-flist_expand(flist);
+rprintf(FERROR,"write %s: %s\n",
+				dest,strerror(errno));

@@ -1,1 +1,1 @@
-printf(" %s", oid_to_hex(&children->item->object.oid));
+die("packed refname is dangerous: %s", refname);

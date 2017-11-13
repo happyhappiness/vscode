@@ -1,8 +1,9 @@
 fputs(
-"              to a server. You may specify any number of extra  headers.  Note\n"
-"              that if you should add a custom header that has the same name as\n"
-"              one of the internal ones curl would  use,  your  externally  set\n"
-"              header will be used instead of the internal one. This allows you\n"
-"              to make even trickier stuff than curl  would  normally  do.  You\n"
-"              should  not  replace internally set headers without knowing per-\n"
+"              low the FTP transaction. The default mode is passive. See --ftp-\n"
+"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
+"\n"
+"       --ftp-ssl-ccc-mode [active/passive]\n"
+"              (FTP) Use CCC (Clear Command Channel) Sets  the  CCC  mode.  The\n"
+"              passive  mode  will  not initiate the shutdown, but instead wait\n"
+"              for the server to do it, and will not reply to the shutdown from\n"
 , stdout);

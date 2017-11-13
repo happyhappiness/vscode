@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01099)
-                                       "No HTTP headers returned by %s (%s)",
-                                       r->uri, r->method);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00649)
+                            "could not open transfer log file %s.", fname);

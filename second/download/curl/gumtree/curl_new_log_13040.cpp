@@ -1,12 +1,9 @@
 fputs(
-"       Using  an  environment variable to set the proxy has the same effect as\n"
-"       using the --proxy option.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       http_proxy [protocol://]<host>[:port]\n"
-"              Sets the proxy server to use for HTTP.\n"
-"       HTTPS_PROXY [protocol://]<host>[:port]\n"
-"              Sets the proxy server to use for HTTPS.\n"
-"\n"
-"       [url-protocol]_PROXY [protocol://]<host>[:port]\n"
-"              Sets the proxy server to use for [url-protocol], where the  pro-\n"
+"       -z, --time-cond <date expression>|<file>\n"
+"              (HTTP/FTP) Request a file that has been modified later than  the\n"
+"              given  time  and date, or one that has been modified before that\n"
+"              time. The <date expression> can be all sorts of date strings  or\n"
+"              if it doesn't match any internal ones, it is taken as a filename\n"
 , stdout);

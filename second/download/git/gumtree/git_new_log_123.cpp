@@ -1,1 +1,1 @@
-error("Unable to append to %s", log_file);
+die("%s", err.buf);

@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s is a hard link\n",f_name(file));
+fprintf(FINFO, "sum=%.8x k=%d\n", sum, k);

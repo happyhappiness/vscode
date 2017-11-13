@@ -1,1 +1,1 @@
-ap_rputs("<th>HC Method</th><th>HC Interval</th><th>Passes</th><th>Fails</th><th>HC uri</th><th>HC Expr</th>", r);
+h2_conn_create(mplx->c, task->pool);

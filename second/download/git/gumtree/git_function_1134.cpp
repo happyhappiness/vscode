@@ -1,29 +1,67 @@
-void die_path_inside_submodule(const struct index_state *istate,
-			       const struct pathspec *ps)
+unsigned is_submodule_modified(const char *path, int ignore_untracked)
 {
-	int i, j;
+	ssize_t len;
+	struct child_process cp = CHILD_PROCESS_INIT;
+	const char *argv[] = {
+		"status",
+		"--porcelain",
+		NULL,
+		NULL,
+	};
+	struct strbuf buf = STRBUF_INIT;
+	unsigned dirty_submodule = 0;
+	const char *line, *next_line;
+	const char *git_dir;
 
-	for (i = 0; i < istate->cache_nr; i++) {
-		struct cache_entry *ce = istate->cache[i];
-		int ce_len = ce_namelen(ce);
+	strbuf_addf(&buf, "%s/.git", path);
+	git_dir = read_gitfile(buf.buf);
+	if (!git_dir)
+		git_dir = buf.buf;
+	if (!is_directory(git_dir)) {
+		strbuf_release(&buf);
+		/* The submodule is not checked out, so it is not modified */
+		return 0;
 
-		if (!S_ISGITLINK(ce->ce_mode))
-			continue;
-
-		for (j = 0; j < ps->nr ; j++) {
-			const struct pathspec_item *item = &ps->items[j];
-
-			if (item->len <= ce_len)
-				continue;
-			if (item->match[ce_len] != '/')
-				continue;
-			if (strncmp(ce->name, item->match, ce_len))
-				continue;
-			if (item->len == ce_len + 1)
-				continue;
-
-			die(_("Pathspec '%s' is in submodule '%.*s'"),
-			    item->original, ce_len, ce->name);
-		}
 	}
+	strbuf_reset(&buf);
+
+	if (ignore_untracked)
+		argv[2] = "-uno";
+
+	cp.argv = argv;
+	prepare_submodule_repo_env(&cp.env_array);
+	cp.git_cmd = 1;
+	cp.no_stdin = 1;
+	cp.out = -1;
+	cp.dir = path;
+	if (start_command(&cp))
+		die("Could not run 'git status --porcelain' in submodule %s", path);
+
+	len = strbuf_read(&buf, cp.out, 1024);
+	line = buf.buf;
+	while (len > 2) {
+		if ((line[0] == '?') && (line[1] == '?')) {
+			dirty_submodule |= DIRTY_SUBMODULE_UNTRACKED;
+			if (dirty_submodule & DIRTY_SUBMODULE_MODIFIED)
+				break;
+		} else {
+			dirty_submodule |= DIRTY_SUBMODULE_MODIFIED;
+			if (ignore_untracked ||
+			    (dirty_submodule & DIRTY_SUBMODULE_UNTRACKED))
+				break;
+		}
+		next_line = strchr(line, '\n');
+		if (!next_line)
+			break;
+		next_line++;
+		len -= (next_line - line);
+		line = next_line;
+	}
+	close(cp.out);
+
+	if (finish_command(&cp))
+		die("'git status --porcelain' failed in submodule %s", path);
+
+	strbuf_release(&buf);
+	return dirty_submodule;
 }

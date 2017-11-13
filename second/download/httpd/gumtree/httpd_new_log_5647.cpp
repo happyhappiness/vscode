@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02254)
-                                  "Reduced client verification depth will "
-                                  "force renegotiation");
+fprintf(stderr, "The '%s' service is not started.\n", mpm_display_name);

@@ -1,40 +1,40 @@
-static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
-                                   apr_file_t *child_in)
+static int
+proxy_ftp_command(const char *cmd, request_rec *r, conn_rec *ftp_ctrl,
+                  apr_bucket_brigade *bb, char **pmessage)
 {
-    apr_status_t rv;
-    int lcnt = 0;
-    ap_listen_rec *lr;
-    LPWSAPROTOCOL_INFO  lpWSAProtocolInfo;
-    apr_size_t BytesWritten;
+    char *crlf;
+    int rc;
+    char message[HUGE_STRING_LEN];
 
-    /* Run the chain of open sockets. For each socket, duplicate it
-     * for the target process then send the WSAPROTOCOL_INFO
-     * (returned by dup socket) to the child.
-     */
-    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
-        apr_os_sock_t nsd;
-        lpWSAProtocolInfo = apr_pcalloc(p, sizeof(WSAPROTOCOL_INFO));
-        apr_os_sock_get(&nsd, lr->sd);
-        ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                     "Parent: Duplicating socket %d and sending it to child process %lu",
-                     nsd, dwProcessId);
-        if (WSADuplicateSocket(nsd, dwProcessId,
-                               lpWSAProtocolInfo) == SOCKET_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
-                         "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", nsd);
-            return -1;
-        }
+    /* If cmd == NULL, we retrieve the next ftp response line */
+    if (cmd != NULL) {
+        conn_rec *c = r->connection;
+        APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_pool_create(cmd, strlen(cmd), r->pool, c->bucket_alloc));
+        APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_flush_create(c->bucket_alloc));
+        ap_pass_brigade(ftp_ctrl->output_filters, bb);
 
-        if ((rv = apr_file_write_full(child_in, lpWSAProtocolInfo,
-                                      sizeof(WSAPROTOCOL_INFO), &BytesWritten))
-                != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                         "Parent: Unable to write duplicated socket %d to the child.", nsd);
-            return -1;
-        }
+        /* strip off the CRLF for logging */
+        apr_cpystrn(message, cmd, sizeof(message));
+        if ((crlf = strchr(message, '\r')) != NULL ||
+            (crlf = strchr(message, '\n')) != NULL)
+            *crlf = '\0';
+        if (strncmp(message,"PASS ", 5) == 0)
+            strcpy(&message[5], "****");
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy:>FTP: %s", message);
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Parent: Sent %d listeners to child %lu", lcnt, dwProcessId);
-    return 0;
+    rc = ftp_getrc_msg(ftp_ctrl, bb, message, sizeof message);
+    if (rc == -1 || rc == 421)
+        strcpy(message,"<unable to read result>");
+    if ((crlf = strchr(message, '\r')) != NULL ||
+        (crlf = strchr(message, '\n')) != NULL)
+        *crlf = '\0';
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy:<FTP: %3.3u %s", rc, message);
+
+    if (pmessage != NULL)
+        *pmessage = apr_pstrdup(r->pool, message);
+
+    return rc;
 }

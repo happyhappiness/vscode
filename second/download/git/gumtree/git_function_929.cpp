@@ -1,113 +1,64 @@
-static int parse_mail(struct am_state *state, const char *mail)
+static int git_config_parse_key_1(const char *key, char **store_key, int *baselen_, int quiet)
 {
-	FILE *fp;
-	struct strbuf sb = STRBUF_INIT;
-	struct strbuf msg = STRBUF_INIT;
-	struct strbuf author_name = STRBUF_INIT;
-	struct strbuf author_date = STRBUF_INIT;
-	struct strbuf author_email = STRBUF_INIT;
-	int ret = 0;
-	struct mailinfo mi;
+	int i, dot, baselen;
+	const char *last_dot = strrchr(key, '.');
 
-	setup_mailinfo(&mi);
+	/*
+	 * Since "key" actually contains the section name and the real
+	 * key name separated by a dot, we have to know where the dot is.
+	 */
 
-	if (state->utf8)
-		mi.metainfo_charset = get_commit_output_encoding();
-	else
-		mi.metainfo_charset = NULL;
-
-	switch (state->keep) {
-	case KEEP_FALSE:
-		break;
-	case KEEP_TRUE:
-		mi.keep_subject = 1;
-		break;
-	case KEEP_NON_PATCH:
-		mi.keep_non_patch_brackets_in_subject = 1;
-		break;
-	default:
-		die("BUG: invalid value for state->keep");
+	if (last_dot == NULL || last_dot == key) {
+		if (!quiet)
+			error("key does not contain a section: %s", key);
+		return -CONFIG_NO_SECTION_OR_NAME;
 	}
 
-	if (state->message_id)
-		mi.add_message_id = 1;
-
-	switch (state->scissors) {
-	case SCISSORS_UNSET:
-		break;
-	case SCISSORS_FALSE:
-		mi.use_scissors = 0;
-		break;
-	case SCISSORS_TRUE:
-		mi.use_scissors = 1;
-		break;
-	default:
-		die("BUG: invalid value for state->scissors");
+	if (!last_dot[1]) {
+		if (!quiet)
+			error("key does not contain variable name: %s", key);
+		return -CONFIG_NO_SECTION_OR_NAME;
 	}
 
-	mi.input = fopen(mail, "r");
-	if (!mi.input)
-		die("could not open input");
-	mi.output = fopen(am_path(state, "info"), "w");
-	if (!mi.output)
-		die("could not open output 'info'");
-	if (mailinfo(&mi, am_path(state, "msg"), am_path(state, "patch")))
-		die("could not parse patch");
+	baselen = last_dot - key;
+	if (baselen_)
+		*baselen_ = baselen;
 
-	fclose(mi.input);
-	fclose(mi.output);
+	/*
+	 * Validate the key and while at it, lower case it for matching.
+	 */
+	if (store_key)
+		*store_key = xmallocz(strlen(key));
 
-	/* Extract message and author information */
-	fp = xfopen(am_path(state, "info"), "r");
-	while (!strbuf_getline_lf(&sb, fp)) {
-		const char *x;
-
-		if (skip_prefix(sb.buf, "Subject: ", &x)) {
-			if (msg.len)
-				strbuf_addch(&msg, '\n');
-			strbuf_addstr(&msg, x);
-		} else if (skip_prefix(sb.buf, "Author: ", &x))
-			strbuf_addstr(&author_name, x);
-		else if (skip_prefix(sb.buf, "Email: ", &x))
-			strbuf_addstr(&author_email, x);
-		else if (skip_prefix(sb.buf, "Date: ", &x))
-			strbuf_addstr(&author_date, x);
-	}
-	fclose(fp);
-
-	/* Skip pine's internal folder data */
-	if (!strcmp(author_name.buf, "Mail System Internal Data")) {
-		ret = 1;
-		goto finish;
+	dot = 0;
+	for (i = 0; key[i]; i++) {
+		unsigned char c = key[i];
+		if (c == '.')
+			dot = 1;
+		/* Leave the extended basename untouched.. */
+		if (!dot || i > baselen) {
+			if (!iskeychar(c) ||
+			    (i == baselen + 1 && !isalpha(c))) {
+				if (!quiet)
+					error("invalid key: %s", key);
+				goto out_free_ret_1;
+			}
+			c = tolower(c);
+		} else if (c == '\n') {
+			if (!quiet)
+				error("invalid key (newline): %s", key);
+			goto out_free_ret_1;
+		}
+		if (store_key)
+			(*store_key)[i] = c;
 	}
 
-	if (is_empty_file(am_path(state, "patch"))) {
-		printf_ln(_("Patch is empty. Was it split wrong?"));
-		die_user_resolve(state);
+	return 0;
+
+out_free_ret_1:
+	if (store_key) {
+		free(*store_key);
+		*store_key = NULL;
 	}
-
-	strbuf_addstr(&msg, "\n\n");
-	strbuf_addbuf(&msg, &mi.log_message);
-	strbuf_stripspace(&msg, 0);
-
-	assert(!state->author_name);
-	state->author_name = strbuf_detach(&author_name, NULL);
-
-	assert(!state->author_email);
-	state->author_email = strbuf_detach(&author_email, NULL);
-
-	assert(!state->author_date);
-	state->author_date = strbuf_detach(&author_date, NULL);
-
-	assert(!state->msg);
-	state->msg = strbuf_detach(&msg, &state->msg_len);
-
-finish:
-	strbuf_release(&msg);
-	strbuf_release(&author_date);
-	strbuf_release(&author_email);
-	strbuf_release(&author_name);
-	strbuf_release(&sb);
-	clear_mailinfo(&mi);
-	return ret;
+	return -CONFIG_INVALID_KEY;
 }

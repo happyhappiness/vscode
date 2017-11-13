@@ -1,26 +1,30 @@
-static int local_tzoffset(timestamp_t time)
+static void setup_git_env(void)
 {
-	time_t t, t_local;
-	struct tm tm;
-	int offset, eastwest;
+	struct strbuf sb = STRBUF_INIT;
+	const char *gitfile;
+	const char *shallow_file;
+	const char *replace_ref_base;
 
-	if (date_overflows(time))
-		die("Timestamp too large for this system: %"PRItime, time);
-
-	t = (time_t)time;
-	localtime_r(&t, &tm);
-	t_local = tm_to_time_t(&tm);
-
-	if (t_local == -1)
-		return 0; /* error; just use +0000 */
-	if (t_local < t) {
-		eastwest = -1;
-		offset = t - t_local;
-	} else {
-		eastwest = 1;
-		offset = t_local - t;
+	git_dir = getenv(GIT_DIR_ENVIRONMENT);
+	if (!git_dir) {
+		if (!startup_info->have_repository)
+			die("BUG: setup_git_env called without repository");
+		git_dir = DEFAULT_GIT_DIR_ENVIRONMENT;
 	}
-	offset /= 60; /* in minutes */
-	offset = (offset % 60) + ((offset / 60) * 100);
-	return offset * eastwest;
-}
+	gitfile = read_gitfile(git_dir);
+	git_dir = xstrdup(gitfile ? gitfile : git_dir);
+	if (get_common_dir(&sb, git_dir))
+		git_common_dir_env = 1;
+	git_common_dir = strbuf_detach(&sb, NULL);
+	git_object_dir = git_path_from_env(DB_ENVIRONMENT, git_common_dir,
+					   "objects", &git_db_env);
+	git_index_file = git_path_from_env(INDEX_ENVIRONMENT, git_dir,
+					   "index", &git_index_env);
+	git_graft_file = git_path_from_env(GRAFT_ENVIRONMENT, git_common_dir,
+					   "info/grafts", &git_graft_env);
+	if (getenv(NO_REPLACE_OBJECTS_ENVIRONMENT))
+		check_replace_refs = 0;
+	replace_ref_base = getenv(GIT_REPLACE_REF_BASE_ENVIRONMENT);
+	git_replace_ref_base = xstrdup(replace_ref_base ? replace_ref_base
+							  : "refs/replace/");
+	namespace = expand_namespace(getenv(GIT_NAMESPACE_ENVIRONMENT)

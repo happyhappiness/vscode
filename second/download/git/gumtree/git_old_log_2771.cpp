@@ -1,2 +1,2 @@
-error("Could not push to %s",
-				rsync_url(transport->url));
+warning ("Could not remove temporary directory %s.",
+				temp_dir.buf);

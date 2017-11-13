@@ -1,1 +1,1 @@
-strbuf_addstr(err, _("too-short tree object"));
+die("BUG: oid abbreviation out of range: %d", abbrev);

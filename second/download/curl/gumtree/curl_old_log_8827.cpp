@@ -1,11 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
+"              list           details           on           this          URL:\n"
+"              http://www.openssl.org/docs/apps/ciphers.html\n"
 "\n"
-"       --create-dirs\n"
-"              When  used  in  conjunction with the -o option, curl will create\n"
-"              the necessary local directory hierarchy as needed.  This  option\n"
-"              creates  the dirs mentioned with the -o option, nothing else. If\n"
-"              the -o file name uses no dir or if the dirs it mentions  already\n"
-"              exist, no dir will be created.\n"
-"\n"
+"              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
+"              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
+"              URL:                                          http://git.fedora-\n"
 , stdout);

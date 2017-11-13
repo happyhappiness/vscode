@@ -1,64 +1,80 @@
-static const char *util_ldap_set_trusted_global_cert(cmd_parms *cmd,
-                                                     void *dummy,
-                                                     const char *type,
-                                                     const char *file,
-                                                     const char *password)
+static void cache_the_file(cmd_parms *cmd, const char *filename, int mmap)
 {
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
-                                                  &ldap_module);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    apr_finfo_t finfo;
-    apr_status_t rv;
-    int cert_type = 0;
-    apr_ldap_opt_tls_cert_t *cert;
+    a_server_config *sconf;
+    a_file *new_file;
+    a_file tmp;
+    apr_file_t *fd = NULL;
+    apr_status_t rc;
+    const char *fspec;
 
-    if (err != NULL) {
-        return err;
+    fspec = ap_server_root_relative(cmd->pool, filename);
+    if (!fspec) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
+                     "mod_file_cache: invalid file path "
+                     "%s, skipping", filename);
+        return;
+    }
+    if ((rc = apr_stat(&tmp.finfo, fspec, APR_FINFO_MIN,
+                                 cmd->temp_pool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+            "mod_file_cache: unable to stat(%s), skipping", fspec);
+        return;
+    }
+    if (tmp.finfo.filetype != APR_REG) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+            "mod_file_cache: %s isn't a regular file, skipping", fspec);
+        return;
+    }
+    if (tmp.finfo.size > AP_MAX_SENDFILE) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+            "mod_file_cache: %s is too large to cache, skipping", fspec);
+        return;
     }
 
-    /* handle the certificate type */
-    if (type) {
-        cert_type = util_ldap_parse_cert_type(type);
-        if (APR_LDAP_CA_TYPE_UNKNOWN == cert_type) {
-           return apr_psprintf(cmd->pool, "The certificate type %s is "
-                                          "not recognised. It should be one "
-                                          "of CA_DER, CA_BASE64, CA_CERT7_DB, "
-                                          "CA_SECMOD, CERT_DER, CERT_BASE64, "
-                                          "CERT_KEY3_DB, CERT_NICKNAME, "
-                                          "KEY_DER, KEY_BASE64", type);
+    rc = apr_file_open(&fd, fspec, APR_READ | APR_BINARY | APR_XTHREAD,
+                       APR_OS_DEFAULT, cmd->pool);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                     "mod_file_cache: unable to open(%s, O_RDONLY), skipping", fspec);
+        return;
+    }
+    apr_file_inherit_set(fd);
+
+    /* WooHoo, we have a file to put in the cache */
+    new_file = apr_pcalloc(cmd->pool, sizeof(a_file));
+    new_file->finfo = tmp.finfo;
+
+#if APR_HAS_MMAP
+    if (mmap) {
+        /* MMAPFile directive. MMAP'ing the file
+         * XXX: APR_HAS_LARGE_FILES issue; need to reject this request if
+         * size is greater than MAX(apr_size_t) (perhaps greater than 1M?).
+         */
+        if ((rc = apr_mmap_create(&new_file->mm, fd, 0,
+                                  (apr_size_t)new_file->finfo.size,
+                                  APR_MMAP_READ, cmd->pool)) != APR_SUCCESS) {
+            apr_file_close(fd);
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                         "mod_file_cache: unable to mmap %s, skipping", filename);
+            return;
         }
+        apr_file_close(fd);
+        new_file->is_mmapped = TRUE;
     }
-    else {
-        return "Certificate type was not specified.";
+#endif
+#if APR_HAS_SENDFILE
+    if (!mmap) {
+        /* CacheFile directive. Caching the file handle */
+        new_file->is_mmapped = FALSE;
+        new_file->file = fd;
     }
+#endif
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                      "LDAP: SSL trusted global cert - %s (type %s)",
-                       file, type);
+    new_file->filename = fspec;
+    apr_rfc822_date(new_file->mtimestr, new_file->finfo.mtime);
+    apr_snprintf(new_file->sizestr, sizeof new_file->sizestr, "%" APR_OFF_T_FMT, new_file->finfo.size);
 
-    /* add the certificate to the global array */
-    cert = (apr_ldap_opt_tls_cert_t *)apr_array_push(st->global_certs);
-    cert->type = cert_type;
-    cert->path = file;
-    cert->password = password;
+    sconf = ap_get_module_config(cmd->server->module_config, &file_cache_module);
+    apr_hash_set(sconf->fileht, new_file->filename, strlen(new_file->filename), new_file);
 
-    /* if file is a file or path, fix the path */
-    if (cert_type != APR_LDAP_CA_TYPE_UNKNOWN &&
-        cert_type != APR_LDAP_CERT_TYPE_NICKNAME) {
-
-        cert->path = ap_server_root_relative(cmd->pool, file);
-        if (cert->path &&
-            ((rv = apr_stat (&finfo, cert->path, APR_FINFO_MIN, cmd->pool))
-                != APR_SUCCESS))
-        {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cmd->server,
-                         "LDAP: Could not open SSL trusted certificate "
-                         "authority file - %s",
-                         cert->path == NULL ? file : cert->path);
-            return "Invalid global certificate file path";
-        }
-    }
-
-    return(NULL);
 }

@@ -1,11 +1,11 @@
 fputs(
-"              string  with  single  quote marks. This can also be set with the\n"
-"              -H, --header option of course.\n"
+"              libcurl was built with an SSL library that supports  ALPN.  ALPN\n"
+"              is  used  by  a libcurl that supports HTTP 2 to negotiate HTTP 2\n"
+"              support with the server during https sessions.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              (Added in 7.36.0)\n"
 "\n"
-"       --anyauth\n"
-"              (HTTP) Tells curl to figure out authentication method by itself,\n"
-"              and  use  the most secure one the remote site claims to support.\n"
-"              This is done by first doing a request and checking the response-\n"
+"       -1, --tlsv1\n"
+"              (SSL) Forces curl to use TLS version 1.x when negotiating with a\n"
+"              remote  TLS  server.   You can use options --tlsv1.0, --tlsv1.1,\n"
 , stdout);

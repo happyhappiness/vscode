@@ -1,1 +1,0 @@
-die("oops (%s)", sha1_to_hex(sha1));

@@ -1,189 +1,125 @@
-static apr_status_t store_body(cache_handle_t *h, request_rec *r, apr_bucket_brigade *b)
+static void usage(process_rec *process)
 {
-    apr_status_t rv;
-    cache_object_t *obj = h->cache_obj;
-    cache_object_t *tobj = NULL;
-    mem_cache_object_t *mobj = (mem_cache_object_t*) obj->vobj;
-    apr_read_type_e eblock = APR_BLOCK_READ;
-    apr_bucket *e;
-    char *cur;
+    const char *bin = process->argv[0];
+    char pad[MAX_STRING_LEN];
+    unsigned i;
 
-    if (mobj->type == CACHE_TYPE_FILE) {
-        apr_file_t *file = NULL;
-        int fd = 0;
-        int other = 0;
-        int eos = 0;
-
-        /* We can cache an open file descriptor if:
-         * - the brigade contains one and only one file_bucket &&
-         * - the brigade is complete &&
-         * - the file_bucket is the last data bucket in the brigade
-         */
-        for (e = APR_BRIGADE_FIRST(b);
-             e != APR_BRIGADE_SENTINEL(b);
-             e = APR_BUCKET_NEXT(e))
-        {
-            if (APR_BUCKET_IS_EOS(e)) {
-                eos = 1;
-            }
-            else if (APR_BUCKET_IS_FILE(e)) {
-                apr_bucket_file *a = e->data;
-                fd++;
-                file = a->fd;
-            }
-            else {
-                other++;
-            }
-        }
-        if (fd == 1 && !other && eos) {
-            apr_file_t *tmpfile;
-            const char *name;
-            /* Open a new XTHREAD handle to the file */
-            apr_file_name_get(&name, file);
-            mobj->flags = ((APR_SENDFILE_ENABLED & apr_file_flags_get(file))
-                           | APR_READ | APR_BINARY | APR_XTHREAD | APR_FILE_NOCLEANUP);
-            rv = apr_file_open(&tmpfile, name, mobj->flags,
-                               APR_OS_DEFAULT, r->pool);
-            if (rv != APR_SUCCESS) {
-                return rv;
-            }
-            apr_file_inherit_unset(tmpfile);
-            apr_os_file_get(&(mobj->fd), tmpfile);
-
-            /* Open for business */
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "mem_cache: Cached file: %s with key: %s", name, obj->key);
-            obj->complete = 1;
-            return APR_SUCCESS;
-        }
-
-        /* Content not suitable for fd caching. Cache in-memory instead. */
-        mobj->type = CACHE_TYPE_HEAP;
+    for (i = 0; i < strlen(bin); i++) {
+        pad[i] = ' ';
     }
 
-    /*
-     * FD cacheing is not enabled or the content was not
-     * suitable for fd caching.
-     */
-    if (mobj->m == NULL) {
-        mobj->m = malloc(mobj->m_len);
-        if (mobj->m == NULL) {
-            return APR_ENOMEM;
-        }
-        obj->count = 0;
-    }
-    cur = (char*) mobj->m + obj->count;
+    pad[i] = '\0';
 
-    /* Iterate accross the brigade and populate the cache storage */
-    for (e = APR_BRIGADE_FIRST(b);
-         e != APR_BRIGADE_SENTINEL(b);
-         e = APR_BUCKET_NEXT(e))
-    {
-        const char *s;
-        apr_size_t len;
+#ifdef SHARED_CORE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL ,
+                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
+                 bin);
+#else
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
+#endif
 
-        if (APR_BUCKET_IS_EOS(e)) {
-            const char *cl_header = apr_table_get(r->headers_out, "Content-Length");
-            if (cl_header) {
-                apr_int64_t cl = apr_atoi64(cl_header);
-                if ((errno == 0) && (obj->count != cl)) {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "mem_cache: URL %s didn't receive complete response, not caching",
-                                 h->cache_obj->key);
-                    return APR_EGENERAL;
-                }
-            }
-            if (mobj->m_len > obj->count) {
-                /* Caching a streamed response. Reallocate a buffer of the
-                 * correct size and copy the streamed response into that
-                 * buffer */
-                mobj->m = realloc(mobj->m, obj->count);
-                if (!mobj->m) {
-                    return APR_ENOMEM;
-                }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-C \"directive\"] [-c \"directive\"]", pad);
 
-                /* Now comes the crufty part... there is no way to tell the
-                 * cache that the size of the object has changed. We need
-                 * to remove the object, update the size and re-add the
-                 * object, all under protection of the lock.
-                 */
-                if (sconf->lock) {
-                    apr_thread_mutex_lock(sconf->lock);
-                }
-                /* Has the object been ejected from the cache?
-                 */
-                tobj = (cache_object_t *) cache_find(sconf->cache_cache, obj->key);
-                if (tobj == obj) {
-                    /* Object is still in the cache, remove it, update the len field then
-                     * replace it under protection of sconf->lock.
-                     */
-                    cache_remove(sconf->cache_cache, obj);
-                    /* For illustration, cache no longer has reference to the object
-                     * so decrement the refcount
-                     * apr_atomic_dec32(&obj->refcount);
-                     */
-                    mobj->m_len = obj->count;
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k install|config|uninstall] [-n service_name]",
+                 pad);
+#endif
+#ifdef AP_MPM_WANT_SIGNAL_SERVER
+#ifdef AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad);
+#else
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k start|restart|graceful|stop]",
+                 pad);
+#endif /* AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN */
+#endif
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Options:");
 
-                    cache_insert(sconf->cache_cache, obj);
-                    /* For illustration, cache now has reference to the object, so
-                     * increment the refcount
-                     * apr_atomic_inc32(&obj->refcount);
-                     */
-                }
-                else if (tobj) {
-                    /* Different object with the same key found in the cache. Doing nothing
-                     * here will cause the object refcount to drop to 0 in decrement_refcount
-                     * and the object will be cleaned up.
-                     */
+#ifdef SHARED_CORE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -R directory       : specify an alternate location for "
+                 "shared object files");
+#endif
 
-                } else {
-                    /* Object has been ejected from the cache, add it back to the cache */
-                    mobj->m_len = obj->count;
-                    cache_insert(sconf->cache_cache, obj);
-                    apr_atomic_inc32(&obj->refcount);
-                }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -D name            : define a name for use in "
+                 "<IfDefine name> directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -d directory       : specify an alternate initial "
+                 "ServerRoot");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -f file            : specify an alternate ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -C \"directive\"     : process directive before reading "
+                 "config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"     : process directive after reading "
+                 "config files");
 
-                if (sconf->lock) {
-                    apr_thread_mutex_unlock(sconf->lock);
-                }
-            }
-            /* Open for business */
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "mem_cache: Cached url: %s", obj->key);
-            obj->complete = 1;
-            break;
-        }
-        rv = apr_bucket_read(e, &s, &len, eblock);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-        if (len) {
-            /* Check for buffer (max_streaming_buffer_size) overflow  */
-           if ((obj->count + len) > mobj->m_len) {
-               ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                            "mem_cache: URL %s exceeds the MCacheMaxStreamingBuffer (%" APR_SIZE_T_FMT ") limit and will not be cached.", 
-                            obj->key, mobj->m_len);
-               return APR_ENOMEM;
-           }
-           else {
-               memcpy(cur, s, len);
-               cur+=len;
-               obj->count+=len;
-           }
-        }
-        /* This should not fail, but if it does, we are in BIG trouble
-         * cause we just stomped all over the heap.
-         */
-        AP_DEBUG_ASSERT(obj->count <= mobj->m_len);
-    }
-    if (r->connection->aborted && !obj->complete) {
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                     "mem_cache: Discarding body for URL %s "
-                     "because client connection was aborted.",
-                     obj->key);
-        /* No need to cleanup - obj->complete unset, so
-         * decrement_refcount will discard the object */
-        return APR_EGENERAL;
-    }
-    return APR_SUCCESS;
+#ifdef NETWARE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set screen name");
+#endif
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set service name and use its "
+                 "ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k start           : tell Apache to start");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k restart         : tell running Apache to do a graceful "
+                 "restart");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k stop|shutdown   : tell running Apache to shutdown");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k install         : install an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k config          : change startup Options of an Apache "
+                 "service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k uninstall       : uninstall an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -w                 : hold open the console window on error");
+#endif
+
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -e level           : show startup errors of level "
+                 "(see LogLevel)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -E file            : log startup errors to file");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -v                 : show version number");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -V                 : show compile settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -h                 : list available command line options "
+                 "(this page)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -l                 : list compiled in modules");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -L                 : list available configuration "
+                 "directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_VHOSTS  : show parsed settings (currently only "
+                 "vhost settings)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -S                 : a synonym for -t -D DUMP_VHOSTS");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_MODULES : show all loaded modules ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -M                 : a synonym for -t -D DUMP_MODULES");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                 : run syntax check for config files");
+
+    destroy_and_exit_process(process, 1);
 }

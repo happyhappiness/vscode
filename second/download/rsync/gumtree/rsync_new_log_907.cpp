@@ -1,1 +1,1 @@
-out_of_memory("start_inband_exchange");
+io_printf(f_out, "@ERROR: no path setting.\n");

@@ -1,4 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00334)
-                 "Child: Accept thread listening on %s:%d using AcceptFilter %s",
-                 lr->bind_addr->hostname ? lr->bind_addr->hostname : "*",
-                 lr->bind_addr->port, accf_name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01908)
+                             "%sID '%s' in %s certificate configured "
+                             "for %s matches server name",
+                             is_wildcard ? "Wildcard " : "",
+                             id[i], ssl_asn1_keystr(type),
+                             (mySrvConfig(s))->vhost_id);

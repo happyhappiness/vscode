@@ -1,1 +1,1 @@
-die("index file corrupt");
+printf("Fetching submodule %s%s\n", prefix, ce->name);

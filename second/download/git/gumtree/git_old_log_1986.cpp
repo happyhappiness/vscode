@@ -1,3 +1,3 @@
-fprintf(stderr,
-				"Resuming fetch of pack %s at byte %ld\n",
-				sha1_to_hex(target->sha1), prev_posn);
+error(remote_branch
+			      ? _("remote branch '%s' not found.")
+			      : _("branch '%s' not found."), bname.buf);

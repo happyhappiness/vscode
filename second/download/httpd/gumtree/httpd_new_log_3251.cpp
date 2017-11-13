@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01340) "unknown parameter \"%s\" "
-                      "to tag %s in %s", tag, directive, r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s, APLOGNO(01750)
+                     "Invalid charset conversion config path %s",
+                     (const char *)ap_get_module_config(s->module_config,
+                                                        &authnz_ldap_module));

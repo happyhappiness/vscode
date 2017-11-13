@@ -1,1 +1,2 @@
-printf("Merging %s with %s\n", o.branch1, o.branch2);
+printf("%5d %.*s%.*s\n", patch->lines_added + patch->lines_deleted,
+		add, pluses, del, minuses);

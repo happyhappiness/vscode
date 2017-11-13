@@ -1,35 +1,64 @@
-static void read_alternate_refs(const char *path,
-				alternate_ref_fn *cb,
-				void *data)
+static int git_config_parse_key_1(const char *key, char **store_key, int *baselen_, int quiet)
 {
-	struct child_process cmd = CHILD_PROCESS_INIT;
-	struct strbuf line = STRBUF_INIT;
-	FILE *fh;
+	int i, dot, baselen;
+	const char *last_dot = strrchr(key, '.');
 
-	cmd.git_cmd = 1;
-	argv_array_pushf(&cmd.args, "--git-dir=%s", path);
-	argv_array_push(&cmd.args, "for-each-ref");
-	argv_array_push(&cmd.args, "--format=%(objectname) %(refname)");
-	cmd.env = local_repo_env;
-	cmd.out = -1;
+	/*
+	 * Since "key" actually contains the section name and the real
+	 * key name separated by a dot, we have to know where the dot is.
+	 */
 
-	if (start_command(&cmd))
-		return;
-
-	fh = xfdopen(cmd.out, "r");
-	while (strbuf_getline_lf(&line, fh) != EOF) {
-		struct object_id oid;
-
-		if (get_oid_hex(line.buf, &oid) ||
-		    line.buf[GIT_SHA1_HEXSZ] != ' ') {
-			warning("invalid line while parsing alternate refs: %s",
-				line.buf);
-			break;
-		}
-
-		cb(line.buf + GIT_SHA1_HEXSZ + 1, &oid, data);
+	if (last_dot == NULL || last_dot == key) {
+		if (!quiet)
+			error("key does not contain a section: %s", key);
+		return -CONFIG_NO_SECTION_OR_NAME;
 	}
 
-	fclose(fh);
-	finish_command(&cmd);
+	if (!last_dot[1]) {
+		if (!quiet)
+			error("key does not contain variable name: %s", key);
+		return -CONFIG_NO_SECTION_OR_NAME;
+	}
+
+	baselen = last_dot - key;
+	if (baselen_)
+		*baselen_ = baselen;
+
+	/*
+	 * Validate the key and while at it, lower case it for matching.
+	 */
+	if (store_key)
+		*store_key = xmallocz(strlen(key));
+
+	dot = 0;
+	for (i = 0; key[i]; i++) {
+		unsigned char c = key[i];
+		if (c == '.')
+			dot = 1;
+		/* Leave the extended basename untouched.. */
+		if (!dot || i > baselen) {
+			if (!iskeychar(c) ||
+			    (i == baselen + 1 && !isalpha(c))) {
+				if (!quiet)
+					error("invalid key: %s", key);
+				goto out_free_ret_1;
+			}
+			c = tolower(c);
+		} else if (c == '\n') {
+			if (!quiet)
+				error("invalid key (newline): %s", key);
+			goto out_free_ret_1;
+		}
+		if (store_key)
+			(*store_key)[i] = c;
+	}
+
+	return 0;
+
+out_free_ret_1:
+	if (store_key) {
+		free(*store_key);
+		*store_key = NULL;
+	}
+	return -CONFIG_INVALID_KEY;
 }

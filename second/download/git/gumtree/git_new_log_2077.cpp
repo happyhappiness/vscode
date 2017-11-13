@@ -1,3 +1,2 @@
-error("Unable to determine requirements "
-		     "of type %s for %s",
-		     typename(obj->type), oid_to_hex(&obj->oid));
+die("No directory name could be guessed.\n"
+		"Please specify a directory on the command line");

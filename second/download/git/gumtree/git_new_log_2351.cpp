@@ -1,1 +1,1 @@
-die("%s is not a tree", oid_to_hex(hash));
+printf("root %s\n", oid_to_hex(&commit->object.oid));

@@ -1,1 +1,1 @@
-warning(_("insanely long object directory %.*s"), 50, objdir);
+printf("%s %s^{}\n", hex, refname);

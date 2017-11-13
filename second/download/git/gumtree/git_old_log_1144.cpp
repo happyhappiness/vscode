@@ -1,1 +1,3 @@
-status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));
+fprintf(stderr, _("Migrating git directory of '%s%s' from\n'%s' to\n'%s'\n"),
+		prefix ? prefix : "", path,
+		real_old_git_dir, real_new_git_dir);

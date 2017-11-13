@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02473) 
-                "cache: %s responded with an uncacheable 304, " 
-                "retrying the request. Reason: %s", 
-                r->unparsed_uri, reason);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02032)
+                             "Hostname %s provided via SNI and hostname %s provided"
+                             " via HTTP select a different server",
+                             servername, r->hostname);

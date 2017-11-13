@@ -1,51 +1,18 @@
-struct h2_stream *h2_session_push(h2_session *session, h2_stream *is,
-                                  h2_push *push)
+static void dump_vhost_config(apr_file_t *f)
 {
-    apr_status_t status;
-    h2_stream *stream;
-    h2_ngheader *ngh;
-    int nid;
-    
-    ngh = h2_util_ngheader_make_req(is->pool, push->req);
-    nid = nghttp2_submit_push_promise(session->ngh2, 0, is->id, 
-                                      ngh->nv, ngh->nvlen, NULL);
-                                      
-    if (nid <= 0) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): submitting push promise fail: %s",
-                      session->id, is->id, nghttp2_strerror(nid));
-        return NULL;
-    }
+    ipaddr_chain *ic;
+    int i;
 
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                  "h2_stream(%ld-%d): promised new stream %d for %s %s on %d",
-                  session->id, is->id, nid,
-                  push->req->method, push->req->path, is->id);
-                  
-    stream = h2_session_open_stream(session, nid);
-    if (stream) {
-        h2_stream_set_h2_request(stream, is->id, push->req);
-        status = stream_schedule(session, stream, 1);
-        if (status != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                          "h2_stream(%ld-%d): scheduling push stream",
-                          session->id, stream->id);
-            h2_stream_cleanup(stream);
-            stream = NULL;
+    apr_file_printf(f, "VirtualHost configuration:\n");
+    for (i = 0; i < IPHASH_TABLE_SIZE; ++i) {
+        for (ic = iphash_table[i]; ic; ic = ic->next) {
+            dump_a_vhost(f, ic);
         }
-        ++session->unsent_promises;
     }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): failed to create stream obj %d",
-                      session->id, is->id, nid);
+    if (default_list) {
+        apr_file_printf(f, "wildcard NameVirtualHosts and _default_ servers:\n");
+        for (ic = default_list; ic; ic = ic->next) {
+            dump_a_vhost(f, ic);
+        }
     }
-
-    if (!stream) {
-        /* try to tell the client that it should not wait. */
-        nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE, nid,
-                                  NGHTTP2_INTERNAL_ERROR);
-    }
-    
-    return stream;
 }

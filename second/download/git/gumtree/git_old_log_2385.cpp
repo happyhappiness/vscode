@@ -1,1 +1,1 @@
-error("short read %s", strerror(errno));
+printf("%s\n", sha1_to_hex(result->item->object.sha1));

@@ -1,12 +1,10 @@
 fputs(
-"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
-"              the file from stdin.\n"
+"              extracting a filename from the URL.\n"
 "\n"
-"              Note that to be able to specify a URL in the  config  file,  you\n"
-"              need  to  specify  it  using the --url option, and not by simply\n"
-"              writing the URL on its own line. So, it could  look  similar  to\n"
-"              this:\n"
+"              If  the  server  specifies a file name and a file with that name\n"
+"              already exists in the current working directory it will  not  be\n"
+"              overwritten and an error will occur. If the server doesn't spec-\n"
+"              ify a file name then this option has no effect.\n"
 "\n"
-"              url = \"https://curl.haxx.se/docs/\"\n"
-"\n"
+"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
 , stdout);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, status, NULL,
-                         "The DBM driver could not be loaded");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "proxy: Backend sent headers twice.");

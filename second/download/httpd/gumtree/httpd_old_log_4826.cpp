@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                     "Couldn't initialize signal thread");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "Init: Requesting pass phrase from dialog filter "
+                     "program (%s)", cmd);

@@ -1,93 +1,28 @@
-static apr_status_t find_directory(apr_pool_t *pool, const char *base,
-        const char *rest)
+static void h2_session_destroy(h2_session *session)
 {
-    apr_status_t rv;
-    apr_dir_t *dirp;
-    apr_finfo_t dirent;
-    int found = 0, files = 0;
-    const char *header = apr_pstrcat(pool, rest, CACHE_HEADER_SUFFIX, NULL);
-    const char *data = apr_pstrcat(pool, rest, CACHE_DATA_SUFFIX, NULL);
-    const char *vdir = apr_pstrcat(pool, rest, CACHE_HEADER_SUFFIX,
-            CACHE_VDIR_SUFFIX, NULL);
-    const char *dirname = NULL;
+    ap_assert(session);    
 
-    rv = apr_dir_open(&dirp, base, pool);
-    if (rv != APR_SUCCESS) {
-        char errmsg[120];
-        apr_file_printf(errfile, "Could not open directory %s: %s" APR_EOL_STR,
-                base, apr_strerror(rv, errmsg, sizeof errmsg));
-        return rv;
+    if (session->mplx) {
+        h2_mplx_set_consumed_cb(session->mplx, NULL, NULL);
+        h2_mplx_release_and_join(session->mplx, session->iowait);
+        session->mplx = NULL;
     }
 
-    rv = APR_ENOENT;
-
-    while (apr_dir_read(&dirent, APR_FINFO_DIRENT | APR_FINFO_TYPE, dirp)
-            == APR_SUCCESS) {
-        int len = strlen(dirent.name);
-        int restlen = strlen(rest);
-        if (dirent.filetype == APR_DIR && !strncmp(rest, dirent.name, len)) {
-            dirname = apr_pstrcat(pool, base, "/", dirent.name, NULL);
-            rv = find_directory(pool, dirname, rest + (len < restlen ? len
-                    : restlen));
-            if (APR_SUCCESS == rv) {
-                found = 1;
-            }
-        }
-        if (dirent.filetype == APR_DIR) {
-            if (!strcmp(dirent.name, vdir)) {
-                files = 1;
-            }
-        }
-        if (dirent.filetype == APR_REG) {
-            if (!strcmp(dirent.name, header) || !strcmp(dirent.name, data)) {
-                files = 1;
-            }
-        }
+    ap_remove_input_filter_byhandle((session->r? session->r->input_filters :
+                                     session->c->input_filters), "H2_IN");
+    if (session->ngh2) {
+        nghttp2_session_del(session->ngh2);
+        session->ngh2 = NULL;
+    }
+    if (session->c) {
+        h2_ctx_clear(session->c);
     }
 
-    apr_dir_close(dirp);
-
-    if (files) {
-        rv = APR_SUCCESS;
-        if (!dryrun) {
-            const char *remove;
-            apr_status_t status;
-
-            remove = apr_pstrcat(pool, base, "/", header, NULL);
-            status = apr_file_remove(remove, pool);
-            if (status != APR_SUCCESS && !APR_STATUS_IS_ENOENT(status)) {
-                char errmsg[120];
-                apr_file_printf(errfile, "Could not remove file %s: %s" APR_EOL_STR,
-                        remove, apr_strerror(status, errmsg, sizeof errmsg));
-                rv = status;
-            }
-
-            remove = apr_pstrcat(pool, base, "/", data, NULL);
-            status = apr_file_remove(remove, pool);
-            if (status != APR_SUCCESS && !APR_STATUS_IS_ENOENT(status)) {
-                char errmsg[120];
-                apr_file_printf(errfile, "Could not remove file %s: %s" APR_EOL_STR,
-                        remove, apr_strerror(status, errmsg, sizeof errmsg));
-                rv = status;
-            }
-
-            status = remove_directory(pool, apr_pstrcat(pool, base, "/", vdir, NULL));
-            if (status != APR_SUCCESS && !APR_STATUS_IS_ENOENT(status)) {
-                rv = status;
-            }
-        }
+    if (APLOGctrace1(session->c)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      "h2_session(%ld): destroy", session->id);
     }
-
-    /* If asked to delete dirs, do so now. We don't care if it fails.
-     * If it fails, it likely means there was something else there.
-     */
-    if (dirname && deldirs && !dryrun) {
-        apr_dir_remove(dirname, pool);
+    if (session->pool) {
+        apr_pool_destroy(session->pool);
     }
-
-    if (found) {
-        return APR_SUCCESS;
-    }
-
-    return rv;
 }

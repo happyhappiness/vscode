@@ -1,25 +1,27 @@
-static const char *parse_cmd_create(struct strbuf *input, const char *next)
+static void parse_cmd_update(const char *next)
 {
-	char *refname;
-	unsigned char new_sha1[20];
+	struct strbuf ref = STRBUF_INIT;
+	struct strbuf newvalue = STRBUF_INIT;
+	struct strbuf oldvalue = STRBUF_INIT;
+	struct ref_update *update;
 
-	refname = parse_refname(input, &next);
-	if (!refname)
-		die("create: missing <ref>");
+	update = update_alloc();
 
-	if (parse_next_sha1(input, &next, new_sha1, "create", refname, 0))
-		die("create %s: missing <newvalue>", refname);
+	if ((next = parse_first_arg(next, &ref)) != NULL && ref.buf[0])
+		update_store_ref_name(update, ref.buf);
+	else
+		die("update line missing <ref>");
 
-	if (is_null_sha1(new_sha1))
-		die("create %s: zero <newvalue>", refname);
+	if ((next = parse_next_arg(next, &newvalue)) != NULL)
+		update_store_new_sha1(update, newvalue.buf);
+	else
+		die("update %s missing <newvalue>", ref.buf);
 
-	if (*next != line_termination)
-		die("create %s: extra input: %s", refname, next);
+	if ((next = parse_next_arg(next, &oldvalue)) != NULL)
+		update_store_old_sha1(update, oldvalue.buf);
+	else if(!line_termination)
+		die("update %s missing [<oldvalue>] NUL", ref.buf);
 
-	ref_transaction_create(transaction, refname, new_sha1, update_flags);
-
-	update_flags = 0;
-	free(refname);
-
-	return next;
+	if (next && *next)
+		die("update %s has extra input: %s", ref.buf, next);
 }

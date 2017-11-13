@@ -1,24 +1,20 @@
-static void fill_origin_blob(struct diff_options *opt,
-			     struct origin *o, mmfile_t *file)
+static void print_bases(struct base_tree_info *bases, FILE *file)
 {
-	if (!o->file.ptr) {
-		enum object_type type;
-		unsigned long file_size;
+	int i;
 
-		num_read_blob++;
-		if (DIFF_OPT_TST(opt, ALLOW_TEXTCONV) &&
-		    textconv_object(o->path, o->mode, o->blob_sha1, 1, &file->ptr, &file_size))
-			;
-		else
-			file->ptr = read_sha1_file(o->blob_sha1, &type, &file_size);
-		file->size = file_size;
+	/* Only do this once, either for the cover or for the first one */
+	if (is_null_oid(&bases->base_commit))
+		return;
 
-		if (!file->ptr)
-			die("Cannot read blob %s for path %s",
-			    sha1_to_hex(o->blob_sha1),
-			    o->path);
-		o->file = *file;
-	}
-	else
-		*file = o->file;
+	/* Show the base commit */
+	fprintf(file, "base-commit: %s\n", oid_to_hex(&bases->base_commit));
+
+	/* Show the prerequisite patches */
+	for (i = bases->nr_patch_id - 1; i >= 0; i--)
+		fprintf(file, "prerequisite-patch-id: %s\n", oid_to_hex(&bases->patch_id[i]));
+
+	free(bases->patch_id);
+	bases->nr_patch_id = 0;
+	bases->alloc_patch_id = 0;
+	oidclr(&bases->base_commit);
 }

@@ -1,1 +1,1 @@
-die(_("%%(subject) does not take arguments"));
+die("skiplist requires a path");

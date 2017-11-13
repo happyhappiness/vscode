@@ -1,42 +1,101 @@
-static apr_status_t read_chunked_trailers(http_ctx_t *ctx, ap_filter_t *f,
-                                          apr_bucket_brigade *b, int merge)
+static int netware_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s)
 {
-    int rv;
-    apr_bucket *e;
-    request_rec *r = f->r;
-    apr_table_t *saved_headers_in = r->headers_in;
-    int saved_status = r->status;
+    apr_status_t status=0;
 
-    r->status = HTTP_OK;
-    r->headers_in = r->trailers_in;
-    apr_table_clear(r->headers_in);
-    ctx->state = BODY_NONE;
-    ap_get_mime_headers(r);
+    pconf = _pconf;
+    ap_server_conf = s;
 
-    if(r->status == HTTP_OK) {
-        r->status = saved_status;
-        e = apr_bucket_eos_create(f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(b, e);
-        ctx->eos_sent = 1;
-        rv = APR_SUCCESS;
-    }
-    else {
-        const char *error_notes = apr_table_get(r->notes,
-                                                "error-notes");
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                      "Error while reading HTTP trailer: %i%s%s",
-                      r->status, error_notes ? ": " : "",
-                      error_notes ? error_notes : "");
-        rv = APR_EINVAL;
+    if (setup_listeners(s)) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, status, s,
+            "no listening sockets available, shutting down");
+        return -1;
     }
 
-    if(!merge) {
-        r->headers_in = saved_headers_in;
-    }
-    else {
-        r->headers_in = apr_table_overlay(r->pool, saved_headers_in,
-                r->trailers_in);
+    restart_pending = shutdown_pending = 0;
+    worker_thread_count = 0;
+
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_NOT_SHARED) != OK) {
+            return 1;
+        }
     }
 
-    return rv;
+    /* Only set slot 0 since that is all NetWare will ever have. */
+    ap_scoreboard_image->parent[0].pid = getpid();
+
+    set_signals();
+
+    apr_pool_create(&pmain, pconf);
+    ap_run_child_init(pmain, ap_server_conf);
+
+    if (ap_threads_max_free < ap_threads_min_free + 1)  /* Don't thrash... */
+        ap_threads_max_free = ap_threads_min_free + 1;
+    request_count = 0;
+
+    startup_workers(ap_threads_to_start);
+
+     /* Allow the Apache screen to be closed normally on exit() only if it
+        has not been explicitly forced to close on exit(). (ie. the -E flag
+        was specified at startup) */
+    if (hold_screen_on_exit > 0) {
+        hold_screen_on_exit = 0;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+            "%s configured -- resuming normal operations",
+            ap_get_server_description());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+            "Server built: %s", ap_get_server_built());
+    ap_log_command_line(plog, s);
+    show_server_data();
+
+    mpm_state = AP_MPMQ_RUNNING;
+    while (!restart_pending && !shutdown_pending) {
+        perform_idle_server_maintenance(pconf);
+        if (show_settings)
+            display_settings();
+        apr_thread_yield();
+        apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
+    }
+    mpm_state = AP_MPMQ_STOPPING;
+
+
+    /* Shutdown the listen sockets so that we don't get stuck in a blocking call.
+    shutdown_listeners();*/
+
+    if (shutdown_pending) { /* Got an unload from the console */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+            "caught SIGTERM, shutting down");
+
+        while (worker_thread_count > 0) {
+            printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
+        }
+
+        mpm_main_cleanup();
+        return 1;
+    }
+    else {  /* the only other way out is a restart */
+        /* advance to the next generation */
+        /* XXX: we really need to make sure this new generation number isn't in
+         * use by any of the children.
+         */
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "Graceful restart requested, doing restart");
+
+        /* Wait for all of the threads to terminate before initiating the restart */
+        while (worker_thread_count > 0) {
+            printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
+        }
+        printf ("\nRestarting...\n");
+    }
+
+    mpm_main_cleanup();
+    return 0;
 }

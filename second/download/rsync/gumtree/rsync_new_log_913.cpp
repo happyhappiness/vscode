@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: invalid gid %s\n", gname);
+io_printf(f_out, "@ERROR: too many groups\n");

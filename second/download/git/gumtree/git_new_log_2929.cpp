@@ -1,1 +1,1 @@
-warning_errno("accept failed");
+warning_errno("dup failed");

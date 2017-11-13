@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                  "h2_task(%s): destroy", task->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_task_output(%s): write brigade", output->task->id);

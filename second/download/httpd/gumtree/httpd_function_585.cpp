@@ -1,78 +1,85 @@
-static apr_status_t handle_exec(include_ctx_t *ctx, ap_filter_t *f,
-                                apr_bucket_brigade *bb)
+static apr_status_t ssl_io_filter_Upgrade(ap_filter_t *f,
+                                         apr_bucket_brigade *bb)
+
 {
-    char *tag = NULL;
-    char *tag_val = NULL;
+    const char *upgrade;
+    apr_bucket_brigade *upgradebb;
     request_rec *r = f->r;
-    char *file = r->filename;
-    char parsed_string[MAX_STRING_LEN];
+    apr_socket_t *csd = NULL;
+    char *key;
+    int ret;
+    secsocket_data *csd_data;
+    apr_bucket *b;
+    apr_status_t rv;
 
-    if (!ctx->argc) {
-        ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "missing argument for exec element in %s",
-                      r->filename);
+    /* Just remove the filter, if it doesn't work the first time, it won't
+     * work at all for this request.
+     */
+    ap_remove_output_filter(f);
+
+    /* No need to ensure that this is a server with optional SSL, the filter
+     * is only inserted if that is true.
+     */
+
+    upgrade = apr_table_get(r->headers_in, "Upgrade");
+    if (upgrade == NULL
+        || strcmp(ap_getword(r->pool, &upgrade, ','), "TLS/1.0")) {
+            /* "Upgrade: TLS/1.0, ..." header not found, don't do Upgrade */
+        return ap_pass_brigade(f->next, bb);
     }
 
-    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
-        return APR_SUCCESS;
+    apr_table_unset(r->headers_out, "Upgrade");
+
+    if (r) {
+        csd_data = (secsocket_data*)ap_get_module_config(r->connection->conn_config, &nwssl_module);
+        csd = csd_data->csd;
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Unable to get upgradeable socket handle");
+        return ap_pass_brigade(f->next, bb);
     }
 
-    if (!ctx->argc) {
-        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-        return APR_SUCCESS;
+
+    /* Send the interim 101 response. */
+    upgradebb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+
+    ap_fputstrs(f->next, upgradebb, SWITCH_STATUS_LINE, CRLF,
+                UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
+
+    b = apr_bucket_flush_create(f->c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(upgradebb, b);
+
+    rv = ap_pass_brigade(f->next, upgradebb);
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "could not send interim 101 Upgrade response");
+        return AP_FILTER_ERROR;
     }
 
-    if (ctx->flags & SSI_FLAG_NO_EXEC) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "exec used but not allowed "
-                      "in %s", r->filename);
-        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-        return APR_SUCCESS;
-    }
+    key = get_port_key(r->connection);
 
-    while (1) {
-        cgi_pfn_gtv(ctx, &tag, &tag_val, SSI_VALUE_DECODED);
-        if (!tag || !tag_val) {
-            break;
-        }
+    if (csd && key) {
+        int sockdes;
+        apr_os_sock_get(&sockdes, csd);
 
-        if (!strcmp(tag, "cmd")) {
-            apr_status_t rv;
 
-            cgi_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
-                       SSI_EXPAND_LEAVE_NAME);
-
-            rv = include_cmd(ctx, f, bb, parsed_string);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "execution failure "
-                              "for parameter \"%s\" to tag exec in file %s",
-                              tag, r->filename);
-                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-                break;
-            }
-        }
-        else if (!strcmp(tag, "cgi")) {
-            apr_status_t rv;
-
-            cgi_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
-                       SSI_EXPAND_DROP_NAME);
-
-            rv = include_cgi(ctx, f, bb, parsed_string);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "invalid CGI ref "
-                              "\"%s\" in %s", tag_val, file);
-                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-                break;
-            }
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
-                          "\"%s\" to tag exec in %s", tag, file);
-            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-            break;
+        ret = SSLize_Socket(sockdes, key, r);
+        if (!ret) {
+            csd_data->is_secure = 1;
         }
     }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Upgradeable socket handle not found");
+        return AP_FILTER_ERROR;
+    }
 
-    return APR_SUCCESS;
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "Awaiting re-negotiation handshake");
+
+    /* Now that we have initialized the ssl connection which added the ssl_io_filter,
+       pass the brigade off to the connection based output filters so that the
+       request can complete encrypted */
+    return ap_pass_brigade(f->c->output_filters, bb);
 }

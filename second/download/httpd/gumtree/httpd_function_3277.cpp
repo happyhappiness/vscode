@@ -1,96 +1,64 @@
-static apr_size_t find_directive(include_ctx_t *ctx, const char *data,
-                                 apr_size_t len, char ***store,
-                                 apr_size_t **store_len)
+static authz_status dbmfilegroup_check_authorization(request_rec *r,
+                                              const char *require_args)
 {
-    struct ssi_internal_ctx *intern = ctx->intern;
-    const char *p = data;
-    const char *ep = data + len;
-    apr_size_t pos;
+    authz_dbm_config_rec *conf = ap_get_module_config(r->per_dir_config,
+                                                      &authz_dbm_module);
+    char *user = r->user;
+    const char *realm = ap_auth_name(r);
+    const char *filegroup = NULL;
+    const char *orig_groups = NULL;
+    apr_status_t status;
+    const char *groups;
+    char *v;
 
-    switch (intern->state) {
-    case PARSE_DIRECTIVE:
-        while (p < ep && !apr_isspace(*p)) {
-            /* we have to consider the case of missing space between directive
-             * and end_seq (be somewhat lenient), e.g. <!--#printenv-->
-             */
-            if (*p == *intern->end_seq) {
-                intern->state = PARSE_DIRECTIVE_TAIL;
-                intern->parse_pos = 1;
-                ++p;
-                return (p - data);
-            }
-            ++p;
-        }
-
-        if (p < ep) { /* found delimiter whitespace */
-            intern->state = PARSE_DIRECTIVE_POSTNAME;
-            *store = &intern->directive;
-            *store_len = &intern->directive_len;
-        }
-
-        break;
-
-    case PARSE_DIRECTIVE_TAIL:
-        pos = intern->parse_pos;
-
-        while (p < ep && pos < intern->end_seq_len &&
-               *p == intern->end_seq[pos]) {
-            ++p;
-            ++pos;
-        }
-
-        /* full match, we're done */
-        if (pos == intern->end_seq_len) {
-            intern->state = PARSE_DIRECTIVE_POSTTAIL;
-            *store = &intern->directive;
-            *store_len = &intern->directive_len;
-            break;
-        }
-
-        /* partial match, the buffer is too small to match fully */
-        if (p == ep) {
-            intern->parse_pos = pos;
-            break;
-        }
-
-        /* no match. continue normal parsing */
-        intern->state = PARSE_DIRECTIVE;
-        return 0;
-
-    case PARSE_DIRECTIVE_POSTTAIL:
-        intern->state = PARSE_EXECUTE;
-        intern->directive_len -= intern->end_seq_len;
-        /* continue immediately with the next state */
-
-    case PARSE_DIRECTIVE_POSTNAME:
-        if (PARSE_DIRECTIVE_POSTNAME == intern->state) {
-            intern->state = PARSE_PRE_ARG;
-        }
-        ctx->argc = 0;
-        intern->argv = NULL;
-
-        if (!intern->directive_len) {
-            intern->error = 1;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, intern->r, "missing "
-                          "directive name in parsed document %s",
-                          intern->r->filename);
-        }
-        else {
-            char *sp = intern->directive;
-            char *sep = intern->directive + intern->directive_len;
-
-            /* normalize directive name */
-            for (; sp < sep; ++sp) {
-                *sp = apr_tolower(*sp);
-            }
-        }
-
-        return 0;
-
-    default:
-        /* get a rid of a gcc warning about unhandled enumerations */
-        break;
+    if (!user) {
+        return AUTHZ_DENIED_NO_USER;
     }
 
-    return (p - data);
+    if (!conf->grpfile) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "No group file was specified in the configuration");
+        return AUTHZ_DENIED;
+    }
+
+    /* fetch group data from dbm file. */
+    status = get_dbm_grp(r, apr_pstrcat(r->pool, user, ":", realm, NULL),
+                         user, conf->grpfile, conf->dbmtype, &groups);
+
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "could not open dbm (type %s) group access "
+                      "file: %s", conf->dbmtype, conf->grpfile);
+        return AUTHZ_DENIED;
+    }
+
+    if (groups == NULL) {
+        /* no groups available, so exit immediately */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Authorization of user %s to access %s failed, reason: "
+                      "user doesn't appear in DBM group file (%s).", 
+                      r->user, r->uri, conf->grpfile);
+        return AUTHZ_DENIED;
+    }
+
+    orig_groups = groups;
+
+    filegroup = authz_owner_get_file_group(r);
+
+    if (filegroup) {
+        groups = orig_groups;
+        while (groups[0]) {
+            v = ap_getword(r->pool, &groups, ',');
+            if (!strcmp(v, filegroup)) {
+                return AUTHZ_GRANTED;
+            }
+        }
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Authorization of user %s to access %s failed, reason: "
+                  "user is not part of the 'require'ed group(s).",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

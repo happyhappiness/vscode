@@ -1,1 +1,1 @@
-out_of_memory("parse_arguments");
+out_of_memory("finish_hard_link");

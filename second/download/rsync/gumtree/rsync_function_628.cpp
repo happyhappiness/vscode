@@ -1,36 +1,49 @@
-void send_file_name(int f,struct file_list *flist,char *fname,
-			   int recursive, unsigned base_flags)
+int copy_file(char *source, char *dest, mode_t mode)
 {
-  struct file_struct *file;
+	int ifd;
+	int ofd;
+	char buf[1024 * 8];
+	int len;   /* Number of bytes read into `buf'. */
 
-  file = make_file(f,fname, &flist->string_area, 0);
+	ifd = open(source, O_RDONLY);
+	if (ifd == -1) {
+		fprintf(FERROR,"open %s: %s\n",
+			source,strerror(errno));
+		return -1;
+	}
 
-  if (!file) return;  
-  
-  if (flist->count >= flist->malloced) {
-	  if (flist->malloced < 1000)
-		  flist->malloced += 1000;
-	  else
-		  flist->malloced *= 2;
-	  flist->files = (struct file_struct **)realloc(flist->files,
-							sizeof(flist->files[0])*
-							flist->malloced);
-	  if (!flist->files)
-		  out_of_memory("send_file_name");
-  }
+	if (do_unlink(dest) && errno != ENOENT) {
+		fprintf(FERROR,"unlink %s: %s\n",
+			dest,strerror(errno));
+		return -1;
+	}
 
-  if (write_batch) /*  dw  */
-    file->flags = FLAG_DELETE;
+	ofd = do_open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode);
+	if (ofd < 0) {
+		fprintf(FERROR,"open %s: %s\n",
+			dest,strerror(errno));
+		close(ifd);
+		return -1;
+	}
 
-  if (strcmp(file->basename,"")) {
-    flist->files[flist->count++] = file;
-    send_file_entry(file,f,base_flags);
-  }
+	while ((len = safe_read(ifd, buf, sizeof(buf))) > 0) {
+		if (full_write(ofd, buf, len) < 0) {
+			fprintf(FERROR,"write %s: %s\n",
+				dest,strerror(errno));
+			close(ifd);
+			close(ofd);
+			return -1;
+		}
+	}
 
-  if (S_ISDIR(file->mode) && recursive) {
-	  struct exclude_struct **last_exclude_list = local_exclude_list;
-	  send_directory(f,flist,f_name(file));
-	  local_exclude_list = last_exclude_list;
-	  return;
-  }
+	close(ifd);
+	close(ofd);
+
+	if (len < 0) {
+		fprintf(FERROR,"read %s: %s\n",
+			source,strerror(errno));
+		return -1;
+	}
+
+	return 0;
 }

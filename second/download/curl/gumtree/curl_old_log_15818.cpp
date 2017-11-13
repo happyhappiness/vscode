@@ -1,11 +1,10 @@
 fputs(
-"              successful response codes will  slip  through,  especially  when\n"
-"              authentication is involved (response codes 401 and 407).\n"
+"              See  also  --dns-interface  and --dns-ipv4-addr. --dns-ipv6-addr\n"
+"              requires that the underlying libcurl was  built  to  support  c-\n"
+"              ares. Added in 7.33.0.\n"
 "\n"
-"       --false-start\n"
-"              (TLS)  Tells  curl  to use false start during the TLS handshake.\n"
-"              False start is a mode where a  TLS  client  will  start  sending\n"
-"              application data before verifying the server's Finished message,\n"
-"              thus saving a round trip when performing a full handshake.\n"
-"\n"
+"       --dns-servers <addresses>\n"
+"              Set  the  list  of  DNS servers to be used instead of the system\n"
+"              default.  The list of IP addresses should be separated with com-\n"
+"              mas. Port numbers may also optionally be given as :<port-number>\n"
 , stdout);

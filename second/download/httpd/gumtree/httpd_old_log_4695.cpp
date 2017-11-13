@@ -1,2 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Accept thread exiting.", my_pid);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: (%s) You configured HTTPS(%d) "
+                         "on the standard HTTP(%d) port!",
+                         ssl_util_vhostid(p, s),
+                         DEFAULT_HTTPS_PORT, DEFAULT_HTTP_PORT);

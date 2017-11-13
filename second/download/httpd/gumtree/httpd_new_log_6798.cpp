@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02407)
-                         "\"SSLOpenSSLConfCmd %s %s\" failed for %s",
-                         param->name, param->value, sc->vhost_id);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,   
+                      H2_STRM_LOG(APLOGNO(03517), stream, "already in spurge"));

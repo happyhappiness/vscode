@@ -1,1 +1,1 @@
-die_want_option("--stat-name-width");
+packet_write_fmt(fd[1], "argument --format=%s\n", format);

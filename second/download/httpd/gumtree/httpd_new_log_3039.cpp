@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00841) "leaving shmcb_status");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "ldap_simple_bind() failed with server down "
+                      "(try %d)", failures + 1);

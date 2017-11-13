@@ -1,50 +1,35 @@
-apr_status_t h2_ngn_shed_pull_task(h2_ngn_shed *shed, 
-                                   h2_req_engine *ngn, 
-                                   apr_uint32_t capacity, 
-                                   int want_shutdown,
-                                   h2_task **ptask)
-{   
-    h2_ngn_entry *entry;
-    
-    AP_DEBUG_ASSERT(ngn);
-    *ptask = NULL;
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
-                  "h2_ngn_shed(%ld): pull task for engine %s, shutdown=%d", 
-                  shed->c->id, ngn->id, want_shutdown);
-    if (shed->aborted) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, shed->c,
-                      "h2_ngn_shed(%ld): abort while pulling requests %s", 
-                      shed->c->id, ngn->id);
-        ngn->shutdown = 1;
-        return APR_ECONNABORTED;
-    }
-    
-    ngn->capacity = capacity;
-    if (H2_REQ_ENTRIES_EMPTY(&ngn->entries)) {
-        if (want_shutdown) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
-                          "h2_ngn_shed(%ld): emtpy queue, shutdown engine %s", 
-                          shed->c->id, ngn->id);
-            ngn->shutdown = 1;
+apr_status_t h2_mplx_release_and_join(h2_mplx *m, apr_thread_cond_t *wait)
+{
+    apr_status_t status;
+    workers_unregister(m);
+
+    status = apr_thread_mutex_lock(m->lock);
+    if (APR_SUCCESS == status) {
+        int attempts = 0;
+        
+        release(m);
+        while (apr_atomic_read32(&m->refs) > 0) {
+            m->join_wait = wait;
+            ap_log_cerror(APLOG_MARK, (attempts? APLOG_INFO : APLOG_DEBUG), 
+                          0, m->c,
+                          "h2_mplx(%ld): release_join, refs=%d, waiting...", 
+                          m->id, m->refs);
+            apr_thread_cond_timedwait(wait, m->lock, apr_time_from_sec(10));
+            if (++attempts >= 6) {
+                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,
+                              APLOGNO(02952) 
+                              "h2_mplx(%ld): join attempts exhausted, refs=%d", 
+                              m->id, m->refs);
+                break;
+            }
         }
-        return ngn->shutdown? APR_EOF : APR_EAGAIN;
+        if (m->join_wait) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,
+                          "h2_mplx(%ld): release_join -> destroy", m->id);
+        }
+        m->join_wait = NULL;
+        apr_thread_mutex_unlock(m->lock);
+        h2_mplx_destroy(m);
     }
-    
-    if ((entry = pop_detached(ngn))) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, entry->task->c,
-                      "h2_ngn_shed(%ld): pulled request %s for engine %s", 
-                      shed->c->id, entry->task->id, ngn->id);
-        ngn->no_live++;
-        *ptask = entry->task;
-        entry->task->assigned = ngn;
-        return APR_SUCCESS;
-    }
-    
-    if (1) {
-        h2_ngn_entry *entry = H2_REQ_ENTRIES_FIRST(&ngn->entries);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
-                      "h2_ngn_shed(%ld): pull task, nothing, first task %s", 
-                      shed->c->id, entry->task->id);
-    }
-    return APR_EAGAIN;
+    return status;
 }

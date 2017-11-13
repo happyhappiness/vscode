@@ -1,9 +1,9 @@
 fputs(
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"              likely not what you intended.  To address  these  issues  set  a\n"
+"              domain  in  Set-Cookie  (doing that will include sub domains) or\n"
+"              use the Netscape format.\n"
 "\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              file  name  to read the data from, or - if you want curl to read\n"
-"              the data from stdin. Multiple files can also be specified. Post-\n"
-"              ing  data  from  a  file  named  from a file like that, carriage\n"
+"              If this option is used several times, the last one will be used.\n"
+"              Users very often want to both read cookies from a file and write\n"
+"              updated  cookies  back to a file, so using both -b, --cookie and\n"
 , stdout);

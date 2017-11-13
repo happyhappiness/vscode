@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01928)
-                     "OCSP stapling response too big (%u bytes)", resp_derlen);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "declining URL %s", url);

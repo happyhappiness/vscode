@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p, APLOGNO(02638)
-                          "make_sock: for address %pI, apr_socket_opt_set: "
-                          "(SO_REUSEPORT)",
-                          server->bind_addr);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00339)
+                                     "Child: Encountered too many AcceptEx "
+                                     "faults accepting client connections.");

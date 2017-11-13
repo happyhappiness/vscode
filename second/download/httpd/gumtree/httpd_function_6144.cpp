@@ -1,36 +1,31 @@
-static apr_status_t recv_RAW_DATA(conn_rec *c, h2_filter_cin *cin, 
-                                  apr_bucket *b, apr_read_type_e block)
+h2_task_input *h2_task_input_create(h2_task *task, apr_pool_t *pool, 
+                                    apr_bucket_alloc_t *bucket_alloc)
 {
-    h2_session *session = cin->session;
-    apr_status_t status = APR_SUCCESS;
-    apr_size_t len;
-    const char *data;
-    ssize_t n;
-    
-    status = apr_bucket_read(b, &data, &len, block);
-    
-    while (status == APR_SUCCESS && len > 0) {
-        n = nghttp2_session_mem_recv(session->ngh2, (const uint8_t *)data, len);
+    h2_task_input *input = apr_pcalloc(pool, sizeof(h2_task_input));
+    if (input) {
+        input->task = task;
+        input->bb = NULL;
         
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                      H2_SSSN_MSG(session, "fed %ld bytes to nghttp2, %ld read"),
-                      (long)len, (long)n);
-        if (n < 0) {
-            if (nghttp2_is_fatal((int)n)) {
-                h2_session_event(session, H2_SESSION_EV_PROTO_ERROR, 
-                                 (int)n, nghttp2_strerror((int)n));
-                status = APR_EGENERAL;
+        if (task->serialize_headers) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                          "h2_task_input(%s): serialize request %s %s", 
+                          task->id, task->request->method, task->request->path);
+            input->bb = apr_brigade_create(pool, bucket_alloc);
+            apr_brigade_printf(input->bb, NULL, NULL, "%s %s HTTP/1.1\r\n", 
+                               task->request->method, task->request->path);
+            apr_table_do(ser_header, input, task->request->headers, NULL);
+            apr_brigade_puts(input->bb, NULL, NULL, "\r\n");
+            if (input->task->input_eos) {
+                APR_BRIGADE_INSERT_TAIL(input->bb, apr_bucket_eos_create(bucket_alloc));
             }
+        }
+        else if (!input->task->input_eos) {
+            input->bb = apr_brigade_create(pool, bucket_alloc);
         }
         else {
-            session->io.bytes_read += n;
-            if (len <= n) {
-                break;
-            }
-            len -= n;
-            data += n;
+            /* We do not serialize and have eos already, no need to
+             * create a bucket brigade. */
         }
     }
-    
-    return status;
+    return input;
 }

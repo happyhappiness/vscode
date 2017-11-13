@@ -1,1 +1,1 @@
-die(_("unknown error occured while reading the configuration files"));
+printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);

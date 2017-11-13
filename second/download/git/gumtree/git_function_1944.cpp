@@ -1,42 +1,21 @@
-void shortlog_add_commit(struct shortlog *log, struct commit *commit)
+static struct ref_lock *verify_lock(struct ref_lock *lock,
+	const unsigned char *old_sha1, int mustexist)
 {
-	const char *author = NULL, *buffer;
-	struct strbuf buf = STRBUF_INIT;
-	struct strbuf ufbuf = STRBUF_INIT;
-
-	pp_commit_easy(CMIT_FMT_RAW, commit, &buf);
-	buffer = buf.buf;
-	while (*buffer && *buffer != '\n') {
-		const char *eol = strchr(buffer, '\n');
-
-		if (eol == NULL)
-			eol = buffer + strlen(buffer);
-		else
-			eol++;
-
-		if (starts_with(buffer, "author "))
-			author = buffer + 7;
-		buffer = eol;
+	if (read_ref_full(lock->ref_name,
+			  mustexist ? RESOLVE_REF_READING : 0,
+			  lock->old_sha1, NULL)) {
+		int save_errno = errno;
+		error("Can't verify ref %s", lock->ref_name);
+		unlock_ref(lock);
+		errno = save_errno;
+		return NULL;
 	}
-	if (!author) {
-		warning(_("Missing author: %s"),
-		    sha1_to_hex(commit->object.sha1));
-		return;
+	if (hashcmp(lock->old_sha1, old_sha1)) {
+		error("Ref %s is at %s but expected %s", lock->ref_name,
+			sha1_to_hex(lock->old_sha1), sha1_to_hex(old_sha1));
+		unlock_ref(lock);
+		errno = EBUSY;
+		return NULL;
 	}
-	if (log->user_format) {
-		struct pretty_print_context ctx = {0};
-		ctx.fmt = CMIT_FMT_USERFORMAT;
-		ctx.abbrev = log->abbrev;
-		ctx.subject = "";
-		ctx.after_subject = "";
-		ctx.date_mode.type = DATE_NORMAL;
-		ctx.output_encoding = get_log_output_encoding();
-		pretty_print_commit(&ctx, commit, &ufbuf);
-		buffer = ufbuf.buf;
-	} else if (*buffer) {
-		buffer++;
-	}
-	insert_one_record(log, author, !*buffer ? "<none>" : buffer);
-	strbuf_release(&ufbuf);
-	strbuf_release(&buf);
+	return lock;
 }

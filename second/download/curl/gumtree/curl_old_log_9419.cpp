@@ -1,10 +1,11 @@
 fputs(
-"       --socks5-gssapi-service <servicename>\n"
-"              The default service name for a socks server is rcmd/server-fqdn.\n"
-"              This option allows you to change it.\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks4a  proxy with -x, --proxy using a socks4a:// protocol pre-\n"
+"              fix.\n"
 "\n"
-"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
-"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
-"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
-"              where the proxy-name does not match the principal name.   (Added\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --socks5-hostname <host[:port]>\n"
+"              Use the specified SOCKS5 proxy (and let the  proxy  resolve  the\n"
+"              host  name).  If the port number is not specified, it is assumed\n"
 , stdout);

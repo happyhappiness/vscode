@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c, APLOGNO(03399)
-                      "h2_ngn_shed(%ld): pull task, nothing, first task %s", 
-                      shed->c->id, entry->task->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
+                              "h2_mplx(%ld-%d): write with trailers=%s", 
+                              m->id, io->id, trailers? "yes" : "no");

@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c, APLOGNO(02006)
-                         "SSL handshake stopped: connection was closed");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00885)
+                                      "ap_proxy_ajp_request: origin server "
+                                      "sent 401 without WWW-Authenticate header");

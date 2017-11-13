@@ -1,16 +1,35 @@
-static void copyright(void)
+static apr_status_t open_postfile(const char *pfile)
 {
-    if (!use_html) {
-        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1528965 $>");
-        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
-        printf("\n");
+    apr_file_t *postfd;
+    apr_finfo_t finfo;
+    apr_status_t rv;
+    char errmsg[120];
+
+    rv = apr_file_open(&postfd, pfile, APR_READ, APR_OS_DEFAULT, cntxt);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "ab: Could not open POST data file (%s): %s\n", pfile,
+                apr_strerror(rv, errmsg, sizeof errmsg));
+        return rv;
     }
-    else {
-        printf("<p>\n");
-        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1528965 $");
-        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
-        printf("</p>\n<p>\n");
+
+    rv = apr_file_info_get(&finfo, APR_FINFO_NORM, postfd);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "ab: Could not stat POST data file (%s): %s\n", pfile,
+                apr_strerror(rv, errmsg, sizeof errmsg));
+        return rv;
     }
+    postlen = (apr_size_t)finfo.size;
+    postdata = malloc(postlen);
+    if (!postdata) {
+        fprintf(stderr, "ab: Could not allocate POST data buffer\n");
+        return APR_ENOMEM;
+    }
+    rv = apr_file_read_full(postfd, postdata, postlen, NULL);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "ab: Could not read POST data file: %s\n",
+                apr_strerror(rv, errmsg, sizeof errmsg));
+        return rv;
+    }
+    apr_file_close(postfd);
+    return APR_SUCCESS;
 }

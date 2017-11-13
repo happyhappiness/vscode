@@ -1,11 +1,9 @@
 fputs(
-"              Tells  curl to limit what protocols it may use on redirect. Pro-\n"
-"              tocols denied by --proto are not overridden by this option.  See\n"
-"              --proto for how protocols are represented.\n"
+"              hashes)  to  verify the peer. This can be a path to a file which\n"
+"              contains a single public key in PEM or DER format, or any number\n"
+"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
+"              rated by ';'\n"
 "\n"
-"              Example, allow only HTTP and HTTPS on redirect:\n"
-"\n"
-"               curl --proto-redir -all,http,https http://example.com\n"
-"\n"
-"              By default curl will allow all protocols on redirect except sev-\n"
+"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
+"              certificate  indicating  its identity. A public key is extracted\n"
 , stdout);

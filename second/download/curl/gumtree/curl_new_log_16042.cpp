@@ -1,10 +1,10 @@
 fputs(
-"              extracting a filename from the URL.\n"
+"              SFTP is a binary protocol. Unlike for FTP, curl interprets  SFTP\n"
+"              quote  commands  itself before sending them to the server.  File\n"
+"              names may be quoted shell-style to embed spaces or special char-\n"
+"              acters.   Following is the list of all supported SFTP quote com-\n"
+"              mands:\n"
 "\n"
-"              If  the  server  specifies a file name and a file with that name\n"
-"              already exists in the current working directory it will  not  be\n"
-"              overwritten and an error will occur. If the server doesn't spec-\n"
-"              ify a file name then this option has no effect.\n"
-"\n"
-"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
+"              chgrp group file\n"
+"                     The chgrp command sets the group ID of the file named  by\n"
 , stdout);

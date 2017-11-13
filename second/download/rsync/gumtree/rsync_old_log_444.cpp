@@ -1,1 +1,2 @@
-fprintf(f,"-L, --copy-links         treat soft links like regular files\n");
+fprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
+	      getpid(),4,ret==-1?strerror(errno):"EOF");

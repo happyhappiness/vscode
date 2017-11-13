@@ -1,30 +1,33 @@
-static void usage(void)
+static apr_table_t *make_table(h2_response_parser *parser)
 {
-    apr_file_printf(errfile, "Usage:" NL);
-    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username" NL);
-    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password" NL NL);
-    apr_file_printf(errfile, "\thtpasswd -n[mdps] username" NL);
-    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
-    apr_file_printf(errfile, " -c  Create a new file." NL);
-    apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout." NL);
-    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-        " (default)"
-        "." NL);
-    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-            " (8 chars max, insecure)." NL);
-    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
-    apr_file_printf(errfile, " -s  Force SHA encryption of the password"
-            " (insecure)." NL);
-    apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it." NL);
-    apr_file_printf(errfile, " -D  Delete the specified user." NL);
-    apr_file_printf(errfile,
-            "On other systems than Windows and NetWare the '-p' flag will "
-            "probably not work." NL);
-    apr_file_printf(errfile,
-            "The SHA algorithm does not use a salt and is less secure than "
-            "the MD5 algorithm." NL);
-    exit(ERR_SYNTAX);
+    h2_task *task = parser->task;
+    apr_array_header_t *hlines = parser->hlines;
+    if (hlines) {
+        apr_table_t *headers = apr_table_make(task->pool, hlines->nelts);        
+        int i;
+        
+        for (i = 0; i < hlines->nelts; ++i) {
+            char *hline = ((char **)hlines->elts)[i];
+            char *sep = ap_strchr(hline, ':');
+            if (!sep) {
+                ap_log_cerror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, task->c,
+                              APLOGNO(02955) "h2_task(%s): invalid header[%d] '%s'",
+                              task->id, i, (char*)hline);
+                /* not valid format, abort */
+                return NULL;
+            }
+            (*sep++) = '\0';
+            while (*sep == ' ' || *sep == '\t') {
+                ++sep;
+            }
+            
+            if (!h2_util_ignore_header(hline)) {
+                apr_table_merge(headers, hline, sep);
+            }
+        }
+        return headers;
+    }
+    else {
+        return apr_table_make(task->pool, 0);        
+    }
 }

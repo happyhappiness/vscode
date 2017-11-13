@@ -1,103 +1,48 @@
-static CURL *get_curl_handle(void)
+static CURL *setup_curl(struct imap_server_conf *srvc)
 {
-	CURL *result = curl_easy_init();
+	CURL *curl;
+	struct strbuf path = STRBUF_INIT;
 
-	if (!result)
+	if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK)
+		die("curl_global_init failed");
+
+	curl = curl_easy_init();
+
+	if (!curl)
 		die("curl_easy_init failed");
 
-	if (!curl_ssl_verify) {
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 0);
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 0);
-	} else {
-		/* Verify authenticity of the peer's certificate */
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 1);
-		/* The name in the cert must match whom we tried to connect */
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 2);
+	curl_easy_setopt(curl, CURLOPT_USERNAME, server.user);
+	curl_easy_setopt(curl, CURLOPT_PASSWORD, server.pass);
+
+	strbuf_addstr(&path, server.host);
+	if (!path.len || path.buf[path.len - 1] != '/')
+		strbuf_addch(&path, '/');
+	strbuf_addstr(&path, server.folder);
+
+	curl_easy_setopt(curl, CURLOPT_URL, path.buf);
+	strbuf_release(&path);
+	curl_easy_setopt(curl, CURLOPT_PORT, server.port);
+
+	if (server.auth_method) {
+		struct strbuf auth = STRBUF_INIT;
+		strbuf_addstr(&auth, "AUTH=");
+		strbuf_addstr(&auth, server.auth_method);
+		curl_easy_setopt(curl, CURLOPT_LOGIN_OPTIONS, auth.buf);
+		strbuf_release(&auth);
 	}
 
-#if LIBCURL_VERSION_NUM >= 0x070907
-	curl_easy_setopt(result, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
-#endif
-#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
-	curl_easy_setopt(result, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
-#endif
+	if (!server.use_ssl)
+		curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_TRY);
 
-	if (http_proactive_auth)
-		init_curl_http_auth(result);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, server.ssl_verify);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, server.ssl_verify);
 
-	if (getenv("GIT_SSL_VERSION"))
-		ssl_version = getenv("GIT_SSL_VERSION");
-	if (ssl_version && *ssl_version) {
-		int i;
-		for (i = 0; i < ARRAY_SIZE(sslversions); i++) {
-			if (!strcmp(ssl_version, sslversions[i].name)) {
-				curl_easy_setopt(result, CURLOPT_SSLVERSION,
-						 sslversions[i].ssl_version);
-				break;
-			}
-		}
-		if (i == ARRAY_SIZE(sslversions))
-			warning("unsupported ssl version %s: using default",
-				ssl_version);
-	}
+	curl_easy_setopt(curl, CURLOPT_READFUNCTION, fread_buffer);
 
-	if (getenv("GIT_SSL_CIPHER_LIST"))
-		ssl_cipherlist = getenv("GIT_SSL_CIPHER_LIST");
-	if (ssl_cipherlist != NULL && *ssl_cipherlist)
-		curl_easy_setopt(result, CURLOPT_SSL_CIPHER_LIST,
-				ssl_cipherlist);
+	curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
 
-	if (ssl_cert != NULL)
-		curl_easy_setopt(result, CURLOPT_SSLCERT, ssl_cert);
-	if (has_cert_password())
-		curl_easy_setopt(result, CURLOPT_KEYPASSWD, cert_auth.password);
-#if LIBCURL_VERSION_NUM >= 0x070903
-	if (ssl_key != NULL)
-		curl_easy_setopt(result, CURLOPT_SSLKEY, ssl_key);
-#endif
-#if LIBCURL_VERSION_NUM >= 0x070908
-	if (ssl_capath != NULL)
-		curl_easy_setopt(result, CURLOPT_CAPATH, ssl_capath);
-#endif
-	if (ssl_cainfo != NULL)
-		curl_easy_setopt(result, CURLOPT_CAINFO, ssl_cainfo);
+	if (0 < verbosity || getenv("GIT_CURL_VERBOSE"))
+		curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
-	if (curl_low_speed_limit > 0 && curl_low_speed_time > 0) {
-		curl_easy_setopt(result, CURLOPT_LOW_SPEED_LIMIT,
-				 curl_low_speed_limit);
-		curl_easy_setopt(result, CURLOPT_LOW_SPEED_TIME,
-				 curl_low_speed_time);
-	}
-
-	curl_easy_setopt(result, CURLOPT_FOLLOWLOCATION, 1);
-#if LIBCURL_VERSION_NUM >= 0x071301
-	curl_easy_setopt(result, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
-#elif LIBCURL_VERSION_NUM >= 0x071101
-	curl_easy_setopt(result, CURLOPT_POST301, 1);
-#endif
-
-	if (getenv("GIT_CURL_VERBOSE"))
-		curl_easy_setopt(result, CURLOPT_VERBOSE, 1);
-
-	curl_easy_setopt(result, CURLOPT_USERAGENT,
-		user_agent ? user_agent : git_user_agent());
-
-	if (curl_ftp_no_epsv)
-		curl_easy_setopt(result, CURLOPT_FTP_USE_EPSV, 0);
-
-#ifdef CURLOPT_USE_SSL
-	if (curl_ssl_try)
-		curl_easy_setopt(result, CURLOPT_USE_SSL, CURLUSESSL_TRY);
-#endif
-
-	if (curl_http_proxy) {
-		curl_easy_setopt(result, CURLOPT_PROXY, curl_http_proxy);
-	}
-#if LIBCURL_VERSION_NUM >= 0x070a07
-	curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-#endif
-
-	set_curl_keepalive(result);
-
-	return result;
+	return curl;
 }

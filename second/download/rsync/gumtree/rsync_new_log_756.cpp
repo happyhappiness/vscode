@@ -1,1 +1,1 @@
-out_of_memory("full_fname");
+out_of_memory("add_to_list");

@@ -1,82 +1,153 @@
-static int check_everything_connected_real(sha1_iterate_fn fn,
-					   int quiet,
-					   void *cb_data,
-					   struct transport *transport,
-					   const char *shallow_file)
+static void describe(const char *arg, int last_one)
 {
-	struct child_process rev_list = CHILD_PROCESS_INIT;
-	const char *argv[9];
-	char commit[41];
 	unsigned char sha1[20];
-	int err = 0, ac = 0;
-	struct packed_git *new_pack = NULL;
-	size_t base_len;
+	struct commit *cmit, *gave_up_on = NULL;
+	struct commit_list *list;
+	struct commit_name *n;
+	struct possible_tag all_matches[MAX_TAGS];
+	unsigned int match_cnt = 0, annotated_cnt = 0, cur_match;
+	unsigned long seen_commits = 0;
+	unsigned int unannotated_cnt = 0;
 
-	if (fn(cb_data, sha1))
-		return err;
+	if (get_sha1(arg, sha1))
+		die(_("Not a valid object name %s"), arg);
+	cmit = lookup_commit_reference(sha1);
+	if (!cmit)
+		die(_("%s is not a valid '%s' object"), arg, commit_type);
 
-	if (transport && transport->smart_options &&
-	    transport->smart_options->self_contained_and_connected &&
-	    transport->pack_lockfile &&
-	    strip_suffix(transport->pack_lockfile, ".keep", &base_len)) {
-		struct strbuf idx_file = STRBUF_INIT;
-		strbuf_add(&idx_file, transport->pack_lockfile, base_len);
-		strbuf_addstr(&idx_file, ".idx");
-		new_pack = add_packed_git(idx_file.buf, idx_file.len, 1);
-		strbuf_release(&idx_file);
-	}
-
-	if (shallow_file) {
-		argv[ac++] = "--shallow-file";
-		argv[ac++] = shallow_file;
-	}
-	argv[ac++] = "rev-list";
-	argv[ac++] = "--objects";
-	argv[ac++] = "--stdin";
-	argv[ac++] = "--not";
-	argv[ac++] = "--all";
-	if (quiet)
-		argv[ac++] = "--quiet";
-	argv[ac] = NULL;
-
-	rev_list.argv = argv;
-	rev_list.git_cmd = 1;
-	rev_list.in = -1;
-	rev_list.no_stdout = 1;
-	rev_list.no_stderr = quiet;
-	if (start_command(&rev_list))
-		return error(_("Could not run 'git rev-list'"));
-
-	sigchain_push(SIGPIPE, SIG_IGN);
-
-	commit[40] = '\n';
-	do {
+	n = find_commit_name(cmit->object.sha1);
+	if (n && (tags || all || n->prio == 2)) {
 		/*
-		 * If index-pack already checked that:
-		 * - there are no dangling pointers in the new pack
-		 * - the pack is self contained
-		 * Then if the updated ref is in the new pack, then we
-		 * are sure the ref is good and not sending it to
-		 * rev-list for verification.
+		 * Exact match to an existing ref.
 		 */
-		if (new_pack && find_pack_entry_one(sha1, new_pack))
-			continue;
+		display_name(n);
+		if (longformat)
+			show_suffix(0, n->tag ? n->tag->tagged->sha1 : sha1);
+		if (dirty)
+			printf("%s", dirty);
+		printf("\n");
+		return;
+	}
 
-		memcpy(commit, sha1_to_hex(sha1), 40);
-		if (write_in_full(rev_list.in, commit, 41) < 0) {
-			if (errno != EPIPE && errno != EINVAL)
-				error(_("failed write to rev-list: %s"),
-				      strerror(errno));
-			err = -1;
+	if (!max_candidates)
+		die(_("no tag exactly matches '%s'"), sha1_to_hex(cmit->object.sha1));
+	if (debug)
+		fprintf(stderr, _("searching to describe %s\n"), arg);
+
+	if (!have_util) {
+		struct hashmap_iter iter;
+		struct commit *c;
+		struct commit_name *n = hashmap_iter_first(&names, &iter);
+		for (; n; n = hashmap_iter_next(&iter)) {
+			c = lookup_commit_reference_gently(n->peeled, 1);
+			if (c)
+				c->util = n;
+		}
+		have_util = 1;
+	}
+
+	list = NULL;
+	cmit->object.flags = SEEN;
+	commit_list_insert(cmit, &list);
+	while (list) {
+		struct commit *c = pop_commit(&list);
+		struct commit_list *parents = c->parents;
+		seen_commits++;
+		n = c->util;
+		if (n) {
+			if (!tags && !all && n->prio < 2) {
+				unannotated_cnt++;
+			} else if (match_cnt < max_candidates) {
+				struct possible_tag *t = &all_matches[match_cnt++];
+				t->name = n;
+				t->depth = seen_commits - 1;
+				t->flag_within = 1u << match_cnt;
+				t->found_order = match_cnt;
+				c->object.flags |= t->flag_within;
+				if (n->prio == 2)
+					annotated_cnt++;
+			}
+			else {
+				gave_up_on = c;
+				break;
+			}
+		}
+		for (cur_match = 0; cur_match < match_cnt; cur_match++) {
+			struct possible_tag *t = &all_matches[cur_match];
+			if (!(c->object.flags & t->flag_within))
+				t->depth++;
+		}
+		if (annotated_cnt && !list) {
+			if (debug)
+				fprintf(stderr, _("finished search at %s\n"),
+					sha1_to_hex(c->object.sha1));
 			break;
 		}
-	} while (!fn(cb_data, sha1));
+		while (parents) {
+			struct commit *p = parents->item;
+			parse_commit(p);
+			if (!(p->object.flags & SEEN))
+				commit_list_insert_by_date(p, &list);
+			p->object.flags |= c->object.flags;
+			parents = parents->next;
 
-	if (close(rev_list.in)) {
-		error(_("failed to close rev-list's stdin: %s"), strerror(errno));
-		err = -1;
+			if (first_parent)
+				break;
+		}
 	}
 
-	sigchain_pop(SIGPIPE);
-	return finish_command(&rev_list) || err;
+	if (!match_cnt) {
+		const unsigned char *sha1 = cmit->object.sha1;
+		if (always) {
+			printf("%s", find_unique_abbrev(sha1, abbrev));
+			if (dirty)
+				printf("%s", dirty);
+			printf("\n");
+			return;
+		}
+		if (unannotated_cnt)
+			die(_("No annotated tags can describe '%s'.\n"
+			    "However, there were unannotated tags: try --tags."),
+			    sha1_to_hex(sha1));
+		else
+			die(_("No tags can describe '%s'.\n"
+			    "Try --always, or create some tags."),
+			    sha1_to_hex(sha1));
+	}
+
+	qsort(all_matches, match_cnt, sizeof(all_matches[0]), compare_pt);
+
+	if (gave_up_on) {
+		commit_list_insert_by_date(gave_up_on, &list);
+		seen_commits--;
+	}
+	seen_commits += finish_depth_computation(&list, &all_matches[0]);
+	free_commit_list(list);
+
+	if (debug) {
+		for (cur_match = 0; cur_match < match_cnt; cur_match++) {
+			struct possible_tag *t = &all_matches[cur_match];
+			fprintf(stderr, " %-11s %8d %s\n",
+				prio_names[t->name->prio],
+				t->depth, t->name->path);
+		}
+		fprintf(stderr, _("traversed %lu commits\n"), seen_commits);
+		if (gave_up_on) {
+			fprintf(stderr,
+				_("more than %i tags found; listed %i most recent\n"
+				"gave up search at %s\n"),
+				max_candidates, max_candidates,
+				sha1_to_hex(gave_up_on->object.sha1));
+		}
+	}
+
+	display_name(all_matches[0].name);
+	if (abbrev)
+		show_suffix(all_matches[0].depth, cmit->object.sha1);
+	if (dirty)
+		printf("%s", dirty);
+	printf("\n");
+
+	if (!last_one)
+		clear_commit_marks(cmit, -1);
 }

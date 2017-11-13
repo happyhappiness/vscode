@@ -1,1 +1,1 @@
-out_of_memory("set_env_num");
+out_of_memory("rsync_module");

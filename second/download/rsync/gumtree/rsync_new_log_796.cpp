@@ -1,1 +1,1 @@
-out_of_memory("add_nocompress_suffixes");
+fprintf(out, "crc_table[TBLS][256] =\n{\n  {\n");

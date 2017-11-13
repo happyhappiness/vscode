@@ -1,2 +1,1 @@
-error("readlink(\"%s\"): %s", path,
-			             errstr);
+error("unable to open %s: %s", path->buf, strerror(errno));

@@ -1,50 +1,70 @@
-static int set_expiration_fields(request_rec *r, const char *code,
-                                 apr_table_t *t)
+static apr_status_t hm_file_update_stats(hm_ctx_t *ctx, apr_pool_t *p)
 {
-    apr_time_t base;
-    apr_time_t additional;
-    apr_time_t expires;
-    int additional_sec;
-    char *timestr;
+    apr_status_t rv;
+    apr_file_t *fp;
+    apr_hash_index_t *hi;
+    apr_time_t now;
+    char *path = apr_pstrcat(p, ctx->storage_path, ".tmp.XXXXXX", NULL);
+    /* TODO: Update stats file (!) */
+    rv = apr_file_mktemp(&fp, path, APR_CREATE | APR_WRITE, p);
 
-    switch (code[0]) {
-    case 'M':
-        if (r->finfo.filetype == APR_NOFILE) {
-            /* file doesn't exist on disk, so we can't do anything based on
-             * modification time.  Note that this does _not_ log an error.
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Unable to open tmp file: %s", path);
+        return rv;
+    }
+
+    now = apr_time_now();
+    for (hi = apr_hash_first(p, ctx->servers);
+         hi != NULL; hi = apr_hash_next(hi)) {
+        hm_server_t *s = NULL;
+        apr_time_t seen;
+        apr_hash_this(hi, NULL, NULL, (void **) &s);
+        seen = apr_time_sec(now - s->seen);
+        if (seen > SEEN_TIMEOUT) {
+            /*
+             * Skip this entry from the heartbeat file -- when it comes back,
+             * we will reuse the memory...
              */
-            return DECLINED;
         }
-        base = r->finfo.mtime;
-        additional_sec = atoi(&code[1]);
-        additional = apr_time_from_sec(additional_sec);
-        break;
-    case 'A':
-        /* there's been some discussion and it's possible that
-         * 'access time' will be stored in request structure
-         */
-        base = r->request_time;
-        additional_sec = atoi(&code[1]);
-        additional = apr_time_from_sec(additional_sec);
-        break;
-    default:
-        /* expecting the add_* routines to be case-hardened this
-         * is just a reminder that module is beta
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "internal error: bad expires code: %s", r->filename);
-        return HTTP_INTERNAL_SERVER_ERROR;
+        else {
+            apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
+                            s->ip, s->ready, s->busy, (unsigned int) seen, s->port);
+        }
     }
 
-    expires = base + additional;
-    if (expires < r->request_time) {
-        expires = r->request_time;
+    rv = apr_file_flush(fp);
+    if (rv) {
+      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                   "Heartmonitor: Unable to flush file: %s", path);
+      return rv;
     }
-    apr_table_mergen(t, "Cache-Control",
-                     apr_psprintf(r->pool, "max-age=%" APR_TIME_T_FMT,
-                                  apr_time_sec(expires - r->request_time)));
-    timestr = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
-    apr_rfc822_date(timestr, expires);
-    apr_table_setn(t, "Expires", timestr);
-    return OK;
+
+    rv = apr_file_close(fp);
+    if (rv) {
+      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                   "Heartmonitor: Unable to close file: %s", path);
+      return rv;
+    }
+  
+    rv = apr_file_perms_set(path,
+                            APR_FPROT_UREAD | APR_FPROT_GREAD |
+                            APR_FPROT_WREAD);
+    if (rv && rv != APR_INCOMPLETE) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Unable to set file permssions on %s",
+                     path);
+        return rv;
+    }
+
+    rv = apr_file_rename(path, ctx->storage_path, p);
+
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Unable to move file: %s -> %s", path,
+                     ctx->storage_path);
+        return rv;
+    }
+
+    return APR_SUCCESS;
 }

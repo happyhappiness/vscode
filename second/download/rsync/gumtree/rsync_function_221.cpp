@@ -1,54 +1,105 @@
-void generate_files(int f,struct file_list *flist,char *local_name,int f_recv)
-{
+off_t send_files(struct file_list *flist,int f_out,int f_in)
+{ 
+  int fd;
+  struct sum_struct *s;
+  char *buf;
+  struct stat st;
+  char fname[MAXPATHLEN];  
+  off_t total=0;
   int i;
-  int phase=0;
+  struct file_struct *file;
 
   if (verbose > 2)
-    fprintf(FERROR,"generator starting pid=%d count=%d\n",
-	    (int)getpid(),flist->count);
+    fprintf(FERROR,"send_files starting\n");
 
-  for (i = 0; i < flist->count; i++) {
-    struct file_struct *file = &flist->files[i];
-    if (!file->name) continue;
-    if (S_ISDIR(file->mode)) {
-      if (dry_run) continue;
-      if (mkdir(file->name,file->mode) != 0 &&
-	  errno != EEXIST) {
-	fprintf(FERROR,"mkdir %s : %s\n",
-		file->name,strerror(errno));
+  setup_nonblocking(f_in,f_out);
+
+  while (1) 
+    {
+      i = read_int(f_in);
+      if (i == -1) break;
+
+      file = &flist->files[i];
+
+      fname[0] = 0;
+      if (file->dir) {
+	strcpy(fname,file->dir);
+	strcat(fname,"/");
       }
-      continue;
-    }
-    recv_generator(local_name?local_name:file->name,
-		   flist,i,f);
-  }
+      strcat(fname,file->name);
 
-  phase++;
-  csum_length = SUM_LENGTH;
-  ignore_times=1;
+      if (verbose > 2) 
+	fprintf(FERROR,"send_files(%d,%s)\n",i,fname);
+
+      if (dry_run) {	
+	if (!am_server && verbose)
+	  printf("%s\n",fname);
+	write_int(f_out,i);
+	continue;
+      }
+
+      s = receive_sums(f_in);
+      if (!s) {
+	fprintf(FERROR,"receive_sums failed\n");
+	return -1;
+      }
+
+      fd = open(fname,O_RDONLY);
+      if (fd == -1) {
+	fprintf(FERROR,"send_files failed to open %s: %s\n",
+		fname,strerror(errno));
+	continue;
+      }
+  
+      /* map the local file */
+      if (fstat(fd,&st) != 0) {
+	fprintf(FERROR,"fstat failed : %s\n",strerror(errno));
+	return -1;
+      }
+      
+      if (st.st_size > 0) {
+	buf = map_file(fd,st.st_size);
+      } else {
+	buf = NULL;
+      }
+
+      if (verbose > 2)
+	fprintf(FERROR,"send_files mapped %s of size %d\n",
+		fname,(int)st.st_size);
+
+      write_int(f_out,i);
+
+      write_int(f_out,s->count);
+      write_int(f_out,s->n);
+      write_int(f_out,s->remainder);
+
+      if (verbose > 2)
+	fprintf(FERROR,"calling match_sums %s\n",fname);
+
+      if (!am_server && verbose)
+	printf("%s\n",fname);
+      
+      match_sums(f_out,s,buf,st.st_size);
+      write_flush(f_out);
+      
+      unmap_file(buf,st.st_size);
+      close(fd);
+
+      free_sums(s);
+
+      if (verbose > 2)
+	fprintf(FERROR,"sender finished %s\n",fname);
+
+      total += st.st_size;
+    }
 
   if (verbose > 2)
-    fprintf(FERROR,"generate_files phase=%d\n",phase);
+    fprintf(FERROR,"send files finished\n");
 
-  write_int(f,-1);
-  write_flush(f);
+  match_report();
 
-  if (remote_version >= 13) {
-    for (i=read_int(f_recv); i != -1; i=read_int(f_recv)) {
-      struct file_struct *file = &flist->files[i];
-      recv_generator(local_name?local_name:file->name,
-		     flist,i,f);    
-    }
+  write_int(f_out,-1);
+  write_flush(f_out);
 
-    phase++;
-    if (verbose > 2)
-      fprintf(FERROR,"generate_files phase=%d\n",phase);
-
-    write_int(f,-1);
-    write_flush(f);
-  }
-
-
-  if (verbose > 2)
-    fprintf(FERROR,"generator wrote %d\n",write_total());
+  return total;
 }

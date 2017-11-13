@@ -1,1 +1,1 @@
-fprintf(FINFO,"created directory %s\n",name);
+fprintf(FERROR,"make_file(%s)\n",fname);

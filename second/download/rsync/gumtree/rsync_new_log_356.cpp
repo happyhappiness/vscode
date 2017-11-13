@@ -1,2 +1,2 @@
-fprintf(FINFO,"send_files mapped %s of size %d\n",
-			  fname,(int)st.st_size);
+fprintf(FERROR,"opendir(%s): %s\n",
+			fname,strerror(errno));

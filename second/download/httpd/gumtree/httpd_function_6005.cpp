@@ -1,56 +1,83 @@
-static void map_link(link_ctx *ctx) 
+int h2_h2_process_conn(conn_rec* c)
 {
-    if (ctx->link_start < ctx->link_end) {
-        char buffer[HUGE_STRING_LEN];
-        int need_len, link_len, buffer_len, prepend_p_server; 
-        const char *mapped;
+    apr_status_t status;
+    h2_ctx *ctx;
+    
+    if (c->master) {
+        return DECLINED;
+    }
+    
+    ctx = h2_ctx_get(c, 0);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "h2_h2, process_conn");
+    if (h2_ctx_is_task(ctx)) {
+        /* our stream pseudo connection */
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, "h2_h2, task, declined");
+        return DECLINED;
+    }
+    
+    if (!ctx && c->keepalives == 0) {
+        const char *proto = ap_get_protocol(c);
         
-        buffer[0] = '\0';
-        buffer_len = 0;
-        link_len = ctx->link_end - ctx->link_start;
-        need_len = link_len + 1;
-        prepend_p_server = (ctx->s[ctx->link_start] == '/'); 
-        if (prepend_p_server) {
-            /* common to use relative uris in link header, for mappings
-             * to work need to prefix the backend server uri */
-            need_len += ctx->psu_len;
-            strncpy(buffer, ctx->p_server_uri, sizeof(buffer));
-            buffer_len = ctx->psu_len;
+        if (APLOGctrace1(c)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "h2_h2, process_conn, "
+                          "new connection using protocol '%s', direct=%d, "
+                          "tls acceptable=%d", proto, h2_allows_h2_direct(c), 
+                          h2_is_acceptable_connection(c, 1));
         }
-        if (need_len > sizeof(buffer)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, ctx->r, APLOGNO(03482) 
-                          "link_reverse_map uri too long, skipped: %s", ctx->s);
-            return;
-        }
-        strncpy(buffer + buffer_len, ctx->s + ctx->link_start, link_len);
-        buffer_len += link_len;
-        buffer[buffer_len] = '\0';
-        if (!prepend_p_server
-            && strcmp(ctx->real_backend_uri, ctx->p_server_uri)
-            && !strncmp(buffer, ctx->real_backend_uri, ctx->rbu_len)) {
-            /* the server uri and our local proxy uri we use differ, for mapping
-             * to work, we need to use the proxy uri */
-            int path_start = ctx->link_start + ctx->rbu_len;
-            link_len -= ctx->rbu_len;
-            strcpy(buffer, ctx->p_server_uri);
-            strncpy(buffer + ctx->psu_len, ctx->s + path_start, link_len);
-            buffer_len = ctx->psu_len + link_len;
-            buffer[buffer_len] = '\0';            
-        }
-        mapped = ap_proxy_location_reverse_map(ctx->r, ctx->conf, buffer);
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, ctx->r, 
-                      "reverse_map[%s] %s --> %s", ctx->p_server_uri, buffer, mapped);
-        if (mapped != buffer) {
-            if (prepend_p_server) {
-                if (ctx->server_uri == NULL) {
-                    ctx->server_uri = ap_construct_url(ctx->pool, "", ctx->r);
-                    ctx->su_len = (int)strlen(ctx->server_uri);
-                }
-                if (!strncmp(mapped, ctx->server_uri, ctx->su_len)) {
-                    mapped += ctx->su_len;
-                }
+        
+        if (!strcmp(AP_PROTOCOL_HTTP1, proto)
+            && h2_allows_h2_direct(c) 
+            && h2_is_acceptable_connection(c, 1)) {
+            /* Fresh connection still is on http/1.1 and H2Direct is enabled. 
+             * Otherwise connection is in a fully acceptable state.
+             * -> peek at the first 24 incoming bytes
+             */
+            apr_bucket_brigade *temp;
+            char *s = NULL;
+            apr_size_t slen;
+            
+            temp = apr_brigade_create(c->pool, c->bucket_alloc);
+            status = ap_get_brigade(c->input_filters, temp,
+                                    AP_MODE_SPECULATIVE, APR_BLOCK_READ, 24);
+            
+            if (status != APR_SUCCESS) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03054)
+                              "h2_h2, error reading 24 bytes speculative");
+                apr_brigade_destroy(temp);
+                return DECLINED;
             }
-            subst_str(ctx, ctx->link_start, ctx->link_end, mapped);
+            
+            apr_brigade_pflatten(temp, &s, &slen, c->pool);
+            if ((slen >= 24) && !memcmp(H2_MAGIC_TOKEN, s, 24)) {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                              "h2_h2, direct mode detected");
+                if (!ctx) {
+                    ctx = h2_ctx_get(c, 1);
+                }
+                h2_ctx_protocol_set(ctx, h2_h2_is_tls(c)? "h2" : "h2c");
+            }
+            else {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
+                              "h2_h2, not detected in %d bytes: %s", 
+                              (int)slen, s);
+            }
+            
+            apr_brigade_destroy(temp);
         }
     }
+
+    if (ctx) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "process_conn");
+        if (!h2_ctx_session_get(ctx)) {
+            status = h2_conn_setup(ctx, c, NULL);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c, "conn_setup");
+            if (status != APR_SUCCESS) {
+                return status;
+            }
+        }
+        return h2_conn_run(ctx, c);
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "h2_h2, declined");
+    return DECLINED;
 }

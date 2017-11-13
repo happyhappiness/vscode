@@ -1,158 +1,89 @@
-static apr_status_t hm_file_update_stat(hm_ctx_t *ctx, hm_server_t *s, apr_pool_t *pool)
+static const char *add_member(cmd_parms *cmd, void *dummy, const char *arg)
 {
-    apr_status_t rv;
-    apr_file_t *fp;
-    apr_file_t *fpin;
-    apr_time_t now;
-    apr_time_t fage;
-    apr_finfo_t fi;
-    int updated = 0;
-    char *path = apr_pstrcat(pool, ctx->storage_path, ".tmp.XXXXXX", NULL);
+    server_rec *s = cmd->server;
+    proxy_server_conf *conf =
+    ap_get_module_config(s->module_config, &proxy_module);
+    proxy_balancer *balancer;
+    proxy_worker *worker;
+    char *path = cmd->path;
+    char *name = NULL;
+    char *word;
+    apr_table_t *params = apr_table_make(cmd->pool, 5);
+    const apr_array_header_t *arr;
+    const apr_table_entry_t *elts;
+    int reuse = 0;
+    int i;
 
+    if (cmd->path)
+        path = apr_pstrdup(cmd->pool, cmd->path);
 
-    /* TODO: Update stats file (!) */
-    rv = apr_file_mktemp(&fp, path, APR_CREATE | APR_WRITE, pool);
+    while (*arg) {
+        char *val;
+        word = ap_getword_conf(cmd->pool, &arg);
+        val = strchr(word, '=');
 
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to open tmp file: %s", path);
-        return rv;
-    }
-    rv = apr_file_open(&fpin, ctx->storage_path, APR_READ|APR_BINARY|APR_BUFFERED,
-                       APR_OS_DEFAULT, pool);
-
-    now = apr_time_now();
-    if (rv == APR_SUCCESS) {
-        char *t;
-        apr_table_t *hbt = apr_table_make(pool, 10);
-        apr_bucket_alloc_t *ba = apr_bucket_alloc_create(pool);
-        apr_bucket_brigade *bb = apr_brigade_create(pool, ba);
-        apr_bucket_brigade *tmpbb = apr_brigade_create(pool, ba);
-        rv = apr_file_info_get(&fi, APR_FINFO_SIZE | APR_FINFO_MTIME, fpin);
-        if (rv) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                         "Heartmonitor: Unable to read file: %s", ctx->storage_path);
-            return rv;
+        if (!val) {
+            if (!path)
+                path = word;
+            else if (!name)
+                name = word;
+            else {
+                if (cmd->path)
+                    return "BalancerMember can not have a balancer name when defined in a location";
+                else
+                    return "Invalid BalancerMember parameter. Parameter must "
+                           "be in the form 'key=value'";
+            }
+        } else {
+            *val++ = '\0';
+            apr_table_setn(params, word, val);
         }
+    }
+    if (!path)
+        return "BalancerMember must define balancer name when outside <Proxy > section";
+    if (!name)
+        return "BalancerMember must define remote proxy server";
 
-        /* Read the file and update the line corresponding to the node */
-        ba = apr_bucket_alloc_create(pool);
-        bb = apr_brigade_create(pool, ba);
-        apr_brigade_insert_file(bb, fpin, 0, fi.size, pool);
-        tmpbb = apr_brigade_create(pool, ba);
-        fage = apr_time_sec(now - fi.mtime);
-        do {
-            char buf[4096];
-            const char *ip;
-            apr_size_t bsize = sizeof(buf);
-            apr_brigade_cleanup(tmpbb);
-            if (APR_BRIGADE_EMPTY(bb)) {
-                break;
-            } 
-            rv = apr_brigade_split_line(tmpbb, bb,
-                                        APR_BLOCK_READ, sizeof(buf));
-       
-            if (rv) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                             "Heartmonitor: Unable to read from file: %s", ctx->storage_path);
-                return rv;
-            }
+    ap_str_tolower(path);   /* lowercase scheme://hostname */
 
-            apr_brigade_flatten(tmpbb, buf, &bsize);
-            if (bsize == 0) {
-                break;
-            }
-            buf[bsize - 1] = 0;
-            t = strchr(buf, ' ');
-            if (t) {
-                ip = apr_pstrndup(pool, buf, t - buf);
-            } else {
-                ip = NULL;
-            }
-            if (!ip || buf[0] == '#') {
-                /* copy things we can't process */
-                apr_file_printf(fp, "%s\n", buf);
-            } else if (strcmp(ip, s->ip) !=0 ) {
-                hm_server_t node; 
-                apr_time_t seen;
-                /* Update seen time according to the last file modification */
-                apr_table_clear(hbt);
-                qs_to_table(apr_pstrdup(pool, t), hbt, pool);
-                if (apr_table_get(hbt, "busy")) {
-                    node.busy = atoi(apr_table_get(hbt, "busy"));
-                } else {
-                    node.busy = 0;
-                }
-
-                if (apr_table_get(hbt, "ready")) {
-                    node.ready = atoi(apr_table_get(hbt, "ready"));
-                } else {
-                    node.ready = 0;
-                }
-
-                if (apr_table_get(hbt, "lastseen")) {
-                    node.seen = atoi(apr_table_get(hbt, "lastseen"));
-                } else {
-                    node.seen = SEEN_TIMEOUT; 
-                }
-                seen = fage + node.seen;
-
-                if (apr_table_get(hbt, "port")) {
-                    node.port = atoi(apr_table_get(hbt, "port"));
-                } else {
-                    node.port = 80; 
-                }
-                apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
-                                ip, node.ready, node.busy, (unsigned int) seen, node.port);
-            } else {
-                apr_time_t seen;
-                seen = apr_time_sec(now - s->seen);
-                apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
-                                s->ip, s->ready, s->busy, (unsigned int) seen, s->port);
-                updated = 1;
-            }
-        } while (1);
+    /* Try to find existing worker */
+    worker = ap_proxy_get_worker(cmd->temp_pool, conf, name);
+    if (!worker) {
+        const char *err;
+        if ((err = ap_proxy_add_worker(&worker, cmd->pool, conf, name)) != NULL)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+        PROXY_COPY_CONF_PARAMS(worker, conf);
+    } else {
+        reuse = 1;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
+                     "Sharing worker '%s' instead of creating new worker '%s'",
+                     worker->name, name);
     }
 
-    if (!updated) {
-        apr_time_t seen;
-        seen = apr_time_sec(now - s->seen);
-        apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
-                        s->ip, s->ready, s->busy, (unsigned int) seen, s->port);
+    arr = apr_table_elts(params);
+    elts = (const apr_table_entry_t *)arr->elts;
+    for (i = 0; i < arr->nelts; i++) {
+        if (reuse) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                         "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
+                         elts[i].key, elts[i].val, worker->name);
+        } else {
+            const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
+                                               elts[i].val);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+        }
     }
-
-    rv = apr_file_flush(fp);
-    if (rv) {
-      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                   "Heartmonitor: Unable to flush file: %s", path);
-      return rv;
+    /* Try to find the balancer */
+    balancer = ap_proxy_get_balancer(cmd->temp_pool, conf, path);
+    if (!balancer) {
+        const char *err = ap_proxy_add_balancer(&balancer,
+                                                cmd->pool,
+                                                conf, path);
+        if (err)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
     }
-
-    rv = apr_file_close(fp);
-    if (rv) {
-      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                   "Heartmonitor: Unable to close file: %s", path);
-      return rv;
-    }
-  
-    rv = apr_file_perms_set(path,
-                            APR_FPROT_UREAD | APR_FPROT_GREAD |
-                            APR_FPROT_WREAD);
-    if (rv && rv != APR_INCOMPLETE) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to set file permssions on %s",
-                     path);
-        return rv;
-    }
-
-    rv = apr_file_rename(path, ctx->storage_path, pool);
-
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to move file: %s -> %s", path,
-                     ctx->storage_path);
-        return rv;
-    }
-
-    return APR_SUCCESS;
+    /* Add the worker to the load balancer */
+    ap_proxy_add_worker_to_balancer(cmd->pool, balancer, worker);
+    return NULL;
 }

@@ -1,9 +1,11 @@
 fputs(
-"              If the nickname contains \":\", it needs to be preceded by \"\\\"  so\n"
-"              that  it  is not recognized as password delimiter.  If the nick-\n"
-"              name contains \"\\\", it needs to be escaped as \"\\\\\" so that it  is\n"
-"              not recognized as an escape character.\n"
+"              only such one.  (Added in 7.33.0)\n"
 "\n"
-"              (iOS  and  Mac OS X only) If curl is built against Secure Trans-\n"
-"              port, then the certificate string can either be the  name  of  a\n"
+"       --dns-ipv6-addr <ip-address>\n"
+"              Tell curl to bind to <ip-address> when making IPv6 DNS requests,\n"
+"              so  that the DNS requests originate from this address. The argu-\n"
+"              ment should be a single IPv6 address.\n"
+"\n"
+"              This option requires that libcurl  was  built  with  a  resolver\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
 , stdout);

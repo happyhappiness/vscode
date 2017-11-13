@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL ciphers");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The DAV:merge element must contain a DAV:source "
+                      "element.");

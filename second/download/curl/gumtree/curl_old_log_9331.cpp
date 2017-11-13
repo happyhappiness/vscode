@@ -1,9 +1,11 @@
 fputs(
-"              combination with the -L, --location option. The file  format  of\n"
-"              the  file  to  read cookies from should be plain HTTP headers or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              \"Mozilla/4.0\".  To  encode  blanks  in  the string, surround the\n"
+"              string with single quote marks. This can also be  set  with  the\n"
+"              -H, --header option of course.\n"
 "\n"
-"              NOTE that the file specified with -b, --cookie is only  used  as\n"
-"              input.  No cookies will be stored in the file. To store cookies,\n"
-"              use the -c, --cookie-jar option or you could even save the  HTTP\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --anyauth\n"
+"              (HTTP) Tells curl to figure out authentication method by itself,\n"
+"              and use the most secure one the remote site claims  to  support.\n"
 , stdout);

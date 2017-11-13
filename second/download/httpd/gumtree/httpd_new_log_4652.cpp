@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00169)
-                    "caught SIGTERM, shutting down");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, base_server, APLOGNO(01887)
+                 "Init: Initializing (virtual) servers for SSL");

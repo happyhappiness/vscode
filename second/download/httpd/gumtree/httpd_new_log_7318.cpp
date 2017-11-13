@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(02411)
-                              "SSL Proxy: Peer certificate does not match "
-                              "for hostname %s", hostname_note);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                             "[%s] SSL_X509_match_name: expecting name '%s', "
+                             "%smatched by ID '%s'",
+                             (mySrvConfig(s))->vhost_id, name,
+                             matched == TRUE ? "" : "NOT ", id[i]);

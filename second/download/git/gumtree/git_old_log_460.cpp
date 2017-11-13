@@ -1,1 +1,2 @@
-die(_("Could not read %s."), git_path_todo_file());
+packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
+			     vhost, 0);

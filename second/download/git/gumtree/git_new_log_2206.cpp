@@ -1,1 +1,1 @@
-error("malformed value for %s: %s", var, value);
+die_errno(_("Could not write to %s"), git_path_head_file());

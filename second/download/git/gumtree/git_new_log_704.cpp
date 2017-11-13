@@ -1,2 +1,1 @@
-die(_("relocate_gitdir for submodule '%s' with "
-		      "more than one worktree not supported"), path);
+packet_write_fmt(1, "ACK %s continue\n", last_hex);

@@ -1,1 +1,1 @@
-fprintf(stderr, "adding `%s'\n", buf);
+out_of_memory("recv_user_name");

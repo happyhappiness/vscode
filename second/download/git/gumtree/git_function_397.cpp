@@ -1,98 +1,65 @@
-static struct ref *do_fetch_pack(struct fetch_pack_args *args,
-				 int fd[2],
-				 const struct ref *orig_ref,
-				 struct ref **sought, int nr_sought,
-				 struct shallow_info *si,
-				 char **pack_lockfile)
+int cmd_help(int argc, const char **argv, const char *prefix)
 {
-	struct ref *ref = copy_ref_list(orig_ref);
-	unsigned char sha1[20];
-	const char *agent_feature;
-	int agent_len;
+	int nongit;
+	char *alias;
+	enum help_format parsed_help_format;
 
-	sort_ref_list(&ref, ref_compare_name);
-	qsort(sought, nr_sought, sizeof(*sought), cmp_ref_by_name);
+	argc = parse_options(argc, argv, prefix, builtin_help_options,
+			builtin_help_usage, 0);
+	parsed_help_format = help_format;
 
-	if ((args->depth > 0 || is_repository_shallow()) && !server_supports("shallow"))
-		die("Server does not support shallow clients");
-	if (server_supports("multi_ack_detailed")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports multi_ack_detailed\n");
-		multi_ack = 2;
-		if (server_supports("no-done")) {
-			if (args->verbose)
-				fprintf(stderr, "Server supports no-done\n");
-			if (args->stateless_rpc)
-				no_done = 1;
-		}
-	}
-	else if (server_supports("multi_ack")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports multi_ack\n");
-		multi_ack = 1;
-	}
-	if (server_supports("side-band-64k")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports side-band-64k\n");
-		use_sideband = 2;
-	}
-	else if (server_supports("side-band")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports side-band\n");
-		use_sideband = 1;
-	}
-	if (server_supports("allow-tip-sha1-in-want")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports allow-tip-sha1-in-want\n");
-		allow_unadvertised_object_request |= ALLOW_TIP_SHA1;
-	}
-	if (server_supports("allow-reachable-sha1-in-want")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");
-		allow_unadvertised_object_request |= ALLOW_REACHABLE_SHA1;
-	}
-	if (!server_supports("thin-pack"))
-		args->use_thin_pack = 0;
-	if (!server_supports("no-progress"))
-		args->no_progress = 0;
-	if (!server_supports("include-tag"))
-		args->include_tag = 0;
-	if (server_supports("ofs-delta")) {
-		if (args->verbose)
-			fprintf(stderr, "Server supports ofs-delta\n");
-	} else
-		prefer_ofs_delta = 0;
-
-	if ((agent_feature = server_feature_value("agent", &agent_len))) {
-		agent_supported = 1;
-		if (args->verbose && agent_len)
-			fprintf(stderr, "Server version is %.*s\n",
-				agent_len, agent_feature);
+	if (show_all) {
+		git_config(git_help_config, NULL);
+		printf(_("usage: %s%s"), _(git_usage_string), "\n\n");
+		load_command_list("git-", &main_cmds, &other_cmds);
+		list_commands(colopts, &main_cmds, &other_cmds);
 	}
 
-	if (everything_local(args, &ref, sought, nr_sought)) {
-		packet_flush(fd[1]);
-		goto all_done;
+	if (show_guides)
+		list_common_guides_help();
+
+	if (show_all || show_guides) {
+		printf("%s\n", _(git_more_info_string));
+		/*
+		* We're done. Ignore any remaining args
+		*/
+		return 0;
 	}
-	if (find_common(args, fd, sha1, ref) < 0)
-		if (!args->keep_pack)
-			/* When cloning, it is not unusual to have
-			 * no common commit.
-			 */
-			warning("no common commits");
 
-	if (args->stateless_rpc)
-		packet_flush(fd[1]);
-	if (args->depth > 0)
-		setup_alternate_shallow(&shallow_lock, &alternate_shallow_file,
-					NULL);
-	else if (si->nr_ours || si->nr_theirs)
-		alternate_shallow_file = setup_temporary_shallow(si->shallow);
-	else
-		alternate_shallow_file = NULL;
-	if (get_pack(args, fd, pack_lockfile))
-		die("git fetch-pack: fetch failed.");
+	if (!argv[0]) {
+		printf(_("usage: %s%s"), _(git_usage_string), "\n\n");
+		list_common_cmds_help();
+		printf("\n%s\n", _(git_more_info_string));
+		return 0;
+	}
 
- all_done:
-	return ref;
+	setup_git_directory_gently(&nongit);
+	git_config(git_help_config, NULL);
+
+	if (parsed_help_format != HELP_FORMAT_NONE)
+		help_format = parsed_help_format;
+	if (help_format == HELP_FORMAT_NONE)
+		help_format = parse_help_format(DEFAULT_HELP_FORMAT);
+
+	alias = alias_lookup(argv[0]);
+	if (alias && !is_git_command(argv[0])) {
+		printf_ln(_("`git %s' is aliased to `%s'"), argv[0], alias);
+		free(alias);
+		return 0;
+	}
+
+	switch (help_format) {
+	case HELP_FORMAT_NONE:
+	case HELP_FORMAT_MAN:
+		show_man_page(argv[0]);
+		break;
+	case HELP_FORMAT_INFO:
+		show_info_page(argv[0]);
+		break;
+	case HELP_FORMAT_WEB:
+		show_html_page(argv[0]);
+		break;
+	}
+
+	return 0;
 }

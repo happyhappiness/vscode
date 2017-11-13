@@ -1,2 +1,1 @@
-printf("%c %s\n", sign,
-		       find_unique_abbrev(commit->object.sha1, abbrev));
+die("object '%s' is not a blob!", sha1_to_hex(sha1));

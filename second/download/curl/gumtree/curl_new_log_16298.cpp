@@ -1,11 +1,10 @@
 fputs(
-"              special meaning. Use this in preference to -F, --form if there's\n"
-"              any  possibility  that the string value may accidentally trigger\n"
-"              the '@' or '<' features of -F, --form.\n"
+"              See  also  --dns-interface  and --dns-ipv4-addr. --dns-ipv6-addr\n"
+"              requires that the underlying libcurl was  built  to  support  c-\n"
+"              ares. Added in 7.33.0.\n"
 "\n"
-"              See also -F, --form.\n"
-"\n"
-"       -F, --form <name=content>\n"
-"              (HTTP SMTP IMAP) For HTTP protocol family, this lets  curl  emu-\n"
-"              late  a  filled-in  form  in which a user has pressed the submit\n"
+"       --dns-servers <addresses>\n"
+"              Set  the  list  of  DNS servers to be used instead of the system\n"
+"              default.  The list of IP addresses should be separated with com-\n"
+"              mas. Port numbers may also optionally be given as :<port-number>\n"
 , stdout);

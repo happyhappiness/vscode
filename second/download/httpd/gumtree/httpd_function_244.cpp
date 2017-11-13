@@ -1,50 +1,31 @@
-static int piped_log_spawn(piped_log *pl)
+int ssl_mutex_init(server_rec *s, apr_pool_t *p)
 {
-    int rc = 0;
-    apr_procattr_t *procattr;
-    apr_proc_t *procnew = NULL;
-    apr_status_t status;
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
 
-    if (((status = apr_procattr_create(&procattr, pl->p)) != APR_SUCCESS) ||
-        ((status = apr_procattr_child_in_set(procattr,
-                                             ap_piped_log_read_fd(pl),
-                                             ap_piped_log_write_fd(pl)))
-        != APR_SUCCESS) ||
-        ((status = apr_procattr_child_errfn_set(procattr, log_child_errfn))
-         != APR_SUCCESS) ||
-        ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
-        char buf[120];
-        /* Something bad happened, give up and go away. */
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "piped_log_spawn: unable to setup child process '%s': %s",
-                     pl->program, apr_strerror(status, buf, sizeof(buf)));
-        rc = -1;
-    }
-    else {
-        char **args;
-        const char *pname;
+    if (mc->nMutexMode == SSL_MUTEXMODE_NONE) 
+        return TRUE;
 
-        apr_tokenize_to_argv(pl->program, &args, pl->p);
-        pname = apr_pstrdup(pl->p, args[0]);
-        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
-        status = apr_proc_create(procnew, pname, (const char * const *) args,
-                                 NULL, procattr, pl->p);
-
-        if (status == APR_SUCCESS) {
-            pl->pid = procnew;
-            ap_piped_log_write_fd(pl) = procnew->in;
-            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
-                                          ap_piped_log_write_fd(pl), pl->p);
-        }
-        else {
-            char buf[120];
-            /* Something bad happened, give up and go away. */
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "unable to start piped log program '%s': %s",
-                         pl->program, apr_strerror(status, buf, sizeof(buf)));
-            rc = -1;
-        }
+    if ((rv = apr_global_mutex_create(&mc->pMutex, mc->szMutexFile,
+                                mc->nMutexMech, p)) != APR_SUCCESS) {
+        if (mc->szMutexFile)
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot create SSLMutex with file `%s'",
+                         mc->szMutexFile);
+        else
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot create SSLMutex");
+        return FALSE;
     }
 
-    return rc;
+#ifdef MOD_SSL_SET_MUTEX_PERMS
+    rv = unixd_set_global_mutex_perms(mc->pMutex);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Could not set permissions on ssl_mutex; check User "
+                     "and Group directives");
+        return FALSE;
+    }
+#endif
+    return TRUE;
 }

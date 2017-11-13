@@ -125,11 +125,19 @@ class Gumtree:
         """
         return Gumtree.gumtree.getActionType()
 
-    def get_function_edited_type(self, ddg_locs):
+    def set_ddg_flag(self, is_new_hunk):
         """
-        @ param ddg locations(index from 0)\n
+        @ param true if in new hunk\n
+        @ return nothing\n
+        @ involve set ddg file info, true for locations in new hunk file\n
+        """
+        Gumtree.gumtree.setDDGFlag(is_new_hunk)
+            
+    def get_ddg_edited_type(self, ddg_locs):
+        """
+        @ param ddg locations in new or old hunks(index from 0)\n
         @ return true is ddg is modified\n
-        @ involve tell whether data dependence nodes is modified\n
+        @ involve tell whether data dependence nodes for control statement is modified\n
         """
         for ddg_loc in ddg_locs:
             Gumtree.gumtree.addDDGNode(ddg_loc)

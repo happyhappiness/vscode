@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                "Server built: %s", ap_get_server_built());
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, SESSION_PREFIX
+                          "session is enabled but no session modules have been configured, "
+                          "session not saved: %s", r->uri);

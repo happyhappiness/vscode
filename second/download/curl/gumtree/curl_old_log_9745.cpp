@@ -1,10 +1,10 @@
 fputs(
-"              backend  that supports this operation. The c-ares backend is the\n"
-"              only such one.  (Added in 7.33.0)\n"
+"       --dns-interface <interface>\n"
+"              Tell curl to send outgoing  DNS  requests  through  <interface>.\n"
+"              This  option  is  a  counterpart  to --interface (which does not\n"
+"              affect DNS). The supplied string must be an interface name  (not\n"
+"              an address).\n"
 "\n"
-"       -e, --referer <URL>\n"
-"              (HTTP) Sends the \"Referrer Page\" information to the HTTP server.\n"
-"              This can also be set with the -H, --header flag of course.  When\n"
-"              used with -L, --location you can append \";auto\" to the --referer\n"
-"              URL to make curl automatically set the previous URL when it fol-\n"
+"              This  option  requires  that  libcurl  was built with a resolver\n"
+"              backend that supports this operation. The c-ares backend is  the\n"
 , stdout);

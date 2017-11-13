@@ -1,1 +1,1 @@
-die_errno(_("could not write to %s"), filename);
+die(_("unable to find filename in patch at line %d"), linenr);

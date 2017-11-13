@@ -1,2 +1,1 @@
-error("open(\"%s\"): %s", path,
-				     strerror(errno));
+printf("%s\n", sha1_to_hex(result->item->object.sha1));

@@ -1,112 +1,152 @@
-int cmd_pull(int argc, const char **argv, const char *prefix)
+struct child_process *git_connect(int fd[2], const char *url,
+				  const char *prog, int flags)
 {
-	const char *repo, **refspecs;
-	struct sha1_array merge_heads = SHA1_ARRAY_INIT;
-	unsigned char orig_head[GIT_SHA1_RAWSZ], curr_head[GIT_SHA1_RAWSZ];
-	unsigned char rebase_fork_point[GIT_SHA1_RAWSZ];
+	char *hostandport, *path;
+	struct child_process *conn = &no_fork;
+	enum protocol protocol;
+	struct strbuf cmd = STRBUF_INIT;
 
-	if (!getenv("GIT_REFLOG_ACTION"))
-		set_reflog_message(argc, argv);
+	/* Without this we cannot rely on waitpid() to tell
+	 * what happened to our children.
+	 */
+	signal(SIGCHLD, SIG_DFL);
 
-	argc = parse_options(argc, argv, prefix, pull_options, pull_usage, 0);
-
-	parse_repo_refspecs(argc, argv, &repo, &refspecs);
-
-	if (!opt_ff)
-		opt_ff = xstrdup_or_null(config_get_ff());
-
-	if (opt_rebase < 0)
-		opt_rebase = config_get_rebase();
-
-	git_config(git_pull_config, NULL);
-
-	if (read_cache_unmerged())
-		die_resolve_conflict("pull");
-
-	if (file_exists(git_path("MERGE_HEAD")))
-		die_conclude_merge();
-
-	if (get_sha1("HEAD", orig_head))
-		hashclr(orig_head);
-
-	if (!opt_rebase && opt_autostash != -1)
-		die(_("--[no-]autostash option is only valid with --rebase."));
-
-	if (opt_rebase) {
-		int autostash = config_autostash;
-		if (opt_autostash != -1)
-			autostash = opt_autostash;
-
-		if (is_null_sha1(orig_head) && !is_cache_unborn())
-			die(_("Updating an unborn branch with changes added to the index."));
-
-		if (!autostash)
-			require_clean_work_tree(N_("pull with rebase"),
-				_("please commit or stash them."), 1, 0);
-
-		if (get_rebase_fork_point(rebase_fork_point, repo, *refspecs))
-			hashclr(rebase_fork_point);
-	}
-
-	if (run_fetch(repo, refspecs))
-		return 1;
-
-	if (opt_dry_run)
-		return 0;
-
-	if (get_sha1("HEAD", curr_head))
-		hashclr(curr_head);
-
-	if (!is_null_sha1(orig_head) && !is_null_sha1(curr_head) &&
-			hashcmp(orig_head, curr_head)) {
+	protocol = parse_connect_url(url, &hostandport, &path);
+	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
+		printf("Diag: url=%s\n", url ? url : "NULL");
+		printf("Diag: protocol=%s\n", prot_name(protocol));
+		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
+		printf("Diag: path=%s\n", path ? path : "NULL");
+		conn = NULL;
+	} else if (protocol == PROTO_GIT) {
 		/*
-		 * The fetch involved updating the current branch.
-		 *
-		 * The working tree and the index file are still based on
-		 * orig_head commit, but we are merging into curr_head.
-		 * Update the working tree to match curr_head.
+		 * Set up virtual host information based on where we will
+		 * connect, unless the user has overridden us in
+		 * the environment.
 		 */
+		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
+		if (target_host)
+			target_host = xstrdup(target_host);
+		else
+			target_host = xstrdup(hostandport);
 
-		warning(_("fetch updated the current branch head.\n"
-			"fast-forwarding your working tree from\n"
-			"commit %s."), sha1_to_hex(orig_head));
+		transport_check_allowed("git");
 
-		if (checkout_fast_forward(orig_head, curr_head, 0))
-			die(_("Cannot fast-forward your working tree.\n"
-				"After making sure that you saved anything precious from\n"
-				"$ git diff %s\n"
-				"output, run\n"
-				"$ git reset --hard\n"
-				"to recover."), sha1_to_hex(orig_head));
-	}
-
-	get_merge_heads(&merge_heads);
-
-	if (!merge_heads.nr)
-		die_no_merge_candidates(repo, refspecs);
-
-	if (is_null_sha1(orig_head)) {
-		if (merge_heads.nr > 1)
-			die(_("Cannot merge multiple branches into empty head."));
-		return pull_into_void(*merge_heads.sha1, curr_head);
-	}
-	if (opt_rebase && merge_heads.nr > 1)
-		die(_("Cannot rebase onto multiple branches."));
-
-	if (opt_rebase) {
-		struct commit_list *list = NULL;
-		struct commit *merge_head, *head;
-
-		head = lookup_commit_reference(orig_head);
-		commit_list_insert(head, &list);
-		merge_head = lookup_commit_reference(merge_heads.sha1[0]);
-		if (is_descendant_of(merge_head, list)) {
-			/* we can fast-forward this without invoking rebase */
-			opt_ff = "--ff-only";
-			return run_merge();
-		}
-		return run_rebase(curr_head, *merge_heads.sha1, rebase_fork_point);
+		/* These underlying connection commands die() if they
+		 * cannot connect.
+		 */
+		if (git_use_proxy(hostandport))
+			conn = git_proxy_connect(fd, hostandport);
+		else
+			git_tcp_connect(fd, hostandport, flags);
+		/*
+		 * Separate original protocol components prog and path
+		 * from extended host header with a NUL byte.
+		 *
+		 * Note: Do not add any other headers here!  Doing so
+		 * will cause older git-daemon servers to crash.
+		 */
+		packet_write_fmt(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);
+		free(target_host);
 	} else {
-		return run_merge();
+		conn = xmalloc(sizeof(*conn));
+		child_process_init(conn);
+
+		if (looks_like_command_line_option(path))
+			die("strange pathname '%s' blocked", path);
+
+		strbuf_addstr(&cmd, prog);
+		strbuf_addch(&cmd, ' ');
+		sq_quote_buf(&cmd, path);
+
+		/* remove repo-local variables from the environment */
+		conn->env = local_repo_env;
+		conn->use_shell = 1;
+		conn->in = conn->out = -1;
+		if (protocol == PROTO_SSH) {
+			const char *ssh;
+			int putty = 0, tortoiseplink = 0;
+			char *ssh_host = hostandport;
+			const char *port = NULL;
+			transport_check_allowed("ssh");
+			get_host_and_port(&ssh_host, &port);
+
+			if (!port)
+				port = get_port(ssh_host);
+
+			if (flags & CONNECT_DIAG_URL) {
+				printf("Diag: url=%s\n", url ? url : "NULL");
+				printf("Diag: protocol=%s\n", prot_name(protocol));
+				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+				printf("Diag: port=%s\n", port ? port : "NONE");
+				printf("Diag: path=%s\n", path ? path : "NULL");
+
+				free(hostandport);
+				free(path);
+				free(conn);
+				return NULL;
+			}
+
+			if (looks_like_command_line_option(ssh_host))
+				die("strange hostname '%s' blocked", ssh_host);
+
+			ssh = get_ssh_command();
+			if (!ssh) {
+				const char *base;
+				char *ssh_dup;
+
+				/*
+				 * GIT_SSH is the no-shell version of
+				 * GIT_SSH_COMMAND (and must remain so for
+				 * historical compatibility).
+				 */
+				conn->use_shell = 0;
+
+				ssh = getenv("GIT_SSH");
+				if (!ssh)
+					ssh = "ssh";
+
+				ssh_dup = xstrdup(ssh);
+				base = basename(ssh_dup);
+
+				tortoiseplink = !strcasecmp(base, "tortoiseplink") ||
+					!strcasecmp(base, "tortoiseplink.exe");
+				putty = tortoiseplink ||
+					!strcasecmp(base, "plink") ||
+					!strcasecmp(base, "plink.exe");
+
+				free(ssh_dup);
+			}
+
+			argv_array_push(&conn->args, ssh);
+			if (flags & CONNECT_IPV4)
+				argv_array_push(&conn->args, "-4");
+			else if (flags & CONNECT_IPV6)
+				argv_array_push(&conn->args, "-6");
+			if (tortoiseplink)
+				argv_array_push(&conn->args, "-batch");
+			if (port) {
+				/* P is for PuTTY, p is for OpenSSH */
+				argv_array_push(&conn->args, putty ? "-P" : "-p");
+				argv_array_push(&conn->args, port);
+			}
+			argv_array_push(&conn->args, ssh_host);
+		} else {
+			transport_check_allowed("file");
+		}
+		argv_array_push(&conn->args, cmd.buf);
+
+		if (start_command(conn))
+			die("unable to fork");
+
+		fd[0] = conn->out; /* read from child's stdout */
+		fd[1] = conn->in;  /* write to child's stdin */
+		strbuf_release(&cmd);
 	}
+	free(hostandport);
+	free(path);
+	return conn;
 }

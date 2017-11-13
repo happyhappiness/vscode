@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
-				  APLOGNO(03404)
-                                  "h2_session(%ld): waiting on conditional",
-                                  session->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00511)
+                         "WARNING: MaxRequestWorkers of %d is less than "
+                         "ThreadsPerChild of", max_workers);

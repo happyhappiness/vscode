@@ -1,2 +1,1 @@
-printf("unreachable %s %s\n", typename(obj->type),
-			describe_object(obj));
+die(_("Error wrapping up %s."), filename);

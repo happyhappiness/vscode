@@ -1,148 +1,98 @@
-static char *lookup_map(request_rec *r, char *name, char *key)
+apr_status_t mpm_service_uninstall(void)
 {
-    rewrite_server_conf *conf;
-    rewritemap_entry *s;
-    char *value;
-    apr_finfo_t st;
+    char key_name[MAX_PATH];
     apr_status_t rv;
 
-    /* get map configuration */
-    conf = ap_get_module_config(r->server->module_config, &rewrite_module);
-    s = apr_hash_get(conf->rewritemaps, name, APR_HASH_KEY_STRING);
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+    {
+        SC_HANDLE schService;
+        SC_HANDLE schSCManager;
 
-    /* map doesn't exist */
-    if (!s) {
-        return NULL;
+        fprintf(stderr,"Removing the %s service\n", mpm_display_name);
+
+        schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                     SC_MANAGER_CONNECT);
+        if (!schSCManager) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager.");
+            return (rv);
+        }
+
+#if APR_HAS_UNICODE_FS
+        IF_WIN_OS_IS_UNICODE
+        {
+            schService = OpenServiceW(schSCManager, mpm_service_name_w, DELETE);
+        }
+#endif /* APR_HAS_UNICODE_FS */
+#if APR_HAS_ANSI_FS
+        ELSE_WIN_OS_IS_ANSI
+        {
+            schService = OpenService(schSCManager, mpm_service_name, DELETE);
+        }
+#endif
+        if (!schService) {
+           rv = apr_get_os_error();
+           ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                        "%s: OpenService failed", mpm_display_name);
+           return (rv);
+        }
+
+        /* assure the service is stopped before continuing
+         *
+         * This may be out of order... we might not be able to be
+         * granted all access if the service is running anyway.
+         *
+         * And do we want to make it *this easy* for them
+         * to uninstall their service unintentionally?
+         */
+        // ap_stop_service(schService);
+
+        if (DeleteService(schService) == 0) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "%s: Failed to delete the service.", mpm_display_name);
+            return (rv);
+        }
+
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
     }
+    else /* osver.dwPlatformId != VER_PLATFORM_WIN32_NT */
+    {
+        apr_status_t rv2, rv3;
+        ap_regkey_t *key;
+        fprintf(stderr,"Removing the %s service\n", mpm_display_name);
 
-    switch (s->type) {
-    /*
-     * Text file map (perhaps random)
-     */
-    case MAPTYPE_RND:
-    case MAPTYPE_TXT:
-        rv = apr_stat(&st, s->checkfile, APR_FINFO_MIN, r->pool);
+        /* TODO: assure the service is stopped before continuing */
+
+        rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, SERVICECONFIG9X,
+                            APR_READ | APR_WRITE | APR_CREATE, pconf);
+        if (rv == APR_SUCCESS) {
+            rv = ap_regkey_value_remove(key, mpm_service_name, pconf);
+            ap_regkey_close(key);
+        }
         if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "mod_rewrite: can't access text RewriteMap file %s",
-                          s->checkfile);
-            rewritelog((r, 1, NULL,
-                        "can't open RewriteMap file, see error log"));
-            return NULL;
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "%s: Failed to remove the RunServices registry "
+                         "entry.", mpm_display_name);
         }
 
-        value = get_cache_value(s->cachename, st.mtime, key, r->pool);
-        if (!value) {
-            rewritelog((r, 6, NULL,
-                        "cache lookup FAILED, forcing new map lookup"));
-
-            value = lookup_map_txtfile(r, s->datafile, key);
-            if (!value) {
-                rewritelog((r, 5, NULL, "map lookup FAILED: map=%s[txt] key=%s",
-                            name, key));
-                set_cache_value(s->cachename, st.mtime, key, "");
-                return NULL;
-            }
-
-            rewritelog((r, 5, NULL,"map lookup OK: map=%s[txt] key=%s -> val=%s",
-                        name, key, value));
-            set_cache_value(s->cachename, st.mtime, key, value);
+        /* we blast Services/us, not just the Services/us/Parameters branch */
+        apr_snprintf(key_name, sizeof(key_name), SERVICEPARAMS, mpm_service_name);
+        rv2 = ap_regkey_remove(AP_REGKEY_LOCAL_MACHINE, key_name, pconf);
+        apr_snprintf(key_name, sizeof(key_name), SERVICECONFIG, mpm_service_name);
+        rv3 = ap_regkey_remove(AP_REGKEY_LOCAL_MACHINE, key_name, pconf);
+        rv2 = (rv2 != APR_SUCCESS) ? rv2 : rv3;
+        if (rv2 != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv2, NULL,
+                         "%s: Failed to remove the service config from the "
+                         "registry.", mpm_display_name);
         }
-        else {
-            rewritelog((r,5,NULL,"cache lookup OK: map=%s[txt] key=%s -> val=%s",
-                        name, key, value));
-        }
-
-        if (s->type == MAPTYPE_RND && *value) {
-            value = select_random_value_part(r, value);
-            rewritelog((r, 5, NULL, "randomly chosen the subvalue `%s'",value));
-        }
-
-        return *value ? value : NULL;
-
-    /*
-     * DBM file map
-     */
-    case MAPTYPE_DBM:
-        rv = apr_stat(&st, s->checkfile, APR_FINFO_MIN, r->pool);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "mod_rewrite: can't access DBM RewriteMap file %s",
-                          s->checkfile);
-        }
-        else if(s->checkfile2 != NULL) {
-            apr_finfo_t st2;
-
-            rv = apr_stat(&st2, s->checkfile2, APR_FINFO_MIN, r->pool);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "mod_rewrite: can't access DBM RewriteMap "
-                              "file %s", s->checkfile2);
-            }
-            else if(st2.mtime > st.mtime) {
-                st.mtime = st2.mtime;
-            }
-        }
-        if(rv != APR_SUCCESS) {
-            rewritelog((r, 1, NULL,
-                        "can't open DBM RewriteMap file, see error log"));
-            return NULL;
-        }
-
-        value = get_cache_value(s->cachename, st.mtime, key, r->pool);
-        if (!value) {
-            rewritelog((r, 6, NULL,
-                        "cache lookup FAILED, forcing new map lookup"));
-
-            value = lookup_map_dbmfile(r, s->datafile, s->dbmtype, key);
-            if (!value) {
-                rewritelog((r, 5, NULL, "map lookup FAILED: map=%s[dbm] key=%s",
-                            name, key));
-                set_cache_value(s->cachename, st.mtime, key, "");
-                return NULL;
-            }
-
-            rewritelog((r, 5, NULL, "map lookup OK: map=%s[dbm] key=%s -> "
-                        "val=%s", name, key, value));
-
-            set_cache_value(s->cachename, st.mtime, key, value);
-            return value;
-        }
-
-        rewritelog((r, 5, NULL, "cache lookup OK: map=%s[dbm] key=%s -> val=%s",
-                    name, key, value));
-        return *value ? value : NULL;
-
-    /*
-     * Program file map
-     */
-    case MAPTYPE_PRG:
-        value = lookup_map_program(r, s->fpin, s->fpout, key);
-        if (!value) {
-            rewritelog((r, 5,NULL,"map lookup FAILED: map=%s key=%s", name,
-                        key));
-            return NULL;
-        }
-
-        rewritelog((r, 5, NULL, "map lookup OK: map=%s key=%s -> val=%s",
-                    name, key, value));
-        return value;
-
-    /*
-     * Internal Map
-     */
-    case MAPTYPE_INT:
-        value = s->func(r, key);
-        if (!value) {
-            rewritelog((r, 5,NULL,"map lookup FAILED: map=%s key=%s", name,
-                        key));
-            return NULL;
-        }
-
-        rewritelog((r, 5, NULL, "map lookup OK: map=%s key=%s -> val=%s",
-                    name, key, value));
-        return value;
+        rv = (rv != APR_SUCCESS) ? rv : rv2;
+        if (rv != APR_SUCCESS)
+            return rv;
     }
-
-    return NULL;
+    fprintf(stderr,"The %s service has been removed successfully.\n", mpm_display_name);
+    return APR_SUCCESS;
 }

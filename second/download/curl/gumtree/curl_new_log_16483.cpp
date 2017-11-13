@@ -1,9 +1,9 @@
 fputs(
-"              The  variables  present in the output format will be substituted\n"
-"              by the value or text that curl thinks fit, as  described  below.\n"
-"              All  variables are specified as %{variable_name} and to output a\n"
-"              normal % you just write them as %%. You can output a newline  by\n"
-"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
+"              (FTP LDAP) Enable ASCII transfer. For  FTP,  this  can  also  be\n"
+"              enforced  by  using  a URL that ends with \";type=A\". This option\n"
+"              causes data sent to stdout to be in text mode for win32 systems.\n"
 "\n"
-"              NOTE: The %-symbol is a special symbol in the win32-environment,\n"
+"       -A, --user-agent <name>\n"
+"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
+"              To  encode blanks in the string, surround the string with single\n"
 , stdout);

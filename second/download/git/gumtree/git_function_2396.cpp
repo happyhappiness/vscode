@@ -1,13 +1,22 @@
-static int tloop_join(pid_t pid, const char *name)
+static int option_parse_recurse_submodules(const struct option *opt,
+				   const char *arg, int unset)
 {
-	int tret;
-	if (waitpid(pid, &tret, 0) < 0) {
-		error("%s process failed to wait: %s", name, strerror(errno));
-		return 1;
-	}
-	if (!WIFEXITED(tret) || WEXITSTATUS(tret)) {
-		error("%s process failed", name);
-		return 1;
-	}
+	int *flags = opt->value;
+
+	if (*flags & (TRANSPORT_RECURSE_SUBMODULES_CHECK |
+		      TRANSPORT_RECURSE_SUBMODULES_ON_DEMAND))
+		die("%s can only be used once.", opt->long_name);
+
+	if (arg) {
+		if (!strcmp(arg, "check"))
+			*flags |= TRANSPORT_RECURSE_SUBMODULES_CHECK;
+		else if (!strcmp(arg, "on-demand"))
+			*flags |= TRANSPORT_RECURSE_SUBMODULES_ON_DEMAND;
+		else
+			die("bad %s argument: %s", opt->long_name, arg);
+	} else
+		die("option %s needs an argument (check|on-demand)",
+				opt->long_name);
+
 	return 0;
 }

@@ -1,9 +1,12 @@
 fputs(
-"              should  be used in this session if they match. Using this method\n"
-"              also activates the cookie engine which  will  make  curl  record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination with the -L, --location option. The file  format  of\n"
-"              the file to read cookies from should be plain HTTP headers (Set-\n"
-"              Cookie style) or the Netscape/Mozilla cookie file format.\n"
+"       -2, --sslv2\n"
+"              (SSL) Forces curl to use SSL version 2 when negotiating  with  a\n"
+"              remote  SSL  server.  Sometimes curl is built without SSLv2 sup-\n"
+"              port. SSLv2 is widely considered insecure (see RFC 6176).\n"
+"\n"
+"       -3, --sslv3\n"
+"              (SSL) Forces curl to use SSL version 3 when negotiating  with  a\n"
+"              remote  SSL  server.  Sometimes curl is built without SSLv3 sup-\n"
+"              port. SSLv3 is widely considered insecure (see RFC 7568).\n"
 "\n"
 , stdout);

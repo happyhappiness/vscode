@@ -1,79 +1,86 @@
-void parse_filter_str(filter_rule_list *listp, const char *rulestr,
-		     const filter_rule *template, int xflags)
+int start_daemon(int f_in, int f_out)
 {
-	filter_rule *rule;
-	const char *pat;
-	unsigned int pat_len;
+	char line[1024];
+	char *motd, *addr, *host;
+	int i;
 
-	if (!rulestr)
-		return;
+	io_set_sock_fds(f_in, f_out);
 
-	while (1) {
-		uint32 new_rflags;
+	/* We must load the config file before calling any function that
+	 * might cause log-file output to occur.  This ensures that the
+	 * "log file" param gets honored for the 2 non-forked use-cases
+	 * (when rsync is run by init and run by a remote shell). */
+	if (!lp_load(config_file, 0))
+		exit_cleanup(RERR_SYNTAX);
 
-		/* Remember that the returned string is NOT '\0' terminated! */
-		if (!(rule = parse_rule_tok(&rulestr, template, xflags, &pat, &pat_len)))
-			break;
+	addr = client_addr(f_in);
+	host = client_name(f_in);
+	rprintf(FLOG, "connect from %s (%s)\n", host, addr);
 
-		if (pat_len >= MAXPATHLEN) {
-			rprintf(FERROR, "discarding over-long filter: %.*s\n",
-				(int)pat_len, pat);
-		    free_continue:
-			free_filter(rule);
-			continue;
-		}
-
-		new_rflags = rule->rflags;
-		if (new_rflags & FILTRULE_CLEAR_LIST) {
-			if (DEBUG_GTE(FILTER, 2)) {
-				rprintf(FINFO,
-					"[%s] clearing filter list%s\n",
-					who_am_i(), listp->debug_type);
-			}
-			clear_filter_list(listp);
-			goto free_continue;
-		}
-
-		if (new_rflags & FILTRULE_MERGE_FILE) {
-			if (!pat_len) {
-				pat = ".cvsignore";
-				pat_len = 10;
-			}
-			if (new_rflags & FILTRULE_EXCLUDE_SELF) {
-				const char *name;
-				filter_rule *excl_self;
-
-				if (!(excl_self = new0(filter_rule)))
-					out_of_memory("parse_filter_str");
-				/* Find the beginning of the basename and add an exclude for it. */
-				for (name = pat + pat_len; name > pat && name[-1] != '/'; name--) {}
-				add_rule(listp, name, (pat + pat_len) - name, excl_self, 0);
-				rule->rflags &= ~FILTRULE_EXCLUDE_SELF;
-			}
-			if (new_rflags & FILTRULE_PERDIR_MERGE) {
-				if (parent_dirscan) {
-					const char *p;
-					unsigned int len = pat_len;
-					if ((p = parse_merge_name(pat, &len, module_dirlen)))
-						add_rule(listp, p, len, rule, 0);
-					else
-						free_filter(rule);
-					continue;
-				}
-			} else {
-				const char *p;
-				unsigned int len = pat_len;
-				if ((p = parse_merge_name(pat, &len, 0)))
-					parse_filter_file(listp, p, rule, XFLG_FATAL_ERRORS);
-				free_filter(rule);
-				continue;
-			}
-		}
-
-		add_rule(listp, pat, pat_len, rule, xflags);
-
-		if (new_rflags & FILTRULE_CVS_IGNORE
-		    && !(new_rflags & FILTRULE_MERGE_FILE))
-			get_cvs_excludes(new_rflags);
+	if (!am_server) {
+		set_socket_options(f_in, "SO_KEEPALIVE");
+		if (sockopts)
+			set_socket_options(f_in, sockopts);
+		else
+			set_socket_options(f_in, lp_socket_options());
+		set_nonblocking(f_in);
 	}
+
+	io_printf(f_out, "@RSYNCD: %d\n", protocol_version);
+
+	motd = lp_motd_file();
+	if (motd && *motd) {
+		FILE *f = fopen(motd,"r");
+		while (f && !feof(f)) {
+			int len = fread(line, 1, sizeof line - 1, f);
+			if (len > 0) {
+				line[len] = 0;
+				io_printf(f_out, "%s", line);
+			}
+		}
+		if (f)
+			fclose(f);
+		io_printf(f_out, "\n");
+	}
+
+	if (!read_line(f_in, line, sizeof line - 1))
+		return -1;
+
+	if (sscanf(line,"@RSYNCD: %d", &remote_protocol) != 1) {
+		io_printf(f_out, "@ERROR: protocol startup error\n");
+		return -1;
+	}
+	if (protocol_version > remote_protocol)
+		protocol_version = remote_protocol;
+
+	line[0] = 0;
+	if (!read_line(f_in, line, sizeof line - 1))
+		return -1;
+
+	if (!*line || strcmp(line, "#list") == 0) {
+		rprintf(FLOG, "module-list request from %s (%s)\n",
+			host, addr);
+		send_listing(f_out);
+		return -1;
+	}
+
+	if (*line == '#') {
+		/* it's some sort of command that I don't understand */
+		io_printf(f_out, "@ERROR: Unknown command '%s'\n", line);
+		return -1;
+	}
+
+	if ((i = lp_number(line)) < 0) {
+		rprintf(FLOG, "unknown module '%s' tried from %s (%s)\n",
+			line, host, addr);
+		io_printf(f_out, "@ERROR: Unknown module '%s'\n", line);
+		return -1;
+	}
+
+#ifdef HAVE_SIGACTION
+	sigact.sa_flags = SA_NOCLDSTOP;
+#endif
+	SIGACTION(SIGCHLD, remember_children);
+
+	return rsync_module(f_in, f_out, i, addr, host);
 }

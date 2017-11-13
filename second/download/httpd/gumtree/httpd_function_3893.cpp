@@ -1,47 +1,47 @@
-static int fcgi_do_request(apr_pool_t *p, request_rec *r,
-                           proxy_conn_rec *conn,
-                           conn_rec *origin,
-                           proxy_dir_conf *conf,
-                           apr_uri_t *uri,
-                           char *url, char *server_portstr)
+static int mime_post_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
 {
-    /* Request IDs are arbitrary numbers that we assign to a
-     * single request. This would allow multiplex/pipelinig of 
-     * multiple requests to the same FastCGI connection, but 
-     * we don't support that, and always use a value of '1' to
-     * keep things simple. */
-    int request_id = 1; 
-    apr_status_t rv;
-   
-    /* Step 1: Send FCGI_BEGIN_REQUEST */
-    rv = send_begin_request(conn, request_id);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "proxy: FCGI: Failed Writing Request to %s:",
-                     server_portstr);
-        conn->close = 1;
-        return HTTP_SERVICE_UNAVAILABLE;
-    }
-    
-    /* Step 2: Send Environment via FCGI_PARAMS */
-    rv = send_environment(conn, r, request_id);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "proxy: FCGI: Failed writing Environment to %s:",
-                     server_portstr);
-        conn->close = 1;
-        return HTTP_SERVICE_UNAVAILABLE;
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    const char *types_confname = ap_get_module_config(s->module_config,
+                                                      &mime_module);
+    apr_status_t status;
+
+    if (!types_confname) {
+        types_confname = AP_TYPES_CONFIG_FILE;
     }
 
-    /* Step 3: Read records from the back end server and handle them. */
-    rv = dispatch(conn, r, request_id);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "proxy: FCGI: Error dispatching request to %s:",
-                     server_portstr);
-        conn->close = 1;
-        return HTTP_SERVICE_UNAVAILABLE;
+    types_confname = ap_server_root_relative(p, types_confname);
+    if (!types_confname) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                     "Invalid mime types config path %s",
+                     (const char *)ap_get_module_config(s->module_config,
+                                                        &mime_module));
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if ((status = ap_pcfg_openfile(&f, ptemp, types_confname))
+                != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not open mime types config file %s.",
+                     types_confname);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
+    mime_type_extensions = apr_hash_make(p);
+
+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
+        const char *ll = l, *ct;
+
+        if (l[0] == '#') {
+            continue;
+        }
+        ct = ap_getword_conf(p, &ll);
+
+        while (ll[0]) {
+            char *ext = ap_getword_conf(p, &ll);
+            ap_str_tolower(ext);
+            apr_hash_set(mime_type_extensions, ext, APR_HASH_KEY_STRING, ct);
+        }
+    }
+    ap_cfg_closefile(f);
     return OK;
 }

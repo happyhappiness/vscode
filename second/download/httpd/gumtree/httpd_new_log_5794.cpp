@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c, APLOGNO(03393)
-                      "h2_mplx(%s): close, no response, no rst", task->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                                  "h2_from_h1(%d): trailers filter, saving trailers",
+                                  from_h1->stream_id);

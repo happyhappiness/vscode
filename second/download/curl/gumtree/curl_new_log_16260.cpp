@@ -1,11 +1,8 @@
 fputs(
-"              file will be written using the Netscape cookie file  format.  If\n"
-"              you set the file name to a single dash, \"-\", the cookies will be\n"
-"              written to stdout.\n"
-"\n"
-"              This command line option will activate the  cookie  engine  that\n"
-"              makes curl record and use cookies. Another way to activate it is\n"
-"              to use the -b, --cookie option.\n"
-"\n"
-"              If the cookie jar can't be created or written to, the whole curl\n"
+"              If the parameter is to contain whitespace, the parameter must be\n"
+"              enclosed  within  quotes.  Within  double  quotes, the following\n"
+"              escape sequences are available: \\\\, \\\", \\t, \\n,  \\r  and  \\v.  A\n"
+"              backslash  preceding  any  other letter is ignored. If the first\n"
+"              column of a config line is a '#' character, the rest of the line\n"
+"              will be treated as a comment. Only write one option per physical\n"
 , stdout);

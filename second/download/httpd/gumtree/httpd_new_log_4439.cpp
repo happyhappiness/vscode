@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(00136)
-                     "Server MUST relinquish startup privileges before "
-                     "accepting connections.  Please ensure mod_unixd "
-                     "or other system security module is loaded.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01056)
+                             "proxy: readbytes: %#x", readbytes);

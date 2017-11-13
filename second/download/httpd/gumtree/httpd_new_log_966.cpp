@@ -1,1 +1,1 @@
-fprintf(f, "%3d-", i-8);
+printf(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n");

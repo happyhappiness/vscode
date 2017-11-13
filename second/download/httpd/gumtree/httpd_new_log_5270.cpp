@@ -1,4 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
-                          APLOGNO(02917) 
-                          "h2_request(%d): pseudo header after request start",
-                          req->id);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00414)
+                        "Parent: Unable to create child stdin pipe.");

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                    "apr_thread_create: unable to create worker thread");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, ap_server_conf,
+                             "All workers are busy, will close %d keep-alive "
+                             "connections",
+                             keepalive_q.count);

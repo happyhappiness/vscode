@@ -1,1 +1,1 @@
-out_of_memory("open_socket_out");
+out_of_memory("auth_server");

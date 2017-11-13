@@ -1,33 +1,17 @@
-void setup_protocol(int f_out,int f_in)
+static void delete_one(struct file_struct *f)
 {
-  if (am_server) {
-    remote_version = read_int(f_in);
-    write_int(f_out,PROTOCOL_VERSION);
-    write_flush(f_out);
-  } else {
-    write_int(f_out,PROTOCOL_VERSION);
-    write_flush(f_out);
-    remote_version = read_int(f_in);
-  }
-
-  if (remote_version < MIN_PROTOCOL_VERSION ||
-      remote_version > MAX_PROTOCOL_VERSION) {
-    fprintf(FERROR,"protocol version mismatch - is your shell clean?\n");
-    exit_cleanup(1);
-  }	
-
-  if (verbose > 2)
-	  fprintf(FINFO, "local_version=%d remote_version=%d\n",
-		  PROTOCOL_VERSION, remote_version);
-
-  if (remote_version >= 12) {
-    if (am_server) {
-      checksum_seed = time(NULL);
-      write_int(f_out,checksum_seed);
-    } else {
-      checksum_seed = read_int(f_in);
+  if (!S_ISDIR(f->mode)) {
+    if (!dry_run && unlink(f->name) != 0) {
+      fprintf(FERROR,"unlink %s : %s\n",f->name,strerror(errno));
+    } else if (verbose) {
+      fprintf(FERROR,"deleting %s\n",f->name);
+    }
+  } else {    
+    if (!dry_run && rmdir(f->name) != 0) {
+      if (errno != ENOTEMPTY)
+	fprintf(FERROR,"rmdir %s : %s\n",f->name,strerror(errno));
+    } else if (verbose) {
+      fprintf(FERROR,"deleting directory %s\n",f->name);      
     }
   }
-
-  checksum_init();
 }

@@ -1,126 +1,66 @@
-static void try_to_simplify_commit(struct rev_info *revs, struct commit *commit)
+static void builtin_diffstat(const char *name_a, const char *name_b,
+			     struct diff_filespec *one,
+			     struct diff_filespec *two,
+			     struct diffstat_t *diffstat,
+			     struct diff_options *o,
+			     struct diff_filepair *p)
 {
-	struct commit_list **pp, *parent;
-	struct treesame_state *ts = NULL;
-	int relevant_change = 0, irrelevant_change = 0;
-	int relevant_parents, nth_parent;
+	mmfile_t mf1, mf2;
+	struct diffstat_file *data;
+	int same_contents;
+	int complete_rewrite = 0;
 
-	/*
-	 * If we don't do pruning, everything is interesting
-	 */
-	if (!revs->prune)
-		return;
+	if (!DIFF_PAIR_UNMERGED(p)) {
+		if (p->status == DIFF_STATUS_MODIFIED && p->score)
+			complete_rewrite = 1;
+	}
 
-	if (!commit->tree)
-		return;
+	data = diffstat_add(diffstat, name_a, name_b);
+	data->is_interesting = p->status != DIFF_STATUS_UNKNOWN;
 
-	if (!commit->parents) {
-		if (rev_same_tree_as_empty(revs, commit))
-			commit->object.flags |= TREESAME;
+	if (!one || !two) {
+		data->is_unmerged = 1;
 		return;
 	}
 
-	/*
-	 * Normal non-merge commit? If we don't want to make the
-	 * history dense, we consider it always to be a change..
-	 */
-	if (!revs->dense && !commit->parents->next)
-		return;
+	same_contents = !hashcmp(one->sha1, two->sha1);
 
-	for (pp = &commit->parents, nth_parent = 0, relevant_parents = 0;
-	     (parent = *pp) != NULL;
-	     pp = &parent->next, nth_parent++) {
-		struct commit *p = parent->item;
-		if (relevant_commit(p))
-			relevant_parents++;
-
-		if (nth_parent == 1) {
-			/*
-			 * This our second loop iteration - so we now know
-			 * we're dealing with a merge.
-			 *
-			 * Do not compare with later parents when we care only about
-			 * the first parent chain, in order to avoid derailing the
-			 * traversal to follow a side branch that brought everything
-			 * in the path we are limited to by the pathspec.
-			 */
-			if (revs->first_parent_only)
-				break;
-			/*
-			 * If this will remain a potentially-simplifiable
-			 * merge, remember per-parent treesame if needed.
-			 * Initialise the array with the comparison from our
-			 * first iteration.
-			 */
-			if (revs->treesame.name &&
-			    !revs->simplify_history &&
-			    !(commit->object.flags & UNINTERESTING)) {
-				ts = initialise_treesame(revs, commit);
-				if (!(irrelevant_change || relevant_change))
-					ts->treesame[0] = 1;
-			}
+	if (diff_filespec_is_binary(one) || diff_filespec_is_binary(two)) {
+		data->is_binary = 1;
+		if (same_contents) {
+			data->added = 0;
+			data->deleted = 0;
+		} else {
+			data->added = diff_filespec_size(two);
+			data->deleted = diff_filespec_size(one);
 		}
-		if (parse_commit(p) < 0)
-			die("cannot simplify commit %s (because of %s)",
-			    sha1_to_hex(commit->object.sha1),
-			    sha1_to_hex(p->object.sha1));
-		switch (rev_compare_tree(revs, p, commit)) {
-		case REV_TREE_SAME:
-			if (!revs->simplify_history || !relevant_commit(p)) {
-				/* Even if a merge with an uninteresting
-				 * side branch brought the entire change
-				 * we are interested in, we do not want
-				 * to lose the other branches of this
-				 * merge, so we just keep going.
-				 */
-				if (ts)
-					ts->treesame[nth_parent] = 1;
-				continue;
-			}
-			parent->next = NULL;
-			commit->parents = parent;
-			commit->object.flags |= TREESAME;
-			return;
-
-		case REV_TREE_NEW:
-			if (revs->remove_empty_trees &&
-			    rev_same_tree_as_empty(revs, p)) {
-				/* We are adding all the specified
-				 * paths from this parent, so the
-				 * history beyond this parent is not
-				 * interesting.  Remove its parents
-				 * (they are grandparents for us).
-				 * IOW, we pretend this parent is a
-				 * "root" commit.
-				 */
-				if (parse_commit(p) < 0)
-					die("cannot simplify commit %s (invalid %s)",
-					    sha1_to_hex(commit->object.sha1),
-					    sha1_to_hex(p->object.sha1));
-				p->parents = NULL;
-			}
-		/* fallthrough */
-		case REV_TREE_OLD:
-		case REV_TREE_DIFFERENT:
-			if (relevant_commit(p))
-				relevant_change = 1;
-			else
-				irrelevant_change = 1;
-			continue;
-		}
-		die("bad tree compare for commit %s", sha1_to_hex(commit->object.sha1));
 	}
 
-	/*
-	 * TREESAME is straightforward for single-parent commits. For merge
-	 * commits, it is most useful to define it so that "irrelevant"
-	 * parents cannot make us !TREESAME - if we have any relevant
-	 * parents, then we only consider TREESAMEness with respect to them,
-	 * allowing irrelevant merges from uninteresting branches to be
-	 * simplified away. Only if we have only irrelevant parents do we
-	 * base TREESAME on them. Note that this logic is replicated in
-	 * update_treesame, which should be kept in sync.
-	 */
-	if (relevant_parents ? !relevant_change : !irrelevant_change)
-		commit->object.flags |= TREESAME;
+	else if (complete_rewrite) {
+		diff_populate_filespec(one, 0);
+		diff_populate_filespec(two, 0);
+		data->deleted = count_lines(one->data, one->size);
+		data->added = count_lines(two->data, two->size);
+	}
+
+	else if (!same_contents) {
+		/* Crazy xdl interfaces.. */
+		xpparam_t xpp;
+		xdemitconf_t xecfg;
+
+		if (fill_mmfile(&mf1, one) < 0 || fill_mmfile(&mf2, two) < 0)
+			die("unable to read files to diff");
+
+		memset(&xpp, 0, sizeof(xpp));
+		memset(&xecfg, 0, sizeof(xecfg));
+		xpp.flags = o->xdl_opts;
+		xecfg.ctxlen = o->context;
+		xecfg.interhunkctxlen = o->interhunkcontext;
+		if (xdi_diff_outf(&mf1, &mf2, diffstat_consume, diffstat,
+				  &xpp, &xecfg))
+			die("unable to generate diffstat for %s", one->path);
+	}
+
+	diff_free_filespec_data(one);
+	diff_free_filespec_data(two);
 }

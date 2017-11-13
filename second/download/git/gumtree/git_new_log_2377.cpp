@@ -1,1 +1,0 @@
-error_errno(_("cannot open %s"), git_path_head_file());

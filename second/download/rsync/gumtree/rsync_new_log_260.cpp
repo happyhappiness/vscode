@@ -1,1 +1,1 @@
-fprintf(FERROR,"skipping long-named directory %s\n",fname);
+fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));

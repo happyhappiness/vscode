@@ -1,1 +1,1 @@
-ap_rputs("<table cellspacing=0 cellpadding=0>\n", r);
+ap_rputs("</table>\n", r);

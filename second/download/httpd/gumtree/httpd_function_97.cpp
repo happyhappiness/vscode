@@ -1,36 +1,20 @@
-static int ssl_io_hook_write(SSL *ssl, unsigned char *buf, int len)
+static apr_status_t cleanup_nonchild_process(request_rec *r, pid_t pid)
 {
-    int rc;
-
-    if (ssl == NULL) {
-        return -1;
+    kill(pid, SIGTERM); /* in case it isn't dead yet */
+    if (dead_yet(pid, apr_time_from_sec(3)) == APR_SUCCESS) {
+        return APR_SUCCESS;
     }
-
-    rc = SSL_write(ssl, buf, len);
-
-    if (rc < 0) {
-        int ssl_err = SSL_get_error(ssl, rc);
-
-        if (ssl_err == SSL_ERROR_WANT_WRITE) {
-            /*
-             * Simulate an EINTR in case OpenSSL wants to write more.
-             */
-            errno = EINTR;
-        }
-        else if (ssl_err == SSL_ERROR_SSL) {
-            /*
-             * Log SSL errors
-             */
-            conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                    "SSL error on writing data");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, c->base_server);
-        }
-        /*
-         * XXX - Just trying to reflect the behaviour in 
-         * openssl_state_machine.c [mod_tls]. TBD
-         */
-        rc = 0;
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "CGI process %" APR_PID_T_FMT " didn't exit, sending SIGKILL",
+                  pid);
+    kill(pid, SIGKILL);
+    if (dead_yet(pid, apr_time_from_sec(3)) == APR_SUCCESS) {
+        return APR_SUCCESS;
     }
-    return rc;
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "CGI process %" APR_PID_T_FMT " didn't exit, sending SIGKILL again",
+                  pid);
+    kill(pid, SIGKILL);
+
+    return APR_EGENERAL;
 }

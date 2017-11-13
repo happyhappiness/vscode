@@ -1,1 +1,1 @@
-die(_("cannot rebase with locally recorded submodule modifications"));
+die(_("-n option is only allowed in list mode"));

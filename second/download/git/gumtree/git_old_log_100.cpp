@@ -1,1 +1,1 @@
-fputs(str, stream);
+die("verify %s has extra input: %s", ref.buf, next);

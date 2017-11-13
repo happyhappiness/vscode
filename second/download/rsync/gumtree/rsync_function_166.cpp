@@ -1,44 +1,36 @@
-static void receive_data(int f_in,char *buf,int fd,char *fname)
+void match_sums(int f,struct sum_struct *s,char *buf,off_t len)
 {
-  int i,n,remainder,len,count;
-  off_t offset = 0;
-  off_t offset2;
+  last_match = 0;
+  false_alarms = 0;
+  tag_hits = 0;
+  matches=0;
+  data_transfer=0;
 
-  count = read_int(f_in);
-  n = read_int(f_in);
-  remainder = read_int(f_in);
+  if (len > 0 && s->count>0) {
+    build_hash_table(s);
 
-  for (i=read_int(f_in); i != 0; i=read_int(f_in)) {
-    if (i > 0) {
-      if (verbose > 3)
-	fprintf(stderr,"data recv %d at %d\n",i,(int)offset);
+    if (verbose > 2) 
+      fprintf(stderr,"built hash table\n");
 
-      if (read_write(f_in,fd,i) != i) {
-	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
-	exit_cleanup(1);
-      }
-      offset += i;
-    } else {
-      i = -(i+1);
-      offset2 = i*n;
-      len = n;
-      if (i == count-1 && remainder != 0)
-	len = remainder;
+    hash_search(f,s,buf,len);
 
-      if (verbose > 3)
-	fprintf(stderr,"chunk[%d] of size %d at %d offset=%d\n",
-		i,len,(int)offset2,(int)offset);
-
-      if (write_sparse(fd,map_ptr(buf,offset2,len),len) != len) {
-	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
-	exit_cleanup(1);
-      }
-      offset += len;
-    }
+    if (verbose > 2) 
+      fprintf(stderr,"done hash search\n");
+  } else {
+    matched(f,s,buf,len,len,-1);
   }
 
-  if (offset > 0 && sparse_end(fd) != 0) {
-    fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
-    exit_cleanup(1);
+  if (targets) {
+    free(targets);
+    targets=NULL;
   }
+
+  if (verbose > 2)
+    fprintf(stderr, "false_alarms=%d tag_hits=%d matches=%d\n",
+	    false_alarms, tag_hits, matches);
+
+  total_tag_hits += tag_hits;
+  total_false_alarms += false_alarms;
+  total_matches += matches;
+  total_data_transfer += data_transfer;
 }

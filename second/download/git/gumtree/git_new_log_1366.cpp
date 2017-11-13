@@ -1,1 +1,1 @@
-die("helper %s does not support dry-run", data->name);
+error("Remote HEAD resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", oid_to_hex(&head_oid));

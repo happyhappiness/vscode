@@ -1,37 +1,61 @@
-static apr_status_t socache_shmcb_store(ap_socache_instance_t *ctx, 
-                                        server_rec *s, const unsigned char *id, 
-                                        unsigned int idlen, apr_time_t expiry, 
-                                        unsigned char *encoded,
-                                        unsigned int len_encoded,
-                                        apr_pool_t *p)
+static apr_status_t send_all_header_fields(header_struct *h,
+                                           const request_rec *r)
 {
-    SHMCBHeader *header = ctx->header;
-    SHMCBSubcache *subcache = SHMCB_MASK(header, id);
-    int tryreplace;
+    const apr_array_header_t *elts;
+    const apr_table_entry_t *t_elt;
+    const apr_table_entry_t *t_end;
+    struct iovec *vec;
+    struct iovec *vec_next;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "socache_shmcb_store (0x%02x -> subcache %d)",
-                 SHMCB_MASK_DBG(header, id));
-    /* XXX: Says who?  Why shouldn't this be acceptable, or padded if not? */
-    if (idlen < 4) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "unusably short id provided "
-                "(%u bytes)", idlen);
-        return APR_EINVAL;
+    elts = apr_table_elts(r->headers_out);
+    if (elts->nelts == 0) {
+        return APR_SUCCESS;
     }
-    tryreplace = shmcb_subcache_remove(s, header, subcache, id, idlen);
-    if (shmcb_subcache_store(s, header, subcache, encoded,
-                             len_encoded, id, idlen, expiry)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "can't store an socache entry!");
-        return APR_ENOSPC;
+    t_elt = (const apr_table_entry_t *)(elts->elts);
+    t_end = t_elt + elts->nelts;
+    vec = (struct iovec *)apr_palloc(h->pool, 4 * elts->nelts *
+                                     sizeof(struct iovec));
+    vec_next = vec;
+
+    /* For each field, generate
+     *    name ": " value CRLF
+     */
+    do {
+        vec_next->iov_base = (void*)(t_elt->key);
+        vec_next->iov_len = strlen(t_elt->key);
+        vec_next++;
+        vec_next->iov_base = ": ";
+        vec_next->iov_len = sizeof(": ") - 1;
+        vec_next++;
+        vec_next->iov_base = (void*)(t_elt->val);
+        vec_next->iov_len = strlen(t_elt->val);
+        vec_next++;
+        vec_next->iov_base = CRLF;
+        vec_next->iov_len = sizeof(CRLF) - 1;
+        vec_next++;
+        t_elt++;
+    } while (t_elt < t_end);
+
+    if (APLOGrtrace4(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                      "Headers sent to client:");
+        t_elt = (const apr_table_entry_t *)(elts->elts);
+        do {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "%s: %s",
+                          ap_escape_logitem(r->pool, t_elt->key),
+                          ap_escape_logitem(r->pool, t_elt->val));
+            t_elt++;
+        } while (t_elt < t_end);
     }
-    if (tryreplace == 0) {
-        header->stat_replaced++;
+
+#if APR_CHARSET_EBCDIC
+    {
+        apr_size_t len;
+        char *tmp = apr_pstrcatv(r->pool, vec, vec_next - vec, &len);
+        ap_xlate_proto_to_ascii(tmp, len);
+        return apr_brigade_write(h->bb, NULL, NULL, tmp, len);
     }
-    else {
-        header->stat_stores++;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving socache_shmcb_store successfully");
-    return APR_SUCCESS;
+#else
+    return apr_brigade_writev(h->bb, NULL, NULL, vec, vec_next - vec);
+#endif
 }

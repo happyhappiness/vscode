@@ -1,52 +1,64 @@
-static int setup_named_sock(char *listen_addr, int listen_port, struct socketlist *socklist)
+static int git_config_parse_key_1(const char *key, char **store_key, int *baselen_, int quiet)
 {
-	struct sockaddr_in sin;
-	int sockfd;
-	long flags;
+	int i, dot, baselen;
+	const char *last_dot = strrchr(key, '.');
 
-	memset(&sin, 0, sizeof sin);
-	sin.sin_family = AF_INET;
-	sin.sin_port = htons(listen_port);
+	/*
+	 * Since "key" actually contains the section name and the real
+	 * key name separated by a dot, we have to know where the dot is.
+	 */
 
-	if (listen_addr) {
-		/* Well, host better be an IP address here. */
-		if (inet_pton(AF_INET, listen_addr, &sin.sin_addr.s_addr) <= 0)
-			return 0;
-	} else {
-		sin.sin_addr.s_addr = htonl(INADDR_ANY);
+	if (last_dot == NULL || last_dot == key) {
+		if (!quiet)
+			error("key does not contain a section: %s", key);
+		return -CONFIG_NO_SECTION_OR_NAME;
 	}
 
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd < 0)
-		return 0;
-
-	if (set_reuse_addr(sockfd)) {
-		logerror("Could not set SO_REUSEADDR: %s", strerror(errno));
-		close(sockfd);
-		return 0;
+	if (!last_dot[1]) {
+		if (!quiet)
+			error("key does not contain variable name: %s", key);
+		return -CONFIG_NO_SECTION_OR_NAME;
 	}
 
-	if ( bind(sockfd, (struct sockaddr *)&sin, sizeof sin) < 0 ) {
-		logerror("Could not listen to %s: %s",
-			 ip2str(AF_INET, (struct sockaddr *)&sin, sizeof(sin)),
-			 strerror(errno));
-		close(sockfd);
-		return 0;
+	baselen = last_dot - key;
+	if (baselen_)
+		*baselen_ = baselen;
+
+	/*
+	 * Validate the key and while at it, lower case it for matching.
+	 */
+	if (store_key)
+		*store_key = xmallocz(strlen(key));
+
+	dot = 0;
+	for (i = 0; key[i]; i++) {
+		unsigned char c = key[i];
+		if (c == '.')
+			dot = 1;
+		/* Leave the extended basename untouched.. */
+		if (!dot || i > baselen) {
+			if (!iskeychar(c) ||
+			    (i == baselen + 1 && !isalpha(c))) {
+				if (!quiet)
+					error("invalid key: %s", key);
+				goto out_free_ret_1;
+			}
+			c = tolower(c);
+		} else if (c == '\n') {
+			if (!quiet)
+				error("invalid key (newline): %s", key);
+			goto out_free_ret_1;
+		}
+		if (store_key)
+			(*store_key)[i] = c;
 	}
 
-	if (listen(sockfd, 5) < 0) {
-		logerror("Could not listen to %s: %s",
-			 ip2str(AF_INET, (struct sockaddr *)&sin, sizeof(sin)),
-			 strerror(errno));
-		close(sockfd);
-		return 0;
+	return 0;
+
+out_free_ret_1:
+	if (store_key) {
+		free(*store_key);
+		*store_key = NULL;
 	}
-
-	flags = fcntl(sockfd, F_GETFD, 0);
-	if (flags >= 0)
-		fcntl(sockfd, F_SETFD, flags | FD_CLOEXEC);
-
-	ALLOC_GROW(socklist->list, socklist->nr + 1, socklist->alloc);
-	socklist->list[socklist->nr++] = sockfd;
-	return 1;
+	return -CONFIG_INVALID_KEY;
 }

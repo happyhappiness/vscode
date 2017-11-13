@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: getpwuid failed\n");
+out_of_memory("set_env_str");

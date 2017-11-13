@@ -1,44 +1,12 @@
-int git_config_early(config_fn_t fn, void *data, const char *repo_config)
+static void print_debug(const struct cache_entry *ce)
 {
-	int ret = 0, found = 0;
-	char *xdg_config = NULL;
-	char *user_config = NULL;
+	if (debug_mode) {
+		const struct stat_data *sd = &ce->ce_stat_data;
 
-	home_config_paths(&user_config, &xdg_config, "config");
-
-	if (git_config_system() && !access_or_die(git_etc_gitconfig(), R_OK, 0)) {
-		ret += git_config_from_file(fn, git_etc_gitconfig(),
-					    data);
-		found += 1;
+		printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);
+		printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);
+		printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
+		printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
+		printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
 	}
-
-	if (xdg_config && !access_or_die(xdg_config, R_OK, ACCESS_EACCES_OK)) {
-		ret += git_config_from_file(fn, xdg_config, data);
-		found += 1;
-	}
-
-	if (user_config && !access_or_die(user_config, R_OK, ACCESS_EACCES_OK)) {
-		ret += git_config_from_file(fn, user_config, data);
-		found += 1;
-	}
-
-	if (repo_config && !access_or_die(repo_config, R_OK, 0)) {
-		ret += git_config_from_file(fn, repo_config, data);
-		found += 1;
-	}
-
-	switch (git_config_from_parameters(fn, data)) {
-	case -1: /* error */
-		die("unable to parse command-line config");
-		break;
-	case 0: /* found nothing */
-		break;
-	default: /* found at least one item */
-		found++;
-		break;
-	}
-
-	free(xdg_config);
-	free(user_config);
-	return ret == 0 ? found : ret;
 }

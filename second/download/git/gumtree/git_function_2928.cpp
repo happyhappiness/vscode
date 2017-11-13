@@ -1,29 +1,41 @@
-int copy_file(const char *dst, const char *src, int mode)
+static int serve_cache_loop(int fd)
 {
-	int fdi, fdo, status;
+	struct pollfd pfd;
+	unsigned long wakeup;
 
-	mode = (mode & 0111) ? 0777 : 0666;
-	if ((fdi = open(src, O_RDONLY)) < 0)
-		return fdi;
-	if ((fdo = open(dst, O_WRONLY | O_CREAT | O_EXCL, mode)) < 0) {
-		close(fdi);
-		return fdo;
+	wakeup = check_expirations();
+	if (!wakeup)
+		return 0;
+
+	pfd.fd = fd;
+	pfd.events = POLLIN;
+	if (poll(&pfd, 1, 1000 * wakeup) < 0) {
+		if (errno != EINTR)
+			die_errno("poll failed");
+		return 1;
 	}
-	status = copy_fd(fdi, fdo);
-	switch (status) {
-	case COPY_READ_ERROR:
-		error("copy-fd: read returned %s", strerror(errno));
-		break;
-	case COPY_WRITE_ERROR:
-		error("copy-fd: write returned %s", strerror(errno));
-		break;
+
+	if (pfd.revents & POLLIN) {
+		int client, client2;
+		FILE *in, *out;
+
+		client = accept(fd, NULL, NULL);
+		if (client < 0) {
+			warning("accept failed: %s", strerror(errno));
+			return 1;
+		}
+		client2 = dup(client);
+		if (client2 < 0) {
+			warning("dup failed: %s", strerror(errno));
+			close(client);
+			return 1;
+		}
+
+		in = xfdopen(client, "r");
+		out = xfdopen(client2, "w");
+		serve_one_client(in, out);
+		fclose(in);
+		fclose(out);
 	}
-	close(fdi);
-	if (close(fdo) != 0)
-		return error("%s: close error: %s", dst, strerror(errno));
-
-	if (!status && adjust_shared_perm(dst))
-		return -1;
-
-	return status;
+	return 1;
 }

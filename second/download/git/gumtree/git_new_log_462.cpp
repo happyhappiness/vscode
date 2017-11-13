@@ -1,2 +1,3 @@
-error(_("git %s: failed to read the index"),
-			_(action_name(opts)));
+warning(Q_("ignoring %s; cannot handle more than %d ref",
+			   "ignoring %s; cannot handle more than %d refs",
+			   MAX_REVS), refname, MAX_REVS);

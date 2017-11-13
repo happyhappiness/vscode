@@ -1,1 +1,2 @@
-die_errno("unable to point stderr to /dev/null");
+die(_("unable to start 'show' for object '%s'"),
+		    oid_to_hex(object));

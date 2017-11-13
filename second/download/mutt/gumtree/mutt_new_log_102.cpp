@@ -1,0 +1,1 @@
+fprintf (msg->fp, "Content-Length: " OFF_T_FMT "\n", (LOFF_T) ftello (tempfp));

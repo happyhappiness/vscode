@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "Fatal error: unable to create global pool "
-                     "for use by the scoreboard");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
+                     "cannot use a full URL in a 401 ErrorDocument "
+                     "directive --- ignoring!");

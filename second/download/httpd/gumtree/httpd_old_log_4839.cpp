@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                "Server built: %s", ap_get_server_built());
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, 0, p,
+                  "Creating dynamic lock");

@@ -1,62 +1,85 @@
-static int convert_secure_socket(conn_rec *c, apr_socket_t *csd)
+static apr_status_t ssl_io_filter_Upgrade(ap_filter_t *f,
+                                         apr_bucket_brigade *bb)
+
 {
-        int rcode;
-        struct tlsclientopts sWS2Opts;
-        struct nwtlsopts sNWTLSOpts;
-        struct sslserveropts opts;
-    unsigned long ulFlags;
-    SOCKET sock;
-    unicode_t keyFileName[60];
+    const char *upgrade;
+    apr_bucket_brigade *upgradebb;
+    request_rec *r = f->r;
+    apr_socket_t *csd = NULL;
+    char *key;
+    int ret;
+    secsocket_data *csd_data;
+    apr_bucket *b;
+    apr_status_t rv;
 
-    apr_os_sock_get(&sock, csd);
+    /* Just remove the filter, if it doesn't work the first time, it won't
+     * work at all for this request.
+     */
+    ap_remove_output_filter(f);
 
-    /* zero out buffers */
-        memset((char *)&sWS2Opts, 0, sizeof(struct tlsclientopts));
-        memset((char *)&sNWTLSOpts, 0, sizeof(struct nwtlsopts));
+    /* No need to ensure that this is a server with optional SSL, the filter
+     * is only inserted if that is true.
+     */
 
-    /* turn on ssl for the socket */
-        ulFlags = (numcerts ? SO_TLS_ENABLE : SO_TLS_ENABLE | SO_TLS_BLIND_ACCEPT);
-        rcode = WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
-                     NULL, 0, NULL, NULL, NULL);
-        if (SOCKET_ERROR == rcode)
-        {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02124)
-                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
-                return rcode;
-        }
+    upgrade = apr_table_get(r->headers_in, "Upgrade");
+    if (upgrade == NULL
+        || strcmp(ap_getword(r->pool, &upgrade, ','), "TLS/1.0")) {
+            /* "Upgrade: TLS/1.0, ..." header not found, don't do Upgrade */
+        return ap_pass_brigade(f->next, bb);
+    }
 
-    ulFlags = SO_TLS_UNCLEAN_SHUTDOWN;
-        WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
-                     NULL, 0, NULL, NULL, NULL);
+    apr_table_unset(r->headers_out, "Upgrade");
 
-    /* setup the socket for SSL */
-    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
-    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
-    sWS2Opts.options = &sNWTLSOpts;
-
-    if (numcerts) {
-        sNWTLSOpts.walletProvider = WAL_PROV_DER;   /* the wallet provider defined in wdefs.h */
-        sNWTLSOpts.TrustedRootList = certarray;     /* array of certs in UNICODE format       */
-        sNWTLSOpts.numElementsInTRList = numcerts;  /* number of certs in TRList              */
+    if (r) {
+        csd_data = (secsocket_data*)ap_get_module_config(r->connection->conn_config, &nwssl_module);
+        csd = csd_data->csd;
     }
     else {
-        /* setup the socket for SSL */
-        unicpy(keyFileName, L"SSL CertificateIP");
-        sWS2Opts.wallet = keyFileName;              /* no client certificate */
-        sWS2Opts.walletlen = unilen(keyFileName);
-
-        sNWTLSOpts.walletProvider = WAL_PROV_KMO;   /* the wallet provider defined in wdefs.h */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02131)
+                     "Unable to get upgradeable socket handle");
+        return ap_pass_brigade(f->next, bb);
     }
 
-    /* make the IOCTL call */
-    rcode = WSAIoctl(sock, SO_TLS_SET_CLIENT, &sWS2Opts,
-                     sizeof(struct tlsclientopts), NULL, 0, NULL,
-                     NULL, NULL);
 
-    /* make sure that it was successful */
-        if(SOCKET_ERROR == rcode ){
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02125)
-                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
+    /* Send the interim 101 response. */
+    upgradebb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+
+    ap_fputstrs(f->next, upgradebb, SWITCH_STATUS_LINE, CRLF,
+                UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
+
+    b = apr_bucket_flush_create(f->c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(upgradebb, b);
+
+    rv = ap_pass_brigade(f->next, upgradebb);
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02132)
+                      "could not send interim 101 Upgrade response");
+        return AP_FILTER_ERROR;
+    }
+
+    key = get_port_key(r->connection);
+
+    if (csd && key) {
+        int sockdes;
+        apr_os_sock_get(&sockdes, csd);
+
+
+        ret = SSLize_Socket(sockdes, key, r);
+        if (!ret) {
+            csd_data->is_secure = 1;
         }
-        return rcode;
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02133)
+                     "Upgradeable socket handle not found");
+        return AP_FILTER_ERROR;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server, APLOGNO(02134)
+                 "Awaiting re-negotiation handshake");
+
+    /* Now that we have initialized the ssl connection which added the ssl_io_filter,
+       pass the brigade off to the connection based output filters so that the
+       request can complete encrypted */
+    return ap_pass_brigade(f->c->output_filters, bb);
 }

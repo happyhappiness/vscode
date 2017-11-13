@@ -1,1 +1,2 @@
-warning("--no-curl not supported in this build");
+die_errno("Invalid symlink '%s'",
+						  sb.buf);

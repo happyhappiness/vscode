@@ -1,1 +1,1 @@
-error("cannot feed the input to external filter %s", params->cmd);
+fprintf_ln(stderr, _("Hunk #%d applied cleanly."), cnt);

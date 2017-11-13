@@ -1,1 +1,1 @@
-error("unable to update %s: %s", path, strerror(errno));
+fprintf(cmitmsg, "Message-Id: %s\n", message_id);

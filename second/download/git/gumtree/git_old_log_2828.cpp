@@ -1,0 +1,1 @@
+error("core.autocrlf=input conflicts with core.eol=crlf");

@@ -1,1 +1,0 @@
-warnf(config, "Data size exceeds single call write limit!\n");

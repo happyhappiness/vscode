@@ -1,1 +1,1 @@
-printf("%s%s\n", pathname, S_ISDIR(mode) ? "/" : "");
+fputs(sb.buf, stdout);

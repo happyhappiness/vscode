@@ -1,11 +1,11 @@
 fputs(
-"              Using this option, curl will instead  return  an  error  on  the\n"
-"              first  transfer  that  fails,  independent of the amount of URLs\n"
-"              that are given on the command line. This way, no transfer  fail-\n"
-"              ures go undetected by scripts and similar.\n"
+"       --disable-epsv\n"
+"              (FTP)  (FTP)  Tell  curl  to disable the use of the EPSV command\n"
+"              when doing passive FTP  transfers.  Curl  will  normally  always\n"
+"              first  attempt to use EPSV before PASV, but with this option, it\n"
+"              will not try using EPSV.\n"
 "\n"
-"              This option is global and does not need to be specified for each\n"
-"              use of -:, --next.\n"
+"              --epsv can be used to explicitly enable EPSV again and --no-epsv\n"
+"              is an alias for --disable-epsv.\n"
 "\n"
-"              This option does not imply -f, --fail, which causes transfers to\n"
 , stdout);

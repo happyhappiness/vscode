@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "Ignoring flush message received before headers");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);

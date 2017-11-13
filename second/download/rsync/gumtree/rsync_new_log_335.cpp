@@ -1,1 +1,1 @@
-fprintf(FINFO,"gen mapped %s of size %d\n",fname,(int)st.st_size);
+fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");

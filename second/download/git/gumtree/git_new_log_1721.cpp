@@ -1,1 +1,2 @@
-die("Cannot demote %s to %s", msg_id, msg_type);
+fprintf(stderr, _("Removing note for object %s\n"),
+			sha1_to_hex(object));

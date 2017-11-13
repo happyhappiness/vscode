@@ -1,15 +1,34 @@
-NORETURN die_errno(const char *fmt, ...)
+static void send_git_request(int stdin_fd, const char *serv, const char *repo,
+	const char *vhost)
 {
-	char buf[1024];
-	va_list params;
+	size_t bufferspace;
+	size_t wpos = 0;
+	char *buffer;
 
-	if (die_is_recursing()) {
-		fputs("fatal: recursion detected in die_errno handler\n",
-			stderr);
-		exit(128);
-	}
+	/*
+	 * Request needs 12 bytes extra if there is vhost (xxxx \0host=\0) and
+	 * 6 bytes extra (xxxx \0) if there is no vhost.
+	 */
+	if (vhost)
+		bufferspace = strlen(serv) + strlen(repo) + strlen(vhost) + 12;
+	else
+		bufferspace = strlen(serv) + strlen(repo) + 6;
 
-	va_start(params, fmt);
-	die_routine(fmt_with_err(buf, sizeof(buf), fmt), params);
-	va_end(params);
+	if (bufferspace > 0xFFFF)
+		die("Request too large to send");
+	buffer = xmalloc(bufferspace);
+
+	/* Make the packet. */
+	wpos = sprintf(buffer, "%04x%s %s%c", (unsigned)bufferspace,
+		serv, repo, 0);
+
+	/* Add vhost if any. */
+	if (vhost)
+		sprintf(buffer + wpos, "host=%s%c", vhost, 0);
+
+	/* Send the request */
+	if (write_in_full(stdin_fd, buffer, bufferspace) < 0)
+		die_errno("Failed to send request");
+
+	free(buffer);
 }

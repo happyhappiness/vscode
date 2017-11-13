@@ -1,1 +1,1 @@
-printf("%s", out.buf);
+fputs(v->s, stdout);

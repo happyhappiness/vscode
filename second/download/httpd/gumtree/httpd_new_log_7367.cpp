@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Got PONG opcode: %x", opcode);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                        "Websocket: Reading %lu bytes of PONG", plen);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(03137)
-                                 "apr_pollset_poll: (listen)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_cb: don't need to refresh cached response "
+                         "after obtaining refresh mutex");

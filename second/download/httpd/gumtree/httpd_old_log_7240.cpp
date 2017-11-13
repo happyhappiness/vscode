@@ -1,1 +1,1 @@
-apr_file_puts(l, f);
+apr_file_printf(errfile, "Error writing temp file: %s" NL, errstr);

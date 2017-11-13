@@ -1,1 +1,1 @@
-warning(_("could not lookup configuration '%s'. Assuming this repository is its own authoritative upstream."), remotesb.buf);
+parse_long_magic(magic, prefix_len, elem);

@@ -1,1 +1,1 @@
-printf_ln(_("rebases onto remote %s"), merge->items[0].string);
+fputs(signature_check.payload, stdout);

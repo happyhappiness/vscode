@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k uninstall      : uninstall an Apache service");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "could not partition buffered SSL brigade");

@@ -1,1 +1,2 @@
-error_errno("Could not close %s", filename);
+die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), wt->path);

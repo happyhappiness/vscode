@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+packet_write(1, "NACK unable to spawn subprocess\n");

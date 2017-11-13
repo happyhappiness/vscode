@@ -1,107 +1,205 @@
-static apr_status_t write_headers(cache_handle_t *h, request_rec *r, cache_info *info)
+int main(int argc, const char * const argv[])
 {
-    disk_cache_conf *conf = ap_get_module_config(r->server->module_config, 
-                                                 &disk_cache_module);
+    apr_pool_t *pool;
     apr_status_t rv;
-    char *buf;
-    char statusbuf[8];
-    apr_size_t amt;
-    disk_cache_object_t *dobj = (disk_cache_object_t*) h->cache_obj->vobj;
-    apr_file_t *hfd = dobj->hfd;
+    apr_size_t l;
+    char pwi[MAX_STRING_LEN];
+    char pwc[MAX_STRING_LEN];
+    char errbuf[MAX_STRING_LEN];
+    const char *arg;
+    int  need_file = 1;
+    int  need_user = 1;
+    int  need_pwd  = 1;
+    int  need_cmnt = 0;
+    int  pwd_supplied = 0;
+    int  changed;
+    int  cmd = HTDBM_MAKE;
+    int  i;
+    int args_left = 2;
 
-    if (!hfd)  {
-        if (!dobj->hdrsfile) {
-            dobj->hdrsfile = header_file(r->pool, 
-                                         conf->dirlevels, 
-                                         conf->dirlength, 
-                                         conf->cache_root,
-                                         h->cache_obj->key);
-        }
-        
-        /* This is flaky... we need to manage the cache_info differently */
-        h->cache_obj->info = *info;
-        
-        /* Remove old file with the same name. If remove fails, then
-         * perhaps we need to create the directory tree where we are
-         * about to write the new headers file.
-         */
-        rv = apr_file_remove(dobj->hdrsfile, r->pool);
-        if (rv != APR_SUCCESS) {
-            mkdir_structure(conf, dobj->hdrsfile, r->pool);
-        }
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(terminate);
 
-        rv = apr_file_open(&dobj->hfd, dobj->hdrsfile,
-                           APR_WRITE | APR_CREATE | APR_EXCL,
-                           APR_OS_DEFAULT, r->pool);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-        hfd = dobj->hfd;
-        dobj->name = h->cache_obj->key;
-
-        file_cache_write_mydata(dobj->hfd, h, r);
-
-        if (r->headers_out) {
-            int i;
-            apr_table_t* headers_out = ap_cache_cacheable_hdrs_out(r->pool, r->headers_out);
-            apr_table_entry_t *elts = (apr_table_entry_t *) apr_table_elts(headers_out)->elts;
-            for (i = 0; i < apr_table_elts(headers_out)->nelts; ++i) {
-                if (elts[i].key != NULL) {
-                    buf = apr_pstrcat(r->pool, elts[i].key, ": ",  elts[i].val, CRLF, NULL);
-                    amt = strlen(buf);
-                    apr_file_write(hfd, buf, &amt);
-                }
-            }
-            buf = apr_pstrcat(r->pool, CRLF, NULL);
-            amt = strlen(buf);
-            apr_file_write(hfd, buf, &amt);
-            
-            /* This case only occurs when the content is generated locally */
-            if (!apr_table_get(r->headers_out, "Content-Type") && r->content_type) {
-                apr_table_setn(r->headers_out, "Content-Type", 
-                               ap_make_content_type(r, r->content_type));
-            }
-        }
-        sprintf(statusbuf,"%d", r->status);
-        buf = apr_pstrcat(r->pool, statusbuf, CRLF, NULL);
-        amt = strlen(buf);
-        apr_file_write(hfd, buf, &amt);
-
-        /* This case only occurs when the content is generated locally */
-        if (!r->status_line) {
-            r->status_line = ap_get_status_line(r->status);
-        }
-        buf = apr_pstrcat(r->pool, r->status_line, "\n", NULL);
-        amt = strlen(buf);
-        apr_file_write(hfd, buf, &amt);
-        buf = apr_pstrcat(r->pool, CRLF, NULL);
-        amt = strlen(buf);
-        apr_file_write(hfd, buf, &amt);
-
-	/* Parse the vary header and dump those fields from the headers_in. */
-	/* Make call to the same thing cache_select_url calls to crack Vary. */
-	/* @@@ Some day, not today. */
-        if (r->headers_in) {
-            int i;
-            apr_table_entry_t *elts = (apr_table_entry_t *) apr_table_elts(r->headers_in)->elts;
-            for (i = 0; i < apr_table_elts(r->headers_in)->nelts; ++i) {
-                if (elts[i].key != NULL) {
-                    buf = apr_pstrcat(r->pool, elts[i].key, ": ",  elts[i].val, CRLF, NULL);
-                    amt = strlen(buf);
-                    apr_file_write(hfd, buf, &amt);
-                }
-            }
-            buf = apr_pstrcat(r->pool, CRLF, NULL);
-            amt = strlen(buf);
-            apr_file_write(hfd, buf, &amt);
-        }
-        apr_file_close(hfd); /* flush and close */
+    if ((rv = htdbm_init(&pool, &h)) != APR_SUCCESS) {
+        fprintf(stderr, "Unable to initialize htdbm terminating!\n");
+        apr_strerror(rv, errbuf, sizeof(errbuf));
+        exit(1);
     }
+    /*
+     * Preliminary check to make sure they provided at least
+     * three arguments, we'll do better argument checking as 
+     * we parse the command line.
+     */
+    if (argc < 3)
+       htdbm_usage();
+    /*
+     * Go through the argument list and pick out any options.  They
+     * have to precede any other arguments.
+     */
+    for (i = 1; i < argc; i++) {
+        arg = argv[i];
+        if (*arg != '-')
+            break;
+        
+        while (*++arg != '\0') {
+            switch (*arg) {
+            case 'b':
+                pwd_supplied = 1;
+                need_pwd = 0;
+                args_left++;
+                break;
+            case 'c':
+                h->create = 1;
+                break;
+            case 'n':
+                need_file = 0;
+                cmd = HTDBM_NOFILE;
+                    args_left--;
+                break;
+            case 'l':
+                need_pwd = 0;
+                need_user = 0;
+                cmd = HTDBM_LIST;
+                h->rdonly = 1;
+                args_left--;
+                break;
+            case 't':
+                need_cmnt = 1;
+                args_left++;
+                break;
+            case 'T':
+                h->type = apr_pstrdup(h->pool, ++arg);
+                while (*arg != '\0')
+                    ++arg;
+                --arg; /* so incrementing this in the loop with find a null */
+                break;
+            case 'v':
+                h->rdonly = 1;
+                cmd = HTDBM_VERIFY;
+                break;
+            case 'x':
+                need_pwd = 0;
+                cmd = HTDBM_DELETE;
+                break;
+            case 'm':
+                h->alg = ALG_APMD5;
+                break;
+            case 'p':
+                h->alg = ALG_PLAIN;
+                break;
+            case 's':
+                h->alg = ALG_APSHA;
+                break;
+#if APR_HAVE_CRYPT_H
+            case 'd':
+                h->alg = ALG_CRYPT;
+                break;
+#endif
+            default:
+                htdbm_usage();
+                break;
+            }
+        }
+    }
+    /*
+     * Make sure we still have exactly the right number of arguments left
+     * (the filename, the username, and possibly the password if -b was
+     * specified).
+     */
+    if ((argc - i) != args_left)
+        htdbm_usage();
+
+    if (!need_file)
+        i--;
     else {
-        /* XXX log message */
+        h->filename = apr_pstrdup(h->pool, argv[i]);
+            if ((rv = htdbm_open(h)) != APR_SUCCESS) {
+            fprintf(stderr, "Error opening database %s\n", argv[i]);
+            apr_strerror(rv, errbuf, sizeof(errbuf));
+            fprintf(stderr,"%s\n",errbuf);
+            exit(ERR_FILEPERM);
+        }
     }
+    if (need_user) {
+        h->username = apr_pstrdup(pool, argv[i+1]);
+        if (htdbm_valid_username(h) != APR_SUCCESS)
+            exit(ERR_BADUSER);
+    }
+    if (pwd_supplied)
+        h->userpass = apr_pstrdup(pool, argv[i+2]);
 
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "disk_cache: Caching headers for URL %s",  dobj->name);
-    return APR_SUCCESS;
+    if (need_pwd) {
+        l = sizeof(pwc);
+        if (apr_password_get("Enter password        : ", pwi, &l) != APR_SUCCESS) {
+            fprintf(stderr, "Password too long\n");
+            exit(ERR_OVERFLOW);
+        }
+        l = sizeof(pwc);
+        if (apr_password_get("Re-type password      : ", pwc, &l) != APR_SUCCESS) {
+            fprintf(stderr, "Password too long\n");
+            exit(ERR_OVERFLOW);
+        }
+        if (strcmp(pwi, pwc) != 0) {
+            fprintf(stderr, "Password verification error\n");
+            exit(ERR_PWMISMATCH);
+        }
+            
+        h->userpass = apr_pstrdup(pool,  pwi);
+    }
+    if (need_cmnt && pwd_supplied)
+        h->comment = apr_pstrdup(pool, argv[i+3]);
+    else if (need_cmnt)
+        h->comment = apr_pstrdup(pool, argv[i+2]);
+
+    switch (cmd) {
+        case HTDBM_VERIFY:
+            if ((rv = htdbm_verify(h)) != APR_SUCCESS) {
+                if(rv == APR_ENOENT) {
+                    fprintf(stderr, "The user '%s' could not be found in database\n", h->username);
+                    exit(ERR_BADUSER);
+                }
+                else {
+                    fprintf(stderr, "Password mismatch for user '%s'\n", h->username);
+                    exit(ERR_PWMISMATCH);
+                }
+            }
+            else
+                fprintf(stderr, "Password validated for user '%s'\n", h->username);
+            break;
+        case HTDBM_DELETE:
+            if (htdbm_del(h) != APR_SUCCESS) {
+                fprintf(stderr, "Cannot find user '%s' in database\n", h->username);
+                exit(ERR_BADUSER);
+            }
+            h->username = NULL;
+            changed = 1;
+            break;
+        case HTDBM_LIST:
+            htdbm_list(h);
+            break;
+        default:
+            htdbm_make(h);
+            break;
+
+    }    
+    if (need_file && !h->rdonly) {
+        if ((rv = htdbm_save(h, &changed)) != APR_SUCCESS) {
+            apr_strerror(rv, errbuf, sizeof(errbuf));
+            exit(ERR_FILEPERM);
+        }
+        fprintf(stdout, "Database %s %s.\n", h->filename, 
+                h->create ? "created" : (changed ? "modified" : "updated"));
+    }
+    if (cmd == HTDBM_NOFILE) {
+        if (!need_cmnt) {
+            fprintf(stderr, "%s:%s\n", h->username, h->userpass);
+        }
+        else {
+            fprintf(stderr, "%s:%s:%s\n", h->username, h->userpass,
+                    h->comment);
+        }
+    }
+    htdbm_terminate(h);
+    
+    return 0; /* Suppress compiler warning. */
 }

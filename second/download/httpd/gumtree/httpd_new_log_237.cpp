@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "r->uri = %s", r->uri ? r->uri : "(unexpectedly NULL)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                     "SSL connection destroyed without being closed");

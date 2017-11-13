@@ -1,3 +1,3 @@
-apr_file_printf(out, "  %s\n",
-                                APR_ARRAY_IDX(pks->cert_files,
-                                              i, const char *));
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03516)
+                      "h2_mplx(%ld): unexpected %d streams in hold", 
+                      m->id, (int)h2_ihash_count(m->shold));

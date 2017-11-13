@@ -1,1 +1,2 @@
-fprintf(f,"-z, --compress           compress file data\n");
+fprintf(FERROR,"chdir %s : %s (4)\n",
+			  dir,strerror(errno));

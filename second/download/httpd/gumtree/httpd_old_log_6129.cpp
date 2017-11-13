@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03045)
-                          "h2_session(%ld): process, closing conn", c->id);
+ap_add_output_filter("H1_TO_H2", task, NULL, c);

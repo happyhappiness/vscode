@@ -1,1 +1,4 @@
-decl_die(access_status, "check authorization", r);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                                 "Certificate with serial %ld (0x%lX) "
+                                 "revoked per CRL from issuer %s",
+                                 serial, serial, cp);

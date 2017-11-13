@@ -1,3 +1,4 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Unlock failed (%s):  "
-                      "No Lock-Token specified in header", r->filename);
+                          "Digest: missing user, realm, nonce, uri, digest, "
+                          "cnonce, or nonce_count in authorization header: %s",
+                          r->uri);

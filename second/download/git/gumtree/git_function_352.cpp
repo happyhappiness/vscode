@@ -1,72 +1,50 @@
-static int stat_opt(struct diff_options *options, const char **av)
+static int run_remote_archiver(int argc, const char **argv,
+			       const char *remote, const char *exec,
+			       const char *name_hint)
 {
-	const char *arg = av[0];
-	char *end;
-	int width = options->stat_width;
-	int name_width = options->stat_name_width;
-	int graph_width = options->stat_graph_width;
-	int count = options->stat_count;
-	int argcount = 1;
+	char *buf;
+	int fd[2], i, rv;
+	struct transport *transport;
+	struct remote *_remote;
 
-	if (!skip_prefix(arg, "--stat", &arg))
-		die("BUG: stat option does not begin with --stat: %s", arg);
-	end = (char *)arg;
+	_remote = remote_get(remote);
+	if (!_remote->url[0])
+		die(_("git archive: Remote with no URL"));
+	transport = transport_get(_remote, _remote->url[0]);
+	transport_connect(transport, "git-upload-archive", exec, fd);
 
-	switch (*arg) {
-	case '-':
-		if (skip_prefix(arg, "-width", &arg)) {
-			if (*arg == '=')
-				width = strtoul(arg + 1, &end, 10);
-			else if (!*arg && !av[1])
-				die("Option '--stat-width' requires a value");
-			else if (!*arg) {
-				width = strtoul(av[1], &end, 10);
-				argcount = 2;
-			}
-		} else if (skip_prefix(arg, "-name-width", &arg)) {
-			if (*arg == '=')
-				name_width = strtoul(arg + 1, &end, 10);
-			else if (!*arg && !av[1])
-				die("Option '--stat-name-width' requires a value");
-			else if (!*arg) {
-				name_width = strtoul(av[1], &end, 10);
-				argcount = 2;
-			}
-		} else if (skip_prefix(arg, "-graph-width", &arg)) {
-			if (*arg == '=')
-				graph_width = strtoul(arg + 1, &end, 10);
-			else if (!*arg && !av[1])
-				die("Option '--stat-graph-width' requires a value");
-			else if (!*arg) {
-				graph_width = strtoul(av[1], &end, 10);
-				argcount = 2;
-			}
-		} else if (skip_prefix(arg, "-count", &arg)) {
-			if (*arg == '=')
-				count = strtoul(arg + 1, &end, 10);
-			else if (!*arg && !av[1])
-				die("Option '--stat-count' requires a value");
-			else if (!*arg) {
-				count = strtoul(av[1], &end, 10);
-				argcount = 2;
-			}
-		}
-		break;
-	case '=':
-		width = strtoul(arg+1, &end, 10);
-		if (*end == ',')
-			name_width = strtoul(end+1, &end, 10);
-		if (*end == ',')
-			count = strtoul(end+1, &end, 10);
+	/*
+	 * Inject a fake --format field at the beginning of the
+	 * arguments, with the format inferred from our output
+	 * filename. This way explicit --format options can override
+	 * it.
+	 */
+	if (name_hint) {
+		const char *format = archive_format_from_filename(name_hint);
+		if (format)
+			packet_write(fd[1], "argument --format=%s\n", format);
+	}
+	for (i = 1; i < argc; i++)
+		packet_write(fd[1], "argument %s\n", argv[i]);
+	packet_flush(fd[1]);
+
+	buf = packet_read_line(fd[0], NULL);
+	if (!buf)
+		die(_("git archive: expected ACK/NAK, got EOF"));
+	if (strcmp(buf, "ACK")) {
+		if (starts_with(buf, "NACK "))
+			die(_("git archive: NACK %s"), buf + 5);
+		if (starts_with(buf, "ERR "))
+			die(_("remote error: %s"), buf + 4);
+		die(_("git archive: protocol error"));
 	}
 
-	/* Important! This checks all the error cases! */
-	if (*end)
-		return 0;
-	options->output_format |= DIFF_FORMAT_DIFFSTAT;
-	options->stat_name_width = name_width;
-	options->stat_graph_width = graph_width;
-	options->stat_width = width;
-	options->stat_count = count;
-	return argcount;
+	if (packet_read_line(fd[0], NULL))
+		die(_("git archive: expected a flush"));
+
+	/* Now, start reading from fd[0] and spit it out to stdout */
+	rv = recv_sideband("archive", fd[0], 1);
+	rv |= transport_disconnect(transport);
+
+	return !!rv;
 }

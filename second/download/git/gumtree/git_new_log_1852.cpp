@@ -1,1 +1,2 @@
-strbuf_addbuf(&msg, &mi.log_message);
+die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

@@ -1,1 +1,2 @@
-packet_buf_write(&req_buf, "deepen-not %s", s->string);
+printf("%s missing\n",
+		       obj_name ? obj_name : oid_to_hex(&data->oid));

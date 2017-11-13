@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(03307)
-                              "ap_proxy_transfer_between_connections: "
-                              "error on %s - ap_pass_brigade",
-                              name);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                     apr_get_os_error(), NULL,
+                     APLOGNO(00369)  "Failed to open the Windows service "
+                     "manager, perhaps you forgot to log in as Adminstrator?");

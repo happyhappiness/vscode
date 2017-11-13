@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01146)
-                             "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
-                             elts[i].key, elts[i].val, ap_proxy_worker_name(cmd->pool, worker));
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                 "h2_workers: min=%d max=%d, mthrpchild=%d, idle_secs=%d", 
+                 minw, maxw, max_threads_per_child, idle_secs);

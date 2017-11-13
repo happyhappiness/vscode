@@ -1,11 +1,11 @@
 fputs(
-"              If the server is an IPv6 host, this option will have  no  effect\n"
-"              as EPSV is necessary then.\n"
+"              returns and newlines will be stripped out. If you don't want the\n"
+"              @ character to have  a  special  interpretation  use  --data-raw\n"
+"              instead.\n"
 "\n"
-"              Disabling EPSV only changes the passive behavior. If you want to\n"
-"              switch to active mode you need to use -P, --ftp-port.\n"
+"              See also --data-binary and --data-urlencode and --data-raw. This\n"
+"              option overrides -F, --form and -I, --head and --upload.\n"
 "\n"
-"       -q, --disable\n"
-"              If used as the first parameter on the command line,  the  curlrc\n"
-"              config  file will not be read and used. See the -K, --config for\n"
+"       --delegation <LEVEL>\n"
+"              (GSS/kerberos) Set LEVEL to tell the server what it  is  allowed\n"
 , stdout);

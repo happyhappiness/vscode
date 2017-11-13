@@ -1,1 +1,1 @@
-printf("%s missing\n", obj_name ? obj_name : sha1_to_hex(data->sha1));
+die("git-cvsserver only handles server: %s", arg);

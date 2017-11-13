@@ -1,11 +1,11 @@
 fputs(
-"              (HTTP)  This  posts data exactly as specified with no extra pro-\n"
-"              cessing whatsoever.\n"
+"              The  given  offset  is  the  exact  number of bytes that will be\n"
+"              skipped, counting from the beginning of the source  file  before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              filename.   Data  is  posted  in  a similar manner as -d, --data\n"
-"              does, except that newlines and carriage  returns  are  preserved\n"
-"              and conversions are never done.\n"
+"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
+"              resume  the  transfer. It then uses the given output/input files\n"
+"              to figure that out.\n"
 "\n"
-"              If  this  option  is  used several times, the ones following the\n"
 , stdout);

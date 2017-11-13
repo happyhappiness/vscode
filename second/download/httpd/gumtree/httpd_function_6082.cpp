@@ -1,185 +1,208 @@
-static void perform_idle_server_maintenance(int child_bucket, int num_buckets)
+apr_status_t h2_session_process(h2_session *session)
 {
-    int i, j;
-    int idle_thread_count;
-    worker_score *ws;
-    process_score *ps;
-    int free_length;
-    int totally_free_length = 0;
-    int free_slots[MAX_SPAWN_RATE];
-    int last_non_dead;
-    int total_non_dead;
-    int active_thread_count = 0;
+    apr_status_t status = APR_SUCCESS;
+    apr_interval_time_t wait_micros = 0;
+    static const int MAX_WAIT_MICROS = 200 * 1000;
+    int got_streams = 0;
+    h2_stream *stream;
 
-    /* initialize the free_list */
-    free_length = 0;
-
-    idle_thread_count = 0;
-    last_non_dead = -1;
-    total_non_dead = 0;
-
-    for (i = 0; i < ap_daemons_limit; ++i) {
-        /* Initialization to satisfy the compiler. It doesn't know
-         * that threads_per_child is always > 0 */
-        int status = SERVER_DEAD;
-        int any_dying_threads = 0;
-        int any_dead_threads = 0;
-        int all_dead_threads = 1;
-        int child_threads_active = 0;
-
-        if (i >= retained->max_daemons_limit &&
-            totally_free_length == retained->idle_spawn_rate[child_bucket]) {
-            /* short cut if all active processes have been examined and
-             * enough empty scoreboard slots have been found
-             */
-
-            break;
-        }
-        ps = &ap_scoreboard_image->parent[i];
-        for (j = 0; j < threads_per_child; j++) {
-            ws = &ap_scoreboard_image->servers[i][j];
-            status = ws->status;
-
-            /* XXX any_dying_threads is probably no longer needed    GLA */
-            any_dying_threads = any_dying_threads ||
-                (status == SERVER_GRACEFUL);
-            any_dead_threads = any_dead_threads || (status == SERVER_DEAD);
-            all_dead_threads = all_dead_threads &&
-                (status == SERVER_DEAD || status == SERVER_GRACEFUL);
-
-            /* We consider a starting server as idle because we started it
-             * at least a cycle ago, and if it still hasn't finished starting
-             * then we're just going to swamp things worse by forking more.
-             * So we hopefully won't need to fork more if we count it.
-             * This depends on the ordering of SERVER_READY and SERVER_STARTING.
-             */
-            if (ps->pid != 0) { /* XXX just set all_dead_threads in outer
-                                   for loop if no pid?  not much else matters */
-                if (status <= SERVER_READY && !ps->quiescing && !ps->not_accepting
-                    && ps->generation == retained->my_generation
-                    && ps->bucket == child_bucket)
-                {
-                    ++idle_thread_count;
-                }
-                if (status >= SERVER_READY && status < SERVER_GRACEFUL) {
-                    ++child_threads_active;
+    while (!session->aborted && (nghttp2_session_want_read(session->ngh2)
+                                 || nghttp2_session_want_write(session->ngh2))) {
+        int have_written = 0;
+        int have_read = 0;
+                                 
+        got_streams = !h2_stream_set_is_empty(session->streams);
+        if (got_streams) {            
+            h2_session_resume_streams_with_data(session);
+            
+            if (h2_stream_set_has_unsubmitted(session->streams)) {
+                int unsent_submits = 0;
+                
+                /* If we have responses ready, submit them now. */
+                while ((stream = h2_mplx_next_submit(session->mplx, session->streams))) {
+                    status = submit_response(session, stream);
+                    ++unsent_submits;
+                    
+                    /* Unsent push promises are written immediately, as nghttp2
+                     * 1.5.0 realizes internal stream data structures only on 
+                     * send and we might need them for other submits. 
+                     * Also, to conserve memory, we send at least every 10 submits
+                     * so that nghttp2 does not buffer all outbound items too 
+                     * long.
+                     */
+                    if (status == APR_SUCCESS 
+                        && (session->unsent_promises || unsent_submits > 10)) {
+                        int rv = nghttp2_session_send(session->ngh2);
+                        if (rv != 0) {
+                            ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                                          "h2_session: send: %s", nghttp2_strerror(rv));
+                            if (nghttp2_is_fatal(rv)) {
+                                h2_session_abort(session, status, rv);
+                                goto end_process;
+                            }
+                        }
+                        else {
+                            have_written = 1;
+                            wait_micros = 0;
+                            session->unsent_promises = 0;
+                            unsent_submits = 0;
+                        }
+                    }
                 }
             }
         }
-        active_thread_count += child_threads_active;
-        if (any_dead_threads
-            && totally_free_length < retained->idle_spawn_rate[child_bucket]
-            && free_length < MAX_SPAWN_RATE / num_buckets
-            && (!ps->pid      /* no process in the slot */
-                  || ps->quiescing)) {  /* or at least one is going away */
-            if (all_dead_threads) {
-                /* great! we prefer these, because the new process can
-                 * start more threads sooner.  So prioritize this slot
-                 * by putting it ahead of any slots with active threads.
-                 *
-                 * first, make room by moving a slot that's potentially still
-                 * in use to the end of the array
-                 */
-                free_slots[free_length] = free_slots[totally_free_length];
-                free_slots[totally_free_length++] = i;
-            }
-            else {
-                /* slot is still in use - back of the bus
-                 */
-                free_slots[free_length] = i;
-            }
-            ++free_length;
-        }
-        else if (child_threads_active == threads_per_child) {
-            had_healthy_child = 1;
-        }
-        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
-        if (!any_dying_threads) {
-            last_non_dead = i;
-            ++total_non_dead;
-        }
-    }
-
-    if (retained->sick_child_detected) {
-        if (had_healthy_child) {
-            /* Assume this is a transient error, even though it may not be.  Leave
-             * the server up in case it is able to serve some requests or the
-             * problem will be resolved.
-             */
-            retained->sick_child_detected = 0;
-        }
-        else {
-            /* looks like a basket case, as no child ever fully initialized; give up.
-             */
-            shutdown_pending = 1;
-            child_fatal = 1;
-            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
-                         ap_server_conf, APLOGNO(02324)
-                         "A resource shortage or other unrecoverable failure "
-                         "was encountered before any child process initialized "
-                         "successfully... httpd is exiting!");
-            /* the child already logged the failure details */
-            return;
-        }
-    }
-
-    retained->max_daemons_limit = last_non_dead + 1;
-
-    if (idle_thread_count > max_spare_threads / num_buckets) {
-        /* Kill off one child */
-        ap_mpm_podx_signal(all_buckets[child_bucket].pod,
-                           AP_MPM_PODX_GRACEFUL);
-        retained->idle_spawn_rate[child_bucket] = 1;
-    }
-    else if (idle_thread_count < min_spare_threads / num_buckets) {
-        /* terminate the free list */
-        if (free_length == 0) { /* scoreboard is full, can't fork */
-
-            if (active_thread_count >= ap_daemons_limit * threads_per_child) {
-                if (!retained->maxclients_reported) {
-                    /* only report this condition once */
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00484)
-                                 "server reached MaxRequestWorkers setting, "
-                                 "consider raising the MaxRequestWorkers "
-                                 "setting");
-                    retained->maxclients_reported = 1;
+        
+        /* Send data as long as we have it and window sizes allow. We are
+         * a server after all.
+         */
+        if (nghttp2_session_want_write(session->ngh2)) {
+            int rv;
+            
+            rv = nghttp2_session_send(session->ngh2);
+            if (rv != 0) {
+                ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                              "h2_session: send: %s", nghttp2_strerror(rv));
+                if (nghttp2_is_fatal(rv)) {
+                    h2_session_abort(session, status, rv);
+                    goto end_process;
                 }
             }
             else {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00485)
-                             "scoreboard is full, not at MaxRequestWorkers");
+                have_written = 1;
+                wait_micros = 0;
+                session->unsent_promises = 0;
             }
-            retained->idle_spawn_rate[child_bucket] = 1;
         }
-        else {
-            if (free_length > retained->idle_spawn_rate[child_bucket]) {
-                free_length = retained->idle_spawn_rate[child_bucket];
+        
+        if (wait_micros > 0) {
+            if (APLOGcdebug(session->c)) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                              "h2_session: wait for data, %ld micros", 
+                              (long)wait_micros);
             }
-            if (retained->idle_spawn_rate[child_bucket] >= 8) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf, APLOGNO(00486)
-                             "server seems busy, (you may need "
-                             "to increase StartServers, ThreadsPerChild "
-                             "or Min/MaxSpareThreads), "
-                             "spawning %d children, there are around %d idle "
-                             "threads, and %d total children", free_length,
-                             idle_thread_count, total_non_dead);
+            nghttp2_session_send(session->ngh2);
+            h2_conn_io_flush(&session->io);
+            status = h2_mplx_out_trywait(session->mplx, wait_micros, session->iowait);
+            
+            if (status == APR_TIMEUP) {
+                if (wait_micros < MAX_WAIT_MICROS) {
+                    wait_micros *= 2;
+                }
             }
-            for (i = 0; i < free_length; ++i) {
-                make_child(ap_server_conf, free_slots[i], child_bucket);
-            }
-            /* the next time around we want to spawn twice as many if this
-             * wasn't good enough, but not if we've just done a graceful
+        }
+        
+        if (nghttp2_session_want_read(session->ngh2))
+        {
+            /* When we
+             * - and have no streams at all
+             * - or have streams, but none is suspended or needs submit and
+             *   have nothing written on the last try
+             * 
+             * or, the other way around
+             * - have only streams where data can be sent, but could
+             *   not send anything
+             *
+             * then we are waiting on frames from the client (for
+             * example WINDOW_UPDATE or HEADER) and without new frames
+             * from the client, we cannot make any progress,
+             * 
+             * and *then* we can safely do a blocking read.
              */
-            if (retained->hold_off_on_exponential_spawning) {
-                --retained->hold_off_on_exponential_spawning;
+            int may_block = (session->frames_received <= 1);
+            if (!may_block) {
+                if (got_streams) {
+                    may_block = (!have_written 
+                                 && !h2_stream_set_has_unsubmitted(session->streams)
+                                 && !h2_stream_set_has_suspended(session->streams));
+                }
+                else {
+                    may_block = 1;
+                }
             }
-            else if (retained->idle_spawn_rate[child_bucket]
-                     < MAX_SPAWN_RATE / num_buckets) {
-                retained->idle_spawn_rate[child_bucket] *= 2;
+            
+            if (may_block) {
+                h2_conn_io_flush(&session->io);
+                if (session->c->cs) {
+                    session->c->cs->state = (got_streams? CONN_STATE_HANDLER
+                                             : CONN_STATE_WRITE_COMPLETION);
+                }
+                status = h2_conn_io_read(&session->io, APR_BLOCK_READ, 
+                                         session_receive, session);
+            }
+            else {
+                if (session->c->cs) {
+                    session->c->cs->state = CONN_STATE_HANDLER;
+                }
+                status = h2_conn_io_read(&session->io, APR_NONBLOCK_READ, 
+                                         session_receive, session);
+            }
+
+            switch (status) {
+                case APR_SUCCESS:       /* successful read, reset our idle timers */
+                    have_read = 1;
+                    wait_micros = 0;
+                    break;
+                case APR_EAGAIN:              /* non-blocking read, nothing there */
+                    break;
+                default:
+                    if (APR_STATUS_IS_ETIMEDOUT(status)
+                        || APR_STATUS_IS_ECONNABORTED(status)
+                        || APR_STATUS_IS_ECONNRESET(status)
+                        || APR_STATUS_IS_EOF(status)
+                        || APR_STATUS_IS_EBADF(status)) {
+                        /* common status for a client that has left */
+                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
+                                      "h2_session(%ld): terminating",
+                                      session->id);
+                        /* Stolen from mod_reqtimeout to speed up lingering when
+                         * a read timeout happened.
+                         */
+                        apr_table_setn(session->c->notes, "short-lingering-close", "1");
+                    }
+                    else {
+                        /* uncommon status, log on INFO so that we see this */
+                        ap_log_cerror( APLOG_MARK, APLOG_INFO, status, session->c,
+                                      APLOGNO(02950) 
+                                      "h2_session(%ld): error reading, terminating",
+                                      session->id);
+                    }
+                    h2_session_abort(session, status, 0);
+                    goto end_process;
             }
         }
+        
+        got_streams = !h2_stream_set_is_empty(session->streams);
+        if (got_streams) {            
+            if (session->reprioritize) {
+                h2_mplx_reprioritize(session->mplx, stream_pri_cmp, session);
+                session->reprioritize = 0;
+            }
+            
+            if (!have_read && !have_written) {
+                /* Nothing read or written. That means no data yet ready to 
+                 * be send out. Slowly back off...
+                 */
+                if (wait_micros == 0) {
+                    wait_micros = 10;
+                }
+            }
+            
+            /* Check that any pending window updates are sent. */
+            status = h2_mplx_in_update_windows(session->mplx);
+            if (APR_STATUS_IS_EAGAIN(status)) {
+                status = APR_SUCCESS;
+            }
+            else if (status == APR_SUCCESS) {
+                /* need to flush window updates onto the connection asap */
+                h2_conn_io_flush(&session->io);
+            }
+        }
+        
+        if (have_written) {
+            h2_conn_io_flush(&session->io);
+        }
     }
-    else {
-        retained->idle_spawn_rate[child_bucket] = 1;
-    }
+    
+end_process:
+    return status;
 }

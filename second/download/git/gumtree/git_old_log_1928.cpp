@@ -1,1 +1,0 @@
-die("cannot describe '%s'", sha1_to_hex(sha1));

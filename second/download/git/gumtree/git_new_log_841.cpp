@@ -1,1 +1,1 @@
-die("Invalid proxy URL '%s'", curl_http_proxy);
+error(_("cannot read HEAD"));

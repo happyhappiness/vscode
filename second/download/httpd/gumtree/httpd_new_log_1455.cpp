@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "unable to allocate new auth_digest client");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Parent: Sent %d listeners to child %lu", lcnt, dwProcessId);

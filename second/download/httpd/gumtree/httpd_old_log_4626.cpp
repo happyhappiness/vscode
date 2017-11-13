@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, res, ap_server_conf,
-                         "gprof: error creating directory %s", dir);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                  "the session insert query did not cause any rows to be added "
+                  "to the database for session '%s', session not inserted", key);

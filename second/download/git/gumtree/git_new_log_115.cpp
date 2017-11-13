@@ -1,1 +1,1 @@
-die_errno("could not move to %s", orig_cwd);
+die("create %s: missing <newvalue>", refname);

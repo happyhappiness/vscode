@@ -1,3 +1,2 @@
-opterror(opt,
-				"expects a non-negative integer value with an optional k/m/g suffix",
-				flags);
+fprintf(stderr, "curl_easy_perform() failed: %s\n",
+					curl_easy_strerror(res));

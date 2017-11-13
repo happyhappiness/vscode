@@ -1,1 +1,1 @@
-fprintf(stderr, "virtual memory exhausted.\n");
+out_of_memory("open_socket_out_wrapped");

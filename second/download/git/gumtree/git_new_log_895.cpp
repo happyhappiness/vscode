@@ -1,1 +1,2 @@
-warning("ignoring dangling symref %s.", fullref.buf);
+die(_("relocate_gitdir for submodule '%s' with "
+		      "more than one worktree not supported"), path);

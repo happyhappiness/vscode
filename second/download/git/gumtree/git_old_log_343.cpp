@@ -1,0 +1,1 @@
+die(_("--index outside a repository"));

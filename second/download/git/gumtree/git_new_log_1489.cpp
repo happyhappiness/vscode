@@ -1,2 +1,1 @@
-error("unable to generate patch-id diff for %s",
-				     p->one->path);
+printf("[%s%s ", head, initial_commit ? _(" (root-commit)") : "");

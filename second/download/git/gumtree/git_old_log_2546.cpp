@@ -1,1 +1,1 @@
-die("submodule--helper relative_path takes exactly 2 arguments, got %d", argc);
+error("unable to write current sha1 into %s: %s", oldrefname, err.buf);

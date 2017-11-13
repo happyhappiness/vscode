@@ -1,98 +1,123 @@
-static int remove_dirs(struct strbuf *path, const char *prefix, int force_flag,
-		int dry_run, int quiet, int *dir_gone)
+char *strbuf_realpath(struct strbuf *resolved, const char *path,
+		      int die_on_error)
 {
-	DIR *dir;
-	struct strbuf quoted = STRBUF_INIT;
-	struct dirent *e;
-	int res = 0, ret = 0, gone = 1, original_len = path->len, len;
-	struct string_list dels = STRING_LIST_INIT_DUP;
+	struct strbuf remaining = STRBUF_INIT;
+	struct strbuf next = STRBUF_INIT;
+	struct strbuf symlink = STRBUF_INIT;
+	char *retval = NULL;
+	int num_symlinks = 0;
+	struct stat st;
 
-	*dir_gone = 1;
-
-	if ((force_flag & REMOVE_DIR_KEEP_NESTED_GIT) && is_nonbare_repository_dir(path)) {
-		if (!quiet) {
-			quote_path_relative(path->buf, prefix, &quoted);
-			printf(dry_run ?  _(msg_would_skip_git_dir) : _(msg_skip_git_dir),
-					quoted.buf);
-		}
-
-		*dir_gone = 0;
-		return 0;
+	if (!*path) {
+		if (die_on_error)
+			die("The empty string is not a valid path");
+		else
+			goto error_out;
 	}
 
-	dir = opendir(path->buf);
-	if (!dir) {
-		/* an empty dir could be removed even if it is unreadble */
-		res = dry_run ? 0 : rmdir(path->buf);
-		if (res) {
-			quote_path_relative(path->buf, prefix, &quoted);
-			warning(_(msg_warn_remove_failed), quoted.buf);
-			*dir_gone = 0;
+	strbuf_addstr(&remaining, path);
+	get_root_part(resolved, &remaining);
+
+	if (!resolved->len) {
+		/* relative path; can use CWD as the initial resolved path */
+		if (strbuf_getcwd(resolved)) {
+			if (die_on_error)
+				die_errno("unable to get current working directory");
+			else
+				goto error_out;
 		}
-		return res;
 	}
 
-	strbuf_complete(path, '/');
+	/* Iterate over the remaining path components */
+	while (remaining.len > 0) {
+		get_next_component(&next, &remaining);
 
-	len = path->len;
-	while ((e = readdir(dir)) != NULL) {
-		struct stat st;
-		if (is_dot_or_dotdot(e->d_name))
+		if (next.len == 0) {
+			continue; /* empty component */
+		} else if (next.len == 1 && !strcmp(next.buf, ".")) {
+			continue; /* '.' component */
+		} else if (next.len == 2 && !strcmp(next.buf, "..")) {
+			/* '..' component; strip the last path component */
+			strip_last_component(resolved);
 			continue;
+		}
 
-		strbuf_setlen(path, len);
-		strbuf_addstr(path, e->d_name);
-		if (lstat(path->buf, &st))
-			; /* fall thru */
-		else if (S_ISDIR(st.st_mode)) {
-			if (remove_dirs(path, prefix, force_flag, dry_run, quiet, &gone))
-				ret = 1;
-			if (gone) {
-				quote_path_relative(path->buf, prefix, &quoted);
-				string_list_append(&dels, quoted.buf);
-			} else
-				*dir_gone = 0;
-			continue;
-		} else {
-			res = dry_run ? 0 : unlink(path->buf);
-			if (!res) {
-				quote_path_relative(path->buf, prefix, &quoted);
-				string_list_append(&dels, quoted.buf);
-			} else {
-				quote_path_relative(path->buf, prefix, &quoted);
-				warning(_(msg_warn_remove_failed), quoted.buf);
-				*dir_gone = 0;
-				ret = 1;
+		/* append the next component and resolve resultant path */
+		if (!is_dir_sep(resolved->buf[resolved->len - 1]))
+			strbuf_addch(resolved, '/');
+		strbuf_addbuf(resolved, &next);
+
+		if (lstat(resolved->buf, &st)) {
+			/* error out unless this was the last component */
+			if (errno != ENOENT || remaining.len) {
+				if (die_on_error)
+					die_errno("Invalid path '%s'",
+						  resolved->buf);
+				else
+					goto error_out;
 			}
-			continue;
+		} else if (S_ISLNK(st.st_mode)) {
+			ssize_t len;
+			strbuf_reset(&symlink);
+
+			if (num_symlinks++ > MAXSYMLINKS) {
+				errno = ELOOP;
+
+				if (die_on_error)
+					die("More than %d nested symlinks "
+					    "on path '%s'", MAXSYMLINKS, path);
+				else
+					goto error_out;
+			}
+
+			len = strbuf_readlink(&symlink, resolved->buf,
+					      st.st_size);
+			if (len < 0) {
+				if (die_on_error)
+					die_errno("Invalid symlink '%s'",
+						  resolved->buf);
+				else
+					goto error_out;
+			}
+
+			if (is_absolute_path(symlink.buf)) {
+				/* absolute symlink; set resolved to root */
+				get_root_part(resolved, &symlink);
+			} else {
+				/*
+				 * relative symlink
+				 * strip off the last component since it will
+				 * be replaced with the contents of the symlink
+				 */
+				strip_last_component(resolved);
+			}
+
+			/*
+			 * if there are still remaining components to resolve
+			 * then append them to symlink
+			 */
+			if (remaining.len) {
+				strbuf_addch(&symlink, '/');
+				strbuf_addbuf(&symlink, &remaining);
+			}
+
+			/*
+			 * use the symlink as the remaining components that
+			 * need to be resloved
+			 */
+			strbuf_swap(&symlink, &remaining);
 		}
-
-		/* path too long, stat fails, or non-directory still exists */
-		*dir_gone = 0;
-		ret = 1;
-		break;
-	}
-	closedir(dir);
-
-	strbuf_setlen(path, original_len);
-
-	if (*dir_gone) {
-		res = dry_run ? 0 : rmdir(path->buf);
-		if (!res)
-			*dir_gone = 1;
-		else {
-			quote_path_relative(path->buf, prefix, &quoted);
-			warning(_(msg_warn_remove_failed), quoted.buf);
-			*dir_gone = 0;
-			ret = 1;
-		}
 	}
 
-	if (!*dir_gone && !quiet) {
-		int i;
-		for (i = 0; i < dels.nr; i++)
-			printf(dry_run ?  _(msg_would_remove) : _(msg_remove), dels.items[i].string);
-	}
-	string_list_clear(&dels, 0);
-	return ret;
+	retval = resolved->buf;
+
+error_out:
+	strbuf_release(&remaining);
+	strbuf_release(&next);
+	strbuf_release(&symlink);
+
+	if (!retval)
+		strbuf_reset(resolved);
+
+	return retval;
 }

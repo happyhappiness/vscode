@@ -1,0 +1,1 @@
+die("delete %s: zero <oldvalue>", refname);

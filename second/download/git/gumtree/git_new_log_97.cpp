@@ -1,1 +1,0 @@
-fputs("fatal: not enough memory for initialization", stderr);

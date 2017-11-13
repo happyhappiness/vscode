@@ -1,39 +1,125 @@
-static int open_postfile(const char *pfile)
+static void usage(process_rec *process)
 {
-    apr_file_t *postfd = NULL;
-    apr_finfo_t finfo;
-    apr_fileperms_t mode = APR_OS_DEFAULT;
-    apr_size_t length;
-    apr_status_t rv;
-    char errmsg[120];
+    const char *bin = process->argv[0];
+    char pad[MAX_STRING_LEN];
+    unsigned i;
 
-    rv = apr_file_open(&postfd, pfile, APR_READ, mode, cntxt);
-    if (rv != APR_SUCCESS) {
-	printf("Invalid postfile name (%s): %s\n", pfile,
-	       apr_strerror(rv, errmsg, sizeof errmsg));
-	return rv;
+    for (i = 0; i < strlen(bin); i++) {
+        pad[i] = ' ';
     }
 
-    apr_file_info_get(&finfo, APR_FINFO_NORM, postfd);
-    postlen = (apr_size_t)finfo.size;
-    postdata = (char *) malloc(postlen);
-    if (!postdata) {
-	printf("Can\'t alloc postfile buffer\n");
-	return APR_ENOMEM;
-    }
-    length = postlen;
-    rv = apr_file_read(postfd, postdata, &length);
-    if (rv != APR_SUCCESS) {
-	printf("error reading postfile: %s\n",
-	       apr_strerror(rv, errmsg, sizeof errmsg));
-	return rv;
-    }
-    if (length != postlen) {
-	printf("error reading postfile: read only %"
-	       APR_SIZE_T_FMT " bytes",
-	       length);
-	return APR_EINVAL;
-    }
-    apr_file_close(postfd);
-    return 0;
+    pad[i] = '\0';
+
+#ifdef SHARED_CORE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL ,
+                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
+                 bin);
+#else
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
+#endif
+
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-C \"directive\"] [-c \"directive\"]", pad);
+
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k install|config|uninstall] [-n service_name]",
+                 pad);
+#endif
+#ifdef AP_MPM_WANT_SIGNAL_SERVER
+#ifdef AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad);
+#else
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k start|restart|graceful|stop]",
+                 pad);
+#endif /* AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN */
+#endif
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "Options:");
+
+#ifdef SHARED_CORE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -R directory       : specify an alternate location for "
+                 "shared object files");
+#endif
+
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -D name            : define a name for use in "
+                 "<IfDefine name> directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -d directory       : specify an alternate initial "
+                 "ServerRoot");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -f file            : specify an alternate ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -C \"directive\"     : process directive before reading "
+                 "config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"     : process directive after reading "
+                 "config files");
+
+#ifdef NETWARE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set screen name");
+#endif
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set service name and use its "
+                 "ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k start           : tell Apache to start");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k restart         : tell running Apache to do a graceful "
+                 "restart");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k stop|shutdown   : tell running Apache to shutdown");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k install         : install an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k config          : change startup Options of an Apache "
+                 "service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k uninstall       : uninstall an Apache service");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -w                 : hold open the console window on error");
+#endif
+
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -e level           : show startup errors of level "
+                 "(see LogLevel)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -E file            : log startup errors to file");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -v                 : show version number");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -V                 : show compile settings");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -h                 : list available command line options "
+                 "(this page)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -l                 : list compiled in modules");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -L                 : list available configuration "
+                 "directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_VHOSTS  : show parsed settings (currently only "
+                 "vhost settings)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -S                 : a synonym for -t -D DUMP_VHOSTS");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_MODULES : show all loaded modules ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -M                 : a synonym for -t -D DUMP_MODULES");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                 : run syntax check for config files");
+
+    destroy_and_exit_process(process, 1);
 }

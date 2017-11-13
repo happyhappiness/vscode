@@ -1,19 +1,28 @@
-static void show_name(const struct object *obj,
-		      const char *caller_name,
-		      int always, int allow_undefined, int name_only)
+static int parse_ws_error_highlight(struct diff_options *opt, const char *arg)
 {
-	const char *name;
-	const unsigned char *sha1 = obj->sha1;
-
-	if (!name_only)
-		printf("%s ", caller_name ? caller_name : sha1_to_hex(sha1));
-	name = get_rev_name(obj);
-	if (name)
-		printf("%s\n", name);
-	else if (allow_undefined)
-		printf("undefined\n");
-	else if (always)
-		printf("%s\n", find_unique_abbrev(sha1, DEFAULT_ABBREV));
-	else
-		die("cannot describe '%s'", sha1_to_hex(sha1));
+	const char *orig_arg = arg;
+	unsigned val = 0;
+	while (*arg) {
+		if (parse_one_token(&arg, "none"))
+			val = 0;
+		else if (parse_one_token(&arg, "default"))
+			val = WSEH_NEW;
+		else if (parse_one_token(&arg, "all"))
+			val = WSEH_NEW | WSEH_OLD | WSEH_CONTEXT;
+		else if (parse_one_token(&arg, "new"))
+			val |= WSEH_NEW;
+		else if (parse_one_token(&arg, "old"))
+			val |= WSEH_OLD;
+		else if (parse_one_token(&arg, "context"))
+			val |= WSEH_CONTEXT;
+		else {
+			error("unknown value after ws-error-highlight=%.*s",
+			      (int)(arg - orig_arg), orig_arg);
+			return 0;
+		}
+		if (*arg)
+			arg++;
+	}
+	opt->ws_error_highlight = val;
+	return 1;
 }

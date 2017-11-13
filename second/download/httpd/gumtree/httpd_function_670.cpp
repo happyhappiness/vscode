@@ -1,36 +1,78 @@
-static void dump_loaded_modules(apr_pool_t *p, server_rec *s)
+static apr_status_t handle_exec(include_ctx_t *ctx, ap_filter_t *f,
+                                apr_bucket_brigade *bb)
 {
-    ap_module_symbol_t *modie;
-    ap_module_symbol_t *modi;
-    so_server_conf *sconf;
-    int i;
-    apr_file_t *out = NULL;
+    char *tag = NULL;
+    char *tag_val = NULL;
+    request_rec *r = f->r;
+    char *file = r->filename;
+    char parsed_string[MAX_STRING_LEN];
 
-    if (!ap_exists_config_define("DUMP_MODULES")) {
-        return;
+    if (!ctx->argc) {
+        ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "missing argument for exec element in %s",
+                      r->filename);
     }
 
-    apr_file_open_stderr(&out, p);
+    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
+        return APR_SUCCESS;
+    }
 
-    apr_file_printf(out, "Loaded Modules:\n");
+    if (!ctx->argc) {
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
 
-    sconf = (so_server_conf *)ap_get_module_config(s->module_config,
-                                                   &so_module);
-    for (i = 0; ; i++) {
-        modi = &ap_prelinked_module_symbols[i];
-        if (modi->name != NULL) {
-            apr_file_printf(out, " %s (static)\n", modi->name);
+    if (ctx->flags & SSI_FLAG_NO_EXEC) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "exec used but not allowed "
+                      "in %s", r->filename);
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
+
+    while (1) {
+        cgi_pfn_gtv(ctx, &tag, &tag_val, SSI_VALUE_DECODED);
+        if (!tag || !tag_val) {
+            break;
+        }
+
+        if (!strcmp(tag, "cmd")) {
+            apr_status_t rv;
+
+            cgi_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
+                       SSI_EXPAND_LEAVE_NAME);
+
+            rv = include_cmd(ctx, f, bb, parsed_string);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "execution failure "
+                              "for parameter \"%s\" to tag exec in file %s",
+                              tag, r->filename);
+                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+                break;
+            }
+        }
+        else if (!strcmp(tag, "cgi")) {
+            apr_status_t rv;
+
+            cgi_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
+                       SSI_EXPAND_DROP_NAME);
+
+            rv = include_cgi(ctx, f, bb, parsed_string);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "invalid CGI ref "
+                              "\"%s\" in %s", tag_val, file);
+                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+                break;
+            }
         }
         else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
+                          "\"%s\" to tag exec in %s", tag, file);
+            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
             break;
         }
     }
 
-    modie = (ap_module_symbol_t *)sconf->loaded_modules->elts;
-    for (i = 0; i < sconf->loaded_modules->nelts; i++) {
-        modi = &modie[i];
-        if (modi->name != NULL) {
-            apr_file_printf(out, " %s (shared)\n", modi->name);
-        }
-    }
+    return APR_SUCCESS;
 }

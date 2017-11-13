@@ -1,316 +1,366 @@
-static int proxy_connect_handler(request_rec *r, proxy_worker *worker,
-                                 proxy_server_conf *conf,
-                                 char *url, const char *proxyname,
-                                 apr_port_t proxyport)
+apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
+                            ap_input_mode_t mode, apr_read_type_e block,
+                            apr_off_t readbytes)
 {
-    connect_conf *c_conf =
-        ap_get_module_config(r->server->module_config, &proxy_connect_module);
+    apr_bucket *e;
+    http_ctx_t *ctx = f->ctx;
+    apr_status_t rv;
+    apr_off_t totalread;
+    int http_error = HTTP_REQUEST_ENTITY_TOO_LARGE;
+    apr_bucket_brigade *bb;
 
-    apr_pool_t *p = r->pool;
-    apr_socket_t *sock;
-    conn_rec *c = r->connection;
-    conn_rec *backconn;
-
-    apr_bucket_brigade *bb = apr_brigade_create(p, c->bucket_alloc);
-    apr_status_t err, rv;
-    apr_size_t nbytes;
-    char buffer[HUGE_STRING_LEN];
-    apr_socket_t *client_socket = ap_get_module_config(c->conn_config, &core_module);
-    int failed, rc;
-    int client_error = 0;
-    apr_pollset_t *pollset;
-    apr_pollfd_t pollfd;
-    const apr_pollfd_t *signalled;
-    apr_int32_t pollcnt, pi;
-    apr_int16_t pollevent;
-    apr_sockaddr_t *uri_addr, *connect_addr;
-
-    apr_uri_t uri;
-    const char *connectname;
-    int connectport = 0;
-
-    /* is this for us? */
-    if (r->method_number != M_CONNECT) {
-        ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-                     "proxy: CONNECT: declining URL %s", url);
-        return DECLINED;
-    }
-    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-                 "proxy: CONNECT: serving URL %s", url);
-
-
-    /*
-     * Step One: Determine Who To Connect To
-     *
-     * Break up the URL to determine the host to connect to
-     */
-
-    /* we break the URL into host, port, uri */
-    if (APR_SUCCESS != apr_uri_parse_hostinfo(p, url, &uri)) {
-        return ap_proxyerror(r, HTTP_BAD_REQUEST,
-                             apr_pstrcat(p, "URI cannot be parsed: ", url,
-                                         NULL));
+    /* just get out of the way of things we don't want. */
+    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
+        return ap_get_brigade(f->next, b, mode, block, readbytes);
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: CONNECT: connecting %s to %s:%d", url, uri.hostname,
-                 uri.port);
+    if (!ctx) {
+        const char *tenc, *lenp;
+        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
+        ctx->state = BODY_NONE;
+        ctx->pos = ctx->chunk_ln;
+        ctx->bb = apr_brigade_create(f->r->pool, f->c->bucket_alloc);
+        bb = ctx->bb;
 
-    /* do a DNS lookup for the destination host */
-    err = apr_sockaddr_info_get(&uri_addr, uri.hostname, APR_UNSPEC, uri.port,
-                                0, p);
-    if (APR_SUCCESS != err) {
-        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                             apr_pstrcat(p, "DNS lookup failure for: ",
-                                         uri.hostname, NULL));
-    }
-
-    /* are we connecting directly, or via a proxy? */
-    if (proxyname) {
-        connectname = proxyname;
-        connectport = proxyport;
-        err = apr_sockaddr_info_get(&connect_addr, proxyname, APR_UNSPEC,
-                                    proxyport, 0, p);
-    }
-    else {
-        connectname = uri.hostname;
-        connectport = uri.port;
-        connect_addr = uri_addr;
-    }
-    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-                 "proxy: CONNECT: connecting to remote proxy %s on port %d",
-                 connectname, connectport);
-
-    /* check if ProxyBlock directive on this host */
-    if (OK != ap_proxy_checkproxyblock(r, conf, uri_addr)) {
-        return ap_proxyerror(r, HTTP_FORBIDDEN,
-                             "Connect to remote machine blocked");
-    }
-
-    /* Check if it is an allowed port */
-    if(!allowed_port(c_conf, uri.port)) {
-              return ap_proxyerror(r, HTTP_FORBIDDEN,
-                                   "Connect to remote machine blocked");
-    }
-
-    /*
-     * Step Two: Make the Connection
-     *
-     * We have determined who to connect to. Now make the connection.
-     */
-
-    /* get all the possible IP addresses for the destname and loop through them
-     * until we get a successful connection
-     */
-    if (APR_SUCCESS != err) {
-        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                             apr_pstrcat(p, "DNS lookup failure for: ",
-                                         connectname, NULL));
-    }
-
-    /*
-     * At this point we have a list of one or more IP addresses of
-     * the machine to connect to. If configured, reorder this
-     * list so that the "best candidate" is first try. "best
-     * candidate" could mean the least loaded server, the fastest
-     * responding server, whatever.
-     *
-     * For now we do nothing, ie we get DNS round robin.
-     * XXX FIXME
-     */
-    failed = ap_proxy_connect_to_backend(&sock, "CONNECT", connect_addr,
-                                         connectname, conf, r);
-
-    /* handle a permanent error from the above loop */
-    if (failed) {
-        if (proxyname) {
-            return DECLINED;
+        /* LimitRequestBody does not apply to proxied responses.
+         * Consider implementing this check in its own filter.
+         * Would adding a directive to limit the size of proxied
+         * responses be useful?
+         */
+        if (!f->r->proxyreq) {
+            ctx->limit = ap_get_limit_req_body(f->r);
         }
         else {
-            return HTTP_SERVICE_UNAVAILABLE;
+            ctx->limit = 0;
         }
-    }
 
-    /* setup polling for connection */
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                  "proxy: CONNECT: setting up poll()");
+        tenc = apr_table_get(f->r->headers_in, "Transfer-Encoding");
+        lenp = apr_table_get(f->r->headers_in, "Content-Length");
 
-    if ((rv = apr_pollset_create(&pollset, 2, r->pool, 0)) != APR_SUCCESS) {
-        apr_socket_close(sock);
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "proxy: CONNECT: error apr_pollset_create()");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    /* Add client side to the poll */
-    pollfd.p = r->pool;
-    pollfd.desc_type = APR_POLL_SOCKET;
-    pollfd.reqevents = APR_POLLIN;
-    pollfd.desc.s = client_socket;
-    pollfd.client_data = NULL;
-    apr_pollset_add(pollset, &pollfd);
-
-    /* Add the server side to the poll */
-    pollfd.desc.s = sock;
-    apr_pollset_add(pollset, &pollfd);
-
-    /*
-     * Step Three: Send the Request
-     *
-     * Send the HTTP/1.1 CONNECT request to the remote server
-     */
-
-    backconn = ap_run_create_connection(c->pool, r->server, sock,
-                                        c->id, c->sbh, c->bucket_alloc);
-    if (!backconn) {
-        /* peer reset */
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                      "proxy: an error occurred creating a new connection "
-                      "to %pI (%s)", connect_addr, connectname);
-        apr_socket_close(sock);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    ap_proxy_ssl_disable(backconn);
-    rc = ap_run_pre_connection(backconn, sock);
-    if (rc != OK && rc != DONE) {
-        backconn->aborted = 1;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "proxy: CONNECT: pre_connection setup failed (%d)", rc);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                  "proxy: CONNECT: connection complete to %pI (%s)",
-                  connect_addr, connectname);
-
-
-    /* If we are connecting through a remote proxy, we need to pass
-     * the CONNECT request on to it.
-     */
-    if (proxyport) {
-    /* FIXME: Error checking ignored.
-     */
-        ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                     "proxy: CONNECT: sending the CONNECT request"
-                     " to the remote proxy");
-        ap_fprintf(backconn->output_filters, bb,
-                   "CONNECT %s HTTP/1.0" CRLF, r->uri);
-        ap_fprintf(backconn->output_filters, bb,
-                   "Proxy-agent: %s" CRLF CRLF, ap_get_server_banner());
-        ap_fflush(backconn->output_filters, bb);
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-                     "proxy: CONNECT: Returning 200 OK Status");
-        nbytes = apr_snprintf(buffer, sizeof(buffer),
-                              "HTTP/1.0 200 Connection Established" CRLF);
-        ap_xlate_proto_to_ascii(buffer, nbytes);
-        ap_fwrite(c->output_filters, bb, buffer, nbytes); 
-        nbytes = apr_snprintf(buffer, sizeof(buffer),
-                              "Proxy-agent: %s" CRLF CRLF,
-                              ap_get_server_banner());
-        ap_xlate_proto_to_ascii(buffer, nbytes);
-        ap_fwrite(c->output_filters, bb, buffer, nbytes);
-        ap_fflush(c->output_filters, bb);
-#if 0
-        /* This is safer code, but it doesn't work yet.  I'm leaving it
-         * here so that I can fix it later.
-         */
-        r->status = HTTP_OK;
-        r->header_only = 1;
-        apr_table_set(r->headers_out, "Proxy-agent: %s", ap_get_server_banner());
-        ap_rflush(r);
-#endif
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                 "proxy: CONNECT: setting up poll()");
-
-    /*
-     * Step Four: Handle Data Transfer
-     *
-     * Handle two way transfer of data over the socket (this is a tunnel).
-     */
-
-    /* we are now acting as a tunnel - the input/output filter stacks should
-     * not contain any non-connection filters.
-     */
-    r->output_filters = c->output_filters;
-    r->proto_output_filters = c->output_filters;
-    r->input_filters = c->input_filters;
-    r->proto_input_filters = c->input_filters;
-/*    r->sent_bodyct = 1;*/
-
-    while (1) { /* Infinite loop until error (one side closes the connection) */
-        if ((rv = apr_pollset_poll(pollset, -1, &pollcnt, &signalled))
-            != APR_SUCCESS) {
-            apr_socket_close(sock);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "proxy: CONNECT: error apr_poll()");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-#ifdef DEBUGGING
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: CONNECT: woke from poll(), i=%d", pollcnt);
-#endif
-
-        for (pi = 0; pi < pollcnt; pi++) {
-            const apr_pollfd_t *cur = &signalled[pi];
-
-            if (cur->desc.s == sock) {
-                pollevent = cur->rtnevents;
-                if (pollevent & APR_POLLIN) {
-#ifdef DEBUGGING
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "proxy: CONNECT: sock was readable");
-#endif
-                    rv = proxy_connect_transfer(r, backconn, c, bb, "sock");
-                    }
-                else if ((pollevent & APR_POLLERR)
-                         || (pollevent & APR_POLLHUP)) {
-                         rv = APR_EPIPE;
-                         ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r,
-                                       "proxy: CONNECT: err/hup on backconn");
-                }
-                if (rv != APR_SUCCESS)
-                    client_error = 1;
+        if (tenc) {
+            if (!strcasecmp(tenc, "chunked")) {
+                ctx->state = BODY_CHUNK;
             }
-            else if (cur->desc.s == client_socket) {
-                pollevent = cur->rtnevents;
-                if (pollevent & APR_POLLIN) {
-#ifdef DEBUGGING
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "proxy: CONNECT: client was readable");
-#endif
-                    rv = proxy_connect_transfer(r, c, backconn, bb, "client");
-                }
+            /* test lenp, because it gives another case we can handle */
+            else if (!lenp) {
+                /* Something that isn't in HTTP, unless some future
+                 * edition defines new transfer ecodings, is unsupported.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                              "Unknown Transfer-Encoding: %s", tenc);
+                return bail_out_on_error(ctx, f, HTTP_NOT_IMPLEMENTED);
             }
             else {
-                rv = APR_EBADF;
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "proxy: CONNECT: unknown socket in pollset");
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r,
+                  "Unknown Transfer-Encoding: %s; using Content-Length", tenc);
+                tenc = NULL;
+            }
+        }
+        if (lenp && !tenc) {
+            char *endstr;
+
+            ctx->state = BODY_LENGTH;
+
+            /* Protects against over/underflow, non-digit chars in the
+             * string (excluding leading space) (the endstr checks)
+             * and a negative number. */
+            if (apr_strtoff(&ctx->remaining, lenp, &endstr, 10)
+                || endstr == lenp || *endstr || ctx->remaining < 0) {
+
+                ctx->remaining = 0;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                              "Invalid Content-Length");
+
+                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
             }
 
+            /* If we have a limit in effect and we know the C-L ahead of
+             * time, stop it here if it is invalid.
+             */
+            if (ctx->limit && ctx->limit < ctx->remaining) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                          "Requested content-length of %" APR_OFF_T_FMT
+                          " is larger than the configured limit"
+                          " of %" APR_OFF_T_FMT, ctx->remaining, ctx->limit);
+                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
+            }
         }
-        if (rv != APR_SUCCESS) {
+
+        /* If we don't have a request entity indicated by the headers, EOS.
+         * (BODY_NONE is a valid intermediate state due to trailers,
+         *  but it isn't a valid starting state.)
+         *
+         * RFC 2616 Section 4.4 note 5 states that connection-close
+         * is invalid for a request entity - request bodies must be
+         * denoted by C-L or T-E: chunked.
+         *
+         * Note that since the proxy uses this filter to handle the
+         * proxied *response*, proxy responses MUST be exempt.
+         */
+        if (ctx->state == BODY_NONE && f->r->proxyreq != PROXYREQ_RESPONSE) {
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(b, e);
+            ctx->eos_sent = 1;
+            return APR_SUCCESS;
+        }
+
+        /* Since we're about to read data, send 100-Continue if needed.
+         * Only valid on chunked and C-L bodies where the C-L is > 0. */
+        if ((ctx->state == BODY_CHUNK ||
+            (ctx->state == BODY_LENGTH && ctx->remaining > 0)) &&
+            f->r->expecting_100 && f->r->proto_num >= HTTP_VERSION(1,1) &&
+            !(f->r->eos_sent || f->r->bytes_sent)) {
+            if (!ap_is_HTTP_SUCCESS(f->r->status)) {
+                ctx->state = BODY_NONE;
+                ctx->eos_sent = 1;
+            } else {
+                char *tmp;
+                int len;
+
+                /* if we send an interim response, we're no longer
+                 * in a state of expecting one.
+                 */
+                f->r->expecting_100 = 0;
+                tmp = apr_pstrcat(f->r->pool, AP_SERVER_PROTOCOL, " ",
+                                  ap_get_status_line(HTTP_CONTINUE), CRLF CRLF,
+                                  NULL);
+                len = strlen(tmp);
+                ap_xlate_proto_to_ascii(tmp, len);
+                apr_brigade_cleanup(bb);
+                e = apr_bucket_pool_create(tmp, len, f->r->pool,
+                                           f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_HEAD(bb, e);
+                e = apr_bucket_flush_create(f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(bb, e);
+
+                ap_pass_brigade(f->c->output_filters, bb);
+            }
+        }
+
+        /* We can't read the chunk until after sending 100 if required. */
+        if (ctx->state == BODY_CHUNK) {
+            apr_brigade_cleanup(bb);
+
+            rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
+                                block, 0);
+
+            /* for timeout */
+            if (block == APR_NONBLOCK_READ &&
+                ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
+                  (APR_STATUS_IS_EAGAIN(rv)) )) {
+                ctx->state = BODY_CHUNK_PART;
+                return APR_EAGAIN;
+            }
+
+            if (rv == APR_SUCCESS) {
+                rv = get_chunk_line(ctx, bb, f->r->server->limit_req_line);
+                if (APR_STATUS_IS_EAGAIN(rv)) {
+                    apr_brigade_cleanup(bb);
+                    ctx->state = BODY_CHUNK_PART;
+                    return rv;
+                }
+                if (rv == APR_SUCCESS) {
+                    ctx->remaining = get_chunk_size(ctx->chunk_ln);
+                    if (ctx->remaining == INVALID_CHAR) {
+                        rv = APR_EGENERAL;
+                        http_error = HTTP_SERVICE_UNAVAILABLE;
+                    }
+                }
+            }
+            apr_brigade_cleanup(bb);
+
+            /* Detect chunksize error (such as overflow) */
+            if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
+                              (ctx->remaining < 0) ? "(overflow)" : "");
+                ctx->remaining = 0; /* Reset it in case we have to
+                                     * come back here later */
+                if (APR_STATUS_IS_TIMEUP(rv)) { 
+                    http_error = HTTP_REQUEST_TIME_OUT;
+                }
+                return bail_out_on_error(ctx, f, http_error);
+            }
+
+            if (!ctx->remaining) {
+                /* Handle trailers by calling ap_get_mime_headers again! */
+                ctx->state = BODY_NONE;
+                ap_get_mime_headers(f->r);
+                e = apr_bucket_eos_create(f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(b, e);
+                ctx->eos_sent = 1;
+                return APR_SUCCESS;
+            }
+        }
+    }
+    else {
+        bb = ctx->bb;
+    }
+
+    if (ctx->eos_sent) {
+        e = apr_bucket_eos_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(b, e);
+        return APR_SUCCESS;
+    }
+
+    if (!ctx->remaining) {
+        switch (ctx->state) {
+        case BODY_NONE:
+            break;
+        case BODY_LENGTH:
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(b, e);
+            ctx->eos_sent = 1;
+            return APR_SUCCESS;
+        case BODY_CHUNK:
+        case BODY_CHUNK_PART:
+            {
+                apr_brigade_cleanup(bb);
+
+                /* We need to read the CRLF after the chunk.  */
+                if (ctx->state == BODY_CHUNK) {
+                    rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
+                                        block, 0);
+                    if (block == APR_NONBLOCK_READ &&
+                        ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
+                          (APR_STATUS_IS_EAGAIN(rv)) )) {
+                        return APR_EAGAIN;
+                    }
+                    /* If we get an error, then leave */
+                    if (rv != APR_SUCCESS) {
+                        return rv;
+                    }
+                    /*
+                     * We really don't care whats on this line. If it is RFC
+                     * compliant it should be only \r\n. If there is more
+                     * before we just ignore it as long as we do not get over
+                     * the limit for request lines.
+                     */
+                    rv = get_remaining_chunk_line(ctx, bb,
+                                                  f->r->server->limit_req_line);
+                    apr_brigade_cleanup(bb);
+                    if (APR_STATUS_IS_EAGAIN(rv)) {
+                        return rv;
+                    }
+                } else {
+                    rv = APR_SUCCESS;
+                }
+
+                if (rv == APR_SUCCESS) {
+                    /* Read the real chunk line. */
+                    rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
+                                        block, 0);
+                    /* Test timeout */
+                    if (block == APR_NONBLOCK_READ &&
+                        ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
+                          (APR_STATUS_IS_EAGAIN(rv)) )) {
+                        ctx->state = BODY_CHUNK_PART;
+                        return APR_EAGAIN;
+                    }
+                    ctx->state = BODY_CHUNK;
+                    if (rv == APR_SUCCESS) {
+                        rv = get_chunk_line(ctx, bb, f->r->server->limit_req_line);
+                        if (APR_STATUS_IS_EAGAIN(rv)) {
+                            ctx->state = BODY_CHUNK_PART;
+                            apr_brigade_cleanup(bb);
+                            return rv;
+                        }
+                        if (rv == APR_SUCCESS) {
+                            ctx->remaining = get_chunk_size(ctx->chunk_ln);
+                            if (ctx->remaining == INVALID_CHAR) {
+                                rv = APR_EGENERAL;
+                                http_error = HTTP_SERVICE_UNAVAILABLE;
+                            }
+                        }
+                    }
+                    apr_brigade_cleanup(bb);
+                }
+
+                /* Detect chunksize error (such as overflow) */
+                if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading chunk %s ", 
+                                  (ctx->remaining < 0) ? "(overflow)" : "");
+                    ctx->remaining = 0; /* Reset it in case we have to
+                                         * come back here later */
+                    if (APR_STATUS_IS_TIMEUP(rv)) { 
+                        http_error = HTTP_REQUEST_TIME_OUT;
+                    }
+                    return bail_out_on_error(ctx, f, http_error);
+                }
+
+                if (!ctx->remaining) {
+                    /* Handle trailers by calling ap_get_mime_headers again! */
+                    ctx->state = BODY_NONE;
+                    ap_get_mime_headers(f->r);
+                    e = apr_bucket_eos_create(f->c->bucket_alloc);
+                    APR_BRIGADE_INSERT_TAIL(b, e);
+                    ctx->eos_sent = 1;
+                    return APR_SUCCESS;
+                }
+            }
             break;
         }
     }
 
-    ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                 "proxy: CONNECT: finished with poll() - cleaning up");
+    /* Ensure that the caller can not go over our boundary point. */
+    if (ctx->state == BODY_LENGTH || ctx->state == BODY_CHUNK) {
+        if (ctx->remaining < readbytes) {
+            readbytes = ctx->remaining;
+        }
+        AP_DEBUG_ASSERT(readbytes > 0);
+    }
 
-    /*
-     * Step Five: Clean Up
-     *
-     * Close the socket and clean up
+    rv = ap_get_brigade(f->next, b, mode, block, readbytes);
+
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    /* How many bytes did we just read? */
+    apr_brigade_length(b, 0, &totalread);
+
+    /* If this happens, we have a bucket of unknown length.  Die because
+     * it means our assumptions have changed. */
+    AP_DEBUG_ASSERT(totalread >= 0);
+
+    if (ctx->state != BODY_NONE) {
+        ctx->remaining -= totalread;
+        if (ctx->remaining > 0) {
+            e = APR_BRIGADE_LAST(b);
+            if (APR_BUCKET_IS_EOS(e))
+                return APR_EOF;
+        }
+    }
+
+    /* If we have no more bytes remaining on a C-L request,
+     * save the callter a roundtrip to discover EOS.
      */
+    if (ctx->state == BODY_LENGTH && ctx->remaining == 0) {
+        e = apr_bucket_eos_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(b, e);
+    }
 
-    if (client_error)
-        apr_socket_close(sock);
-    else
-        ap_lingering_close(backconn);
+    /* We have a limit in effect. */
+    if (ctx->limit) {
+        /* FIXME: Note that we might get slightly confused on chunked inputs
+         * as we'd need to compensate for the chunk lengths which may not
+         * really count.  This seems to be up for interpretation.  */
+        ctx->limit_used += totalread;
+        if (ctx->limit < ctx->limit_used) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                          "Read content-length of %" APR_OFF_T_FMT
+                          " is larger than the configured limit"
+                          " of %" APR_OFF_T_FMT, ctx->limit_used, ctx->limit);
+            apr_brigade_cleanup(bb);
+            e = ap_bucket_error_create(HTTP_REQUEST_ENTITY_TOO_LARGE, NULL,
+                                       f->r->pool,
+                                       f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+            ctx->eos_sent = 1;
+            return ap_pass_brigade(f->r->output_filters, bb);
+        }
+    }
 
-    c->aborted = 1;
-
-    return OK;
+    return APR_SUCCESS;
 }

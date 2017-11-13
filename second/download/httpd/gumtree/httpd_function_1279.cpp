@@ -1,90 +1,50 @@
-static int mkrecord(char *user, char *record, apr_size_t rlen, char *passwd,
-                    int alg)
+static int translate_alias_redir(request_rec *r)
 {
-    char *pw;
-    char cpw[120];
-    char pwin[MAX_STRING_LEN];
-    char pwv[MAX_STRING_LEN];
-    char salt[9];
-    apr_size_t bufsize;
+    ap_conf_vector_t *sconf = r->server->module_config;
+    alias_server_conf *serverconf = ap_get_module_config(sconf, &alias_module);
+    char *ret;
+    int status;
 
-    if (passwd != NULL) {
-        pw = passwd;
+    if (r->uri[0] != '/' && r->uri[0] != '\0') {
+        return DECLINED;
     }
-    else {
-        bufsize = sizeof(pwin);
-        if (apr_password_get("New password: ", pwin, &bufsize) != 0) {
-            apr_snprintf(record, (rlen - 1), "password too long (>%"
-                         APR_SIZE_T_FMT ")", sizeof(pwin) - 1);
-            return ERR_OVERFLOW;
-        }
-        bufsize = sizeof(pwv);
-        apr_password_get("Re-type new password: ", pwv, &bufsize);
-        if (strcmp(pwin, pwv) != 0) {
-            apr_cpystrn(record, "password verification error", (rlen - 1));
-            return ERR_PWMISMATCH;
-        }
-        pw = pwin;
-        memset(pwv, '\0', sizeof(pwin));
-    }
-    switch (alg) {
 
-    case ALG_APSHA:
-        /* XXX cpw >= 28 + strlen(sha1) chars - fixed len SHA */
-        apr_sha1_base64(pw,strlen(pw),cpw);
-        break;
+    if ((ret = try_alias_list(r, serverconf->redirects, 1, &status)) != NULL) {
+        if (ap_is_HTTP_REDIRECT(status)) {
+            char *orig_target = ret;
+            if (ret[0] == '/') {
 
-    case ALG_APMD5:
-        if (seed_rand()) {
-            break;
-        }
-        generate_salt(&salt[0], 8);
-        salt[8] = '\0';
-
-        apr_md5_encode((const char *)pw, (const char *)salt,
-                     cpw, sizeof(cpw));
-        break;
-
-    case ALG_PLAIN:
-        /* XXX this len limitation is not in sync with any HTTPd len. */
-        apr_cpystrn(cpw,pw,sizeof(cpw));
-        break;
-
-#if (!(defined(WIN32) || defined(NETWARE)))
-    case ALG_CRYPT:
-    default:
-        if (seed_rand()) {
-            break;
-        }
-        to64(&salt[0], rand(), 8);
-        salt[8] = '\0';
-
-        apr_cpystrn(cpw, crypt(pw, salt), sizeof(cpw) - 1);
-        if (strlen(pw) > 8) {
-            char *truncpw = strdup(pw);
-            truncpw[8] = '\0';
-            if (!strcmp(cpw, crypt(truncpw, salt))) {
-                apr_file_printf(errfile, "Warning: Password truncated to 8 characters "
-                                "by CRYPT algorithm." NL);
+                ret = ap_construct_url(r->pool, ret, r);
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              "incomplete redirection target of '%s' for "
+                              "URI '%s' modified to '%s'",
+                              orig_target, r->uri, ret);
             }
-            free(truncpw);
+            if (!ap_is_url(ret)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "cannot redirect '%s' to '%s'; "
+                              "target is not a valid absoluteURI or abs_path",
+                              r->uri, ret);
+                /* restore the config value, so as not to get a
+                 * "regression" on existing "working" configs.
+                 */
+                ret = orig_target;
+            }
+            /* append requested query only, if the config didn't
+             * supply its own.
+             */
+            if (r->args && !ap_strchr(ret, '?')) {
+                ret = apr_pstrcat(r->pool, ret, "?", r->args, NULL);
+            }
+            apr_table_setn(r->headers_out, "Location", ret);
         }
-        break;
-#endif
+        return status;
     }
-    memset(pw, '\0', strlen(pw));
 
-    /*
-     * Check to see if the buffer is large enough to hold the username,
-     * hash, and delimiters.
-     */
-    if ((strlen(user) + 1 + strlen(cpw)) > (rlen - 1)) {
-        apr_cpystrn(record, "resultant record too long", (rlen - 1));
-        return ERR_OVERFLOW;
+    if ((ret = try_alias_list(r, serverconf->aliases, 0, &status)) != NULL) {
+        r->filename = ret;
+        return OK;
     }
-    strcpy(record, user);
-    strcat(record, ":");
-    strcat(record, cpw);
-    strcat(record, "\n");
-    return 0;
+
+    return DECLINED;
 }

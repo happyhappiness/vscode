@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02646)
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
+ap_rvputs(r, ap_escape_uri(r->pool, action), "'>\n", NULL);

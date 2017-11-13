@@ -1,1 +1,2 @@
-error("Failed to delete ref NOTES_MERGE_REF");
+error(_("path %s has been renamed/deleted"),
+			     patch->old_name);

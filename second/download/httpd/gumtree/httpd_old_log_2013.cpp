@@ -1,1 +1,3 @@
-fprintf(stderr,"The %s service has been removed successfully.\n", mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+              "proxy: worker %s already initialized",
+              worker->name);

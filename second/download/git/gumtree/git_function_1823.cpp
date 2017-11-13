@@ -1,120 +1,277 @@
-static CURL *get_curl_handle(void)
+int cmd_clone(int argc, const char **argv, const char *prefix)
 {
-	CURL *result = curl_easy_init();
-	long allowed_protocols = 0;
+	int is_bundle = 0, is_local;
+	struct stat buf;
+	const char *repo_name, *repo, *work_tree, *git_dir;
+	char *path, *dir;
+	int dest_exists;
+	const struct ref *refs, *remote_head;
+	const struct ref *remote_head_points_at;
+	const struct ref *our_head_points_at;
+	struct ref *mapped_refs;
+	const struct ref *ref;
+	struct strbuf key = STRBUF_INIT, value = STRBUF_INIT;
+	struct strbuf branch_top = STRBUF_INIT, reflog_msg = STRBUF_INIT;
+	struct transport *transport = NULL;
+	const char *src_ref_prefix = "refs/heads/";
+	struct remote *remote;
+	int err = 0, complete_refs_before_fetch = 1;
 
-	if (!result)
-		die("curl_easy_init failed");
+	struct refspec *refspec;
+	const char *fetch_pattern;
 
-	if (!curl_ssl_verify) {
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 0);
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 0);
-	} else {
-		/* Verify authenticity of the peer's certificate */
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 1);
-		/* The name in the cert must match whom we tried to connect */
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 2);
+	packet_trace_identity("clone");
+	argc = parse_options(argc, argv, prefix, builtin_clone_options,
+			     builtin_clone_usage, 0);
+
+	if (argc > 2)
+		usage_msg_opt(_("Too many arguments."),
+			builtin_clone_usage, builtin_clone_options);
+
+	if (argc == 0)
+		usage_msg_opt(_("You must specify a repository to clone."),
+			builtin_clone_usage, builtin_clone_options);
+
+	if (option_single_branch == -1)
+		option_single_branch = option_depth ? 1 : 0;
+
+	if (option_mirror)
+		option_bare = 1;
+
+	if (option_bare) {
+		if (option_origin)
+			die(_("--bare and --origin %s options are incompatible."),
+			    option_origin);
+		if (real_git_dir)
+			die(_("--bare and --separate-git-dir are incompatible."));
+		option_no_checkout = 1;
 	}
 
-#if LIBCURL_VERSION_NUM >= 0x070907
-	curl_easy_setopt(result, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
-#endif
-#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
-	curl_easy_setopt(result, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
-#endif
+	if (!option_origin)
+		option_origin = "origin";
 
-	if (http_proactive_auth)
-		init_curl_http_auth(result);
+	repo_name = argv[0];
 
-	if (getenv("GIT_SSL_VERSION"))
-		ssl_version = getenv("GIT_SSL_VERSION");
-	if (ssl_version && *ssl_version) {
-		int i;
-		for (i = 0; i < ARRAY_SIZE(sslversions); i++) {
-			if (!strcmp(ssl_version, sslversions[i].name)) {
-				curl_easy_setopt(result, CURLOPT_SSLVERSION,
-						 sslversions[i].ssl_version);
+	path = get_repo_path(repo_name, &is_bundle);
+	if (path)
+		repo = xstrdup(absolute_path(repo_name));
+	else if (!strchr(repo_name, ':'))
+		die(_("repository '%s' does not exist"), repo_name);
+	else
+		repo = repo_name;
+
+	/* no need to be strict, transport_set_option() will validate it again */
+	if (option_depth && atoi(option_depth) < 1)
+		die(_("depth %s is not a positive number"), option_depth);
+
+	if (argc == 2)
+		dir = xstrdup(argv[1]);
+	else
+		dir = guess_dir_name(repo_name, is_bundle, option_bare);
+	strip_trailing_slashes(dir);
+
+	dest_exists = !stat(dir, &buf);
+	if (dest_exists && !is_empty_dir(dir))
+		die(_("destination path '%s' already exists and is not "
+			"an empty directory."), dir);
+
+	strbuf_addf(&reflog_msg, "clone: from %s", repo);
+
+	if (option_bare)
+		work_tree = NULL;
+	else {
+		work_tree = getenv("GIT_WORK_TREE");
+		if (work_tree && !stat(work_tree, &buf))
+			die(_("working tree '%s' already exists."), work_tree);
+	}
+
+	if (option_bare || work_tree)
+		git_dir = xstrdup(dir);
+	else {
+		work_tree = dir;
+		git_dir = mkpathdup("%s/.git", dir);
+	}
+
+	if (!option_bare) {
+		junk_work_tree = work_tree;
+		if (safe_create_leading_directories_const(work_tree) < 0)
+			die_errno(_("could not create leading directories of '%s'"),
+				  work_tree);
+		if (!dest_exists && mkdir(work_tree, 0777))
+			die_errno(_("could not create work tree dir '%s'."),
+				  work_tree);
+		set_git_work_tree(work_tree);
+	}
+	junk_git_dir = git_dir;
+	atexit(remove_junk);
+	sigchain_push_common(remove_junk_on_signal);
+
+	if (safe_create_leading_directories_const(git_dir) < 0)
+		die(_("could not create leading directories of '%s'"), git_dir);
+
+	set_git_dir_init(git_dir, real_git_dir, 0);
+	if (real_git_dir) {
+		git_dir = real_git_dir;
+		junk_git_dir = real_git_dir;
+	}
+
+	if (0 <= option_verbosity) {
+		if (option_bare)
+			fprintf(stderr, _("Cloning into bare repository '%s'...\n"), dir);
+		else
+			fprintf(stderr, _("Cloning into '%s'...\n"), dir);
+	}
+	init_db(option_template, INIT_DB_QUIET);
+	write_config(&option_config);
+
+	git_config(git_default_config, NULL);
+
+	if (option_bare) {
+		if (option_mirror)
+			src_ref_prefix = "refs/";
+		strbuf_addstr(&branch_top, src_ref_prefix);
+
+		git_config_set("core.bare", "true");
+	} else {
+		strbuf_addf(&branch_top, "refs/remotes/%s/", option_origin);
+	}
+
+	strbuf_addf(&value, "+%s*:%s*", src_ref_prefix, branch_top.buf);
+	strbuf_addf(&key, "remote.%s.url", option_origin);
+	git_config_set(key.buf, repo);
+	strbuf_reset(&key);
+
+	if (option_reference.nr)
+		setup_reference();
+	else if (option_dissociate) {
+		warning(_("--dissociate given, but there is no --reference"));
+		option_dissociate = 0;
+	}
+
+	fetch_pattern = value.buf;
+	refspec = parse_fetch_refspec(1, &fetch_pattern);
+
+	strbuf_reset(&value);
+
+	remote = remote_get(option_origin);
+	transport = transport_get(remote, remote->url[0]);
+	path = get_repo_path(remote->url[0], &is_bundle);
+	is_local = option_local != 0 && path && !is_bundle;
+	if (is_local) {
+		if (option_depth)
+			warning(_("--depth is ignored in local clones; use file:// instead."));
+		if (!access(mkpath("%s/shallow", path), F_OK)) {
+			if (option_local > 0)
+				warning(_("source repository is shallow, ignoring --local"));
+			is_local = 0;
+		}
+	}
+	if (option_local > 0 && !is_local)
+		warning(_("--local is ignored"));
+	transport->cloning = 1;
+
+	if (!transport->get_refs_list || (!is_local && !transport->fetch))
+		die(_("Don't know how to clone %s"), transport->url);
+
+	transport_set_option(transport, TRANS_OPT_KEEP, "yes");
+
+	if (option_depth)
+		transport_set_option(transport, TRANS_OPT_DEPTH,
+				     option_depth);
+	if (option_single_branch)
+		transport_set_option(transport, TRANS_OPT_FOLLOWTAGS, "1");
+
+	transport_set_verbosity(transport, option_verbosity, option_progress);
+
+	if (option_upload_pack)
+		transport_set_option(transport, TRANS_OPT_UPLOADPACK,
+				     option_upload_pack);
+
+	if (transport->smart_options && !option_depth)
+		transport->smart_options->check_self_contained_and_connected = 1;
+
+	refs = transport_get_remote_refs(transport);
+
+	if (refs) {
+		mapped_refs = wanted_peer_refs(refs, refspec);
+		/*
+		 * transport_get_remote_refs() may return refs with null sha-1
+		 * in mapped_refs (see struct transport->get_refs_list
+		 * comment). In that case we need fetch it early because
+		 * remote_head code below relies on it.
+		 *
+		 * for normal clones, transport_get_remote_refs() should
+		 * return reliable ref set, we can delay cloning until after
+		 * remote HEAD check.
+		 */
+		for (ref = refs; ref; ref = ref->next)
+			if (is_null_sha1(ref->old_sha1)) {
+				complete_refs_before_fetch = 0;
 				break;
 			}
+
+		if (!is_local && !complete_refs_before_fetch)
+			transport_fetch_refs(transport, mapped_refs);
+
+		remote_head = find_ref_by_name(refs, "HEAD");
+		remote_head_points_at =
+			guess_remote_head(remote_head, mapped_refs, 0);
+
+		if (option_branch) {
+			our_head_points_at =
+				find_remote_branch(mapped_refs, option_branch);
+
+			if (!our_head_points_at)
+				die(_("Remote branch %s not found in upstream %s"),
+				    option_branch, option_origin);
 		}
-		if (i == ARRAY_SIZE(sslversions))
-			warning("unsupported ssl version %s: using default",
-				ssl_version);
+		else
+			our_head_points_at = remote_head_points_at;
+	}
+	else {
+		if (option_branch)
+			die(_("Remote branch %s not found in upstream %s"),
+					option_branch, option_origin);
+
+		warning(_("You appear to have cloned an empty repository."));
+		mapped_refs = NULL;
+		our_head_points_at = NULL;
+		remote_head_points_at = NULL;
+		remote_head = NULL;
+		option_no_checkout = 1;
+		if (!option_bare)
+			install_branch_config(0, "master", option_origin,
+					      "refs/heads/master");
 	}
 
-	if (getenv("GIT_SSL_CIPHER_LIST"))
-		ssl_cipherlist = getenv("GIT_SSL_CIPHER_LIST");
-	if (ssl_cipherlist != NULL && *ssl_cipherlist)
-		curl_easy_setopt(result, CURLOPT_SSL_CIPHER_LIST,
-				ssl_cipherlist);
+	write_refspec_config(src_ref_prefix, our_head_points_at,
+			remote_head_points_at, &branch_top);
 
-	if (ssl_cert != NULL)
-		curl_easy_setopt(result, CURLOPT_SSLCERT, ssl_cert);
-	if (has_cert_password())
-		curl_easy_setopt(result, CURLOPT_KEYPASSWD, cert_auth.password);
-#if LIBCURL_VERSION_NUM >= 0x070903
-	if (ssl_key != NULL)
-		curl_easy_setopt(result, CURLOPT_SSLKEY, ssl_key);
-#endif
-#if LIBCURL_VERSION_NUM >= 0x070908
-	if (ssl_capath != NULL)
-		curl_easy_setopt(result, CURLOPT_CAPATH, ssl_capath);
-#endif
-	if (ssl_cainfo != NULL)
-		curl_easy_setopt(result, CURLOPT_CAINFO, ssl_cainfo);
+	if (is_local)
+		clone_local(path, git_dir);
+	else if (refs && complete_refs_before_fetch)
+		transport_fetch_refs(transport, mapped_refs);
 
-	if (curl_low_speed_limit > 0 && curl_low_speed_time > 0) {
-		curl_easy_setopt(result, CURLOPT_LOW_SPEED_LIMIT,
-				 curl_low_speed_limit);
-		curl_easy_setopt(result, CURLOPT_LOW_SPEED_TIME,
-				 curl_low_speed_time);
-	}
+	update_remote_refs(refs, mapped_refs, remote_head_points_at,
+			   branch_top.buf, reflog_msg.buf, transport, !is_local);
 
-	curl_easy_setopt(result, CURLOPT_FOLLOWLOCATION, 1);
-	curl_easy_setopt(result, CURLOPT_MAXREDIRS, 20);
-#if LIBCURL_VERSION_NUM >= 0x071301
-	curl_easy_setopt(result, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
-#elif LIBCURL_VERSION_NUM >= 0x071101
-	curl_easy_setopt(result, CURLOPT_POST301, 1);
-#endif
-#if LIBCURL_VERSION_NUM >= 0x071304
-	if (is_transport_allowed("http"))
-		allowed_protocols |= CURLPROTO_HTTP;
-	if (is_transport_allowed("https"))
-		allowed_protocols |= CURLPROTO_HTTPS;
-	if (is_transport_allowed("ftp"))
-		allowed_protocols |= CURLPROTO_FTP;
-	if (is_transport_allowed("ftps"))
-		allowed_protocols |= CURLPROTO_FTPS;
-	curl_easy_setopt(result, CURLOPT_REDIR_PROTOCOLS, allowed_protocols);
-#else
-	if (transport_restrict_protocols())
-		warning("protocol restrictions not applied to curl redirects because\n"
-			"your curl version is too old (>= 7.19.4)");
-#endif
+	update_head(our_head_points_at, remote_head, reflog_msg.buf);
 
-	if (getenv("GIT_CURL_VERBOSE"))
-		curl_easy_setopt(result, CURLOPT_VERBOSE, 1);
+	transport_unlock_pack(transport);
+	transport_disconnect(transport);
 
-	curl_easy_setopt(result, CURLOPT_USERAGENT,
-		user_agent ? user_agent : git_user_agent());
+	if (option_dissociate)
+		dissociate_from_references();
 
-	if (curl_ftp_no_epsv)
-		curl_easy_setopt(result, CURLOPT_FTP_USE_EPSV, 0);
+	junk_mode = JUNK_LEAVE_REPO;
+	err = checkout();
 
-#ifdef CURLOPT_USE_SSL
-	if (curl_ssl_try)
-		curl_easy_setopt(result, CURLOPT_USE_SSL, CURLUSESSL_TRY);
-#endif
+	strbuf_release(&reflog_msg);
+	strbuf_release(&branch_top);
+	strbuf_release(&key);
+	strbuf_release(&value);
+	junk_mode = JUNK_LEAVE_ALL;
 
-	if (curl_http_proxy) {
-		curl_easy_setopt(result, CURLOPT_PROXY, curl_http_proxy);
-	}
-#if LIBCURL_VERSION_NUM >= 0x070a07
-	curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-#endif
-
-	set_curl_keepalive(result);
-
-	return result;
+	free(refspec);
+	return err;
 }

@@ -1,1 +1,2 @@
-fprintf(opt->diffopt.file, "In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);
+fprintf(pipe_fd, "%s\n",
+			oid_to_hex(&want_obj.objects[i].item->oid));

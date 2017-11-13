@@ -1,11 +1,11 @@
 fputs(
-"              Common additional HTTP requests  include  PUT  and  DELETE,  but\n"
-"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
-"              more.\n"
+"              specify  alternative proxy protocols. Use socks4://, socks4a://,\n"
+"              socks5:// or socks5h:// to request the specific SOCKS version to\n"
+"              be  used.  No protocol specified, http:// and all others will be\n"
+"              treated as HTTP proxies. (The protocol support was added in curl\n"
+"              7.21.7)\n"
 "\n"
-"              Normally you don't need this option. All  sorts  of  GET,  HEAD,\n"
-"              POST and PUT requests are rather invoked by using dedicated com-\n"
-"              mand line options.\n"
+"              If  the  port number is not specified in the proxy string, it is\n"
+"              assumed to be 1080.\n"
 "\n"
-"              This option only changes  the  actual  word  used  in  the  HTTP\n"
 , stdout);

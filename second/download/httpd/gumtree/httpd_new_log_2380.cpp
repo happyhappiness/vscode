@@ -1,3 +1,5 @@
-printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
-       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
-       trstring, tdstring, tdstring, totalread);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d is not an integer multiple of "
+                         "ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d", max_clients, threads_per_child,
+                         tmp_max_clients);

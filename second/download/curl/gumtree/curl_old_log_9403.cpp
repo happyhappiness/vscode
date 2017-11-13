@@ -1,8 +1,11 @@
 fputs(
-"              Using this, you can make the curl requests(s)  use  a  specified\n"
-"              address  and  prevent the otherwise normally resolved address to\n"
-"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
-"              on  the  command line. The port number should be the number used\n"
-"              for the specific protocol the host will be used  for.  It  means\n"
-"              you  need several entries if you want to provide address for the\n"
+"       of  the 'start-stop' range syntax. If a non-digit character is given in\n"
+"       the range, the server's response will be unspecified, depending on  the\n"
+"       server's configuration.\n"
+"\n"
+"       You  should  also  be aware that many HTTP/1.1 servers do not have this\n"
+"       feature enabled, so that when  you  attempt  to  get  a  range,  you'll\n"
+"       instead get the whole document.\n"
+"\n"
+"       FTP  and SFTP range downloads only support the simple 'start-stop' syn-\n"
 , stdout);

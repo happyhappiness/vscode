@@ -1,20 +1,16 @@
-static int add_info_ref(const char *path, const struct object_id *oid,
-			int flag, void *cb_data)
+static void mark_expected_rev(char *bisect_rev_hex)
 {
-	FILE *fp = cb_data;
-	struct object *o = parse_object(oid->hash);
-	if (!o)
-		return -1;
+	int len = strlen(bisect_rev_hex);
+	const char *filename = git_path("BISECT_EXPECTED_REV");
+	int fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0600);
 
-	if (fprintf(fp, "%s	%s\n", oid_to_hex(oid), path) < 0)
-		return -1;
+	if (fd < 0)
+		die_errno("could not create file '%s'", filename);
 
-	if (o->type == OBJ_TAG) {
-		o = deref_tag(o, path, 0);
-		if (o)
-			if (fprintf(fp, "%s	%s^{}\n",
-				sha1_to_hex(o->sha1), path) < 0)
-				return -1;
-	}
-	return 0;
+	bisect_rev_hex[len] = '\n';
+	write_or_die(fd, bisect_rev_hex, len + 1);
+	bisect_rev_hex[len] = '\0';
+
+	if (close(fd) < 0)
+		die("closing file %s: %s", filename, strerror(errno));
 }

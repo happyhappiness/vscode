@@ -1,1 +1,0 @@
-fprintf(stderr, "error setting cipher list [%s]\n", ssl_cipher);

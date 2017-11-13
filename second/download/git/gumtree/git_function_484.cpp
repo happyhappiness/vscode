@@ -1,25 +1,42 @@
-static int alt_odb_usable(struct strbuf *path, const char *normalized_objdir)
+static void show_raw_diff(struct combine_diff_path *p, int num_parent, struct rev_info *rev)
 {
-	struct alternate_object_database *alt;
+	struct diff_options *opt = &rev->diffopt;
+	int line_termination, inter_name_termination, i;
+	const char *line_prefix = diff_line_prefix(opt);
 
-	/* Detect cases where alternate disappeared */
-	if (!is_directory(path->buf)) {
-		error("object directory %s does not exist; "
-		      "check .git/objects/info/alternates.",
-		      path->buf);
-		return 0;
+	line_termination = opt->line_termination;
+	inter_name_termination = '\t';
+	if (!line_termination)
+		inter_name_termination = 0;
+
+	if (rev->loginfo && !rev->no_commit_id)
+		show_log(rev);
+
+
+	if (opt->output_format & DIFF_FORMAT_RAW) {
+		printf("%s", line_prefix);
+
+		/* As many colons as there are parents */
+		for (i = 0; i < num_parent; i++)
+			putchar(':');
+
+		/* Show the modes */
+		for (i = 0; i < num_parent; i++)
+			printf("%06o ", p->parent[i].mode);
+		printf("%06o", p->mode);
+
+		/* Show sha1's */
+		for (i = 0; i < num_parent; i++)
+			printf(" %s", diff_unique_abbrev(p->parent[i].oid.hash,
+							 opt->abbrev));
+		printf(" %s ", diff_unique_abbrev(p->oid.hash, opt->abbrev));
 	}
 
-	/*
-	 * Prevent the common mistake of listing the same
-	 * thing twice, or object directory itself.
-	 */
-	for (alt = alt_odb_list; alt; alt = alt->next) {
-		if (!fspathcmp(path->buf, alt->path))
-			return 0;
+	if (opt->output_format & (DIFF_FORMAT_RAW | DIFF_FORMAT_NAME_STATUS)) {
+		for (i = 0; i < num_parent; i++)
+			putchar(p->parent[i].status);
+		putchar(inter_name_termination);
 	}
-	if (!fspathcmp(path->buf, normalized_objdir))
-		return 0;
 
-	return 1;
+	write_name_quoted(p->path, stdout, line_termination);
 }

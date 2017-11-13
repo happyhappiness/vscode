@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
-                                 "mpm_get_completion_context: Failed "
-                                 "to create the transaction pool.");
+ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);

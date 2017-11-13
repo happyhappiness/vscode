@@ -1,11 +1,11 @@
 fputs(
-"              remote  SSL  server.  Sometimes curl is built without SSLv3 sup-\n"
-"              port. SSLv3 is widely considered insecure (see RFC 7568).\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks5 hostname proxy with -x, --proxy using a socks5h:// proto-\n"
+"              col prefix.\n"
 "\n"
-"              See also --http1.1 and --http2. -3, --sslv3  requires  that  the\n"
-"              underlying  libcurl  was built to support TLS. This option over-\n"
-"              rides -2, --sslv2 and -1, --tlsv1 and --tlsv1.1 and --tlsv1.2.\n"
+"              Since 7.52.0, --preproxy can be used to specify a SOCKS proxy at\n"
+"              the same time -x, --proxy is used with an HTTP/HTTPS  proxy.  In\n"
+"              such a case curl first connects to the SOCKS proxy and then con-\n"
+"              nects (through SOCKS) to the HTTP or HTTPS proxy.\n"
 "\n"
-"       --stderr\n"
-"              Redirect all writes to stderr to the specified file instead.  If\n"
 , stdout);

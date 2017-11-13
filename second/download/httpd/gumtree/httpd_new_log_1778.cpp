@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                         "proxy: worker %s already initialized",
-                         worker->name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+               "disk_cache: could not write out-headers to header file %s",
+               dobj->hdrsfile);

@@ -1,92 +1,69 @@
-static void hash_search(int f,struct sum_struct *s,
-			struct map_struct *buf,off_t len)
+static struct file_struct *make_file(char *fname)
 {
-  int offset,j,k;
-  int end;
-  char sum2[SUM_LENGTH];
-  uint32 s1, s2, sum; 
-  signed char *map;
+  static struct file_struct file;
+  struct stat st;
+  char sum[SUM_LENGTH];
+
+  bzero(sum,SUM_LENGTH);
+
+  if (link_stat(fname,&st) != 0) {
+    fprintf(FERROR,"%s: %s\n",
+	    fname,strerror(errno));
+    return NULL;
+  }
+
+  if (S_ISDIR(st.st_mode) && !recurse) {
+    fprintf(FERROR,"skipping directory %s\n",fname);
+    return NULL;
+  }
+
+  if (one_file_system && st.st_dev != filesystem_dev)
+    return NULL;
+
+  if (!match_file_name(fname,&st))
+    return NULL;
 
   if (verbose > 2)
-    fprintf(FERROR,"hash search b=%d len=%d\n",s->n,(int)len);
+    fprintf(FERROR,"make_file(%s)\n",fname);
 
-  k = MIN(len, s->n);
+  bzero((char *)&file,sizeof(file));
 
-  map = (signed char *)map_ptr(buf,0,k);
+  file.name = strdup(fname);
+  file.modtime = st.st_mtime;
+  file.length = st.st_size;
+  file.mode = st.st_mode;
+  file.uid = st.st_uid;
+  file.gid = st.st_gid;
+  file.dev = st.st_dev;
+  file.inode = st.st_ino;
+#ifdef HAVE_ST_RDEV
+  file.rdev = st.st_rdev;
+#endif
 
-  sum = get_checksum1((char *)map, k);
-  s1 = sum & 0xFFFF;
-  s2 = sum >> 16;
-  if (verbose > 3)
-    fprintf(FERROR, "sum=%.8x k=%d\n", sum, k);
-
-  offset = 0;
-
-  end = len + 1 - s->sums[s->count-1].len;
-
-  if (verbose > 3)
-    fprintf(FERROR,"hash search s->n=%d len=%d count=%d\n",
-	    s->n,(int)len,s->count);
-
-  do {
-    tag t = gettag2(s1,s2);
-    j = tag_table[t];
-    if (verbose > 4)
-      fprintf(FERROR,"offset=%d sum=%08x\n",
-	      offset,sum);
-
-    if (j != NULL_TAG) {
-      int done_csum2 = 0;
-
-      sum = (s1 & 0xffff) | (s2 << 16);
-      tag_hits++;
-      do {
-	int i = targets[j].i;
-
-	if (sum == s->sums[i].sum1) {
-	  if (verbose > 3)
-	    fprintf(FERROR,"potential match at %d target=%d %d sum=%08x\n",
-		    offset,j,i,sum);
-
-	  if (!done_csum2) {
-	    int l = MIN(s->n,len-offset);
-	    map = (signed char *)map_ptr(buf,offset,l);
-	    get_checksum2((char *)map,l,sum2);
-	    done_csum2 = 1;
-	  }
-	  if (memcmp(sum2,s->sums[i].sum2,csum_length) == 0) {
-	    matched(f,s,buf,offset,i);
-	    offset += s->sums[i].len - 1;
-	    k = MIN((len-offset), s->n);
-	    map = (signed char *)map_ptr(buf,offset,k);
-	    sum = get_checksum1((char *)map, k);
-	    s1 = sum & 0xFFFF;
-	    s2 = sum >> 16;
-	    ++matches;
-	    break;
-	  } else {
-	    false_alarms++;
-	  }
-	}
-	j++;
-      } while (j<s->count && targets[j].t == t);
+#if SUPPORT_LINKS
+  if (S_ISLNK(st.st_mode)) {
+    int l;
+    char lnk[MAXPATHLEN];
+    if ((l=readlink(fname,lnk,MAXPATHLEN-1)) == -1) {
+      fprintf(FERROR,"readlink %s : %s\n",fname,strerror(errno));
+      return NULL;
     }
+    lnk[l] = 0;
+    file.link = strdup(lnk);
+  }
+#endif
 
-    /* Trim off the first byte from the checksum */
-    map = (signed char *)map_ptr(buf,offset,k+1);
-    s1 -= map[0] + CHAR_OFFSET;
-    s2 -= k * (map[0]+CHAR_OFFSET);
+  if (always_checksum && S_ISREG(st.st_mode)) {
+    file_checksum(fname,file.sum,st.st_size);
+  }       
 
-    /* Add on the next byte (if there is one) to the checksum */
-    if (k < (len-offset)) {
-      s1 += (map[k]+CHAR_OFFSET);
-      s2 += s1;
-    } else {
-      --k;
-    }
+  if (flist_dir)
+    file.dir = strdup(flist_dir);
+  else
+    file.dir = NULL;
 
-  } while (++offset < end);
+  if (!S_ISDIR(st.st_mode))
+    total_size += st.st_size;
 
-  matched(f,s,buf,len,-1);
-  map_ptr(buf,len-1,1);
+  return &file;
 }

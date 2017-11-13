@@ -1,42 +1,27 @@
-static char *get_line(apr_bucket_brigade *bbout, apr_bucket_brigade *bbin,
-                      conn_rec *c, apr_pool_t *p)
+apr_status_t h2_session_stream_destroy(h2_session *session, h2_stream *stream)
 {
-    apr_status_t rv;
-    apr_size_t len;
-    char *line;
+    apr_pool_t *pool = h2_stream_detach_pool(stream);
 
-    apr_brigade_cleanup(bbout);
-
-    rv = apr_brigade_split_line(bbout, bbin, APR_BLOCK_READ, 8192);
-    if (rv) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01977)
-                      "failed reading line from OCSP server");
-        return NULL;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                  "h2_stream(%ld-%d): cleanup by EOS bucket destroy", 
+                  session->id, stream->id);
+    /* this may be called while the session has already freed
+     * some internal structures or even when the mplx is locked. */
+    if (session->mplx) {
+        h2_mplx_stream_done(session->mplx, stream->id, stream->rst_error);
     }
-
-    rv = apr_brigade_pflatten(bbout, &line, &len, p);
-    if (rv) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01978)
-                      "failed reading line from OCSP server");
-        return NULL;
+    
+    if (session->streams) {
+        h2_ihash_remove(session->streams, stream->id);
     }
-
-    if (len == 0) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(02321)
-                      "empty response from OCSP server");
-        return NULL;
+    h2_stream_destroy(stream);
+    
+    if (pool) {
+        apr_pool_clear(pool);
+        if (session->spare) {
+            apr_pool_destroy(session->spare);
+        }
+        session->spare = pool;
     }
-
-    if (line[len-1] != APR_ASCII_LF) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01979)
-                      "response header line too long from OCSP server");
-        return NULL;
-    }
-
-    line[len-1] = '\0';
-    if (len > 1 && line[len-2] == APR_ASCII_CR) {
-        line[len-2] = '\0';
-    }
-
-    return line;
+    return APR_SUCCESS;
 }

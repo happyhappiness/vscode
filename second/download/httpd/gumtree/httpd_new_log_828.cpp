@@ -1,2 +1,3 @@
-ap_register_output_filter("CORE", ap_core_output_filter,
-                                  NULL, AP_FTYPE_NETWORK);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "proxy: %s: connection complete to %pI (%s)",
+                 proxy_function, backend_addr, conn->hostname);

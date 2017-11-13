@@ -1,36 +1,65 @@
-static void htdbm_usage(void)
+int h2_filter_h2_status_handler(request_rec *r)
 {
+    h2_ctx *ctx = h2_ctx_rget(r);
+    conn_rec *c = r->connection;
+    h2_task *task;
+    apr_bucket_brigade *bb;
+    apr_bucket *b;
+    apr_status_t status;
+    
+    if (strcmp(r->handler, "http2-status")) {
+        return DECLINED;
+    }
+    if (r->method_number != M_GET && r->method_number != M_POST) {
+        return DECLINED;
+    }
 
-#if (!(defined(WIN32) || defined(NETWARE)))
-#define CRYPT_OPTION "d"
-#else
-#define CRYPT_OPTION ""
-#endif
-    fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
-    fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -b[cm"CRYPT_OPTION"ptsv] [-TDBTYPE] database username password\n");
-    fprintf(stderr, "                -n[m"CRYPT_OPTION"pst]   username\n");
-    fprintf(stderr, "                -nb[m"CRYPT_OPTION"pst]  username password\n");
-    fprintf(stderr, "                -v[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -vb[m"CRYPT_OPTION"ps]   [-TDBTYPE] database username password\n");
-    fprintf(stderr, "                -x[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
-    fprintf(stderr, "                -l                       [-TDBTYPE] database\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "   -b   Use the password from the command line rather "
-                    "than prompting for it.\n");
-    fprintf(stderr, "   -c   Create a new database.\n");
-    fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");
-    fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");
-#if (!(defined(WIN32) || defined(NETWARE)))
-    fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");
-#endif
-    fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");
-    fprintf(stderr, "   -s   Force SHA encryption of the password.\n");
-    fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");
-    fprintf(stderr, "   -l   Display usernames from database on stdout.\n");
-    fprintf(stderr, "   -t   The last param is username comment.\n");
-    fprintf(stderr, "   -v   Verify the username/password.\n");
-    fprintf(stderr, "   -x   Remove the username record from database.\n");
-    exit(ERR_SYNTAX);
+    task = ctx? h2_ctx_get_task(ctx) : NULL;
+    if (task) {
 
+        if ((status = ap_discard_request_body(r)) != OK) {
+            return status;
+        }
+        
+        /* We need to handle the actual output on the main thread, as
+         * we need to access h2_session information. */
+        r->status = 200;
+        r->clength = -1;
+        r->chunked = 1;
+        apr_table_unset(r->headers_out, "Content-Length");
+        ap_set_content_type(r, "application/json");
+        apr_table_setn(r->notes, H2_FILTER_DEBUG_NOTE, "on");
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = h2_bucket_observer_create(c->bucket_alloc, status_event, task);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "status_handler(%s): checking for incoming trailers", 
+                      task->id);
+        if (r->trailers_in && !apr_is_empty_table(r->trailers_in)) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "status_handler(%s): seeing incoming trailers", 
+                          task->id);
+            apr_table_setn(r->trailers_out, "h2-trailers-in", 
+                           apr_itoa(r->pool, 1));
+        }
+        
+        status = ap_pass_brigade(r->output_filters, bb);
+        if (status == APR_SUCCESS
+            || r->status != HTTP_OK
+            || c->aborted) {
+            return OK;
+        }
+        else {
+            /* no way to know what type of error occurred */
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, status, r,
+                          "status_handler(%s): ap_pass_brigade failed", 
+                          task->id);
+            return AP_FILTER_ERROR;
+        }
+    }
+    return DECLINED;
 }

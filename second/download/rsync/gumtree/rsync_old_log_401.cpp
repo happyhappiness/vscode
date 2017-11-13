@@ -1,1 +1,2 @@
-fprintf(FINFO,"received %d names\n",flist->count);
+fprintf(FINFO,"parent=%d child=%d sender=%d recurse=%d\n",
+	      (int)getpid(),pid,sender,recurse);

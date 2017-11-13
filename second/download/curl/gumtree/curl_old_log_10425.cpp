@@ -1,2 +1,2 @@
-warnf(config, "curl_formadd failed, possibly the file %s is bad!\n",
-                contp+1);
+warnf(config, "Failed to create the file %s: %s\n", outs->filename,
+            strerror(errno));

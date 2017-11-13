@@ -1,1 +1,0 @@
-warning_errno("vsnprintf failed");

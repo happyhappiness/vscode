@@ -1,1 +1,1 @@
-fprintf (s->fpout, _("(use '%s' to view this part)"), type);
+state_printf(s, "%s: \n", p->form_name);

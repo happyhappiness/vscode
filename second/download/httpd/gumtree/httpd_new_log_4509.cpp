@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00466)
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00917)
+                                 "connect to remote machine %s blocked: "
+                                 "IP %s matched", uri_addr->hostname, conf_ip);

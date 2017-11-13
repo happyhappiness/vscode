@@ -1,1 +1,2 @@
-fprintf(fp, "%s ", oid_to_hex(&state->orig_commit));
+trace_printf_key(&pack_access, "%s %"PRIuMAX"\n",
+			 p->pack_name, (uintmax_t)obj_offset);

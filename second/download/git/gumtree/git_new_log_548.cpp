@@ -1,1 +1,2 @@
-fprintf(s->fp, "# branch.head %s%c", branch_name, eol);
+print_verbose(args, "want %s (%s)", sha1_to_hex(remote),
+				      ref->name);

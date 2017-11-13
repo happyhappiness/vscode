@@ -1,14 +1,7 @@
-puts(
-"          curl -F password=@/etc/passwd www.mypasswords.com\n"
-"\n"
-"          To read the file's content from stdin insted of a file,\n"
-"          use - where the file name should've been. This goes for\n"
-"          both @ and < constructs.\n"
-"\n"
-"          This option can be used multiple times.\n"
-"\n"
-"     -g/--globoff\n"
-"          This  option  switches  off  the \"URL globbing parser\".\n"
-"          When you set this option, you  can  specify  URLs  that\n"
-"          contain  the  letters  {}[]  without  having them being\n"
-);
+puts(" -C/--continue-at <offset> Specify absolute resume offset\n"
+       " -d/--data <data>   HTTP POST data (H)\n"
+       "    --data-ascii <data>   HTTP POST ASCII data (H)\n"
+       "    --data-binary <data>  HTTP POST binary data (H)\n"
+       " -D/--dump-header <file> Write the headers to this file\n"
+       "    --egd-file <file> EGD socket path for random data (SSL)\n"
+       " -e/--referer       Referer page (H)");

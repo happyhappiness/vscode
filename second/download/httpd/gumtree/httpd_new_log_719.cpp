@@ -1,5 +1,1 @@
-ap_log_error(APLOG_MARK, loglevel, rv, s,
-                         "proxy: %s: attempt to connect to %pI (%s) failed",
-                         proxy_function,
-                         backend_addr,
-                         worker->hostname);
+ap_rputs(" -D PIPE_BUF=%ld\n", (long) PIPE_BUF, r);

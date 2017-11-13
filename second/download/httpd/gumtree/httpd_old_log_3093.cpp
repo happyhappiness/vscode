@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool,
-                 "WARNING: LoadFile not supported on this platform");
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 951932 $");

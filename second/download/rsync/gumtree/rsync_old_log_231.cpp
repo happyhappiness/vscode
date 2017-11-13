@@ -1,0 +1,1 @@
+fprintf(stderr,"out of memory in %s\n",str);

@@ -1,27 +1,19 @@
-static const char *register_filter_function_hook(const char *filter,
-                                                     cmd_parms *cmd,
-                                                     void *_cfg,
-                                                     const char *file,
-                                                     const char *function,
-                                                     int direction)
+static int h2_task_pre_conn(conn_rec* c, void *arg)
 {
-    ap_lua_filter_handler_spec *spec;
-    ap_lua_dir_cfg *cfg = (ap_lua_dir_cfg *) _cfg;
-   
-    spec = apr_pcalloc(cmd->pool, sizeof(ap_lua_filter_handler_spec));
-    spec->file_name = apr_pstrdup(cmd->pool, file);
-    spec->function_name = apr_pstrdup(cmd->pool, function);
-    spec->filter_name = filter;
-
-    *(ap_lua_filter_handler_spec **) apr_array_push(cfg->mapped_filters) = spec;
-    /* TODO: Make it work on other types than just AP_FTYPE_RESOURCE? */
-    if (direction == AP_LUA_FILTER_OUTPUT) {
-        spec->direction = AP_LUA_FILTER_OUTPUT;
-        ap_register_output_filter(filter, lua_output_filter_handle, NULL, AP_FTYPE_RESOURCE);
+    h2_ctx *ctx;
+    
+    if (!c->master) {
+        return OK;
     }
-    else {
-        spec->direction = AP_LUA_FILTER_INPUT;
-        ap_register_input_filter(filter, lua_input_filter_handle, NULL, AP_FTYPE_RESOURCE);
+    
+    ctx = h2_ctx_get(c, 0);
+    (void)arg;
+    if (h2_ctx_is_task(ctx)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
+                      "h2_h2, pre_connection, found stream task");
+        ap_add_input_filter("H2_SLAVE_IN", NULL, NULL, c);
+        ap_add_output_filter("H2_PARSE_H1", NULL, NULL, c);
+        ap_add_output_filter("H2_SLAVE_OUT", NULL, NULL, c);
     }
-    return NULL;
+    return OK;
 }

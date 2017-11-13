@@ -1,2 +1,1 @@
-strbuf_addf(err, "there are still refs under '%s'",
-					    orig_refname);
+git_die_config("imap.host", "Missing value for 'imap.host'");

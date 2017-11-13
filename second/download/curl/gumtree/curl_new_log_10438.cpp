@@ -1,3 +1,1 @@
-warnf(global,
-                    "Couldn't read data from file \"%s\", this makes "
-                    "an empty POST.\n", nextarg);
+warnf(global, "Failed to open %s!\n", nextarg);

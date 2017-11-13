@@ -1,2 +1,1 @@
-error("unable to mmap '%s': %s",
-			      config_filename, strerror(errno));
+die(_("BUG: reopen a lockfile that has been committed"));

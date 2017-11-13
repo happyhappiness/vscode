@@ -1,1 +1,2 @@
-ap_rvputs(r, "> <br/> <label for='", name, "0'>Off</label> <input name='", name, "' id='", name, "0' value='0' type=radio", NULL);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "protocol propose: connection requirements not met");

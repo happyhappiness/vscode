@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                       "proxy: FTP: EPSV contacting remote host on port %d",
-                             data_port);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "access to %s failed, reason: user '%s' does not meet "
+                  "'require'ments for user/valid-user to be allowed access",
+                  r->uri, user);

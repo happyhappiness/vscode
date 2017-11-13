@@ -1,2 +1,2 @@
-git_die_config("pack.compression",
-					"bad pack compression level %d", pack_compression_level);
+die("unable to read %s",
+		    oid_to_hex(&entry->delta->idx.oid));

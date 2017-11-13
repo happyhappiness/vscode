@@ -1,157 +1,162 @@
-static int balancer_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                         apr_pool_t *ptemp, server_rec *s)
+static apr_status_t handle_set(include_ctx_t *ctx, ap_filter_t *f,
+                               apr_bucket_brigade *bb)
 {
-    apr_status_t rv;
-    void *sconf = s->module_config;
-    proxy_server_conf *conf;
-    ap_slotmem_instance_t *new = NULL;
-    apr_time_t tstamp;
+    const char *encoding = "none", *decoding = "none";
+    char *var = NULL;
+    request_rec *r = f->r;
+    request_rec *sub = r->main;
+    apr_pool_t *p = r->pool;
+    int error = 0;
 
-    /* balancer_post_config() will be called twice during startup.  So, don't
-     * set up the static data the 1st time through. */
-    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG) {
-        return OK;
+    if (ctx->argc < 2) {
+        ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r,
+                      APLOGNO(01362) "missing argument for set element in %s",
+                      r->filename);
     }
 
-    if (!ap_proxy_retry_worker_fn) {
-        ap_proxy_retry_worker_fn =
-                APR_RETRIEVE_OPTIONAL_FN(ap_proxy_retry_worker);
-        if (!ap_proxy_retry_worker_fn) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02230)
-                         "mod_proxy must be loaded for mod_proxy_balancer");
-            return !OK;
-        }
+    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
+        return APR_SUCCESS;
     }
 
-    /*
-     * Get slotmem setups
+    if (ctx->argc < 2) {
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
+
+    /* we need to use the 'main' request pool to set notes as that is
+     * a notes lifetime
      */
-    storage = ap_lookup_provider(AP_SLOTMEM_PROVIDER_GROUP, "shm",
-                                 AP_SLOTMEM_PROVIDER_VERSION);
-    if (!storage) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01177)
-                     "Failed to lookup provider 'shm' for '%s': is "
-                     "mod_slotmem_shm loaded??",
-                     AP_SLOTMEM_PROVIDER_GROUP);
-        return !OK;
+    while (sub) {
+        p = sub->pool;
+        sub = sub->main;
     }
 
-    tstamp = apr_time_now();
-    /*
-     * Go thru each Vhost and create the shared mem slotmem for
-     * each balancer's workers
-     */
-    while (s) {
-        int i,j;
-        proxy_balancer *balancer;
-        sconf = s->module_config;
-        conf = (proxy_server_conf *)ap_get_module_config(sconf, &proxy_module);
+    while (1) {
+        char *tag = NULL;
+        char *tag_val = NULL;
 
-        if (conf->bslot) {
-            /* Shared memory already created for this proxy_server_conf.
-             */
-            s = s->next;
-            continue;
+        ap_ssi_get_tag_and_value(ctx, &tag, &tag_val, SSI_VALUE_RAW);
+
+        if (!tag || !tag_val) {
+            break;
         }
 
-        if (conf->balancers->nelts) {
-            conf->max_balancers = conf->balancers->nelts + conf->bgrowth;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01178) "Doing balancers create: %d, %d (%d)",
-                         (int)ALIGNED_PROXY_BALANCER_SHARED_SIZE,
-                         (int)conf->balancers->nelts, conf->max_balancers);
-
-            rv = storage->create(&new, conf->id,
-                                 ALIGNED_PROXY_BALANCER_SHARED_SIZE,
-                                 conf->max_balancers, AP_SLOTMEM_TYPE_PREGRAB, pconf);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01179) "balancer slotmem_create failed");
-                return !OK;
-            }
-            conf->bslot = new;
+        if (!strcmp(tag, "var")) {
+            decodehtml(tag_val);
+            var = ap_ssi_parse_string(ctx, tag_val, NULL, 0,
+                                      SSI_EXPAND_DROP_NAME);
         }
-        conf->storage = storage;
-
-        /* Initialize shared scoreboard data */
-        balancer = (proxy_balancer *)conf->balancers->elts;
-        for (i = 0; i < conf->balancers->nelts; i++, balancer++) {
-            proxy_worker **workers;
-            proxy_worker *worker;
-            proxy_balancer_shared *bshm;
-            unsigned int index;
-
-            balancer->max_workers = balancer->workers->nelts + balancer->growth;
-
-            /* Create global mutex */
-            rv = ap_global_mutex_create(&(balancer->gmutex), NULL, balancer_mutex_type,
-                                        balancer->s->sname, s, pconf, 0);
-            if (rv != APR_SUCCESS || !balancer->gmutex) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01180)
-                             "mutex creation of %s : %s failed", balancer_mutex_type,
-                             balancer->s->sname);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            apr_pool_cleanup_register(pconf, (void *)s, lock_remove,
-                                      apr_pool_cleanup_null);
-
-            /* setup shm for balancers */
-            if ((rv = storage->grab(conf->bslot, &index)) != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01181) "balancer slotmem_grab failed");
-                return !OK;
-
-            }
-            if ((rv = storage->dptr(conf->bslot, index, (void *)&bshm)) != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01182) "balancer slotmem_dptr failed");
-                return !OK;
-            }
-            if ((rv = ap_proxy_share_balancer(balancer, bshm, index)) != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01183) "Cannot share balancer");
-                return !OK;
-            }
-
-            /* create slotmem slots for workers */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01184) "Doing workers create: %s (%s), %d, %d",
-                         balancer->s->name, balancer->s->sname,
-                         (int)ALIGNED_PROXY_WORKER_SHARED_SIZE,
-                         (int)balancer->max_workers);
-
-            rv = storage->create(&new, balancer->s->sname,
-                                 ALIGNED_PROXY_WORKER_SHARED_SIZE,
-                                 balancer->max_workers, AP_SLOTMEM_TYPE_PREGRAB, pconf);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01185) "worker slotmem_create failed");
-                return !OK;
-            }
-            balancer->wslot = new;
-            balancer->storage = storage;
-
-            /* sync all timestamps */
-            balancer->wupdated = balancer->s->wupdated = tstamp;
-
-            /* now go thru each worker */
-            workers = (proxy_worker **)balancer->workers->elts;
-            for (j = 0; j < balancer->workers->nelts; j++, workers++) {
-                proxy_worker_shared *shm;
-
-                worker = *workers;
-                if ((rv = storage->grab(balancer->wslot, &index)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01186) "worker slotmem_grab failed");
-                    return !OK;
-
-                }
-                if ((rv = storage->dptr(balancer->wslot, index, (void *)&shm)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01187) "worker slotmem_dptr failed");
-                    return !OK;
-                }
-                if ((rv = ap_proxy_share_worker(worker, shm, index)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01188) "Cannot share worker");
-                    return !OK;
-                }
-                worker->s->updated = tstamp;
-            }
+        else if (!strcmp(tag, "decoding")) {
+            decoding = tag_val;
         }
-        s = s->next;
+        else if (!strcmp(tag, "encoding")) {
+            encoding = tag_val;
+        }
+        else if (!strcmp(tag, "value")) {
+            char *parsed_string;
+
+            if (!var) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01363) "variable must "
+                              "precede value in set directive in %s",
+                              r->filename);
+                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+                break;
+            }
+
+            parsed_string = ap_ssi_parse_string(ctx, tag_val, NULL, 0,
+                                                SSI_EXPAND_DROP_NAME);
+
+            if (parsed_string) {
+                char *last = NULL;
+                char *e, *d, *token;
+
+                d = apr_pstrdup(ctx->pool, decoding);
+                token = apr_strtok(d, ", \t", &last);
+
+                while(token) {
+                    if (!strcasecmp(token, "none")) {
+                        /* do nothing */
+                    }
+                    else if (!strcasecmp(token, "url")) {
+                        char *buf = apr_pstrdup(ctx->pool, parsed_string);
+                        ap_unescape_url(buf);
+                        parsed_string = buf;
+                    }
+                    else if (!strcasecmp(token, "urlencoded")) {
+                        char *buf = apr_pstrdup(ctx->pool, parsed_string);
+                        ap_unescape_urlencoded(buf);
+                        parsed_string = buf;
+                    }
+                    else if (!strcasecmp(token, "entity")) {
+                        char *buf = apr_pstrdup(ctx->pool, parsed_string);
+                        decodehtml(buf);
+                        parsed_string = buf;
+                    }
+                    else if (!strcasecmp(token, "base64")) {
+                        parsed_string = ap_pbase64decode(ctx->dpool, parsed_string);
+                    }
+                    else {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01364) "unknown value "
+                                      "\"%s\" to parameter \"decoding\" of tag set in "
+                                      "%s", token, r->filename);
+                        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+                        error = 1;
+                        break;
+                    }
+                    token = apr_strtok(NULL, ", \t", &last);
+                }
+
+                e = apr_pstrdup(ctx->pool, encoding);
+                token = apr_strtok(e, ", \t", &last);
+
+                while(token) {
+                    if (!strcasecmp(token, "none")) {
+                        /* do nothing */
+                    }
+                    else if (!strcasecmp(token, "url")) {
+                        parsed_string = ap_escape_uri(ctx->dpool, parsed_string);
+                    }
+                    else if (!strcasecmp(token, "urlencoded")) {
+                        parsed_string = ap_escape_urlencoded(ctx->dpool, parsed_string);
+                    }
+                    else if (!strcasecmp(token, "entity")) {
+                        parsed_string = ap_escape_html2(ctx->dpool, parsed_string, 0);
+                    }
+                    else if (!strcasecmp(token, "base64")) {
+                        char *buf;
+                        buf = ap_pbase64encode(ctx->dpool, (char *)parsed_string);
+                        parsed_string = buf;
+                    }
+                    else {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01365) "unknown value "
+                                      "\"%s\" to parameter \"encoding\" of tag set in "
+                                      "%s", token, r->filename);
+                        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+                        error = 1;
+                        break;
+                    }
+                    token = apr_strtok(NULL, ", \t", &last);
+                }
+
+            }
+
+            if (error) {
+                break;
+            }
+
+            apr_table_setn(r->subprocess_env, apr_pstrdup(p, var),
+                           apr_pstrdup(p, parsed_string));
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01366) "Invalid tag for set "
+                          "directive in %s", r->filename);
+            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+            break;
+        }
     }
 
-    return OK;
+    return APR_SUCCESS;
 }

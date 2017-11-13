@@ -1,315 +1,100 @@
-int main(int argc, char **argv)
+int reflog_expire(const char *refname, const unsigned char *sha1,
+		 unsigned int flags,
+		 reflog_expiry_prepare_fn prepare_fn,
+		 reflog_expiry_should_prune_fn should_prune_fn,
+		 reflog_expiry_cleanup_fn cleanup_fn,
+		 void *policy_cb_data)
 {
-	struct transfer_request *request;
-	struct transfer_request *next_request;
-	int nr_refspec = 0;
-	char **refspec = NULL;
-	struct remote_lock *ref_lock = NULL;
-	struct remote_lock *info_ref_lock = NULL;
-	struct rev_info revs;
-	int delete_branch = 0;
-	int force_delete = 0;
-	int objects_to_send;
-	int rc = 0;
-	int i;
-	int new_refs;
-	struct ref *ref, *local_refs;
+	static struct lock_file reflog_lock;
+	struct expire_reflog_cb cb;
+	struct ref_lock *lock;
+	char *log_file;
+	int status = 0;
+	int type;
 
-	git_setup_gettext();
+	memset(&cb, 0, sizeof(cb));
+	cb.flags = flags;
+	cb.policy_cb = policy_cb_data;
+	cb.should_prune_fn = should_prune_fn;
 
-	git_extract_argv0_path(argv[0]);
-
-	repo = xcalloc(1, sizeof(*repo));
-
-	argv++;
-	for (i = 1; i < argc; i++, argv++) {
-		char *arg = *argv;
-
-		if (*arg == '-') {
-			if (!strcmp(arg, "--all")) {
-				push_all = MATCH_REFS_ALL;
-				continue;
-			}
-			if (!strcmp(arg, "--force")) {
-				force_all = 1;
-				continue;
-			}
-			if (!strcmp(arg, "--dry-run")) {
-				dry_run = 1;
-				continue;
-			}
-			if (!strcmp(arg, "--helper-status")) {
-				helper_status = 1;
-				continue;
-			}
-			if (!strcmp(arg, "--verbose")) {
-				push_verbosely = 1;
-				http_is_verbose = 1;
-				continue;
-			}
-			if (!strcmp(arg, "-d")) {
-				delete_branch = 1;
-				continue;
-			}
-			if (!strcmp(arg, "-D")) {
-				delete_branch = 1;
-				force_delete = 1;
-				continue;
-			}
-			if (!strcmp(arg, "-h"))
-				usage(http_push_usage);
-		}
-		if (!repo->url) {
-			char *path = strstr(arg, "//");
-			str_end_url_with_slash(arg, &repo->url);
-			repo->path_len = strlen(repo->url);
-			if (path) {
-				repo->path = strchr(path+2, '/');
-				if (repo->path)
-					repo->path_len = strlen(repo->path);
-			}
-			continue;
-		}
-		refspec = argv;
-		nr_refspec = argc - i;
-		break;
+	/*
+	 * The reflog file is locked by holding the lock on the
+	 * reference itself, plus we might need to update the
+	 * reference if --updateref was specified:
+	 */
+	lock = lock_ref_sha1_basic(refname, sha1, NULL, 0, &type);
+	if (!lock)
+		return error("cannot lock ref '%s'", refname);
+	if (!reflog_exists(refname)) {
+		unlock_ref(lock);
+		return 0;
 	}
 
-#ifndef USE_CURL_MULTI
-	die("git-push is not available for http/https repository when not compiled with USE_CURL_MULTI");
-#endif
-
-	if (!repo->url)
-		usage(http_push_usage);
-
-	if (delete_branch && nr_refspec != 1)
-		die("You must specify only one branch name when deleting a remote branch");
-
-	setup_git_directory();
-
-	memset(remote_dir_exists, -1, 256);
-
-	http_init(NULL, repo->url, 1);
-
-#ifdef USE_CURL_MULTI
-	is_running_queue = 0;
-#endif
-
-	/* Verify DAV compliance/lock support */
-	if (!locking_available()) {
-		rc = 1;
-		goto cleanup;
-	}
-
-	sigchain_push_common(remove_locks_on_signal);
-
-	/* Check whether the remote has server info files */
-	repo->can_update_info_refs = 0;
-	repo->has_info_refs = remote_exists("info/refs");
-	repo->has_info_packs = remote_exists("objects/info/packs");
-	if (repo->has_info_refs) {
-		info_ref_lock = lock_remote("info/refs", LOCK_TIME);
-		if (info_ref_lock)
-			repo->can_update_info_refs = 1;
-		else {
-			error("cannot lock existing info/refs");
-			rc = 1;
-			goto cleanup;
+	log_file = git_pathdup("logs/%s", refname);
+	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
+		/*
+		 * Even though holding $GIT_DIR/logs/$reflog.lock has
+		 * no locking implications, we use the lock_file
+		 * machinery here anyway because it does a lot of the
+		 * work we need, including cleaning up if the program
+		 * exits unexpectedly.
+		 */
+		if (hold_lock_file_for_update(&reflog_lock, log_file, 0) < 0) {
+			struct strbuf err = STRBUF_INIT;
+			unable_to_lock_message(log_file, errno, &err);
+			error("%s", err.buf);
+			strbuf_release(&err);
+			goto failure;
 		}
-	}
-	if (repo->has_info_packs)
-		fetch_indices();
-
-	/* Get a list of all local and remote heads to validate refspecs */
-	local_refs = get_local_heads();
-	fprintf(stderr, "Fetching remote heads...\n");
-	get_dav_remote_heads();
-	run_request_queue();
-
-	/* Remove a remote branch if -d or -D was specified */
-	if (delete_branch) {
-		if (delete_remote_branch(refspec[0], force_delete) == -1) {
-			fprintf(stderr, "Unable to delete remote branch %s\n",
-				refspec[0]);
-			if (helper_status)
-				printf("error %s cannot remove\n", refspec[0]);
-		}
-		goto cleanup;
-	}
-
-	/* match them up */
-	if (match_push_refs(local_refs, &remote_refs,
-			    nr_refspec, (const char **) refspec, push_all)) {
-		rc = -1;
-		goto cleanup;
-	}
-	if (!remote_refs) {
-		fprintf(stderr, "No refs in common and none specified; doing nothing.\n");
-		if (helper_status)
-			printf("error null no match\n");
-		rc = 0;
-		goto cleanup;
-	}
-
-	new_refs = 0;
-	for (ref = remote_refs; ref; ref = ref->next) {
-		char old_hex[60], *new_hex;
-		const char *commit_argv[5];
-		int commit_argc;
-		char *new_sha1_hex, *old_sha1_hex;
-
-		if (!ref->peer_ref)
-			continue;
-
-		if (is_null_sha1(ref->peer_ref->new_sha1)) {
-			if (delete_remote_branch(ref->name, 1) == -1) {
-				error("Could not remove %s", ref->name);
-				if (helper_status)
-					printf("error %s cannot remove\n", ref->name);
-				rc = -4;
-			}
-			else if (helper_status)
-				printf("ok %s\n", ref->name);
-			new_refs++;
-			continue;
-		}
-
-		if (!hashcmp(ref->old_sha1, ref->peer_ref->new_sha1)) {
-			if (push_verbosely)
-				fprintf(stderr, "'%s': up-to-date\n", ref->name);
-			if (helper_status)
-				printf("ok %s up to date\n", ref->name);
-			continue;
-		}
-
-		if (!force_all &&
-		    !is_null_sha1(ref->old_sha1) &&
-		    !ref->force) {
-			if (!has_sha1_file(ref->old_sha1) ||
-			    !ref_newer(ref->peer_ref->new_sha1,
-				       ref->old_sha1)) {
-				/*
-				 * We do not have the remote ref, or
-				 * we know that the remote ref is not
-				 * an ancestor of what we are trying to
-				 * push.  Either way this can be losing
-				 * commits at the remote end and likely
-				 * we were not up to date to begin with.
-				 */
-				error("remote '%s' is not an ancestor of\n"
-				      "local '%s'.\n"
-				      "Maybe you are not up-to-date and "
-				      "need to pull first?",
-				      ref->name,
-				      ref->peer_ref->name);
-				if (helper_status)
-					printf("error %s non-fast forward\n", ref->name);
-				rc = -2;
-				continue;
-			}
-		}
-		hashcpy(ref->new_sha1, ref->peer_ref->new_sha1);
-		new_refs++;
-		strcpy(old_hex, sha1_to_hex(ref->old_sha1));
-		new_hex = sha1_to_hex(ref->new_sha1);
-
-		fprintf(stderr, "updating '%s'", ref->name);
-		if (strcmp(ref->name, ref->peer_ref->name))
-			fprintf(stderr, " using '%s'", ref->peer_ref->name);
-		fprintf(stderr, "\n  from %s\n  to   %s\n", old_hex, new_hex);
-		if (dry_run) {
-			if (helper_status)
-				printf("ok %s\n", ref->name);
-			continue;
-		}
-
-		/* Lock remote branch ref */
-		ref_lock = lock_remote(ref->name, LOCK_TIME);
-		if (ref_lock == NULL) {
-			fprintf(stderr, "Unable to lock remote branch %s\n",
-				ref->name);
-			if (helper_status)
-				printf("error %s lock error\n", ref->name);
-			rc = 1;
-			continue;
-		}
-
-		/* Set up revision info for this refspec */
-		commit_argc = 3;
-		new_sha1_hex = xstrdup(sha1_to_hex(ref->new_sha1));
-		old_sha1_hex = NULL;
-		commit_argv[1] = "--objects";
-		commit_argv[2] = new_sha1_hex;
-		if (!push_all && !is_null_sha1(ref->old_sha1)) {
-			old_sha1_hex = xmalloc(42);
-			sprintf(old_sha1_hex, "^%s",
-				sha1_to_hex(ref->old_sha1));
-			commit_argv[3] = old_sha1_hex;
-			commit_argc++;
-		}
-		commit_argv[commit_argc] = NULL;
-		init_revisions(&revs, setup_git_directory());
-		setup_revisions(commit_argc, commit_argv, &revs, NULL);
-		revs.edge_hint = 0; /* just in case */
-		free(new_sha1_hex);
-		if (old_sha1_hex) {
-			free(old_sha1_hex);
-			commit_argv[1] = NULL;
-		}
-
-		/* Generate a list of objects that need to be pushed */
-		pushing = 0;
-		if (prepare_revision_walk(&revs))
-			die("revision walk setup failed");
-		mark_edges_uninteresting(&revs, NULL);
-		objects_to_send = get_delta(&revs, ref_lock);
-		finish_all_active_slots();
-
-		/* Push missing objects to remote, this would be a
-		   convenient time to pack them first if appropriate. */
-		pushing = 1;
-		if (objects_to_send)
-			fprintf(stderr, "    sending %d objects\n",
-				objects_to_send);
-
-		run_request_queue();
-
-		/* Update the remote branch if all went well */
-		if (aborted || !update_remote(ref->new_sha1, ref_lock))
-			rc = 1;
-
-		if (!rc)
-			fprintf(stderr, "    done\n");
-		if (helper_status)
-			printf("%s %s\n", !rc ? "ok" : "error", ref->name);
-		unlock_remote(ref_lock);
-		check_locks();
-	}
-
-	/* Update remote server info if appropriate */
-	if (repo->has_info_refs && new_refs) {
-		if (info_ref_lock && repo->can_update_info_refs) {
-			fprintf(stderr, "Updating remote server info\n");
-			if (!dry_run)
-				update_remote_info_refs(info_ref_lock);
-		} else {
-			fprintf(stderr, "Unable to update server info\n");
+		cb.newlog = fdopen_lock_file(&reflog_lock, "w");
+		if (!cb.newlog) {
+			error("cannot fdopen %s (%s)",
+			      reflog_lock.filename.buf, strerror(errno));
+			goto failure;
 		}
 	}
 
- cleanup:
-	if (info_ref_lock)
-		unlock_remote(info_ref_lock);
-	free(repo);
+	(*prepare_fn)(refname, sha1, cb.policy_cb);
+	for_each_reflog_ent(refname, expire_reflog_ent, &cb);
+	(*cleanup_fn)(cb.policy_cb);
 
-	http_cleanup();
+	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
+		/*
+		 * It doesn't make sense to adjust a reference pointed
+		 * to by a symbolic ref based on expiring entries in
+		 * the symbolic reference's reflog. Nor can we update
+		 * a reference if there are no remaining reflog
+		 * entries.
+		 */
+		int update = (flags & EXPIRE_REFLOGS_UPDATE_REF) &&
+			!(type & REF_ISSYMREF) &&
+			!is_null_sha1(cb.last_kept_sha1);
 
-	request = request_queue_head;
-	while (request != NULL) {
-		next_request = request->next;
-		release_request(request);
-		request = next_request;
+		if (close_lock_file(&reflog_lock)) {
+			status |= error("couldn't write %s: %s", log_file,
+					strerror(errno));
+		} else if (update &&
+			(write_in_full(lock->lock_fd,
+				sha1_to_hex(cb.last_kept_sha1), 40) != 40 ||
+			 write_str_in_full(lock->lock_fd, "\n") != 1 ||
+			 close_ref(lock) < 0)) {
+			status |= error("couldn't write %s",
+					lock->lk->filename.buf);
+			rollback_lock_file(&reflog_lock);
+		} else if (commit_lock_file(&reflog_lock)) {
+			status |= error("unable to commit reflog '%s' (%s)",
+					log_file, strerror(errno));
+		} else if (update && commit_ref(lock)) {
+			status |= error("couldn't set %s", lock->ref_name);
+		}
 	}
+	free(log_file);
+	unlock_ref(lock);
+	return status;
 
-	return rc;
+ failure:
+	rollback_lock_file(&reflog_lock);
+	free(log_file);
+	unlock_ref(lock);
+	return -1;
 }

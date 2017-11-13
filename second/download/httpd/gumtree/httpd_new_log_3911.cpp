@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "declining URL %s - not ftp:", url);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(01282)
+                             "LDAP: Could not set the connection timeout");

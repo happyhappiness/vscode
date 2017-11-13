@@ -1,7 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c,
-                          APLOGNO(02961) 
-                          "h2_stream(%ld-%d): got %ld more content bytes than announced "
-                          "in content-length header: %ld", 
-                          stream->session->id, stream->id,
-                          (long)stream->request->content_length, 
-                          -(long)stream->input_remaining);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                  "h2_stream(%ld-%d): in set, suspended=%d, aborted=%d, "
+                  "has_data=%d",
+                  session->id, stream->id, stream->suspended, stream->aborted,
+                  h2_mplx_out_has_data_for(session->mplx, stream->id));

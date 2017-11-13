@@ -1,1 +1,1 @@
-warning(_("no threads support, ignoring %s"), var);
+printf("%s", suffix);

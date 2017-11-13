@@ -1,2 +1,1 @@
-fprintf(FERROR,"write %s: %s\n",
-				dest,strerror(errno));
+fprintf(FERROR,"chdir %s : %s (1)\n",name,strerror(errno));

@@ -1,52 +1,43 @@
-static apr_status_t hm_listen(hm_ctx_t *ctx)
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
 {
+
     apr_status_t rv;
 
-    rv = apr_socket_create(&ctx->sock, ctx->mcast_addr->family,
-                           SOCK_DGRAM, APR_PROTO_UDP, ctx->p);
-
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to create listening socket.");
-        return rv;
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Lock failed for post_request",
+            balancer->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    rv = apr_socket_opt_set(ctx->sock, APR_SO_REUSEADDR, 1);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to set APR_SO_REUSEADDR to 1 on socket.");
-        return rv;
+    if (!apr_is_empty_array(balancer->errstatuses)) {
+        int i;
+        for (i = 0; i < balancer->errstatuses->nelts; i++) {
+            int val = ((int *)balancer->errstatuses->elts)[i];
+            if (r->status == val) {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, r->server,
+                    "Detected ErrorOnState (%d) for member (%s). Forcing worker into error state.", val, worker->name);
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+                break;
+            }
+        }
     }
 
-
-    rv = apr_socket_opt_set(ctx->sock, APR_SO_NONBLOCK, 1);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to set APR_SO_NONBLOCK to 1 on socket.");
-        return rv;
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);
     }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
 
-    rv = apr_socket_bind(ctx->sock, ctx->mcast_addr);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to bind on socket.");
-        return rv;
-    }
+    if (worker && worker->s->busy)
+        worker->s->busy--;
 
-    rv = apr_mcast_join(ctx->sock, ctx->mcast_addr, NULL, NULL);
+    return OK;
 
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to join multicast group");
-        return rv;
-    }
-
-    rv = apr_mcast_loopback(ctx->sock, 1);
-    if (rv) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to accept localhost mulitcast on socket.");
-        return rv;
-    }
-
-    return APR_SUCCESS;
 }

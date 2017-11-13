@@ -1,2 +1,1 @@
-error("bad packed object CRC for %s",
-		      oid_to_hex(&entry->idx.oid));
+opterror(opt, "expects a number greater than zero", 0);

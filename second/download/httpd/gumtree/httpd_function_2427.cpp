@@ -1,20 +1,9 @@
-SSL_SESSION *ssl_scache_shmcb_retrieve(server_rec *s, UCHAR *id, int idlen)
+static int send_signal(pid_t pid, int sig)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    SSL_SESSION *pSession;
-
-    ssl_mutex_on(s);
-    pSession = shmcb_retrieve_session(s, mc->tSessionCacheDataTable, id, idlen);
-    ssl_mutex_off(s);
-    if (pSession)
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "shmcb_retrieve had a hit");
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "shmcb_retrieve had a miss");
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Client requested a 'session-resume' but "
-                     "we have no such session.");
+    if (kill(pid, sig) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, errno, NULL,
+                     "sending signal to server");
+        return 1;
     }
-    return pSession;
+    return 0;
 }

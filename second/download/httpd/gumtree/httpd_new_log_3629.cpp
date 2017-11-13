@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00975)
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the jvm route");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00615)
+                      "The request body does not contain "
+                      "a \"mkworkspace\" element.");

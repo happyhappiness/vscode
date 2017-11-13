@@ -1,1 +1,1 @@
-error(_("Failed to lock HEAD during fast_forward_to"));
+die("Can't load object %s", sha1_to_hex(sha1));

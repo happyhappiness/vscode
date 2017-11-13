@@ -1,1 +1,1 @@
-error_errno("write(%s) failed", t->dest_name);
+die("%s missing parameter", opt->long_name);

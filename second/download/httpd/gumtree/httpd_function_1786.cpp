@@ -1,25 +1,22 @@
-int ssl_dh_InitParams(server_rec *s)
+static void dav_log_err(request_rec *r, dav_error *err, int level)
 {
-    unsigned n;
+    dav_error *errscan;
 
-    for (n = 0; n < sizeof(dhparams)/sizeof(dhparams[0]); n++) {
-        const unsigned int bits =
-            dhparams[n].min ? (dhparams[n].min - 1) * 2 : 512;
-#ifdef HAVE_FIPS
-        if (bits < 1024 && FIPS_mode()) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "Init: Skipping generating temporary "
-                         "%u bit DH parameters in FIPS mode", bits);
+    /* Log the errors */
+    /* ### should have a directive to log the first or all */
+    for (errscan = err; errscan != NULL; errscan = errscan->prev) {
+        if (errscan->desc == NULL)
             continue;
+
+        if (errscan->save_errno != 0) {
+            errno = errscan->save_errno;
+            ap_log_rerror(APLOG_MARK, level, errno, r, "%s  [%d, #%d]",
+                          errscan->desc, errscan->status, errscan->error_id);
         }
-#endif
-        dhparams[n].dh = dhparams[n].make();
-        if (!dhparams[n].dh) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to generate temporary "
-                         "%u bit DH parameters", bits);
-            return !OK;
+        else {
+            ap_log_rerror(APLOG_MARK, level, 0, r,
+                          "%s  [%d, #%d]",
+                          errscan->desc, errscan->status, errscan->error_id);
         }
     }
-    return OK;
 }

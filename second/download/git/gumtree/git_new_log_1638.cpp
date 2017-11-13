@@ -1,1 +1,1 @@
-die("transport '%s' not allowed", type);
+die("unordered stage entries in index");

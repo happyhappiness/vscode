@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01738)
-                      "auth_ldap authorize: no sec->host - weird...?");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Failed to acquire database connection to look up "
+                      "user '%s:%s'", user, realm);

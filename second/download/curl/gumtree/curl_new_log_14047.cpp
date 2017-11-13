@@ -1,9 +1,12 @@
 fputs(
-"              want the file saved in a  different  directory,  make  sure  you\n"
-"              change  the  current working directory before invoking curl with\n"
-"              this option.\n"
+"              select the user name and password from your environment by spec-\n"
+"              ifying a single colon with this option: \"-U :\".\n"
 "\n"
-"              The remote file name to use for saving  is  extracted  from  the\n"
-"              given  URL,  nothing  else,  and if it already exists it will be\n"
-"              overwritten. If you want the server to be  able  to  choose  the\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -x, --proxy [protocol://]host[:port]\n"
+"              Use the specified proxy.\n"
+"\n"
+"              The  proxy  string can be specified with a protocol:// prefix to\n"
+"              specify alternative proxy protocols. Use socks4://,  socks4a://,\n"
 , stdout);

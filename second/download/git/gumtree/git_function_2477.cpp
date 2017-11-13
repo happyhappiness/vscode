@@ -1,68 +1,95 @@
-static int parse_chunk(char *buffer, unsigned long size, struct patch *patch)
+static int delete_remote_branch(const char *pattern, int force)
 {
-	int hdrsize, patchsize;
-	int offset = find_header(buffer, size, &hdrsize, patch);
+	struct ref *refs = remote_refs;
+	struct ref *remote_ref = NULL;
+	unsigned char head_sha1[20];
+	char *symref = NULL;
+	int match;
+	int patlen = strlen(pattern);
+	int i;
+	struct active_request_slot *slot;
+	struct slot_results results;
+	char *url;
 
-	if (offset < 0)
-		return offset;
+	/* Find the remote branch(es) matching the specified branch name */
+	for (match = 0; refs; refs = refs->next) {
+		char *name = refs->name;
+		int namelen = strlen(name);
+		if (namelen < patlen ||
+		    memcmp(name + namelen - patlen, pattern, patlen))
+			continue;
+		if (namelen != patlen && name[namelen - patlen - 1] != '/')
+			continue;
+		match++;
+		remote_ref = refs;
+	}
+	if (match == 0)
+		return error("No remote branch matches %s", pattern);
+	if (match != 1)
+		return error("More than one remote branch matches %s",
+			     pattern);
 
-	prefix_patch(patch);
+	/*
+	 * Remote HEAD must be a symref (not exactly foolproof; a remote
+	 * symlink to a symref will look like a symref)
+	 */
+	fetch_symref("HEAD", &symref, head_sha1);
+	if (!symref)
+		return error("Remote HEAD is not a symref");
 
-	if (!use_patch(patch))
-		patch->ws_rule = 0;
-	else
-		patch->ws_rule = whitespace_rule(patch->new_name
-						 ? patch->new_name
-						 : patch->old_name);
-
-	patchsize = parse_single_patch(buffer + offset + hdrsize,
-				       size - offset - hdrsize, patch);
-
-	if (!patchsize) {
-		static const char git_binary[] = "GIT binary patch\n";
-		int hd = hdrsize + offset;
-		unsigned long llen = linelen(buffer + hd, size - hd);
-
-		if (llen == sizeof(git_binary) - 1 &&
-		    !memcmp(git_binary, buffer + hd, llen)) {
-			int used;
-			linenr++;
-			used = parse_binary(buffer + hd + llen,
-					    size - hd - llen, patch);
-			if (used < 0)
-				return -1;
-			if (used)
-				patchsize = used + llen;
-			else
-				patchsize = 0;
-		}
-		else if (!memcmp(" differ\n", buffer + hd + llen - 8, 8)) {
-			static const char *binhdr[] = {
-				"Binary files ",
-				"Files ",
-				NULL,
-			};
-			int i;
-			for (i = 0; binhdr[i]; i++) {
-				int len = strlen(binhdr[i]);
-				if (len < size - hd &&
-				    !memcmp(binhdr[i], buffer + hd, len)) {
-					linenr++;
-					patch->is_binary = 1;
-					patchsize = llen;
-					break;
-				}
-			}
-		}
-
-		/* Empty patch cannot be applied if it is a text patch
-		 * without metadata change.  A binary patch appears
-		 * empty to us here.
-		 */
-		if ((apply || check) &&
-		    (!patch->is_binary && !metadata_changes(patch)))
-			die(_("patch with only garbage at line %d"), linenr);
+	/* Remote branch must not be the remote HEAD */
+	for (i = 0; symref && i < MAXDEPTH; i++) {
+		if (!strcmp(remote_ref->name, symref))
+			return error("Remote branch %s is the current HEAD",
+				     remote_ref->name);
+		fetch_symref(symref, &symref, head_sha1);
 	}
 
-	return offset + hdrsize + patchsize;
+	/* Run extra sanity checks if delete is not forced */
+	if (!force) {
+		/* Remote HEAD must resolve to a known object */
+		if (symref)
+			return error("Remote HEAD symrefs too deep");
+		if (is_null_sha1(head_sha1))
+			return error("Unable to resolve remote HEAD");
+		if (!has_sha1_file(head_sha1))
+			return error("Remote HEAD resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", sha1_to_hex(head_sha1));
+
+		/* Remote branch must resolve to a known object */
+		if (is_null_sha1(remote_ref->old_sha1))
+			return error("Unable to resolve remote branch %s",
+				     remote_ref->name);
+		if (!has_sha1_file(remote_ref->old_sha1))
+			return error("Remote branch %s resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", remote_ref->name, sha1_to_hex(remote_ref->old_sha1));
+
+		/* Remote branch must be an ancestor of remote HEAD */
+		if (!verify_merge_base(head_sha1, remote_ref)) {
+			return error("The branch '%s' is not an ancestor "
+				     "of your current HEAD.\n"
+				     "If you are sure you want to delete it,"
+				     " run:\n\t'git http-push -D %s %s'",
+				     remote_ref->name, repo->url, pattern);
+		}
+	}
+
+	/* Send delete request */
+	fprintf(stderr, "Removing remote branch '%s'\n", remote_ref->name);
+	if (dry_run)
+		return 0;
+	url = xstrfmt("%s%s", repo->url, remote_ref->name);
+	slot = get_active_slot();
+	slot->results = &results;
+	curl_setup_http_get(slot->curl, url, DAV_DELETE);
+	if (start_active_slot(slot)) {
+		run_active_slot(slot);
+		free(url);
+		if (results.curl_result != CURLE_OK)
+			return error("DELETE request failed (%d/%ld)",
+				     results.curl_result, results.http_code);
+	} else {
+		free(url);
+		return error("Unable to start DELETE request");
+	}
+
+	return 0;
 }

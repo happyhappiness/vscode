@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
-                      "%s: Forcing worker (%s) into error state "
-                      "due to timeout and 'failontimeout' parameter being set",
-                       balancer->s->name, ap_proxy_worker_name(r->pool, worker));
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00146) "%s", msg);

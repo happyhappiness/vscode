@@ -1,10 +1,10 @@
 fputs(
-"              If  this  option  is  used  several times, only the first one is\n"
-"              used.\n"
+"              (HTTP)  This posts data similarly to --data but without the spe-\n"
+"              cial interpretation of the @ character. See -d, --data.   (Added\n"
+"              in 7.43.0)\n"
 "\n"
-"       --disable-eprt\n"
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
-"              when doing active FTP transfers. Curl will normally always first\n"
-"              attempt to use EPRT, then LPRT before using PORT, but with  this\n"
-"              option,  it  will  use PORT right away. EPRT and LPRT are exten-\n"
+"       --data-urlencode <data>\n"
+"              (HTTP) This posts data, similar to the other --data options with\n"
+"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
+"              To be CGI-compliant, the <data> part should begin  with  a  name\n"
 , stdout);

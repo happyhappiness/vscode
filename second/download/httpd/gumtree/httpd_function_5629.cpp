@@ -1,85 +1,116 @@
-static int lua_request_rec_hook_harness(request_rec *r, const char *name, int apr_hook_when)
+apr_status_t mpm_service_install(apr_pool_t *ptemp, int argc,
+                                 const char * const * argv, int reconfig)
 {
-    int rc;
-    apr_pool_t *pool;
-    lua_State *L;
-    ap_lua_vm_spec *spec;
-    ap_lua_server_cfg *server_cfg = ap_get_module_config(r->server->module_config,
-                                                         &lua_module);
-    const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
-                                                     &lua_module);
-    const char *key = apr_psprintf(r->pool, "%s_%d", name, apr_hook_when);
-    apr_array_header_t *hook_specs = apr_hash_get(cfg->hooks, key,
-                                                  APR_HASH_KEY_STRING);
-    if (hook_specs) {
-        int i;
-        for (i = 0; i < hook_specs->nelts; i++) {
-            ap_lua_mapped_handler_spec *hook_spec =
-                ((ap_lua_mapped_handler_spec **) hook_specs->elts)[i];
+    char key_name[MAX_PATH];
+    char exe_path[MAX_PATH];
+    char *launch_cmd;
+    ap_regkey_t *key;
+    apr_status_t rv;
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
 
-            if (hook_spec == NULL) {
-                continue;
-            }
-            spec = create_vm_spec(&pool, r, cfg, server_cfg,
-                                  hook_spec->file_name,
-                                  hook_spec->bytecode,
-                                  hook_spec->bytecode_len,
-                                  hook_spec->function_name,
-                                  "request hook");
+    fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
+                   : "Installing the %s service\n", mpm_display_name);
 
-            L = ap_lua_get_lua_state(pool, spec, r);
+    /* ###: utf-ize */
+    if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
+    {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00368)
+                     "GetModuleFileName failed");
+        return rv;
+    }
 
-            if (!L) {
-                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01477)
-                    "lua: Failed to obtain lua interpreter for entry function '%s' in %s",
-                              hook_spec->function_name, hook_spec->file_name);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
+    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                 SC_MANAGER_CREATE_SERVICE);
+    if (!schSCManager) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00369)
+                     "Failed to open the WinNT service manager, perhaps "
+                     "you forgot to log in as Adminstrator?");
+        return (rv);
+    }
 
-            if (hook_spec->function_name != NULL) {
-                lua_getglobal(L, hook_spec->function_name);
-                if (!lua_isfunction(L, -1)) {
-                    ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01478)
-                               "lua: Unable to find entry function '%s' in %s (not a valid function)",
-                                  hook_spec->function_name,
-                                  hook_spec->file_name);
-                    ap_lua_release_state(L, spec, r);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
+    launch_cmd = apr_psprintf(ptemp, "\"%s\" -k runservice", exe_path);
 
-                ap_lua_run_lua_request(L, r);
-            }
-            else {
-                int t;
-                ap_lua_run_lua_request(L, r);
+    if (reconfig) {
+        /* ###: utf-ize */
+        schService = OpenService(schSCManager, mpm_service_name,
+                                 SERVICE_CHANGE_CONFIG);
+        if (!schService) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                         apr_get_os_error(), NULL,
+                         "OpenService failed");
+        }
+        /* ###: utf-ize */
+        else if (!ChangeServiceConfig(schService,
+                                      SERVICE_WIN32_OWN_PROCESS,
+                                      SERVICE_AUTO_START,
+                                      SERVICE_ERROR_NORMAL,
+                                      launch_cmd, NULL, NULL,
+                                      "Tcpip\0Afd\0", NULL, NULL,
+                                      mpm_display_name)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                         apr_get_os_error(), NULL,
+                         "ChangeServiceConfig failed");
 
-                t = lua_gettop(L);
-                lua_setglobal(L, "r");
-                lua_settop(L, t);
+            /* !schService aborts configuration below */
+            CloseServiceHandle(schService);
+            schService = NULL;
             }
+        }
+    else {
+        /* RPCSS is the Remote Procedure Call (RPC) Locator required
+         * for DCOM communication pipes.  I am far from convinced we
+         * should add this to the default service dependencies, but
+         * be warned that future apache modules or ISAPI dll's may
+         * depend on it.
+         */
+        /* ###: utf-ize */
+        schService = CreateService(schSCManager,         /* SCManager database */
+                                   mpm_service_name,     /* name of service    */
+                                   mpm_display_name,     /* name to display    */
+                                   SERVICE_ALL_ACCESS,   /* access required    */
+                                   SERVICE_WIN32_OWN_PROCESS,  /* service type */
+                                   SERVICE_AUTO_START,   /* start type         */
+                                   SERVICE_ERROR_NORMAL, /* error control type */
+                                   launch_cmd,           /* service's binary   */
+                                   NULL,                 /* no load svc group  */
+                                   NULL,                 /* no tag identifier  */
+                                   "Tcpip\0Afd\0",       /* dependencies       */
+                                   NULL,                 /* use SYSTEM account */
+                                   NULL);                /* no password        */
 
-            if (lua_pcall(L, 1, 1, 0)) {
-                report_lua_error(L, r);
-                ap_lua_release_state(L, spec, r);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-            rc = DECLINED;
-            if (lua_isnumber(L, -1)) {
-                rc = lua_tointeger(L, -1);
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "Lua hook %s:%s for phase %s returned %d", 
-                              hook_spec->file_name, hook_spec->function_name, name, rc);
-            }
-            else { 
-                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, "Lua hook %s:%s for phase %s did not return a numeric value", 
-                              hook_spec->file_name, hook_spec->function_name, name);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-            if (rc != DECLINED) {
-                ap_lua_release_state(L, spec, r);
-                return rc;
-            }
-            ap_lua_release_state(L, spec, r);
+        if (!schService)
+        {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00370)
+                         "Failed to create WinNT Service Profile");
+            CloseServiceHandle(schSCManager);
+            return (rv);
         }
     }
-    return DECLINED;
+
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
+
+    set_service_description();
+
+    /* Store the service ConfigArgs in the registry...
+     */
+    apr_snprintf(key_name, sizeof(key_name), SERVICEPARAMS, mpm_service_name);
+    rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, key_name,
+                        APR_READ | APR_WRITE | APR_CREATE, pconf);
+    if (rv == APR_SUCCESS) {
+        rv = ap_regkey_value_array_set(key, "ConfigArgs", argc, argv, pconf);
+        ap_regkey_close(key);
+    }
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00371)
+                     "%s: Failed to store the ConfigArgs in the registry.",
+                     mpm_display_name);
+        return (rv);
+    }
+    fprintf(stderr,"The %s service is successfully installed.\n", mpm_display_name);
+    return APR_SUCCESS;
 }

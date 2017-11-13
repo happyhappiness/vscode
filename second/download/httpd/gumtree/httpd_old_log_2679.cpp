@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
-        "internal redirect requested but one or all of method, mimetype or "
-                      "body are NULL: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "%s server certificate wildcard CommonName (CN) `%s' "
+                         "does NOT match server name!?",
+                         ssl_asn1_keystr(type), cn);

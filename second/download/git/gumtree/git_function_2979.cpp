@@ -1,73 +1,65 @@
-unsigned char *use_pack(struct packed_git *p,
-		struct pack_window **w_cursor,
-		off_t offset,
-		unsigned long *left)
+static void prepare_packed_git_one(char *objdir, int local)
 {
-	struct pack_window *win = *w_cursor;
+	struct strbuf path = STRBUF_INIT;
+	size_t dirnamelen;
+	DIR *dir;
+	struct dirent *de;
+	struct string_list garbage = STRING_LIST_INIT_DUP;
 
-	/* Since packfiles end in a hash of their content and it's
-	 * pointless to ask for an offset into the middle of that
-	 * hash, and the in_window function above wouldn't match
-	 * don't allow an offset too close to the end of the file.
-	 */
-	if (!p->pack_size && p->pack_fd == -1 && open_packed_git(p))
-		die("packfile %s cannot be accessed", p->pack_name);
-	if (offset > (p->pack_size - 20))
-		die("offset beyond end of packfile (truncated pack?)");
-	if (offset < 0)
-		die(_("offset before end of packfile (broken .idx?)"));
-
-	if (!win || !in_window(win, offset)) {
-		if (win)
-			win->inuse_cnt--;
-		for (win = p->windows; win; win = win->next) {
-			if (in_window(win, offset))
-				break;
-		}
-		if (!win) {
-			size_t window_align = packed_git_window_size / 2;
-			off_t len;
-
-			if (p->pack_fd == -1 && open_packed_git(p))
-				die("packfile %s cannot be accessed", p->pack_name);
-
-			win = xcalloc(1, sizeof(*win));
-			win->offset = (offset / window_align) * window_align;
-			len = p->pack_size - win->offset;
-			if (len > packed_git_window_size)
-				len = packed_git_window_size;
-			win->len = (size_t)len;
-			pack_mapped += win->len;
-			while (packed_git_limit < pack_mapped
-				&& unuse_one_window(p))
-				; /* nothing */
-			win->base = xmmap(NULL, win->len,
-				PROT_READ, MAP_PRIVATE,
-				p->pack_fd, win->offset);
-			if (win->base == MAP_FAILED)
-				die("packfile %s cannot be mapped: %s",
-					p->pack_name,
-					strerror(errno));
-			if (!win->offset && win->len == p->pack_size
-				&& !p->do_not_close)
-				close_pack_fd(p);
-			pack_mmap_calls++;
-			pack_open_windows++;
-			if (pack_mapped > peak_pack_mapped)
-				peak_pack_mapped = pack_mapped;
-			if (pack_open_windows > peak_pack_open_windows)
-				peak_pack_open_windows = pack_open_windows;
-			win->next = p->windows;
-			p->windows = win;
-		}
+	strbuf_addstr(&path, objdir);
+	strbuf_addstr(&path, "/pack");
+	dir = opendir(path.buf);
+	if (!dir) {
+		if (errno != ENOENT)
+			error("unable to open object pack directory: %s: %s",
+			      path.buf, strerror(errno));
+		strbuf_release(&path);
+		return;
 	}
-	if (win != *w_cursor) {
-		win->last_used = pack_used_ctr++;
-		win->inuse_cnt++;
-		*w_cursor = win;
+	strbuf_addch(&path, '/');
+	dirnamelen = path.len;
+	while ((de = readdir(dir)) != NULL) {
+		struct packed_git *p;
+		size_t base_len;
+
+		if (is_dot_or_dotdot(de->d_name))
+			continue;
+
+		strbuf_setlen(&path, dirnamelen);
+		strbuf_addstr(&path, de->d_name);
+
+		base_len = path.len;
+		if (strip_suffix_mem(path.buf, &base_len, ".idx")) {
+			/* Don't reopen a pack we already have. */
+			for (p = packed_git; p; p = p->next) {
+				size_t len;
+				if (strip_suffix(p->pack_name, ".pack", &len) &&
+				    len == base_len &&
+				    !memcmp(p->pack_name, path.buf, len))
+					break;
+			}
+			if (p == NULL &&
+			    /*
+			     * See if it really is a valid .idx file with
+			     * corresponding .pack file that we can map.
+			     */
+			    (p = add_packed_git(path.buf, path.len, local)) != NULL)
+				install_packed_git(p);
+		}
+
+		if (!report_garbage)
+			continue;
+
+		if (ends_with(de->d_name, ".idx") ||
+		    ends_with(de->d_name, ".pack") ||
+		    ends_with(de->d_name, ".bitmap") ||
+		    ends_with(de->d_name, ".keep"))
+			string_list_append(&garbage, path.buf);
+		else
+			report_garbage(PACKDIR_FILE_GARBAGE, path.buf);
 	}
-	offset -= win->offset;
-	if (left)
-		*left = win->len - xsize_t(offset);
-	return win->base + offset;
+	closedir(dir);
+	report_pack_garbage(&garbage);
+	string_list_clear(&garbage, 0);
+	strbuf_release(&path);
 }

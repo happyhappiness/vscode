@@ -1,34 +1,44 @@
-int copy_fd(int ifd, int ofd)
+static void name_rev_line(char *p, struct name_ref_data *data)
 {
-	while (1) {
-		char buffer[8192];
-		char *buf = buffer;
-		ssize_t len = xread(ifd, buffer, sizeof(buffer));
-		if (!len)
-			break;
-		if (len < 0) {
-			int read_error = errno;
-			close(ifd);
-			return error("copy-fd: read returned %s",
-				     strerror(read_error));
-		}
-		while (len) {
-			int written = xwrite(ofd, buf, len);
-			if (written > 0) {
-				buf += written;
-				len -= written;
+	struct strbuf buf = STRBUF_INIT;
+	int forty = 0;
+	char *p_start;
+	for (p_start = p; *p; p++) {
+#define ishex(x) (isdigit((x)) || ((x) >= 'a' && (x) <= 'f'))
+		if (!ishex(*p))
+			forty = 0;
+		else if (++forty == 40 &&
+			 !ishex(*(p+1))) {
+			unsigned char sha1[40];
+			const char *name = NULL;
+			char c = *(p+1);
+			int p_len = p - p_start + 1;
+
+			forty = 0;
+
+			*(p+1) = 0;
+			if (!get_sha1(p - 39, sha1)) {
+				struct object *o =
+					lookup_object(sha1);
+				if (o)
+					name = get_rev_name(o, &buf);
 			}
-			else if (!written) {
-				close(ifd);
-				return error("copy-fd: write returned 0");
-			} else {
-				int write_error = errno;
-				close(ifd);
-				return error("copy-fd: write returned %s",
-					     strerror(write_error));
-			}
+			*(p+1) = c;
+
+			if (!name)
+				continue;
+
+			if (data->name_only)
+				printf("%.*s%s", p_len - 40, p_start, name);
+			else
+				printf("%.*s (%s)", p_len, p_start, name);
+			p_start = p + 1;
 		}
 	}
-	close(ifd);
-	return 0;
+
+	/* flush */
+	if (p_start != p)
+		fwrite(p_start, p - p_start, 1, stdout);
+
+	strbuf_release(&buf);
 }

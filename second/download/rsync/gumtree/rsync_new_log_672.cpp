@@ -1,1 +1,3 @@
-io_printf(f_out, "@ERROR: setgroups failed\n");
+fprintf (stderr,
+				 RSYNC_NAME ": execute socket program \"%s\"\n",
+				 prog);

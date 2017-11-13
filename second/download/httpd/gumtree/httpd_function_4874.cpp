@@ -1,18 +1,46 @@
-void ap_sock_disable_nagle(apr_socket_t *s)
+static BOOL stapling_get_cached_response(server_rec *s, OCSP_RESPONSE **prsp,
+                                         BOOL *pok, certinfo *cinf,
+                                         apr_pool_t *pool)
 {
-    /* The Nagle algorithm says that we should delay sending partial
-     * packets in hopes of getting more data.  We don't want to do
-     * this; we are not telnet.  There are bad interactions between
-     * persistent connections and Nagle's algorithm that have very severe
-     * performance penalties.  (Failing to disable Nagle is not much of a
-     * problem with simple HTTP.)
-     *
-     * In spite of these problems, failure here is not a shooting offense.
-     */
-    apr_status_t status = apr_socket_opt_set(s, APR_TCP_NODELAY, 1);
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
+    OCSP_RESPONSE *rsp;
+    unsigned char resp_der[MAX_STAPLING_DER];
+    const unsigned char *p;
+    unsigned int resp_derlen = MAX_STAPLING_DER;
 
-    if (status != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, status, ap_server_conf,
-                     "apr_socket_opt_set: (TCP_NODELAY)");
+    rv = mc->stapling_cache->retrieve(mc->stapling_cache_context, s,
+                                      cinf->idx, sizeof(cinf->idx),
+                                      resp_der, &resp_derlen, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_get_cached_response: cache miss");
+        return TRUE;
     }
+    if (resp_derlen <= 1) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_get_cached_response: response length invalid??");
+        return TRUE;
+    }
+    p = resp_der;
+    if (pok) {
+        if (*p)
+            *pok = TRUE;
+        else
+            *pok = FALSE;
+    }
+    p++;
+    resp_derlen--;
+    rsp = d2i_OCSP_RESPONSE(NULL, &p, resp_derlen);
+    if (!rsp) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_get_cached_response: response parse error??");
+        return TRUE;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_get_cached_response: cache hit");
+
+    *prsp = rsp;
+
+    return TRUE;
 }

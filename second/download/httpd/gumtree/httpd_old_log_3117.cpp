@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Depth must be \"infinity\" for DELETE of a collection.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "allocated new client %lu", key);

@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: %s\n", err);
+out_of_memory("start_inband_exchange");

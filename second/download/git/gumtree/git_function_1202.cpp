@@ -1,83 +1,113 @@
-static void handle_commit(struct commit *commit, struct rev_info *rev)
+static int parse_mail(struct am_state *state, const char *mail)
 {
-	int saved_output_format = rev->diffopt.output_format;
-	const char *commit_buffer;
-	const char *author, *author_end, *committer, *committer_end;
-	const char *encoding, *message;
-	char *reencoded = NULL;
-	struct commit_list *p;
-	int i;
+	FILE *fp;
+	struct strbuf sb = STRBUF_INIT;
+	struct strbuf msg = STRBUF_INIT;
+	struct strbuf author_name = STRBUF_INIT;
+	struct strbuf author_date = STRBUF_INIT;
+	struct strbuf author_email = STRBUF_INIT;
+	int ret = 0;
+	struct mailinfo mi;
 
-	rev->diffopt.output_format = DIFF_FORMAT_CALLBACK;
+	setup_mailinfo(&mi);
 
-	parse_commit_or_die(commit);
-	commit_buffer = get_commit_buffer(commit, NULL);
-	author = strstr(commit_buffer, "\nauthor ");
-	if (!author)
-		die ("Could not find author in commit %s",
-		     sha1_to_hex(commit->object.sha1));
-	author++;
-	author_end = strchrnul(author, '\n');
-	committer = strstr(author_end, "\ncommitter ");
-	if (!committer)
-		die ("Could not find committer in commit %s",
-		     sha1_to_hex(commit->object.sha1));
-	committer++;
-	committer_end = strchrnul(committer, '\n');
-	message = strstr(committer_end, "\n\n");
-	encoding = find_encoding(committer_end, message);
-	if (message)
-		message += 2;
-
-	if (commit->parents &&
-	    get_object_mark(&commit->parents->item->object) != 0 &&
-	    !full_tree) {
-		parse_commit_or_die(commit->parents->item);
-		diff_tree_sha1(commit->parents->item->tree->object.sha1,
-			       commit->tree->object.sha1, "", &rev->diffopt);
-	}
+	if (state->utf8)
+		mi.metainfo_charset = get_commit_output_encoding();
 	else
-		diff_root_tree_sha1(commit->tree->object.sha1,
-				    "", &rev->diffopt);
+		mi.metainfo_charset = NULL;
 
-	/* Export the referenced blobs, and remember the marks. */
-	for (i = 0; i < diff_queued_diff.nr; i++)
-		if (!S_ISGITLINK(diff_queued_diff.queue[i]->two->mode))
-			export_blob(diff_queued_diff.queue[i]->two->sha1);
-
-	mark_next_object(&commit->object);
-	if (!is_encoding_utf8(encoding))
-		reencoded = reencode_string(message, "UTF-8", encoding);
-	if (!commit->parents)
-		printf("reset %s\n", (const char*)commit->util);
-	printf("commit %s\nmark :%"PRIu32"\n%.*s\n%.*s\ndata %u\n%s",
-	       (const char *)commit->util, last_idnum,
-	       (int)(author_end - author), author,
-	       (int)(committer_end - committer), committer,
-	       (unsigned)(reencoded
-			  ? strlen(reencoded) : message
-			  ? strlen(message) : 0),
-	       reencoded ? reencoded : message ? message : "");
-	free(reencoded);
-	unuse_commit_buffer(commit, commit_buffer);
-
-	for (i = 0, p = commit->parents; p; p = p->next) {
-		int mark = get_object_mark(&p->item->object);
-		if (!mark)
-			continue;
-		if (i == 0)
-			printf("from :%d\n", mark);
-		else
-			printf("merge :%d\n", mark);
-		i++;
+	switch (state->keep) {
+	case KEEP_FALSE:
+		break;
+	case KEEP_TRUE:
+		mi.keep_subject = 1;
+		break;
+	case KEEP_NON_PATCH:
+		mi.keep_non_patch_brackets_in_subject = 1;
+		break;
+	default:
+		die("BUG: invalid value for state->keep");
 	}
 
-	if (full_tree)
-		printf("deleteall\n");
-	log_tree_diff_flush(rev);
-	rev->diffopt.output_format = saved_output_format;
+	if (state->message_id)
+		mi.add_message_id = 1;
 
-	printf("\n");
+	switch (state->scissors) {
+	case SCISSORS_UNSET:
+		break;
+	case SCISSORS_FALSE:
+		mi.use_scissors = 0;
+		break;
+	case SCISSORS_TRUE:
+		mi.use_scissors = 1;
+		break;
+	default:
+		die("BUG: invalid value for state->scissors");
+	}
 
-	show_progress();
+	mi.input = fopen(mail, "r");
+	if (!mi.input)
+		die("could not open input");
+	mi.output = fopen(am_path(state, "info"), "w");
+	if (!mi.output)
+		die("could not open output 'info'");
+	if (mailinfo(&mi, am_path(state, "msg"), am_path(state, "patch")))
+		die("could not parse patch");
+
+	fclose(mi.input);
+	fclose(mi.output);
+
+	/* Extract message and author information */
+	fp = xfopen(am_path(state, "info"), "r");
+	while (!strbuf_getline_lf(&sb, fp)) {
+		const char *x;
+
+		if (skip_prefix(sb.buf, "Subject: ", &x)) {
+			if (msg.len)
+				strbuf_addch(&msg, '\n');
+			strbuf_addstr(&msg, x);
+		} else if (skip_prefix(sb.buf, "Author: ", &x))
+			strbuf_addstr(&author_name, x);
+		else if (skip_prefix(sb.buf, "Email: ", &x))
+			strbuf_addstr(&author_email, x);
+		else if (skip_prefix(sb.buf, "Date: ", &x))
+			strbuf_addstr(&author_date, x);
+	}
+	fclose(fp);
+
+	/* Skip pine's internal folder data */
+	if (!strcmp(author_name.buf, "Mail System Internal Data")) {
+		ret = 1;
+		goto finish;
+	}
+
+	if (is_empty_file(am_path(state, "patch"))) {
+		printf_ln(_("Patch is empty."));
+		die_user_resolve(state);
+	}
+
+	strbuf_addstr(&msg, "\n\n");
+	strbuf_addbuf(&msg, &mi.log_message);
+	strbuf_stripspace(&msg, 0);
+
+	assert(!state->author_name);
+	state->author_name = strbuf_detach(&author_name, NULL);
+
+	assert(!state->author_email);
+	state->author_email = strbuf_detach(&author_email, NULL);
+
+	assert(!state->author_date);
+	state->author_date = strbuf_detach(&author_date, NULL);
+
+	assert(!state->msg);
+	state->msg = strbuf_detach(&msg, &state->msg_len);
+
+finish:
+	strbuf_release(&msg);
+	strbuf_release(&author_date);
+	strbuf_release(&author_email);
+	strbuf_release(&author_name);
+	strbuf_release(&sb);
+	clear_mailinfo(&mi);
+	return ret;
 }

@@ -1,64 +1,66 @@
-void ap_core_child_status(server_rec *s, pid_t pid,
-                          ap_generation_t gen, int slot,
-                          mpm_child_status status)
+static int stapling_check_response(server_rec *s, modssl_ctx_t *mctx,
+                                   certinfo *cinf, OCSP_RESPONSE *rsp,
+                                   BOOL *pok)
 {
-    mpm_gen_info_t *cur;
-    const char *status_msg = "unknown status";
+    int status, reason;
+    OCSP_BASICRESP *bs = NULL;
+    ASN1_GENERALIZEDTIME *rev, *thisupd, *nextupd;
+    int response_status = OCSP_response_status(rsp);
 
-    if (!gen_head_init) { /* where to run this? */
-        gen_head_init = 1;
-        geninfo = apr_pcalloc(s->process->pool, sizeof *geninfo);
-        unused_geninfo = apr_pcalloc(s->process->pool, sizeof *unused_geninfo);
-        APR_RING_INIT(geninfo, mpm_gen_info_t, link);
-        APR_RING_INIT(unused_geninfo, mpm_gen_info_t, link);
+    if (pok)
+        *pok = FALSE;
+    /* Check to see if response is an error. If so we automatically accept
+     * it because it would have expired from the cache if it was time to
+     * retry.
+     */
+    if (response_status != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+        if (mctx->stapling_return_errors)
+            return SSL_TLSEXT_ERR_OK;
+        else
+            return SSL_TLSEXT_ERR_NOACK;
     }
 
-    cur = APR_RING_FIRST(geninfo);
-    while (cur != APR_RING_SENTINEL(geninfo, mpm_gen_info_t, link) &&
-           cur->gen != gen) {
-        cur = APR_RING_NEXT(cur, link);
+    bs = OCSP_response_get1_basic(rsp);
+    if (bs == NULL) {
+        /* If we can't parse response just pass it to client */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_check_response: Error Parsing Response!");
+        return SSL_TLSEXT_ERR_OK;
     }
 
-    switch(status) {
-    case MPM_CHILD_STARTED:
-        status_msg = "started";
-        if (cur == APR_RING_SENTINEL(geninfo, mpm_gen_info_t, link)) {
-            /* first child for this generation */
-            if (!APR_RING_EMPTY(unused_geninfo, mpm_gen_info_t, link)) {
-                cur = APR_RING_FIRST(unused_geninfo);
-                APR_RING_REMOVE(cur, link);
-                cur->active = cur->done = 0;
-            }
-            else {
-                cur = apr_pcalloc(s->process->pool, sizeof *cur);
-            }
-            cur->gen = gen;
-            APR_RING_ELEM_INIT(cur, link);
-            APR_RING_INSERT_HEAD(geninfo, cur, mpm_gen_info_t, link);
-        }
-        ap_random_parent_after_fork();
-        ++cur->active;
-        break;
-    case MPM_CHILD_EXITED:
-        status_msg = "exited";
-        if (cur == APR_RING_SENTINEL(geninfo, mpm_gen_info_t, link)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00546)
-                         "no record of generation %d of exiting child %" APR_PID_T_FMT,
-                         gen, pid);
+    if (!OCSP_resp_find_status(bs, cinf->cid, &status, &reason, &rev,
+                               &thisupd, &nextupd)) {
+        /* If ID not present just pass back to client */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_check_response: certificate ID not present in response!");
+    } 
+    else {
+        if (OCSP_check_validity(thisupd, nextupd,
+                                mctx->stapling_resptime_skew,
+                                mctx->stapling_resp_maxage)) {
+            if (pok)
+                *pok = TRUE;
         }
         else {
-            --cur->active;
-            if (!cur->active && cur->done) { /* no children, server has stopped/restarted */
-                end_gen(cur);
+            /* If pok is not NULL response was direct from a responder and
+             * the times should be valide. If pok is NULL the response was
+             * retrieved from cache and it is expected to subsequently expire
+             */
+            if (pok) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "stapling_check_response: response times invalid");
+            } 
+            else {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "stapling_check_response: cached response expired");
             }
+
+            OCSP_BASICRESP_free(bs);
+            return SSL_TLSEXT_ERR_NOACK;
         }
-        break;
-    case MPM_CHILD_LOST_SLOT:
-        status_msg = "lost slot";
-        /* we don't track by slot, so it doesn't matter */
-        break;
     }
-    ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, s,
-                 "mpm child %" APR_PID_T_FMT " (gen %d/slot %d) %s",
-                 pid, gen, slot, status_msg);
+
+    OCSP_BASICRESP_free(bs);
+
+    return SSL_TLSEXT_ERR_OK;
 }

@@ -1,10 +1,11 @@
 fputs(
-"       --mail-rcpt <address>\n"
-"              (SMTP) Specify a single address, user name or mailing list name.\n"
-"              Repeat this option several times to send to multiple recipients.\n"
-"              When performing a mail transfer, the recipient should specify  a\n"
-"              valid email address to send the mail to.\n"
+"              may not introduce a security breach if the site redirects you to\n"
+"              a  site  to which you'll send your authentication info (which is\n"
+"              plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"              When  performing  an  address  verification  (VRFY command), the\n"
-"              recipient should be specified as the user name or user name  and\n"
+"              See also -u, --user.\n"
+"\n"
+"       -L, --location\n"
+"              (HTTP) If the server reports that the requested page  has  moved\n"
+"              to a different location (indicated with a Location: header and a\n"
 , stdout);

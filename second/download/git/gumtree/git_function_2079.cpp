@@ -1,15 +1,25 @@
-int xsnprintf(char *dst, size_t max, const char *fmt, ...)
+static void write_remote_refs(const struct ref *local_refs)
 {
-	va_list ap;
-	int len;
+	const struct ref *r;
 
-	va_start(ap, fmt);
-	len = vsnprintf(dst, max, fmt, ap);
-	va_end(ap);
+	struct ref_transaction *t;
+	struct strbuf err = STRBUF_INIT;
 
-	if (len < 0)
-		die("BUG: your snprintf is broken");
-	if (len >= max)
-		die("BUG: attempt to snprintf into too-small buffer");
-	return len;
+	t = ref_transaction_begin(&err);
+	if (!t)
+		die("%s", err.buf);
+
+	for (r = local_refs; r; r = r->next) {
+		if (!r->peer_ref)
+			continue;
+		if (ref_transaction_create(t, r->peer_ref->name, r->old_sha1,
+					   0, NULL, &err))
+			die("%s", err.buf);
+	}
+
+	if (initial_ref_transaction_commit(t, &err))
+		die("%s", err.buf);
+
+	strbuf_release(&err);
+	ref_transaction_free(t);
 }

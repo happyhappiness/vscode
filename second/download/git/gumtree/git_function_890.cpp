@@ -1,74 +1,61 @@
-static int files_pack_refs(struct ref_store *ref_store, unsigned int flags)
+int read_loose_object(const char *path,
+		      const unsigned char *expected_sha1,
+		      enum object_type *type,
+		      unsigned long *size,
+		      void **contents)
 {
-	struct files_ref_store *refs =
-		files_downcast(ref_store, REF_STORE_WRITE | REF_STORE_ODB,
-			       "pack_refs");
-	struct ref_iterator *iter;
-	struct ref_dir *packed_refs;
-	int ok;
-	struct ref_to_prune *refs_to_prune = NULL;
+	int ret = -1;
+	int fd = -1;
+	void *map = NULL;
+	unsigned long mapsize;
+	git_zstream stream;
+	char hdr[32];
 
-	lock_packed_refs(refs, LOCK_DIE_ON_ERROR);
-	packed_refs = get_packed_refs(refs);
+	*contents = NULL;
 
-	iter = cache_ref_iterator_begin(get_loose_ref_cache(refs), NULL, 0);
-	while ((ok = ref_iterator_advance(iter)) == ITER_OK) {
-		/*
-		 * If the loose reference can be packed, add an entry
-		 * in the packed ref cache. If the reference should be
-		 * pruned, also add it to refs_to_prune.
-		 */
-		struct ref_entry *packed_entry;
-		int is_tag_ref = starts_with(iter->refname, "refs/tags/");
+	map = map_sha1_file_1(path, NULL, &mapsize);
+	if (!map) {
+		error_errno("unable to mmap %s", path);
+		goto out;
+	}
 
-		/* Do not pack per-worktree refs: */
-		if (ref_type(iter->refname) != REF_TYPE_NORMAL)
-			continue;
+	if (unpack_sha1_header(&stream, map, mapsize, hdr, sizeof(hdr)) < 0) {
+		error("unable to unpack header of %s", path);
+		goto out;
+	}
 
-		/* ALWAYS pack tags */
-		if (!(flags & PACK_REFS_ALL) && !is_tag_ref)
-			continue;
+	*type = parse_sha1_header(hdr, size);
+	if (*type < 0) {
+		error("unable to parse header of %s", path);
+		git_inflate_end(&stream);
+		goto out;
+	}
 
-		/* Do not pack symbolic or broken refs: */
-		if (iter->flags & REF_ISSYMREF)
-			continue;
-
-		if (!ref_resolves_to_object(iter->refname, iter->oid, iter->flags))
-			continue;
-
-		/*
-		 * Create an entry in the packed-refs cache equivalent
-		 * to the one from the loose ref cache, except that
-		 * we don't copy the peeled status, because we want it
-		 * to be re-peeled.
-		 */
-		packed_entry = find_ref_entry(packed_refs, iter->refname);
-		if (packed_entry) {
-			/* Overwrite existing packed entry with info from loose entry */
-			packed_entry->flag = REF_ISPACKED;
-			oidcpy(&packed_entry->u.value.oid, iter->oid);
-		} else {
-			packed_entry = create_ref_entry(iter->refname, iter->oid->hash,
-							REF_ISPACKED, 0);
-			add_ref_entry(packed_refs, packed_entry);
+	if (*type == OBJ_BLOB) {
+		if (check_stream_sha1(&stream, hdr, *size, path, expected_sha1) < 0)
+			goto out;
+	} else {
+		*contents = unpack_sha1_rest(&stream, hdr, *size, expected_sha1);
+		if (!*contents) {
+			error("unable to unpack contents of %s", path);
+			git_inflate_end(&stream);
+			goto out;
 		}
-		oidclr(&packed_entry->u.value.peeled);
-
-		/* Schedule the loose reference for pruning if requested. */
-		if ((flags & PACK_REFS_PRUNE)) {
-			struct ref_to_prune *n;
-			FLEX_ALLOC_STR(n, name, iter->refname);
-			hashcpy(n->sha1, iter->oid->hash);
-			n->next = refs_to_prune;
-			refs_to_prune = n;
+		if (check_sha1_signature(expected_sha1, *contents,
+					 *size, typename(*type))) {
+			error("sha1 mismatch for %s (expected %s)", path,
+			      sha1_to_hex(expected_sha1));
+			free(*contents);
+			goto out;
 		}
 	}
-	if (ok != ITER_DONE)
-		die("error while iterating over references");
 
-	if (commit_packed_refs(refs))
-		die_errno("unable to overwrite old ref-pack file");
+	ret = 0; /* everything checks out */
 
-	prune_refs(refs, refs_to_prune);
-	return 0;
+out:
+	if (map)
+		munmap(map, mapsize);
+	if (fd >= 0)
+		close(fd);
+	return ret;
 }

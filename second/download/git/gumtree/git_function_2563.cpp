@@ -1,64 +1,40 @@
-static int git_parse_source(config_fn_t fn, void *data)
+static int do_for_each_reflog(struct strbuf *name, each_ref_fn fn, void *cb_data)
 {
-	int comment = 0;
-	int baselen = 0;
-	struct strbuf *var = &cf->var;
+	DIR *d = opendir(git_path("logs/%s", name->buf));
+	int retval = 0;
+	struct dirent *de;
+	int oldlen = name->len;
 
-	/* U+FEFF Byte Order Mark in UTF8 */
-	const char *bomptr = utf8_bom;
+	if (!d)
+		return name->len ? errno : 0;
 
-	for (;;) {
-		int c = get_next_char();
-		if (bomptr && *bomptr) {
-			/* We are at the file beginning; skip UTF8-encoded BOM
-			 * if present. Sane editors won't put this in on their
-			 * own, but e.g. Windows Notepad will do it happily. */
-			if (c == (*bomptr & 0377)) {
-				bomptr++;
-				continue;
+	while ((de = readdir(d)) != NULL) {
+		struct stat st;
+
+		if (de->d_name[0] == '.')
+			continue;
+		if (ends_with(de->d_name, ".lock"))
+			continue;
+		strbuf_addstr(name, de->d_name);
+		if (stat(git_path("logs/%s", name->buf), &st) < 0) {
+			; /* silently ignore */
+		} else {
+			if (S_ISDIR(st.st_mode)) {
+				strbuf_addch(name, '/');
+				retval = do_for_each_reflog(name, fn, cb_data);
 			} else {
-				/* Do not tolerate partial BOM. */
-				if (bomptr != utf8_bom)
-					break;
-				/* No BOM at file beginning. Cool. */
-				bomptr = NULL;
+				struct object_id oid;
+
+				if (read_ref_full(name->buf, 0, oid.hash, NULL))
+					retval = error("bad ref for %s", name->buf);
+				else
+					retval = fn(name->buf, &oid, 0, cb_data);
 			}
-		}
-		if (c == '\n') {
-			if (cf->eof)
-				return 0;
-			comment = 0;
-			continue;
-		}
-		if (comment || isspace(c))
-			continue;
-		if (c == '#' || c == ';') {
-			comment = 1;
-			continue;
-		}
-		if (c == '[') {
-			/* Reset prior to determining a new stem */
-			strbuf_reset(var);
-			if (get_base_var(var) < 0 || var->len < 1)
+			if (retval)
 				break;
-			strbuf_addch(var, '.');
-			baselen = var->len;
-			continue;
 		}
-		if (!isalpha(c))
-			break;
-		/*
-		 * Truncate the var name back to the section header
-		 * stem prior to grabbing the suffix part of the name
-		 * and the value.
-		 */
-		strbuf_setlen(var, baselen);
-		strbuf_addch(var, tolower(c));
-		if (get_value(fn, data, var) < 0)
-			break;
+		strbuf_setlen(name, oldlen);
 	}
-	if (cf->die_on_error)
-		die(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);
-	else
-		return error(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);
+	closedir(d);
+	return retval;
 }

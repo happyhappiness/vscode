@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Invalid method in request %s - possible attempt to establish SSL connection on non-SSL port", r->the_request);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                       "Unable to set LDAP_OPT_REFHOPLIMIT option to %d: %d.",
+                       ldc->ReferralHopLimit,
+                       result->rc);

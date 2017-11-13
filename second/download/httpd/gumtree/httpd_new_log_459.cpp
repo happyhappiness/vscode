@@ -1,2 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, rv, c,
-                          "core_output_filter: writing data to the network");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
+                                      0, r, "[%d] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "failed [%s][%s]", getpid(), 
+                                      ldc->reason, ldap_err2string(result));

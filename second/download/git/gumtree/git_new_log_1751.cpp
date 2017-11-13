@@ -1,1 +1,1 @@
-error("%s", err.buf);
+die("BUG: connectivity check skipped???");

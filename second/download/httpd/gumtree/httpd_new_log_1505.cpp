@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
+ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
+               "</a></pre>\n", NULL);

@@ -1,43 +1,63 @@
-static void print_smime_keyinfo (const char* msg, gpgme_signature_t sig,
-                                 gpgme_key_t key, STATE *s)
+static int write_one_header (FILE *fp, int pfxw, int max, int wraplen,
+			     const char *pfx, const char *start, const char *end,
+			     int flags)
 {
-  size_t msglen;
-  gpgme_user_id_t uids = NULL;
-  int i, aka = 0;
+  char *tagbuf, *valbuf, *t;
+  int is_from = ((end - start) > 5 &&
+		 ascii_strncasecmp (start, "from ", 5) == 0);
 
-  state_attach_puts (msg, s);
-  state_attach_puts (" ", s);
-  /* key is NULL when not present in the user's keyring */
-  if (key)
+  /* only pass through folding machinery if necessary for sending,
+     never wrap From_ headers on sending */
+  if (!(flags & CH_DISPLAY) && (pfxw + max <= wraplen || is_from))
   {
-    for (uids = key->uids; uids; uids = uids->next)
+    valbuf = mutt_substrdup (start, end);
+    dprint(4,(debugfile,"mwoh: buf[%s%s] short enough, "
+	      "max width = %d <= %d\n",
+	      NONULL(pfx), valbuf, max, wraplen));
+    if (pfx && *pfx)
+      if (fputs (pfx, fp) == EOF)
+	return -1;
+    if (!(t = strchr (valbuf, ':')))
     {
-      if (uids->revoked)
-	continue;
-      if (aka)
-      {
-	msglen = mutt_strlen (msg) - 4;
-	for (i = 0; i < msglen; i++)
-	  state_attach_puts(" ", s);
-	state_attach_puts(_("aka: "), s);
-      }
-      state_attach_puts (uids->uid, s);
-      state_attach_puts ("\n", s);
-
-      aka = 1;
+      dprint (1, (debugfile, "mwoh: warning: header not in "
+		  "'key: value' format!\n"));
+      return 0;
     }
+    if (print_val (fp, pfx, valbuf, flags, mutt_strlen (pfx)) < 0)
+    {
+      FREE(&valbuf);
+      return -1;
+    }
+    FREE(&valbuf);
   }
   else
   {
-    state_attach_puts (_("KeyID "), s);
-    state_attach_puts (sig->fpr, s);
-    state_attach_puts ("\n", s);
+    t = strchr (start, ':');
+    if (!t || t > end)
+    {
+      dprint (1, (debugfile, "mwoh: warning: header not in "
+		  "'key: value' format!\n"));
+      return 0;
+    }
+    if (is_from)
+    {
+      tagbuf = NULL;
+      valbuf = mutt_substrdup (start, end);
+    }
+    else
+    {
+      tagbuf = mutt_substrdup (start, t);
+      /* skip over the colon separating the header field name and value */
+      t = skip_email_wsp(t + 1);
+      valbuf = mutt_substrdup (t, end);
+    }
+    dprint(4,(debugfile,"mwoh: buf[%s%s] too long, "
+	      "max width = %d > %d\n",
+	      NONULL(pfx), valbuf, max, wraplen));
+    if (fold_one_header (fp, tagbuf, valbuf, pfx, wraplen, flags) < 0)
+      return -1;
+    FREE (&tagbuf);
+    FREE (&valbuf);
   }
-
-  msglen = mutt_strlen (msg) - 8;
-  for (i = 0; i < msglen; i++)
-    state_attach_puts(" ", s);
-  state_attach_puts (_("created: "), s);
-  print_time (sig->timestamp, s);
-  state_attach_puts ("\n", s);  
+  return 0;
 }

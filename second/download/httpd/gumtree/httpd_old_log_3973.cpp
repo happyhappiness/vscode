@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
-                                      "proxy: error reading response");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "request_rec->dispatching %s -> int", name);

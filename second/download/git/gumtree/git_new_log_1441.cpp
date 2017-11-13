@@ -1,2 +1,1 @@
-error("cannot fdopen %s (%s)",
-			      reflog_lock.filename.buf, strerror(errno));
+die("submodule--helper push-check requires at least 2 arguments");

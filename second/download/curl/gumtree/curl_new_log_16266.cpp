@@ -1,10 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
-"              Users very often want to both read cookies from a file and write\n"
-"              updated cookies back to a file, so using both -b,  --cookie  and\n"
-"              -c, --cookie-jar in the same command line is common.\n"
+"       --connect-to <HOST1:PORT1:HOST2:PORT2>\n"
 "\n"
-"       --create-dirs\n"
-"              When used in conjunction with the -o, --output option, curl will\n"
-"              create the necessary local directory hierarchy as  needed.  This\n"
+"              For  a  request  to  the  given  HOST1:PORT1  pair,  connect  to\n"
+"              HOST2:PORT2 instead.  This option is suitable to direct requests\n"
+"              at a specific server, e.g. at a specific cluster node in a clus-\n"
+"              ter  of  servers. This option is only used to establish the net-\n"
+"              work connection. It does NOT affect the  hostname/port  that  is\n"
 , stdout);

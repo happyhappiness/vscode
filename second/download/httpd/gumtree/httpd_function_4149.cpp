@@ -1,33 +1,26 @@
-static void ssl_init_ctx_tls_extensions(server_rec *s,
-                                        apr_pool_t *p,
-                                        apr_pool_t *ptemp,
-                                        modssl_ctx_t *mctx)
+apr_status_t ajp_msg_log(request_rec *r, ajp_msg_t *msg, char *err)
 {
-    /*
-     * Configure TLS extensions support
-     */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring TLS extension handling");
+    int level;
+    apr_size_t count;
+    char *buf, *next;
+    apr_status_t rc = APR_SUCCESS;
 
-    /*
-     * Server name indication (SNI)
-     */
-    if (!SSL_CTX_set_tlsext_servername_callback(mctx->ssl_ctx,
-                          ssl_callback_ServerNameIndication) ||
-        !SSL_CTX_set_tlsext_servername_arg(mctx->ssl_ctx, mctx)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Unable to initialize TLS servername extension "
-                     "callback (incompatible OpenSSL version?)");
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
-        ssl_die();
+    if (APLOGrtrace7(r)) {
+        level = APLOG_TRACE7;
+        count = 1024;
+        if (APLOGrtrace8(r)) {
+            level = APLOG_TRACE8;
+            count = AJP_MAX_BUFFER_SZ;
+        }
+        rc = ajp_msg_dump(r->pool, msg, err, count, &buf);
+        if (rc == APR_SUCCESS) {
+            while ((next = ap_strchr(buf, '\n'))) {
+                *next = '\0';
+                ap_log_rerror(APLOG_MARK, level, 0, r, "%s", buf);
+                buf = next + 1;
+            }
+            ap_log_rerror(APLOG_MARK, level, 0, r, "%s", buf);
+        }
     }
-
-#ifdef HAVE_OCSP_STAPLING
-    /*
-     * OCSP Stapling support, status_request extension
-     */
-    if ((mctx->pkp == FALSE) && (mctx->stapling_enabled == TRUE)) {
-        modssl_init_stapling(s, p, ptemp, mctx);
-    }
-#endif
+    return rc;
 }

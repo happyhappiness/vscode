@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01776)
-                      "invalid nonce %s received - hash is not %s",
-                      resp->nonce, hash);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "conflicting SQL statements with label %s", label);

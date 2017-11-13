@@ -1,1 +1,1 @@
-fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");
+fprintf(FERROR,"chdir %s : %s (1)\n",name,strerror(errno));

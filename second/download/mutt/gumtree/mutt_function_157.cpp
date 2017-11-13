@@ -1,121 +1,69 @@
-static int show_sig_summary (unsigned long sum,
-                              gpgme_ctx_t ctx, gpgme_key_t key, int idx,
-                              STATE *s, gpgme_signature_t sig)
+int mutt_check_overwrite (const char *attname, const char *path,
+				char *fname, size_t flen, int *append, char **directory) 
 {
-  int severe = 0;
+  int rc = 0;
+  char tmp[_POSIX_PATH_MAX];
+  struct stat st;
 
-  if ((sum & GPGME_SIGSUM_KEY_REVOKED))
+  strfcpy (fname, path, flen);
+  if (access (fname, F_OK) != 0)
+    return 0;
+  if (stat (fname, &st) != 0)
+    return -1;
+  if (S_ISDIR (st.st_mode))
+  {
+    if (directory)
     {
-      state_attach_puts (_("Warning: One of the keys has been revoked\n"),s);
-      severe = 1;
+      switch (mutt_multi_choice
+      /* L10N:
+         Means "The path you specified as the destination file is a directory."
+         See the msgid "Save to file: " (alias.c, recvattach.c) */
+	      (_("File is a directory, save under it? [(y)es, (n)o, (a)ll]"), _("yna")))
+      {
+	case 3:		/* all */
+	  mutt_str_replace (directory, fname);
+	  break;
+	case 1:		/* yes */
+	  FREE (directory);		/* __FREE_CHECKED__ */
+	  break;
+	case -1:	/* abort */
+	  FREE (directory); 		/* __FREE_CHECKED__ */
+	  return -1;
+	case  2:	/* no */
+	  FREE (directory);		/* __FREE_CHECKED__ */
+	  return 1;
+      }
     }
+    /* L10N:
+       Means "The path you specified as the destination file is a directory."
+       See the msgid "Save to file: " (alias.c, recvattach.c) */
+    else if ((rc = mutt_yesorno (_("File is a directory, save under it?"), M_YES)) != M_YES)
+      return (rc == M_NO) ? 1 : -1;
 
-  if ((sum & GPGME_SIGSUM_KEY_EXPIRED))
+    strfcpy (tmp, mutt_basename (NONULL (attname)), sizeof (tmp));
+    if (mutt_get_field (_("File under directory: "), tmp, sizeof (tmp),
+                                    M_FILE | M_CLEAR) != 0 || !tmp[0])
+      return (-1);
+    mutt_concat_path (fname, path, tmp, flen);
+  }
+  
+  if (*append == 0 && access (fname, F_OK) == 0)
+  {
+    switch (mutt_multi_choice
+	    (_("File exists, (o)verwrite, (a)ppend, or (c)ancel?"), _("oac")))
     {
-      time_t at = key->subkeys->expires ? key->subkeys->expires : 0;
-      if (at)
-        {
-          state_attach_puts (_("Warning: The key used to create the "
-                               "signature expired at: "), s);
-          print_time (at , s);
-          state_attach_puts ("\n", s);
-        }
-      else
-        state_attach_puts (_("Warning: At least one certification key "
-                             "has expired\n"), s);
+      case -1: /* abort */
+        return -1;
+      case 3:  /* cancel */
+	return 1;
+
+      case 2: /* append */
+        *append = M_SAVE_APPEND;
+        break;
+      case 1: /* overwrite */
+        *append = M_SAVE_OVERWRITE;
+        break;
     }
-
-  if ((sum & GPGME_SIGSUM_SIG_EXPIRED))
-    {
-      gpgme_verify_result_t result;
-      gpgme_signature_t sig;
-      unsigned int i;
-      
-      result = gpgme_op_verify_result (ctx);
-
-      for (sig = result->signatures, i = 0; sig && (i < idx);
-           sig = sig->next, i++)
-        ;
-      
-      state_attach_puts (_("Warning: The signature expired at: "), s);
-      print_time (sig ? sig->exp_timestamp : 0, s);
-      state_attach_puts ("\n", s);
-    }
-
-  if ((sum & GPGME_SIGSUM_KEY_MISSING))
-    state_attach_puts (_("Can't verify due to a missing "
-                         "key or certificate\n"), s);
-
-  if ((sum & GPGME_SIGSUM_CRL_MISSING))
-    {
-      state_attach_puts (_("The CRL is not available\n"), s);
-      severe = 1;
-    }
-
-  if ((sum & GPGME_SIGSUM_CRL_TOO_OLD))
-    {
-      state_attach_puts (_("Available CRL is too old\n"), s);
-      severe = 1;
-    }
-
-  if ((sum & GPGME_SIGSUM_BAD_POLICY))
-    state_attach_puts (_("A policy requirement was not met\n"), s);
-
-  if ((sum & GPGME_SIGSUM_SYS_ERROR))
-    {
-      const char *t0 = NULL, *t1 = NULL;
-      gpgme_verify_result_t result;
-      gpgme_signature_t sig;
-      unsigned int i;
-
-      state_attach_puts (_("A system error occurred"), s );
-
-      /* Try to figure out some more detailed system error information. */
-      result = gpgme_op_verify_result (ctx);
-      for (sig = result->signatures, i = 0; sig && (i < idx);
-           sig = sig->next, i++)
-        ;
-      if (sig)
-	{
-	  t0 = "";
-	  t1 = sig->wrong_key_usage ? "Wrong_Key_Usage" : "";
-	}
-
-      if (t0 || t1)
-        {
-          state_attach_puts (": ", s);
-          if (t0)
-              state_attach_puts (t0, s);
-          if (t1 && !(t0 && !strcmp (t0, t1)))
-            {
-              if (t0)
-                state_attach_puts (",", s);
-              state_attach_puts (t1, s);
-            }
-        }
-      state_attach_puts ("\n", s);
-    }
-
-#ifdef HAVE_GPGME_PKA_TRUST
-
-  if (option (OPTCRYPTUSEPKA))
-    {
-      if (sig->pka_trust == 1 && sig->pka_address)
-	{
-	  state_attach_puts (_("WARNING: PKA entry does not match "
-			       "signer's address: "), s);
-	  state_attach_puts (sig->pka_address, s);
-	  state_attach_puts ("\n", s);
-	}
-      else if (sig->pka_trust == 2 && sig->pka_address)
-	{
-	  state_attach_puts (_("PKA verified signer's address is: "), s);
-	  state_attach_puts (sig->pka_address, s);
-	  state_attach_puts ("\n", s);
-	}
-    }
-
-#endif
-
-  return severe;
+  }
+  return 0;
 }

@@ -1,1 +1,1 @@
-printf("Fetching submodule %s%s\n", prefix, ce->name);
+error("unable to write current sha1 into %s", newrefname);

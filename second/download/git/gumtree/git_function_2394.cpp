@@ -1,24 +1,19 @@
-static int udt_do_read(struct unidirectional_transfer *t)
+static void show_name(const struct object *obj,
+		      const char *caller_name,
+		      int always, int allow_undefined, int name_only)
 {
-	ssize_t bytes;
+	const char *name;
+	const unsigned char *sha1 = obj->sha1;
 
-	if (t->bufuse == BUFFERSIZE)
-		return 0;	/* No space for more. */
-
-	transfer_debug("%s is readable", t->src_name);
-	bytes = read(t->src, t->buf + t->bufuse, BUFFERSIZE - t->bufuse);
-	if (bytes < 0 && errno != EWOULDBLOCK && errno != EAGAIN &&
-		errno != EINTR) {
-		error("read(%s) failed: %s", t->src_name, strerror(errno));
-		return -1;
-	} else if (bytes == 0) {
-		transfer_debug("%s EOF (with %i bytes in buffer)",
-			t->src_name, (int)t->bufuse);
-		t->state = SSTATE_FLUSHING;
-	} else if (bytes > 0) {
-		t->bufuse += bytes;
-		transfer_debug("Read %i bytes from %s (buffer now at %i)",
-			(int)bytes, t->src_name, (int)t->bufuse);
-	}
-	return 0;
+	if (!name_only)
+		printf("%s ", caller_name ? caller_name : sha1_to_hex(sha1));
+	name = get_rev_name(obj);
+	if (name)
+		printf("%s\n", name);
+	else if (allow_undefined)
+		printf("undefined\n");
+	else if (always)
+		printf("%s\n", find_unique_abbrev(sha1, DEFAULT_ABBREV));
+	else
+		die("cannot describe '%s'", sha1_to_hex(sha1));
 }

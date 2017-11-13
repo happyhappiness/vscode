@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02075)
-                         "Unable to read file: %s", ctx->storage_path);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                             "proxy: could not set 100-Continue timeout");

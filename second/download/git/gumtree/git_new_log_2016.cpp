@@ -1,2 +1,2 @@
-die("Duplicate entry when writing index: %s",
-			    oid_to_hex(&object->oid));
+die("unable to generate combined diff for %s",
+		    sha1_to_hex(parent));

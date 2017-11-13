@@ -1,1 +1,1 @@
-mutt_yesorno (_("File is a directory, save under it?"), MUTT_YES);
+mutt_window_mvprintw (MuttIndexWindow, HDR_SUBJECT, 0, TITLE_FMT, Prompts[HDR_SUBJECT]);

@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "proxy_handler no URL in %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);

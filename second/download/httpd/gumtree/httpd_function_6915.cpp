@@ -1,26 +1,13 @@
-static apr_status_t add_trailer(h2_stream *stream,
-                                const char *name, size_t nlen,
-                                const char *value, size_t vlen)
+apr_status_t h2_stream_prep_processing(h2_stream *stream)
 {
-    conn_rec *c = stream->session->c;
-    char *hname, *hvalue;
-
-    if (nlen == 0 || name[0] == ':') {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, c, APLOGNO(03060)
-                      "h2_request(%ld-%d): pseudo header in trailer",
-                      c->id, stream->id);
-        return APR_EINVAL;
-    }
-    if (h2_req_ignore_trailer(name, nlen)) {
+    if (stream->request) {
+        const h2_request *r = stream->request;
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                      H2_STRM_MSG(stream, "schedule %s %s://%s%s chunked=%d"),
+                      r->method, r->scheme, r->authority, r->path, r->chunked);
+        setup_input(stream);
+        stream->scheduled = 1;
         return APR_SUCCESS;
     }
-    if (!stream->trailers) {
-        stream->trailers = apr_table_make(stream->pool, 5);
-    }
-    hname = apr_pstrndup(stream->pool, name, nlen);
-    hvalue = apr_pstrndup(stream->pool, value, vlen);
-    h2_util_camel_case_header(hname, nlen);
-    apr_table_mergen(stream->trailers, hname, hvalue);
-    
-    return APR_SUCCESS;
+    return APR_EINVAL;
 }

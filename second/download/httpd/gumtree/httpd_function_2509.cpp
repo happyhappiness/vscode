@@ -1,209 +1,93 @@
-static authz_status ldapgroup_check_authorization(request_rec *r,
-                                             const char *require_args)
+static apr_status_t find_directory(apr_pool_t *pool, const char *base,
+        const char *rest)
 {
-    int result = 0;
-    authn_ldap_request_t *req =
-        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
-    authn_ldap_config_t *sec =
-        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
+    apr_status_t rv;
+    apr_dir_t *dirp;
+    apr_finfo_t dirent;
+    int found = 0, files = 0;
+    const char *header = apr_pstrcat(pool, rest, CACHE_HEADER_SUFFIX, NULL);
+    const char *data = apr_pstrcat(pool, rest, CACHE_DATA_SUFFIX, NULL);
+    const char *vdir = apr_pstrcat(pool, rest, CACHE_HEADER_SUFFIX,
+            CACHE_VDIR_SUFFIX, NULL);
+    const char *dirname = NULL;
 
-    util_ldap_connection_t *ldc = NULL;
-
-    const char *t;
-
-    char filtbuf[FILTER_LENGTH];
-    const char *dn = NULL;
-    struct mod_auth_ldap_groupattr_entry_t *ent;
-    int i;
-
-    if (!sec->have_ldap_url) {
-        return AUTHZ_DENIED;
+    rv = apr_dir_open(&dirp, base, pool);
+    if (rv != APR_SUCCESS) {
+        char errmsg[120];
+        apr_file_printf(errfile, "Could not open directory %s: %s" APR_EOL_STR,
+                base, apr_strerror(rv, errmsg, sizeof errmsg));
+        return rv;
     }
 
-    if (sec->host) {
-        ldc = get_connection_for_authz(r, LDAP_COMPARE); /* for the top-level group only */
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  authnz_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
-        return AUTHZ_DENIED;
-    }
+    rv = APR_ENOENT;
 
-    /*
-     * If there are no elements in the group attribute array, the default should be
-     * member and uniquemember; populate the array now.
-     */
-    if (sec->groupattr->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "member";
-        grp = apr_array_push(sec->groupattr);
-        grp->name = "uniqueMember";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
-
-    /*
-     * If there are no elements in the sub group classes array, the default
-     * should be groupOfNames and groupOfUniqueNames; populate the array now.
-     */
-    if (sec->subgroupclasses->nelts == 0) {
-        struct mod_auth_ldap_groupattr_entry_t *grp;
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(sec->lock);
-#endif
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfNames";
-        grp = apr_array_push(sec->subgroupclasses);
-        grp->name = "groupOfUniqueNames";
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(sec->lock);
-#endif
-    }
-
-    /*
-     * If we have been authenticated by some other module than mod_auth_ldap,
-     * the req structure needed for authorization needs to be created
-     * and populated with the userid and DN of the account in LDAP
-     */
-
-    /* Check that we have a userid to start with */
-    if (!r->user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
-    }
-
-    if (!strlen(r->user)) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
-    }
-
-    if(!req) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
-
-        /* Build the username filter */
-        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
-
-        /* Search for the user DN */
-        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
-             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
-
-        /* Search failed, log error and return failure */
-        if(result != LDAP_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                "auth_ldap authorise: User DN not found, %s", ldc->reason);
-            return AUTHZ_DENIED;
-        }
-
-        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
-            sizeof(authn_ldap_request_t));
-        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
-        req->dn = apr_pstrdup(r->pool, dn);
-        req->user = r->user;
-    }
-
-    ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
-
-    if (sec->group_attrib_is_dn) {
-        if (req->dn == NULL || strlen(req->dn) == 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
-                          "user's DN has not been defined; failing authorization for user %s",
-                          getpid(), r->user);
-            return AUTHZ_DENIED;
-        }
-    }
-    else {
-        if (req->user == NULL || strlen(req->user) == 0) {
-            /* We weren't called in the authentication phase, so we didn't have a
-             * chance to set the user field. Do so now. */
-            req->user = r->user;
-        }
-    }
-
-    t = require_args;
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
-                  "testing for group membership in \"%s\"",
-                  getpid(), t);
-
-    for (i = 0; i < sec->groupattr->nelts; i++) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
-                      "testing for %s: %s (%s)", getpid(),
-                      ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
-
-        result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
-                             sec->group_attrib_is_dn ? req->dn : req->user);
-        switch(result) {
-            case LDAP_COMPARE_TRUE: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
-                              "authorization successful (attribute %s) [%s][%d - %s]",
-                              getpid(), ent[i].name, ldc->reason, result, ldap_err2string(result));
-                set_request_vars(r, LDAP_AUTHZ);
-                return AUTHZ_GRANTED;
+    while (apr_dir_read(&dirent, APR_FINFO_DIRENT | APR_FINFO_TYPE, dirp)
+            == APR_SUCCESS) {
+        int len = strlen(dirent.name);
+        int restlen = strlen(rest);
+        if (dirent.filetype == APR_DIR && !strncmp(rest, dirent.name, len)) {
+            dirname = apr_pstrcat(pool, base, "/", dirent.name, NULL);
+            rv = find_directory(pool, dirname, rest + (len < restlen ? len
+                    : restlen));
+            if (APR_SUCCESS == rv) {
+                found = 1;
             }
-            case LDAP_NO_SUCH_ATTRIBUTE: 
-            case LDAP_COMPARE_FALSE: {
-                /* nested groups need searches and compares, so grab a new handle */
-                authnz_ldap_cleanup_connection_close(ldc);
-                apr_pool_cleanup_kill(r->pool, ldc,authnz_ldap_cleanup_connection_close);
-
-                ldc = get_connection_for_authz(r, LDAP_COMPARE_AND_SEARCH);
-                apr_pool_cleanup_register(r->pool, ldc,
-                                          authnz_ldap_cleanup_connection_close,
-                                          apr_pool_cleanup_null);
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                               "[%" APR_PID_T_FMT "] auth_ldap authorise: require group \"%s\": "
-                               "failed [%s][%d - %s], checking sub-groups",
-                               getpid(), t, ldc->reason, result, ldap_err2string(result));
-
-                result = util_ldap_cache_check_subgroups(r, ldc, sec->url, t, ent[i].name,
-                                                         sec->group_attrib_is_dn ? req->dn : req->user,
-                                                         sec->sgAttributes[0] ? sec->sgAttributes : default_attributes,
-                                                         sec->subgroupclasses,
-                                                         0, sec->maxNestingDepth);
-                if(result == LDAP_COMPARE_TRUE) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                   "[%" APR_PID_T_FMT "] auth_ldap authorise: require group (sub-group): "
-                                   "authorisation successful (attribute %s) [%s][%d - %s]",
-                                   getpid(), ent[i].name, ldc->reason, result, ldap_err2string(result));
-                    set_request_vars(r, LDAP_AUTHZ);
-                    return AUTHZ_GRANTED;
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                   "[%" APR_PID_T_FMT "] auth_ldap authorise: require group (sub-group) \"%s\": "
-                                   "authorisation failed [%s][%d - %s]",
-                                   getpid(), t, ldc->reason, result, ldap_err2string(result));
-                }
-                break;
+        }
+        if (dirent.filetype == APR_DIR) {
+            if (!strcmp(dirent.name, vdir)) {
+                files = 1;
             }
-            default: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "[%" APR_PID_T_FMT "] auth_ldap authorize: require group \"%s\": "
-                              "authorization failed [%s][%d - %s]",
-                              getpid(), t, ldc->reason, result, ldap_err2string(result));
+        }
+        if (dirent.filetype == APR_REG) {
+            if (!strcmp(dirent.name, header) || !strcmp(dirent.name, data)) {
+                files = 1;
             }
         }
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorize group: authorization denied for user %s to %s",
-                  getpid(), r->user, r->uri);
+    apr_dir_close(dirp);
 
-    return AUTHZ_DENIED;
+    if (files) {
+        rv = APR_SUCCESS;
+        if (!dryrun) {
+            const char *remove;
+            apr_status_t status;
+
+            remove = apr_pstrcat(pool, base, "/", header, NULL);
+            status = apr_file_remove(remove, pool);
+            if (status != APR_SUCCESS && status != APR_ENOENT) {
+                char errmsg[120];
+                apr_file_printf(errfile, "Could not remove file %s: %s" APR_EOL_STR,
+                        remove, apr_strerror(status, errmsg, sizeof errmsg));
+                rv = status;
+            }
+
+            remove = apr_pstrcat(pool, base, "/", data, NULL);
+            status = apr_file_remove(remove, pool);
+            if (status != APR_SUCCESS && status != APR_ENOENT) {
+                char errmsg[120];
+                apr_file_printf(errfile, "Could not remove file %s: %s" APR_EOL_STR,
+                        remove, apr_strerror(status, errmsg, sizeof errmsg));
+                rv = status;
+            }
+
+            status = remove_directory(pool, apr_pstrcat(pool, base, "/", vdir, NULL));
+            if (status != APR_SUCCESS && status != APR_ENOENT) {
+                rv = status;
+            }
+        }
+    }
+
+    /* If asked to delete dirs, do so now. We don't care if it fails.
+     * If it fails, it likely means there was something else there.
+     */
+    if (dirname && deldirs && !dryrun) {
+        apr_dir_remove(dirname, pool);
+    }
+
+    if (found) {
+        return APR_SUCCESS;
+    }
+
+    return rv;
 }

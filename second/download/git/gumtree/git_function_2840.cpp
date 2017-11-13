@@ -1,43 +1,37 @@
-static int split_mail_conv(mail_conv_fn fn, struct am_state *state,
-			const char **paths, int keep_cr)
+static int split_mail_stgit_series(struct am_state *state, const char **paths,
+					int keep_cr)
 {
-	static const char *stdin_only[] = {"-", NULL};
-	int i;
+	const char *series_dir;
+	char *series_dir_buf;
+	FILE *fp;
+	struct argv_array patches = ARGV_ARRAY_INIT;
+	struct strbuf sb = STRBUF_INIT;
+	int ret;
 
-	if (!*paths)
-		paths = stdin_only;
+	if (!paths[0] || paths[1])
+		return error(_("Only one StGIT patch series can be applied at once"));
 
-	for (i = 0; *paths; paths++, i++) {
-		FILE *in, *out;
-		const char *mail;
-		int ret;
+	series_dir_buf = xstrdup(*paths);
+	series_dir = dirname(series_dir_buf);
 
-		if (!strcmp(*paths, "-"))
-			in = stdin;
-		else
-			in = fopen(*paths, "r");
+	fp = fopen(*paths, "r");
+	if (!fp)
+		return error(_("could not open '%s' for reading: %s"), *paths,
+				strerror(errno));
 
-		if (!in)
-			return error(_("could not open '%s' for reading: %s"),
-					*paths, strerror(errno));
+	while (!strbuf_getline_lf(&sb, fp)) {
+		if (*sb.buf == '#')
+			continue; /* skip comment lines */
 
-		mail = mkpath("%s/%0*d", state->dir, state->prec, i + 1);
-
-		out = fopen(mail, "w");
-		if (!out)
-			return error(_("could not open '%s' for writing: %s"),
-					mail, strerror(errno));
-
-		ret = fn(out, in, keep_cr);
-
-		fclose(out);
-		fclose(in);
-
-		if (ret)
-			return error(_("could not parse patch '%s'"), *paths);
+		argv_array_push(&patches, mkpath("%s/%s", series_dir, sb.buf));
 	}
 
-	state->cur = 1;
-	state->last = i;
-	return 0;
+	fclose(fp);
+	strbuf_release(&sb);
+	free(series_dir_buf);
+
+	ret = split_mail_conv(stgit_patch_to_mail, state, patches.argv, keep_cr);
+
+	argv_array_clear(&patches);
+	return ret;
 }

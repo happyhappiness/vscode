@@ -1,1 +1,1 @@
-state_attach_puts(_("aka: "), s);
+state_attach_puts (": ", s);

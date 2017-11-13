@@ -1,1 +1,1 @@
-error(_("Cherry-picking is not possible because you have unmerged files."));
+printf("HEAD %s\n", sha1_to_hex(wt->head_sha1));

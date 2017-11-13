@@ -1,2 +1,1 @@
-error_errno("Couldn't truncate temporary file %s",
-					    freq->tmpfile);
+warning_errno("cannot open /etc/mailname");

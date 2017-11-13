@@ -1,1 +1,1 @@
-die("mktree reported failure");
+die_errno(_("unable to read signature file '%s'"), signature_file);

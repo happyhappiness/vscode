@@ -1,1 +1,1 @@
-error("Unable to open %s for writing", lockpath);
+die(_("BUG: reopen a lockfile that has been committed"));

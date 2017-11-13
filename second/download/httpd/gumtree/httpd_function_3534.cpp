@@ -1,49 +1,69 @@
-static char *lookup_map_dbd(request_rec *r, char *key, const char *label)
+static int hb_monitor(hb_ctx_t *ctx, apr_pool_t *p)
 {
-    apr_status_t rv;
-    apr_dbd_prepared_t *stmt;
-    const char *errmsg;
-    apr_dbd_results_t *res = NULL;
-    apr_dbd_row_t *row = NULL;
-    const char *ret = NULL;
-    int n = 0;
-    ap_dbd_t *db = dbd_acquire(r);
+    apr_size_t len;
+    apr_socket_t *sock = NULL;
+    char buf[256];
+    int i, j;
+    apr_uint32_t ready = 0;
+    apr_uint32_t busy = 0;
+    ap_generation_t mpm_generation;
 
-    stmt = apr_hash_get(db->prepared, label, APR_HASH_KEY_STRING);
+    ap_mpm_query(AP_MPMQ_GENERATION, &mpm_generation);
 
-    rv = apr_dbd_pvselect(db->driver, r->pool, db->handle, &res,
-                          stmt, 0, key, NULL);
-    if (rv != 0) {
-        errmsg = apr_dbd_error(db->driver, db->handle, rv);
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "rewritemap: error %s querying for %s", errmsg, key);
-        return NULL;
-    }
-    while (rv = apr_dbd_get_row(db->driver, r->pool, res, &row, -1), rv == 0) {
-        ++n;
-        if (ret == NULL) {
-            ret = apr_dbd_get_entry(db->driver, row, 0);
-        }
-        else {
-            /* randomise crudely amongst multiple results */
-            if ((double)rand() < (double)RAND_MAX/(double)n) {
-                ret = apr_dbd_get_entry(db->driver, row, 0);
+    for (i = 0; i < ctx->server_limit; i++) {
+        process_score *ps;
+        ps = ap_get_scoreboard_process(i);
+
+        for (j = 0; j < ctx->thread_limit; j++) {
+            int res;
+
+            worker_score *ws = NULL;
+
+            ws = &ap_scoreboard_image->servers[i][j];
+
+            res = ws->status;
+
+            if (res == SERVER_READY && ps->generation == mpm_generation) {
+                ready++;
+            }
+            else if (res != SERVER_DEAD &&
+                     res != SERVER_STARTING && res != SERVER_IDLE_KILL &&
+                     ps->generation == mpm_generation) {
+                busy++;
             }
         }
     }
-    if (rv != -1) {
-        errmsg = apr_dbd_error(db->driver, db->handle, rv);
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "rewritemap: error %s looking up %s", errmsg, key);
+
+    len = apr_snprintf(buf, sizeof(buf), msg_format, MSG_VERSION, ready, busy);
+
+    do {
+        apr_status_t rv;
+        rv = apr_socket_create(&sock, ctx->mcast_addr->family,
+                               SOCK_DGRAM, APR_PROTO_UDP, p);
+        if (rv) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
+                         NULL, "Heartbeat: apr_socket_create failed");
+            break;
+        }
+
+        rv = apr_mcast_loopback(sock, 1);
+        if (rv) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
+                         NULL, "Heartbeat: apr_mcast_loopback failed");
+            break;
+        }
+
+        rv = apr_socket_sendto(sock, ctx->mcast_addr, 0, buf, &len);
+        if (rv) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
+                         NULL, "Heartbeat: apr_socket_sendto failed");
+            break;
+        }
+    } while (0);
+
+    if (sock) {
+        apr_socket_close(sock);
     }
-    switch (n) {
-    case 0:
-        return NULL;
-    case 1:
-        return apr_pstrdup(r->pool, ret);
-    default:
-        /* what's a fair rewritelog level for this? */
-        rewritelog((r, 3, NULL, "Multiple values found for %s", key));
-        return apr_pstrdup(r->pool, ret);
-    }
+
+    return OK;
 }

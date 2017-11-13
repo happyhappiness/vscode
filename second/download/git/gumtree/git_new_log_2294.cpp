@@ -1,1 +1,2 @@
-die("resolve-relative-url-test only accepts three arguments: <up_path> <remoteurl> <url>");
+die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

@@ -1,1 +1,1 @@
-die("BUG: could not get submodule information for '%s'", path);
+die(_("unable to resolve revision: %s"), arg);

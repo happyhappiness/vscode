@@ -1,2 +1,1 @@
-die(_("could not run 'git status in submodule '%s'"),
-				path);
+packet_write_fmt(1, "ACK %s common\n", last_hex);

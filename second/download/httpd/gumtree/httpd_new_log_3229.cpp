@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01376)
-                          "%s: type: %s, length: %" APR_SIZE_T_FMT,
-                          fname, b->type->name ? b->type->name : "(unknown)",
-                          b->length);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01728)
+                  "auth_ldap authorize dn: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);

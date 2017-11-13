@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00106)
-                         "piped log program '%s' failed unexpectedly",
-                         pl->program);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00866)
+                      "failed to make connection to backend: %s:%u",
+                      backend->hostname, backend->port);

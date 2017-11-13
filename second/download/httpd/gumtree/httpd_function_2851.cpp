@@ -1,42 +1,40 @@
-static apr_status_t privileges_end_req(void *data)
+static void usage(const char *progname)
 {
-    request_rec *r = data;
-    priv_cfg *cfg = ap_get_module_config(r->server->module_config,
-                                         &privileges_module);
-    priv_dir_cfg *dcfg = ap_get_module_config(r->per_dir_config,
-                                              &privileges_module);
-
-    /* ugly hack: grab default uid and gid from unixd */
-    extern unixd_config_rec ap_unixd_config;
-
-    /* If we forked a child, we dropped privilege to revert, so
-     * all we can do now is exit
-     */
-    if ((cfg->mode == PRIV_SECURE) ||
-        ((cfg->mode == PRIV_SELECTIVE) && (dcfg->mode == PRIV_SECURE))) {
-        exit(0);
-    }
-
-    /* if either user or group are not the default, restore them */
-    if (cfg->uid || cfg->gid) {
-        if (setppriv(PRIV_ON, PRIV_EFFECTIVE, priv_setid) == -1) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "PRIV_ON failed restoring default user/group");
-        }
-        if (cfg->uid && (setuid(ap_unixd_config.user_id) == -1)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Error restoring default userid");
-        }
-        if (cfg->gid && (setgid(ap_unixd_config.group_id) == -1)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Error restoring default group");
-        }
-    }
-
-    /* restore default privileges */
-    if (setppriv(PRIV_SET, PRIV_EFFECTIVE, priv_default) == -1) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
-                      "Error restoring default privileges");
-    }
-    return APR_SUCCESS;
+    fprintf(stderr, "Usage: %s [options] [http"
+#ifdef USE_SSL
+        "[s]"
+#endif
+        "://]hostname[:port]/path\n", progname);
+    fprintf(stderr, "Options are:\n");
+    fprintf(stderr, "    -n requests     Number of requests to perform\n");
+    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
+    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
+    fprintf(stderr, "    -p postfile     File containing data to POST\n");
+    fprintf(stderr, "    -T content-type Content-type header for POSTing\n");
+    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
+    fprintf(stderr, "    -w              Print out results in HTML tables\n");
+    fprintf(stderr, "    -i              Use HEAD instead of GET\n");
+    fprintf(stderr, "    -x attributes   String to insert as table attributes\n");
+    fprintf(stderr, "    -y attributes   String to insert as tr attributes\n");
+    fprintf(stderr, "    -z attributes   String to insert as td or th attributes\n");
+    fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234. (repeatable)\n");
+    fprintf(stderr, "    -H attribute    Add Arbitrary header line, eg. 'Accept-Encoding: gzip'\n");
+    fprintf(stderr, "                    Inserted after all normal header lines. (repeatable)\n");
+    fprintf(stderr, "    -A attribute    Add Basic WWW Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -P attribute    Add Basic Proxy Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -X proxy:port   Proxyserver and port number to use\n");
+    fprintf(stderr, "    -V              Print version number and exit\n");
+    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
+    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+#endif
+    exit(EINVAL);
 }

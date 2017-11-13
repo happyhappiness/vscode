@@ -1,1 +1,1 @@
-error("Failed to update conflicted state in '%s'", path);
+error("no remembered resolution for '%s'", path);

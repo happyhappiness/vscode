@@ -1,2 +1,1 @@
-die(_("'%s' is already checked out at '%s'"),
-	    branch, wt->path);
+die_errno(_("could not open '%s' for writing"), path);

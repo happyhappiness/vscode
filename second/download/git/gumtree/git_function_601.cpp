@@ -1,6 +1,13 @@
-static void objreport(struct object *obj, const char *msg_type,
-			const char *err)
+struct ref_store *ref_store_init(const char *submodule)
 {
-	fprintf(stderr, "%s in %s %s: %s\n",
-		msg_type, typename(obj->type), describe_object(obj), err);
+	const char *be_name = "files";
+	struct ref_storage_be *be = find_ref_storage_backend(be_name);
+
+	if (!be)
+		die("BUG: reference backend %s is unknown", be_name);
+
+	if (!submodule || !*submodule)
+		return be->init(NULL);
+	else
+		return be->init(submodule);
 }

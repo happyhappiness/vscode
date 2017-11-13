@@ -1,1 +1,1 @@
-fprintf(stderr, "                -l                       [-TDBTYPE] database\n");
+fprintf(stderr, "Options:\n");

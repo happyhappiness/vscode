@@ -1,1 +1,1 @@
-die("Option '--stat-name-width' requires a value");
+packet_write(fd[1], "argument --format=%s\n", format);

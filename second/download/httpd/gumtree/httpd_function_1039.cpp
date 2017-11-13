@@ -1,223 +1,185 @@
-int main(int argc, const char * const argv[])
+static int create_process(apr_pool_t *p, HANDLE *child_proc, HANDLE *child_exit_event, 
+                          DWORD *child_pid)
 {
-    apr_file_t *fpw = NULL;
-    char record[MAX_STRING_LEN];
-    char line[MAX_STRING_LEN];
-    char *password = NULL;
-    char *pwfilename = NULL;
-    char *user = NULL;
-    char tn[] = "htpasswd.tmp.XXXXXX";
-    char *dirname;
-    char *scratch, cp[MAX_STRING_LEN];
-    int found = 0;
-    int i;
-    int alg = ALG_CRYPT;
-    int mask = 0;
-    apr_pool_t *pool;
-    int existing_file = 0;
-#if APR_CHARSET_EBCDIC
+    /* These NEVER change for the lifetime of this parent 
+     */
+    static char **args = NULL;
+    static char pidbuf[28];
+
     apr_status_t rv;
-    apr_xlate_t *to_ascii;
-#endif
+    apr_pool_t *ptemp;
+    apr_procattr_t *attr;
+    apr_proc_t new_child;
+    apr_file_t *child_out, *child_err;
+    HANDLE hExitEvent;
+    HANDLE waitlist[2];  /* see waitlist_e */
+    char *cmd;
+    char *cwd;
+    char **env;
+    int envc;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate);
-    apr_pool_create(&pool, NULL);
-    apr_file_open_stderr(&errfile, pool);
+    apr_pool_sub_make(&ptemp, p, NULL);
 
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, pool);
-    if (rv) {
-        apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);
-        exit(1);
-    }
-    rv = apr_SHA1InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d\n", rv);
-        exit(1);
-    }
-    rv = apr_MD5InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d\n", rv);
-        exit(1);
-    }
-#endif /*APR_CHARSET_EBCDIC*/
-
-    check_args(pool, argc, argv, &alg, &mask, &user, &pwfilename, &password);
-
-
-#if defined(WIN32) || defined(NETWARE)
-    if (alg == ALG_CRYPT) {
-        alg = ALG_APMD5;
-        apr_file_printf(errfile, "Automatically using MD5 format.\n");
-    }
-#endif
-
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-    if (alg == ALG_PLAIN) {
-        apr_file_printf(errfile,"Warning: storing passwords as plain text "
-                        "might just not work on this platform.\n");
-    }
-#endif
-
-    /*
-     * Only do the file checks if we're supposed to frob it.
+    /* Build the command line. Should look something like this:
+     * C:/apache/bin/apache.exe -f ap_server_confname 
+     * First, get the path to the executable...
      */
-    if (!(mask & APHTP_NOFILE)) {
-        existing_file = exists(pwfilename, pool);
-        if (existing_file) {
-            /*
-             * Check that this existing file is readable and writable.
-             */
-            if (!accessible(pool, pwfilename, APR_READ | APR_APPEND)) {
-                apr_file_printf(errfile, "%s: cannot open file %s for "
-                                "read/write access\n", argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
-        }
-        else {
-            /*
-             * Error out if -c was omitted for this non-existant file.
-             */
-            if (!(mask & APHTP_NEWFILE)) {
-                apr_file_printf(errfile,
-                        "%s: cannot modify file %s; use '-c' to create it\n",
-                        argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
-            /*
-             * As it doesn't exist yet, verify that we can create it.
-             */
-            if (!accessible(pool, pwfilename, APR_CREATE | APR_WRITE)) {
-                apr_file_printf(errfile, "%s: cannot create file %s\n",
-                                argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
-        }
+    apr_procattr_create(&attr, ptemp);
+    apr_procattr_cmdtype_set(attr, APR_PROGRAM);
+    apr_procattr_detach_set(attr, 1);
+    if (((rv = apr_filepath_get(&cwd, 0, ptemp)) != APR_SUCCESS)
+           || ((rv = apr_procattr_dir_set(attr, cwd)) != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Failed to get the current path");
     }
 
-    /*
-     * All the file access checks (if any) have been made.  Time to go to work;
-     * try to create the record for the username in question.  If that
-     * fails, there's no need to waste any time on file manipulations.
-     * Any error message text is returned in the record buffer, since
-     * the mkrecord() routine doesn't have access to argv[].
+    if (!args) {
+        /* Build the args array, only once since it won't change 
+         * for the lifetime of this parent process.
+         */
+        if ((rv = ap_os_proc_filepath(&cmd, ptemp))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, ERROR_BAD_PATHNAME, ap_server_conf,
+                         "Parent: Failed to get full path of %s", 
+                         ap_server_conf->process->argv[0]);
+            apr_pool_destroy(ptemp);
+            return -1;
+        }
+        
+        args = malloc((ap_server_conf->process->argc + 1) * sizeof (char*));
+        memcpy(args + 1, ap_server_conf->process->argv + 1, 
+               (ap_server_conf->process->argc - 1) * sizeof (char*));
+        args[0] = malloc(strlen(cmd) + 1);
+        strcpy(args[0], cmd);
+        args[ap_server_conf->process->argc] = NULL;
+    }
+    else {
+        cmd = args[0];
+    }
+
+    /* Create a pipe to send handles to the child */
+    if ((rv = apr_procattr_io_set(attr, APR_FULL_BLOCK, 
+                                  APR_NO_PIPE, APR_NO_PIPE)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.");
+        apr_pool_destroy(ptemp);
+        return -1;
+    }
+
+    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
+    /* set "NUL" as sysout for the child */
+    if (((rv = apr_file_open(&child_out, "NUL", APR_WRITE | APR_READ, APR_OS_DEFAULT,p)) 
+            != APR_SUCCESS) ||
+        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
+            != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Parent: Could not set child process stdout");
+    }
+    if (((rv = apr_file_open_stderr(&child_err, p))
+            != APR_SUCCESS) ||
+        ((rv = apr_procattr_child_err_set(attr, child_err, NULL))
+            != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Parent: Could not set child process stderr");
+    }
+
+    /* Create the child_ready_event */
+    waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!waitlist[waitlist_ready]) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Could not create ready event for child process");
+        apr_pool_destroy (ptemp);
+        return -1;
+    }
+
+    /* Create the child_exit_event */
+    hExitEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!hExitEvent) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Could not create exit event for child process");
+        apr_pool_destroy(ptemp);
+        CloseHandle(waitlist[waitlist_ready]);
+        return -1;
+    }
+
+    /* Build the env array */
+    for (envc = 0; _environ[envc]; ++envc) {
+        ;
+    }
+    env = apr_palloc(ptemp, (envc + 2) * sizeof (char*));  
+    memcpy(env, _environ, envc * sizeof (char*));
+    apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%i", parent_pid);
+    env[envc] = pidbuf;
+    env[envc + 1] = NULL;
+
+    rv = apr_proc_create(&new_child, cmd, args, env, attr, ptemp);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Failed to create the child process.");
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(waitlist[waitlist_ready]);
+        CloseHandle(new_child.hproc);
+        return -1;
+    }
+    apr_file_close(child_out);
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Parent: Created child process %d", new_child.pid);
+
+    if (send_handles_to_child(ptemp, waitlist[waitlist_ready], hExitEvent,
+                              start_mutex, ap_scoreboard_shm,
+                              new_child.hproc, new_child.in)) {
+        /*
+         * This error is fatal, mop up the child and move on
+         * We toggle the child's exit event to cause this child 
+         * to quit even as it is attempting to start.
+         */
+        SetEvent(hExitEvent);
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(waitlist[waitlist_ready]);
+        CloseHandle(new_child.hproc);
+        return -1;
+    }
+
+    /* Important:
+     * Give the child process a chance to run before dup'ing the sockets.
+     * We have already set the listening sockets noninheritable, but if 
+     * WSADuplicateSocket runs before the child process initializes
+     * the listeners will be inherited anyway.
      */
-    if (!(mask & APHTP_DELUSER)) {
-        i = mkrecord(user, record, sizeof(record) - 1,
-                     password, alg);
-        if (i != 0) {
-            apr_file_printf(errfile, "%s: %s\n", argv[0], record);
-            exit(i);
-        }
-        if (mask & APHTP_NOFILE) {
-            printf("%s\n", record);
-            exit(0);
-        }
+    waitlist[waitlist_term] = new_child.hproc;
+    rv = WaitForMultipleObjects(2, waitlist, FALSE, INFINITE);
+    CloseHandle(waitlist[waitlist_ready]);
+    if (rv != WAIT_OBJECT_0) {
+        /* 
+         * Outch... that isn't a ready signal. It's dead, Jim!
+         */
+        SetEvent(hExitEvent);
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(new_child.hproc);
+        return -1;
     }
 
-    /*
-     * We can access the files the right way, and we have a record
-     * to add or update.  Let's do it..
-     */
-    if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
-        exit(ERR_FILEPERM);
-    }
-    dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
-
-    if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
-                        argv[0], dirname);
-        exit(ERR_FILEPERM);
+    if (send_listeners_to_child(ptemp, new_child.pid, new_child.in)) {
+        /*
+         * This error is fatal, mop up the child and move on
+         * We toggle the child's exit event to cause this child 
+         * to quit even as it is attempting to start.
+         */
+        SetEvent(hExitEvent);
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(new_child.hproc);
+        return -1;
     }
 
-    /*
-     * If we're not creating a new file, copy records from the existing
-     * one to the temporary file until we find the specified user.
-     */
-    if (existing_file && !(mask & APHTP_NEWFILE)) {
-        if (apr_file_open(&fpw, pwfilename, APR_READ | APR_BUFFERED,
-                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
-            apr_file_printf(errfile, "%s: unable to read file %s\n", 
-                            argv[0], pwfilename);
-            exit(ERR_FILEPERM);
-        }
-        while (apr_file_gets(line, sizeof(line), fpw) == APR_SUCCESS) {
-            char *colon;
+    apr_file_close(new_child.in);
 
-            strcpy(cp, line);
-            scratch = cp;
-            while (apr_isspace(*scratch)) {
-                ++scratch;
-            }
+    *child_exit_event = hExitEvent;
+    *child_proc = new_child.hproc;
+    *child_pid = new_child.pid;
 
-            if (!*scratch || (*scratch == '#')) {
-                putline(ftemp, line);
-                continue;
-            }
-            /*
-             * See if this is our user.
-             */
-            colon = strchr(scratch, ':');
-            if (colon != NULL) {
-                *colon = '\0';
-            }
-            else {
-                /*
-                 * If we've not got a colon on the line, this could well 
-                 * not be a valid htpasswd file.
-                 * We should bail at this point.
-                 */
-                apr_file_printf(errfile, "\n%s: The file %s does not appear "
-                                         "to be a valid htpasswd file.\n",
-                                argv[0], pwfilename);
-                apr_file_close(fpw);
-                exit(ERR_INVALID);
-            }
-            if (strcmp(user, scratch) != 0) {
-                putline(ftemp, line);
-                continue;
-            }
-            else {
-                if (!(mask & APHTP_DELUSER)) {
-                    /* We found the user we were looking for.
-                     * Add him to the file.
-                    */
-                    apr_file_printf(errfile, "Updating ");
-                    putline(ftemp, record);
-                    found++;
-                }
-                else {
-                    /* We found the user we were looking for.
-                     * Delete them from the file.
-                     */
-                    apr_file_printf(errfile, "Deleting ");
-                    found++;
-                }
-            }
-        }
-        apr_file_close(fpw);
-    }
-    if (!found && !(mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "Adding ");
-        putline(ftemp, record);
-    }
-    else if (!found && (mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "User %s not found\n", user);
-        exit(0);
-    }
-    apr_file_printf(errfile, "password for user %s\n", user);
-
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
-        APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
-        exit(ERR_FILEPERM);
-    }
-    apr_file_close(ftemp);
     return 0;
 }

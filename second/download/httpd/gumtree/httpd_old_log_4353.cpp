@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "ssl_stapling_init_cert: no responder URL");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "proxy: CONNECT: read %" APR_OFF_T_FMT
+                          " bytes from %s", len, name);

@@ -1,31 +1,21 @@
-int xopen(const char *path, int oflag, ...)
+static int atomic_push_failure(struct send_pack_args *args,
+			       struct ref *remote_refs,
+			       struct ref *failing_ref)
 {
-	mode_t mode = 0;
-	va_list ap;
-
-	/*
-	 * va_arg() will have undefined behavior if the specified type is not
-	 * compatible with the argument type. Since integers are promoted to
-	 * ints, we fetch the next argument as an int, and then cast it to a
-	 * mode_t to avoid undefined behavior.
-	 */
-	va_start(ap, oflag);
-	if (oflag & O_CREAT)
-		mode = va_arg(ap, int);
-	va_end(ap);
-
-	for (;;) {
-		int fd = open(path, oflag, mode);
-		if (fd >= 0)
-			return fd;
-		if (errno == EINTR)
+	struct ref *ref;
+	/* Mark other refs as failed */
+	for (ref = remote_refs; ref; ref = ref->next) {
+		if (!ref->peer_ref && !args->send_mirror)
 			continue;
 
-		if ((oflag & O_RDWR) == O_RDWR)
-			die_errno(_("could not open '%s' for reading and writing"), path);
-		else if ((oflag & O_WRONLY) == O_WRONLY)
-			die_errno(_("could not open '%s' for writing"), path);
-		else
-			die_errno(_("could not open '%s' for reading"), path);
+		switch (ref->status) {
+		case REF_STATUS_EXPECTING_REPORT:
+			ref->status = REF_STATUS_ATOMIC_PUSH_FAILED;
+			continue;
+		default:
+			break; /* do nothing */
+		}
 	}
+	return error("atomic push failed for ref %s. status: %d\n",
+		     failing_ref->name, failing_ref->status);
 }

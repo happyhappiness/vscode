@@ -1,66 +1,49 @@
-static void log_tracing_state(MODSSL_INFO_CB_ARG_TYPE ssl, conn_rec *c, 
-                              server_rec *s, int where, int rc)
+static apr_bucket *cgi_bucket_create(request_rec *r,
+                                     apr_file_t *out, apr_file_t *err,
+                                     apr_bucket_alloc_t *list)
 {
-    /*
-     * create the various trace messages
-     */
-    if (where & SSL_CB_HANDSHAKE_START) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "%s: Handshake: start", SSL_LIBRARY_NAME);
-    }
-    else if (where & SSL_CB_HANDSHAKE_DONE) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "%s: Handshake: done", SSL_LIBRARY_NAME);
-    }
-    else if (where & SSL_CB_LOOP) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "%s: Loop: %s",
-                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-    }
-    else if (where & SSL_CB_READ) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "%s: Read: %s",
-                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-    }
-    else if (where & SSL_CB_WRITE) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "%s: Write: %s",
-                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-    }
-    else if (where & SSL_CB_ALERT) {
-        char *str = (where & SSL_CB_READ) ? "read" : "write";
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "%s: Alert: %s:%s:%s",
-                     SSL_LIBRARY_NAME, str,
-                     SSL_alert_type_string_long(rc),
-                     SSL_alert_desc_string_long(rc));
-    }
-    else if (where & SSL_CB_EXIT) {
-        if (rc == 0) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "%s: Exit: failed in %s",
-                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-        }
-        else if (rc < 0) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "%s: Exit: error in %s",
-                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-        }
+    apr_bucket *b = apr_bucket_alloc(sizeof(*b), list);
+    apr_status_t rv;
+    apr_pollfd_t fd;
+    struct cgi_bucket_data *data = apr_palloc(r->pool, sizeof *data);
+
+    APR_BUCKET_INIT(b);
+    b->free = apr_bucket_free;
+    b->list = list;
+    b->type = &bucket_type_cgi;
+    b->length = (apr_size_t)(-1);
+    b->start = -1;
+
+    /* Create the pollset */
+    rv = apr_pollset_create(&data->pollset, 2, r->pool, 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                     "cgi: apr_pollset_create(); check system or user limits");
+        return NULL;
     }
 
-    /*
-     * Because SSL renegotations can happen at any time (not only after
-     * SSL_accept()), the best way to log the current connection details is
-     * right after a finished handshake.
-     */
-    if (where & SSL_CB_HANDSHAKE_DONE) {
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Connection: Client IP: %s, Protocol: %s, "
-                     "Cipher: %s (%s/%s bits)",
-                     ssl_var_lookup(NULL, s, c, NULL, "REMOTE_ADDR"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_PROTOCOL"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
+    fd.desc_type = APR_POLL_FILE;
+    fd.reqevents = APR_POLLIN;
+    fd.p = r->pool;
+    fd.desc.f = out; /* script's stdout */
+    fd.client_data = (void *)1;
+    rv = apr_pollset_add(data->pollset, &fd);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                     "cgi: apr_pollset_add(); check system or user limits");
+        return NULL;
     }
+
+    fd.desc.f = err; /* script's stderr */
+    fd.client_data = (void *)2;
+    rv = apr_pollset_add(data->pollset, &fd);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                     "cgi: apr_pollset_add(); check system or user limits");
+        return NULL;
+    }
+
+    data->r = r;
+    b->data = data;
+    return b;
 }

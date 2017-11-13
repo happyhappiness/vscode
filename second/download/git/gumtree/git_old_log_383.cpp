@@ -1,2 +1,1 @@
-die("fetch-pack: unable to fork off sideband"
-			    " demultiplexer");
+die(_("reference repository '%s' is shallow"), item->string);

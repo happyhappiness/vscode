@@ -1,1 +1,0 @@
-die("BUG: fill_textconv called with non-textconv driver");

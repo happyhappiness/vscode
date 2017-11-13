@@ -1,2 +1,2 @@
-die(_("Please supply the note contents using either -m" \
-			    " or -F option"));
+die(_("parse_object_buffer failed on %s for %s"),
+		    sha1_to_hex(ref->objectname), ref->refname);

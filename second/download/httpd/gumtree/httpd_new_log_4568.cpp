@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00513)
-                         "WARNING: MaxRequestWorkers of %d is not an integer "
-                         "multiple of", max_workers);
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, s,
+                     "%s: fam %d socket created to connect to %s",
+                     proxy_function, backend_addr->family, worker->s->hostname);

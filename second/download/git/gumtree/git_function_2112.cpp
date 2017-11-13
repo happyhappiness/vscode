@@ -1,31 +1,25 @@
-int cmd_interpret_trailers(int argc, const char **argv, const char *prefix)
+static int cmd_reflog_exists(int argc, const char **argv, const char *prefix)
 {
-	int in_place = 0;
-	int trim_empty = 0;
-	struct string_list trailers = STRING_LIST_INIT_DUP;
+	int i, start = 0;
 
-	struct option options[] = {
-		OPT_BOOL(0, "in-place", &in_place, N_("edit files in place")),
-		OPT_BOOL(0, "trim-empty", &trim_empty, N_("trim empty trailers")),
-		OPT_STRING_LIST(0, "trailer", &trailers, N_("trailer"),
-				N_("trailer(s) to add")),
-		OPT_END()
-	};
-
-	argc = parse_options(argc, argv, prefix, options,
-			     git_interpret_trailers_usage, 0);
-
-	if (argc) {
-		int i;
-		for (i = 0; i < argc; i++)
-			process_trailers(argv[i], in_place, trim_empty, &trailers);
-	} else {
-		if (in_place)
-			die(_("no input file given for in-place editing"));
-		process_trailers(NULL, in_place, trim_empty, &trailers);
+	for (i = 1; i < argc; i++) {
+		const char *arg = argv[i];
+		if (!strcmp(arg, "--")) {
+			i++;
+			break;
+		}
+		else if (arg[0] == '-')
+			usage(reflog_exists_usage);
+		else
+			break;
 	}
 
-	string_list_clear(&trailers, 0);
+	start = i;
 
-	return 0;
+	if (argc - start != 1)
+		usage(reflog_exists_usage);
+
+	if (check_refname_format(argv[start], REFNAME_ALLOW_ONELEVEL))
+		die("invalid ref format: %s", argv[start]);
+	return !reflog_exists(argv[start]);
 }

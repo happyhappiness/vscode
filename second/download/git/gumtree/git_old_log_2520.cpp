@@ -1,3 +1,1 @@
-printf("%c %s %s\n", sign,
-		       find_unique_abbrev(commit->object.oid.hash, abbrev),
-		       buf.buf);
+die("internal error: packed refs not locked");

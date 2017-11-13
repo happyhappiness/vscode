@@ -1,1 +1,1 @@
-die("BUG: %s: not a valid attribute name", param);
+die("strange port '%s' blocked", port);

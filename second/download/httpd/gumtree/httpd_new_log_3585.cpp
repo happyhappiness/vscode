@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01531)
-                    MODNAME ": line=%d desc=%s", m->lineno, m->desc);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00636)
+                 "child init failed!");

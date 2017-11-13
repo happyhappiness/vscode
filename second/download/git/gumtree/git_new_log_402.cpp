@@ -1,1 +1,1 @@
-die("%s doesn't support --super-prefix", p->cmd);
+die(_("%s already exists"), git_dir);

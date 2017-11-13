@@ -1,101 +1,49 @@
-int ref_transaction_commit(struct ref_transaction *transaction,
-			   struct strbuf *err)
+static void load_tree(struct tree_entry *root)
 {
-	int ret = 0, delnum = 0, i;
-	const char **delnames;
-	int n = transaction->nr;
-	struct ref_update **updates = transaction->updates;
+	unsigned char *sha1 = root->versions[1].sha1;
+	struct object_entry *myoe;
+	struct tree_content *t;
+	unsigned long size;
+	char *buf;
+	const char *c;
 
-	assert(err);
+	root->tree = t = new_tree_content(8);
+	if (is_null_sha1(sha1))
+		return;
 
-	if (transaction->state != REF_TRANSACTION_OPEN)
-		die("BUG: commit called for transaction that is not open");
-
-	if (!n) {
-		transaction->state = REF_TRANSACTION_CLOSED;
-		return 0;
+	myoe = find_object(sha1);
+	if (myoe && myoe->pack_id != MAX_PACK_ID) {
+		if (myoe->type != OBJ_TREE)
+			die("Not a tree: %s", sha1_to_hex(sha1));
+		t->delta_depth = myoe->depth;
+		buf = gfi_unpack_entry(myoe, &size);
+		if (!buf)
+			die("Can't load tree %s", sha1_to_hex(sha1));
+	} else {
+		enum object_type type;
+		buf = read_sha1_file(sha1, &type, &size);
+		if (!buf || type != OBJ_TREE)
+			die("Can't load tree %s", sha1_to_hex(sha1));
 	}
 
-	/* Allocate work space */
-	delnames = xmalloc(sizeof(*delnames) * n);
+	c = buf;
+	while (c != (buf + size)) {
+		struct tree_entry *e = new_tree_entry();
 
-	/* Copy, sort, and reject duplicate refs */
-	qsort(updates, n, sizeof(*updates), ref_update_compare);
-	if (ref_update_reject_duplicates(updates, n, err)) {
-		ret = TRANSACTION_GENERIC_ERROR;
-		goto cleanup;
+		if (t->entry_count == t->entry_capacity)
+			root->tree = t = grow_tree_content(t, t->entry_count);
+		t->entries[t->entry_count++] = e;
+
+		e->tree = NULL;
+		c = get_mode(c, &e->versions[1].mode);
+		if (!c)
+			die("Corrupt mode in %s", sha1_to_hex(sha1));
+		e->versions[0].mode = e->versions[1].mode;
+		e->name = to_atom(c, strlen(c));
+		c += e->name->str_len + 1;
+		hashcpy(e->versions[0].sha1, (unsigned char *)c);
+		hashcpy(e->versions[1].sha1, (unsigned char *)c);
+		c += 20;
 	}
-
-	/* Acquire all locks while verifying old values */
-	for (i = 0; i < n; i++) {
-		struct ref_update *update = updates[i];
-		int flags = update->flags;
-
-		if (is_null_sha1(update->new_sha1))
-			flags |= REF_DELETING;
-		update->lock = lock_ref_sha1_basic(update->refname,
-						   (update->have_old ?
-						    update->old_sha1 :
-						    NULL),
-						   NULL,
-						   flags,
-						   &update->type);
-		if (!update->lock) {
-			ret = (errno == ENOTDIR)
-				? TRANSACTION_NAME_CONFLICT
-				: TRANSACTION_GENERIC_ERROR;
-			strbuf_addf(err, "Cannot lock the ref '%s'.",
-				    update->refname);
-			goto cleanup;
-		}
-	}
-
-	/* Perform updates first so live commits remain referenced */
-	for (i = 0; i < n; i++) {
-		struct ref_update *update = updates[i];
-
-		if (!is_null_sha1(update->new_sha1)) {
-			if (write_ref_sha1(update->lock, update->new_sha1,
-					   update->msg)) {
-				update->lock = NULL; /* freed by write_ref_sha1 */
-				strbuf_addf(err, "Cannot update the ref '%s'.",
-					    update->refname);
-				ret = TRANSACTION_GENERIC_ERROR;
-				goto cleanup;
-			}
-			update->lock = NULL; /* freed by write_ref_sha1 */
-		}
-	}
-
-	/* Perform deletes now that updates are safely completed */
-	for (i = 0; i < n; i++) {
-		struct ref_update *update = updates[i];
-
-		if (update->lock) {
-			if (delete_ref_loose(update->lock, update->type, err)) {
-				ret = TRANSACTION_GENERIC_ERROR;
-				goto cleanup;
-			}
-
-			if (!(update->flags & REF_ISPRUNING))
-				delnames[delnum++] = update->lock->ref_name;
-		}
-	}
-
-	if (repack_without_refs(delnames, delnum, err)) {
-		ret = TRANSACTION_GENERIC_ERROR;
-		goto cleanup;
-	}
-	for (i = 0; i < delnum; i++)
-		unlink_or_warn(git_path("logs/%s", delnames[i]));
-	clear_loose_ref_cache(&ref_cache);
-
-cleanup:
-	transaction->state = REF_TRANSACTION_CLOSED;
-
-	for (i = 0; i < n; i++)
-		if (updates[i]->lock)
-			unlock_ref(updates[i]->lock);
-	free(delnames);
-	return ret;
+	free(buf);
 }

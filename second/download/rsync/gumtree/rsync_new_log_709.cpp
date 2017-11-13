@@ -1,1 +1,1 @@
-out_of_memory("sanitize_path");
+fprintf(fp, "\n%s\n", D_(sub_transdom, opt->descrip));

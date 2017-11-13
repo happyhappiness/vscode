@@ -1,21 +1,30 @@
-static authz_status env_check_authorization(request_rec *r, const char *require_line)
+static void usage(const char *argv0, const char *reason)
 {
-    const char *t, *w;
-
-    /* The 'env' provider will allow the configuration to specify a list of
-        env variables to check rather than a single variable.  This is different
-        from the previous host based syntax. */
-    t = require_line;
-    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
-        if (apr_table_get(r->subprocess_env, w)) {
-            return AUTHZ_GRANTED;
-        }
+    if (reason) {
+        fprintf(stderr, "%s\n", reason);
     }
-
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "access to %s failed, reason: env variable list does not meet "
-                  "'require'ments for user '%s' to be allowed access",
-                  r->uri, r->user);
-
-    return AUTHZ_DENIED;
+    fprintf(stderr,
+            "Usage: %s [-l] [-f] <logfile> "
+            "{<rotation time in seconds>|<rotation size in megabytes>} "
+            "[offset minutes from UTC]\n\n",
+            argv0);
+#ifdef OS2
+    fprintf(stderr,
+            "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
+            argv0);
+#else
+    fprintf(stderr,
+            "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
+            argv0);
+    fprintf(stderr,
+            "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv0);
+#endif
+    fprintf(stderr,
+            "to httpd.conf. The generated name will be /some/where.nnnn "
+            "where nnnn is the\nsystem time at which the log nominally "
+            "starts (N.B. if using a rotation time,\nthe time will always "
+            "be a multiple of the rotation time, so you can synchronize\n"
+            "cron scripts with it). At the end of each rotation time or "
+            "when the file size\nis reached a new log is started.\n");
+    exit(1);
 }

@@ -1,71 +1,82 @@
-static int get_common_commits(void)
+static int write_entry(struct cache_entry *ce,
+		       char *path, const struct checkout *state, int to_tempfile)
 {
-	unsigned char sha1[20];
-	char last_hex[41];
-	int got_common = 0;
-	int got_other = 0;
-	int sent_ready = 0;
+	unsigned int ce_mode_s_ifmt = ce->ce_mode & S_IFMT;
+	int fd, ret, fstat_done = 0;
+	char *new;
+	struct strbuf buf = STRBUF_INIT;
+	unsigned long size;
+	size_t wrote, newsize = 0;
+	struct stat st;
 
-	save_commit_buffer = 0;
-
-	for (;;) {
-		char *line = packet_read_line(0, NULL);
-		reset_timeout();
-
-		if (!line) {
-			if (multi_ack == 2 && got_common
-			    && !got_other && ok_to_give_up()) {
-				sent_ready = 1;
-				packet_write(1, "ACK %s ready\n", last_hex);
-			}
-			if (have_obj.nr == 0 || multi_ack)
-				packet_write(1, "NAK\n");
-
-			if (no_done && sent_ready) {
-				packet_write(1, "ACK %s\n", last_hex);
-				return 0;
-			}
-			if (stateless_rpc)
-				exit(0);
-			got_common = 0;
-			got_other = 0;
-			continue;
-		}
-		if (starts_with(line, "have ")) {
-			switch (got_sha1(line+5, sha1)) {
-			case -1: /* they have what we do not */
-				got_other = 1;
-				if (multi_ack && ok_to_give_up()) {
-					const char *hex = sha1_to_hex(sha1);
-					if (multi_ack == 2) {
-						sent_ready = 1;
-						packet_write(1, "ACK %s ready\n", hex);
-					} else
-						packet_write(1, "ACK %s continue\n", hex);
-				}
-				break;
-			default:
-				got_common = 1;
-				memcpy(last_hex, sha1_to_hex(sha1), 41);
-				if (multi_ack == 2)
-					packet_write(1, "ACK %s common\n", last_hex);
-				else if (multi_ack)
-					packet_write(1, "ACK %s continue\n", last_hex);
-				else if (have_obj.nr == 1)
-					packet_write(1, "ACK %s\n", last_hex);
-				break;
-			}
-			continue;
-		}
-		if (!strcmp(line, "done")) {
-			if (have_obj.nr > 0) {
-				if (multi_ack)
-					packet_write(1, "ACK %s\n", last_hex);
-				return 0;
-			}
-			packet_write(1, "NAK\n");
-			return -1;
-		}
-		die("git upload-pack: expected SHA1 list, got '%s'", line);
+	if (ce_mode_s_ifmt == S_IFREG) {
+		struct stream_filter *filter = get_stream_filter(ce->name, ce->sha1);
+		if (filter &&
+		    !streaming_write_entry(ce, path, filter,
+					   state, to_tempfile,
+					   &fstat_done, &st))
+			goto finish;
 	}
+
+	switch (ce_mode_s_ifmt) {
+	case S_IFREG:
+	case S_IFLNK:
+		new = read_blob_entry(ce, &size);
+		if (!new)
+			return error("unable to read sha1 file of %s (%s)",
+				path, sha1_to_hex(ce->sha1));
+
+		if (ce_mode_s_ifmt == S_IFLNK && has_symlinks && !to_tempfile) {
+			ret = symlink(new, path);
+			free(new);
+			if (ret)
+				return error_errno("unable to create symlink %s",
+						   path);
+			break;
+		}
+
+		/*
+		 * Convert from git internal format to working tree format
+		 */
+		if (ce_mode_s_ifmt == S_IFREG &&
+		    convert_to_working_tree(ce->name, new, size, &buf)) {
+			free(new);
+			new = strbuf_detach(&buf, &newsize);
+			size = newsize;
+		}
+
+		fd = open_output_fd(path, ce, to_tempfile);
+		if (fd < 0) {
+			free(new);
+			return error_errno("unable to create file %s", path);
+		}
+
+		wrote = write_in_full(fd, new, size);
+		if (!to_tempfile)
+			fstat_done = fstat_output(fd, state, &st);
+		close(fd);
+		free(new);
+		if (wrote != size)
+			return error("unable to write file %s", path);
+		break;
+	case S_IFGITLINK:
+		if (to_tempfile)
+			return error("cannot create temporary submodule %s", path);
+		if (mkdir(path, 0777) < 0)
+			return error("cannot create submodule directory %s", path);
+		break;
+	default:
+		return error("unknown file mode for %s in index", path);
+	}
+
+finish:
+	if (state->refresh_cache) {
+		assert(state->istate);
+		if (!fstat_done)
+			lstat(ce->name, &st);
+		fill_stat_cache_info(ce, &st);
+		ce->ce_flags |= CE_UPDATE_IN_BASE;
+		state->istate->cache_changed |= CE_ENTRY_CHANGED;
+	}
+	return 0;
 }

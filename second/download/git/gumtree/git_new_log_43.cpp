@@ -1,1 +1,1 @@
-die_errno("unable to open %s for reading", filename);
+die("--refmap option is only meaningful with command-line refspec(s).");

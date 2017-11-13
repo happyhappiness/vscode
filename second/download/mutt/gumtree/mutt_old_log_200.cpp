@@ -1,1 +1,1 @@
-state_attach_puts (_("Error: copy data failed\n"), s);
+state_attach_puts ("\n", s);

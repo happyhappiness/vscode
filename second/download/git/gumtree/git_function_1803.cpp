@@ -1,65 +1,62 @@
-static void show_rebase_in_progress(struct wt_status *s,
-				struct wt_status_state *state,
-				const char *color)
+static int print_one_push_status(struct ref *ref, const char *dest, int count, int porcelain)
 {
-	struct stat st;
+	if (!count)
+		fprintf(porcelain ? stdout : stderr, "To %s\n", dest);
 
-	if (has_unmerged(s)) {
-		if (state->branch)
-			status_printf_ln(s, color,
-					 _("You are currently rebasing branch '%s' on '%s'."),
-					 state->branch,
-					 state->onto);
-		else
-			status_printf_ln(s, color,
-					 _("You are currently rebasing."));
-		if (s->hints) {
-			status_printf_ln(s, color,
-				_("  (fix conflicts and then run \"git rebase --continue\")"));
-			status_printf_ln(s, color,
-				_("  (use \"git rebase --skip\" to skip this patch)"));
-			status_printf_ln(s, color,
-				_("  (use \"git rebase --abort\" to check out the original branch)"));
-		}
-	} else if (state->rebase_in_progress || !stat(git_path("MERGE_MSG"), &st)) {
-		if (state->branch)
-			status_printf_ln(s, color,
-					 _("You are currently rebasing branch '%s' on '%s'."),
-					 state->branch,
-					 state->onto);
-		else
-			status_printf_ln(s, color,
-					 _("You are currently rebasing."));
-		if (s->hints)
-			status_printf_ln(s, color,
-				_("  (all conflicts fixed: run \"git rebase --continue\")"));
-	} else if (split_commit_in_progress(s)) {
-		if (state->branch)
-			status_printf_ln(s, color,
-					 _("You are currently splitting a commit while rebasing branch '%s' on '%s'."),
-					 state->branch,
-					 state->onto);
-		else
-			status_printf_ln(s, color,
-					 _("You are currently splitting a commit during a rebase."));
-		if (s->hints)
-			status_printf_ln(s, color,
-				_("  (Once your working directory is clean, run \"git rebase --continue\")"));
-	} else {
-		if (state->branch)
-			status_printf_ln(s, color,
-					 _("You are currently editing a commit while rebasing branch '%s' on '%s'."),
-					 state->branch,
-					 state->onto);
-		else
-			status_printf_ln(s, color,
-					 _("You are currently editing a commit during a rebase."));
-		if (s->hints && !s->amend) {
-			status_printf_ln(s, color,
-				_("  (use \"git commit --amend\" to amend the current commit)"));
-			status_printf_ln(s, color,
-				_("  (use \"git rebase --continue\" once you are satisfied with your changes)"));
-		}
+	switch(ref->status) {
+	case REF_STATUS_NONE:
+		print_ref_status('X', "[no match]", ref, NULL, NULL, porcelain);
+		break;
+	case REF_STATUS_REJECT_NODELETE:
+		print_ref_status('!', "[rejected]", ref, NULL,
+						 "remote does not support deleting refs", porcelain);
+		break;
+	case REF_STATUS_UPTODATE:
+		print_ref_status('=', "[up to date]", ref,
+						 ref->peer_ref, NULL, porcelain);
+		break;
+	case REF_STATUS_REJECT_NONFASTFORWARD:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "non-fast-forward", porcelain);
+		break;
+	case REF_STATUS_REJECT_ALREADY_EXISTS:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "already exists", porcelain);
+		break;
+	case REF_STATUS_REJECT_FETCH_FIRST:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "fetch first", porcelain);
+		break;
+	case REF_STATUS_REJECT_NEEDS_FORCE:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "needs force", porcelain);
+		break;
+	case REF_STATUS_REJECT_STALE:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "stale info", porcelain);
+		break;
+	case REF_STATUS_REJECT_SHALLOW:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "new shallow roots not allowed", porcelain);
+		break;
+	case REF_STATUS_REMOTE_REJECT:
+		print_ref_status('!', "[remote rejected]", ref,
+						 ref->deletion ? NULL : ref->peer_ref,
+						 ref->remote_status, porcelain);
+		break;
+	case REF_STATUS_EXPECTING_REPORT:
+		print_ref_status('!', "[remote failure]", ref,
+						 ref->deletion ? NULL : ref->peer_ref,
+						 "remote failed to report status", porcelain);
+		break;
+	case REF_STATUS_ATOMIC_PUSH_FAILED:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "atomic push failed", porcelain);
+		break;
+	case REF_STATUS_OK:
+		print_ok_ref_status(ref, porcelain);
+		break;
 	}
-	wt_status_print_trailer(s);
+
+	return 1;
 }

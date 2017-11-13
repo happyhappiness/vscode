@@ -1,40 +1,79 @@
-static void relocate_single_git_dir_into_superproject(const char *prefix,
-						      const char *path)
+static int rm(int argc, const char **argv)
 {
-	char *old_git_dir = NULL, *real_old_git_dir = NULL, *real_new_git_dir = NULL;
-	const char *new_git_dir;
-	const struct submodule *sub;
+	struct option options[] = {
+		OPT_END()
+	};
+	struct remote *remote;
+	struct strbuf buf = STRBUF_INIT;
+	struct known_remotes known_remotes = { NULL, NULL };
+	struct string_list branches = STRING_LIST_INIT_DUP;
+	struct string_list skipped = STRING_LIST_INIT_DUP;
+	struct branches_for_remote cb_data;
+	int i, result;
 
-	if (submodule_uses_worktrees(path))
-		die(_("relocate_gitdir for submodule '%s' with "
-		      "more than one worktree not supported"), path);
+	memset(&cb_data, 0, sizeof(cb_data));
+	cb_data.branches = &branches;
+	cb_data.skipped = &skipped;
+	cb_data.keep = &known_remotes;
 
-	old_git_dir = xstrfmt("%s/.git", path);
-	if (read_gitfile(old_git_dir))
-		/* If it is an actual gitfile, it doesn't need migration. */
-		return;
+	if (argc != 2)
+		usage_with_options(builtin_remote_rm_usage, options);
 
-	real_old_git_dir = real_pathdup(old_git_dir, 1);
+	remote = remote_get(argv[1]);
+	if (!remote_is_configured(remote, 1))
+		die(_("No such remote: %s"), argv[1]);
 
-	sub = submodule_from_path(null_sha1, path);
-	if (!sub)
-		die(_("could not lookup name for submodule '%s'"), path);
+	known_remotes.to_delete = remote;
+	for_each_remote(add_known_remote, &known_remotes);
 
-	new_git_dir = git_path("modules/%s", sub->name);
-	if (safe_create_leading_directories_const(new_git_dir) < 0)
-		die(_("could not create directory '%s'"), new_git_dir);
-	real_new_git_dir = real_pathdup(new_git_dir, 1);
+	read_branches();
+	for (i = 0; i < branch_list.nr; i++) {
+		struct string_list_item *item = branch_list.items + i;
+		struct branch_info *info = item->util;
+		if (info->remote_name && !strcmp(info->remote_name, remote->name)) {
+			const char *keys[] = { "remote", "merge", NULL }, **k;
+			for (k = keys; *k; k++) {
+				strbuf_reset(&buf);
+				strbuf_addf(&buf, "branch.%s.%s",
+						item->string, *k);
+				result = git_config_set_gently(buf.buf, NULL);
+				if (result && result != CONFIG_NOTHING_SET)
+					die(_("could not unset '%s'"), buf.buf);
+			}
+		}
+	}
 
-	if (!prefix)
-		prefix = get_super_prefix();
+	/*
+	 * We cannot just pass a function to for_each_ref() which deletes
+	 * the branches one by one, since for_each_ref() relies on cached
+	 * refs, which are invalidated when deleting a branch.
+	 */
+	cb_data.remote = remote;
+	result = for_each_ref(add_branch_for_removal, &cb_data);
+	strbuf_release(&buf);
 
-	fprintf(stderr, _("Migrating git directory of '%s%s' from\n'%s' to\n'%s'\n"),
-		prefix ? prefix : "", path,
-		real_old_git_dir, real_new_git_dir);
+	if (!result)
+		result = delete_refs(&branches, REF_NODEREF);
+	string_list_clear(&branches, 0);
 
-	relocate_gitdir(path, real_old_git_dir, real_new_git_dir);
+	if (skipped.nr) {
+		fprintf_ln(stderr,
+			   Q_("Note: A branch outside the refs/remotes/ hierarchy was not removed;\n"
+			      "to delete it, use:",
+			      "Note: Some branches outside the refs/remotes/ hierarchy were not removed;\n"
+			      "to delete them, use:",
+			      skipped.nr));
+		for (i = 0; i < skipped.nr; i++)
+			fprintf(stderr, "  git branch -d %s\n",
+				skipped.items[i].string);
+	}
+	string_list_clear(&skipped, 0);
 
-	free(old_git_dir);
-	free(real_old_git_dir);
-	free(real_new_git_dir);
+	if (!result) {
+		strbuf_addf(&buf, "remote.%s", remote->name);
+		if (git_config_rename_section(buf.buf, NULL) < 1)
+			return error(_("Could not remove config section '%s'"), buf.buf);
+	}
+
+	return result;
 }

@@ -1,11 +1,10 @@
 fputs(
-"              When  used  with  -s  it  makes curl show an error message if it\n"
-"              fails.\n"
+"              a  redirection.  This  option  is meaningful only when using -L,\n"
+"              --location (Added in 7.19.1)\n"
 "\n"
-"       --ssl  (FTP, POP3, IMAP, SMTP) Try to use SSL/TLS for  the  connection.\n"
-"              Reverts to a non-secure connection if the server doesn't support\n"
-"              SSL/TLS.  See also --ftp-ssl-control and --ssl-reqd for  differ-\n"
-"              ent levels of encryption required. (Added in 7.20.0)\n"
-"\n"
-"              This  option  was formerly known as --ftp-ssl (Added in 7.11.0).\n"
+"       --post303\n"
+"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
+"              POST  requests  into GET requests when following a 303 redirect-\n"
+"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
+"              curl  does  the  conversion  by default to maintain consistency.\n"
 , stdout);

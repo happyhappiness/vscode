@@ -1,11 +1,8 @@
 fputs(
-"              (TLS) By default, every SSL connection curl makes is verified to\n"
-"              be  secure.  This option allows curl to proceed and operate even\n"
-"              for server connections otherwise considered insecure.\n"
-"\n"
-"              The server connection is verified by making  sure  the  server's\n"
-"              certificate  contains  the  right name and verifies successfully\n"
-"              using the cert store.\n"
-"\n"
-"              See this online resource for further details:\n"
+"              to  a  server. You may specify any number of extra headers. Note\n"
+"              that if you should add a custom header that has the same name as\n"
+"              one  of  the  internal  ones curl would use, your externally set\n"
+"              header will be used instead of the internal one. This allows you\n"
+"              to  make  even  trickier  stuff than curl would normally do. You\n"
+"              should not replace internally set headers without  knowing  per-\n"
 , stdout);

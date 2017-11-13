@@ -1,115 +1,89 @@
-static void usage(process_rec *process)
+int ssl_io_buffer_fill(request_rec *r)
 {
-    const char *bin = process->argv[0];
-    char pad[MAX_STRING_LEN];
-    unsigned i;
+    conn_rec *c = r->connection;
+    struct modssl_buffer_ctx *ctx;
+    apr_bucket_brigade *tempb;
+    apr_off_t total = 0; /* total length buffered */
+    int eos = 0; /* non-zero once EOS is seen */
+    
+    /* Create the context which will be passed to the input filter;
+     * containing a setaside pool and a brigade which constrain the
+     * lifetime of the buffered data. */
+    ctx = apr_palloc(r->pool, sizeof *ctx);
+    apr_pool_create(&ctx->pool, r->pool);
+    ctx->bb = apr_brigade_create(ctx->pool, c->bucket_alloc);
 
-    for (i = 0; i < strlen(bin); i++) {
-        pad[i] = ' ';
-    }
+    /* ... and a temporary brigade. */
+    tempb = apr_brigade_create(r->pool, c->bucket_alloc);
 
-    pad[i] = '\0';
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "filling buffer");
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL ,
-                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
-                 bin);
-#else
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
-#endif
+    do {
+        apr_status_t rv;
+        apr_bucket *e, *next;
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-C \"directive\"] [-c \"directive\"]", pad);
+        /* The request body is read from the protocol-level input
+         * filters; the buffering filter will reinject it from that
+         * level, allowing content/resource filters to run later, if
+         * necessary. */
 
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k install|config|uninstall] [-n service_name]",
-                 pad);
-#endif
-#ifdef AP_MPM_WANT_SIGNAL_SERVER
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k start|restart|graceful|stop]",
-                 pad);
-#endif
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Options:");
+        rv = ap_get_brigade(r->proto_input_filters, tempb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, 8192);
+        if (rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "could not read request body for SSL buffer");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        
+        /* Iterate through the returned brigade: setaside each bucket
+         * into the context's pool and move it into the brigade. */
+        for (e = APR_BRIGADE_FIRST(tempb); 
+             e != APR_BRIGADE_SENTINEL(tempb) && !eos; e = next) {
+            const char *data;
+            apr_size_t len;
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -R directory      : specify an alternate location for "
-                 "shared object files");
-#endif
+            next = APR_BUCKET_NEXT(e);
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -D name           : define a name for use in "
-                 "<IfDefine name> directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -d directory      : specify an alternate initial "
-                 "ServerRoot");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -f file           : specify an alternate ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -C \"directive\"    : process directive before reading "
-                 "config files");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -c \"directive\"    : process directive after reading "
-                 "config files");
+            if (APR_BUCKET_IS_EOS(e)) {
+                eos = 1;
+            } else if (!APR_BUCKET_IS_METADATA(e)) {
+                rv = apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+                if (rv != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "could not read bucket for SSL buffer");
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+                total += len;
+            }
+                
+            rv = apr_bucket_setaside(e, ctx->pool);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "could not setaside bucket for SSL buffer");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            
+            APR_BUCKET_REMOVE(e);
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
+        }
 
-#ifdef NETWARE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set screen name");
-#endif
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set service name and use its "
-                 "ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k start          : tell Apache to start");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k restart        : tell running Apache to do a graceful "
-                 "restart");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k stop|shutdown  : tell running Apache to shutdown");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k install        : install an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k config         : change startup Options of an Apache "
-                 "service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k uninstall      : uninstall an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -w                : hold open the console window on error");
-#endif
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
+                      total, eos);
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -e level          : show startup errors of level "
-                 "(see LogLevel)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -E file           : log startup errors to file");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -v                : show version number");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -V                : show compile settings");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -h                : list available command line options "
-                 "(this page)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -l                : list compiled in modules");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -L                : list available configuration "
-                 "directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t -D DUMP_VHOSTS : show parsed settings (currently only "
-                 "vhost settings)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -S                : a synonym for -t -D DUMP_VHOSTS");   
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t                : run syntax check for config files");
+        /* Fail if this exceeds the maximum buffer size. */
+        if (total > SSL_MAX_IO_BUFFER) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request body exceeds maximum size for SSL buffer");
+            return HTTP_REQUEST_ENTITY_TOO_LARGE;
+        }
 
-    destroy_and_exit_process(process, 1);
+    } while (!eos);
+
+    apr_brigade_destroy(tempb);
+
+    /* Insert the filter which will supply the buffered data. */
+    ap_add_input_filter(ssl_io_buffer, ctx, r, c);
+
+    return 0;
 }

@@ -1,3 +1,1 @@
-warning("skipping rename detection, detected"
-					" duplicate destination '%s'",
-					p->two->path);
+error("Could not write flush packet");

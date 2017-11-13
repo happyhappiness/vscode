@@ -1,6 +1,7 @@
-static int error_short_read(struct line_buffer *input)
+int svndump_init(const char *filename)
 {
-	if (buffer_ferror(input))
-		return error("error reading delta: %s", strerror(errno));
-	return error("invalid delta: unexpected end of file");
+	if (buffer_init(&input, filename))
+		return error("cannot open %s: %s", filename ? filename : "NULL", strerror(errno));
+	init(REPORT_FILENO);
+	return 0;
 }

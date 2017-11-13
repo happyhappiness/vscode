@@ -1,1 +1,0 @@
-warnf(config->global, "curl_mime_encoder failed!\n");

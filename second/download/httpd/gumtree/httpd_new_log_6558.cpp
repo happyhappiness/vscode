@@ -1,1 +1,1 @@
-fprintf(stderr, "Error: %s\n", h->ctx.errstr);
+APR_BUCKET_INSERT_BEFORE(body_bucket, bresp);

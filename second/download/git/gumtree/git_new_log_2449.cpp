@@ -1,2 +1,2 @@
-die(_("Badly quoted content in file '%s': %s"),
-			    filename, str.buf);
+error("Could not read %s",
+			     oid_to_hex(&item->object.oid));

@@ -1,6 +1,2 @@
-ap_rputs("\n\n<table><tr>"
-                "<th>Worker URL</th>"
-                "<th>Route</th><th>RouteRedir</th>"
-                "<th>Factor</th><th>Set</th><th>Status</th>"
-                "<th>Elected</th><th>Busy</th><th>Load</th><th>To</th><th>From</th>"
-                "</tr>\n", r);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
+                      "h2_task(%s), serialized handling", ctx->task_env->id);

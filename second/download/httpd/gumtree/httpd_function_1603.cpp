@@ -1,398 +1,188 @@
-static void output_directories(struct ent **ar, int n,
-                               autoindex_config_rec *d, request_rec *r,
-                               apr_int32_t autoindex_opts, char keyid,
-                               char direction, const char *colargs)
+int ap_mpm_run(apr_pool_t * _pconf, apr_pool_t * plog, server_rec * s)
 {
-    int x;
-    apr_size_t rv;
-    char *name = r->uri;
-    char *tp;
-    int static_columns = !!(autoindex_opts & SUPPRESS_COLSORT);
-    apr_pool_t *scratch;
-    int name_width;
-    int desc_width;
-    char *name_scratch;
-    char *pad_scratch;
-    char *breakrow = "";
+    int remaining_children_to_start;
 
-    apr_pool_create(&scratch, r->pool);
-    if (name[0] == '\0') {
-        name = "/";
+    ap_log_pid(pconf, ap_pid_fname);
+
+    first_server_limit = server_limit;
+    first_thread_limit = thread_limit;
+
+    if (changed_limit_at_restart) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "WARNING: Attempt to change ServerLimit or ThreadLimit "
+                     "ignored during restart");
+        changed_limit_at_restart = 0;
     }
 
-    name_width = d->name_width;
-    desc_width = d->desc_width;
-
-    if ((autoindex_opts & (FANCY_INDEXING | TABLE_INDEXING))
-                        == FANCY_INDEXING) {
-        if (d->name_adjust == K_ADJUST) {
-            for (x = 0; x < n; x++) {
-                int t = strlen(ar[x]->name);
-                if (t > name_width) {
-                    name_width = t;
-                }
-            }
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
+            mpm_state = AP_MPMQ_STOPPING;
+            return 1;
         }
-
-        if (d->desc_adjust == K_ADJUST) {
-            for (x = 0; x < n; x++) {
-                if (ar[x]->desc != NULL) {
-                    int t = strlen(ar[x]->desc);
-                    if (t > desc_width) {
-                        desc_width = t;
-                    }
-                }
-            }
-        }
-    }
-    name_scratch = apr_palloc(r->pool, name_width + 1);
-    pad_scratch = apr_palloc(r->pool, name_width + 1);
-    memset(pad_scratch, ' ', name_width);
-    pad_scratch[name_width] = '\0';
-
-    if (autoindex_opts & TABLE_INDEXING) {
-        int cols = 1;
-        if (d->style_sheet != NULL) {
-            /* Emit table with style id */
-            ap_rputs("  <table id=\"indexlist\">\n   <tr class=\"indexhead\">", r);
-        } else {
-            ap_rputs("  <table>\n   <tr>", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_ICON)) {
-            ap_rvputs(r, "<th", (d->style_sheet != NULL) ? " class=\"indexcolicon\">" : " valign=\"top\">", NULL);
-            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
-                             "\" alt=\"[ICO]\"", NULL);
-                if (d->icon_width) {
-                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                }
-                if (d->icon_height) {
-                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                }
-
-                if (autoindex_opts & EMIT_XHTML) {
-                    ap_rputs(" /", r);
-                }
-                ap_rputs("></th>", r);
-            }
-            else {
-                ap_rputs("&nbsp;</th>", r);
-            }
-
-            ++cols;
-        }
-        ap_rvputs(r, "<th", (d->style_sheet != NULL) ? " class=\"indexcolname\">" : ">", NULL);
-        emit_link(r, "Name", K_NAME, keyid, direction,
-                  colargs, static_columns);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            ap_rvputs(r, "</th><th", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : ">", NULL);
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            ap_rvputs(r, "</th><th", (d->style_sheet != NULL) ? " class=\"indexcolsize\">" : ">", NULL);
-            emit_link(r, "Size", K_SIZE, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            ap_rvputs(r, "</th><th", (d->style_sheet != NULL) ? " class=\"indexcoldesc\">" : ">", NULL);
-            emit_link(r, "Description", K_DESC, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            breakrow = apr_psprintf(r->pool,
-                                    "   <tr%s><th colspan=\"%d\">"
-                                    "<hr%s></th></tr>\n",
-                                    (d->style_sheet != NULL) ? " class=\"indexbreakrow\"" : "",
-                                    cols,
-                                    (autoindex_opts & EMIT_XHTML) ? " /" : "");
-        }
-        ap_rvputs(r, "</th></tr>\n", breakrow, NULL);
-    }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        ap_rputs("<pre>", r);
-        if (!(autoindex_opts & SUPPRESS_ICON)) {
-            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
-                             "\" alt=\"Icon \"", NULL);
-                if (d->icon_width) {
-                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                }
-                if (d->icon_height) {
-                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                }
-
-                if (autoindex_opts & EMIT_XHTML) {
-                    ap_rputs(" /", r);
-                }
-                ap_rputs("> ", r);
-            }
-            else {
-                ap_rputs("      ", r);
-            }
-        }
-        emit_link(r, "Name", K_NAME, keyid, direction,
-                  colargs, static_columns);
-        ap_rputs(pad_scratch + 4, r);
-        /*
-         * Emit the guaranteed-at-least-one-space-between-columns byte.
+        /* fix the generation number in the global score; we just got a new,
+         * cleared scoreboard
          */
-        ap_rputs(" ", r);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-                      colargs, static_columns);
-            ap_rputs("      ", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            emit_link(r, "Size", K_SIZE, keyid, direction,
-                      colargs, static_columns);
-            ap_rputs("  ", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            emit_link(r, "Description", K_DESC, keyid, direction,
-                      colargs, static_columns);
-        }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            ap_rputs("<hr", r);
-            if (autoindex_opts & EMIT_XHTML) {
-                ap_rputs(" /", r);
-            }
-            ap_rputs(">", r);
-        }
-        else {
-            ap_rputc('\n', r);
-        }
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
+    }
+
+    set_signals();
+    /* Don't thrash... */
+    if (max_spare_threads < min_spare_threads + ap_threads_per_child)
+        max_spare_threads = min_spare_threads + ap_threads_per_child;
+
+    /* If we're doing a graceful_restart then we're going to see a lot
+     * of children exiting immediately when we get into the main loop
+     * below (because we just sent them AP_SIG_GRACEFUL).  This happens pretty
+     * rapidly... and for each one that exits we'll start a new one until
+     * we reach at least daemons_min_free.  But we may be permitted to
+     * start more than that, so we'll just keep track of how many we're
+     * supposed to start up without the 1 second penalty between each fork.
+     */
+    remaining_children_to_start = ap_daemons_to_start;
+    if (remaining_children_to_start > ap_daemons_limit) {
+        remaining_children_to_start = ap_daemons_limit;
+    }
+    if (!is_graceful) {
+        startup_children(remaining_children_to_start);
+        remaining_children_to_start = 0;
     }
     else {
-        ap_rputs("<ul>", r);
+        /* give the system some time to recover before kicking into
+         * exponential mode */
+        hold_off_on_exponential_spawning = 10;
     }
 
-    for (x = 0; x < n; x++) {
-        char *anchor, *t, *t2;
-        int nwidth;
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                 "%s configured -- resuming normal operations",
+                 ap_get_server_version());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                 "Server built: %s", ap_get_server_built());
 
-        apr_pool_clear(scratch);
+    restart_pending = shutdown_pending = 0;
+    mpm_state = AP_MPMQ_RUNNING;
 
-        t = ar[x]->name;
-        anchor = ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0));
+    server_main_loop(remaining_children_to_start);
+    mpm_state = AP_MPMQ_STOPPING;
 
-        if (!x && t[0] == '/') {
-            t2 = "Parent Directory";
+    if (shutdown_pending && !is_graceful) {
+        /* Time to shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         */
+        ap_mpm_pod_killpg(pod, ap_daemons_limit, FALSE);
+        ap_reclaim_child_processes(1);  /* Start with SIGTERM */
+
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            const char *pidfile = NULL;
+            pidfile = ap_server_root_relative(pconf, ap_pid_fname);
+            if (pidfile != NULL && unlink(pidfile) == 0)
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%ld)",
+                             pidfile, (long) getpid());
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");
         }
-        else {
-            t2 = t;
+        return 1;
+    } else if (shutdown_pending) {
+        /* Time to gracefully shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         */
+        int active_children;
+        int index;
+        apr_time_t cutoff = 0;
+
+        /* Close our listeners, and then ask our children to do same */
+        ap_close_listeners();
+        ap_mpm_pod_killpg(pod, ap_daemons_limit, TRUE);
+        ap_relieve_child_processes();
+
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            const char *pidfile = NULL;
+            pidfile = ap_server_root_relative (pconf, ap_pid_fname);
+            if ( pidfile != NULL && unlink(pidfile) == 0)
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%ld)",
+                             pidfile, (long)getpid());
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");
         }
 
-        if (autoindex_opts & TABLE_INDEXING) {
-            /* Even/Odd rows for IndexStyleSheet */
-            if (d->style_sheet != NULL) {
-                if (ar[x]->alt && (autoindex_opts & ADDALTCLASS)) {
-                    /* Include alt text in class name, distinguish between odd and even rows */
-                    char *altclass = apr_pstrdup(scratch, ar[x]->alt);
-                    ap_str_tolower(altclass);
-                    ap_rvputs(r, "   <tr class=\"", ( x & 0x1) ? "odd-" : "even-", altclass, "\">", NULL);
-                } else {
-                    /* Distinguish between odd and even rows */
-                    ap_rvputs(r, "   <tr class=\"", ( x & 0x1) ? "odd" : "even", "\">", NULL);
-                }
-            } else {
-                ap_rputs("<tr>", r);
-            }
+        /* Don't really exit until each child has finished */
+        shutdown_pending = 0;
+        do {
+            /* Pause for a second */
+            apr_sleep(apr_time_from_sec(1));
 
-            if (!(autoindex_opts & SUPPRESS_ICON)) {
-                ap_rvputs(r, "<td", (d->style_sheet != NULL) ? " class=\"indexcolicon\">" : " valign=\"top\">", NULL);
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
-                }
-                if ((ar[x]->icon) || d->default_icon) {
-                    ap_rvputs(r, "<img src=\"",
-                              ap_escape_html(scratch,
-                                             ar[x]->icon ? ar[x]->icon
-                                                         : d->default_icon),
-                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-                              "]\"", NULL);
-                    if (d->icon_width) {
-                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                    }
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
+            /* Relieve any children which have now exited */
+            ap_relieve_child_processes();
 
-                    if (autoindex_opts & EMIT_XHTML) {
-                        ap_rputs(" /", r);
-                    }
-                    ap_rputs(">", r);
-                }
-                else {
-                    ap_rputs("&nbsp;", r);
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a></td>", r);
-                }
-                else {
-                    ap_rputs("</td>", r);
-                }
-            }
-            if (d->name_adjust == K_ADJUST) {
-                ap_rvputs(r, "<td", (d->style_sheet != NULL) ? " class=\"indexcolname\">" : ">", "<a href=\"", anchor, "\">",
-                          ap_escape_html(scratch, t2), "</a>", NULL);
-            }
-            else {
-                nwidth = strlen(t2);
-                if (nwidth > name_width) {
-                  memcpy(name_scratch, t2, name_width - 3);
-                  name_scratch[name_width - 3] = '.';
-                  name_scratch[name_width - 2] = '.';
-                  name_scratch[name_width - 1] = '>';
-                  name_scratch[name_width] = 0;
-                  t2 = name_scratch;
-                  nwidth = name_width;
-                }
-                ap_rvputs(r, "<td", (d->style_sheet != NULL) ? " class=\"indexcolname\">" : ">", "<a href=\"", anchor, "\">",
-                          ap_escape_html(scratch, t2),
-                          "</a>", pad_scratch + nwidth, NULL);
-            }
-            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-                if (ar[x]->lm != -1) {
-                    char time_str[MAX_STRING_LEN];
-                    apr_time_exp_t ts;
-                    apr_time_exp_lt(&ts, ar[x]->lm);
-                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
-                                 "%Y-%m-%d %H:%M  ",
-                                 &ts);
-                    ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : " align=\"right\">",time_str, NULL);
-                }
-                else {
-                    ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">&nbsp;" : ">&nbsp;", NULL);
-                }
-            }
-            if (!(autoindex_opts & SUPPRESS_SIZE)) {
-                char buf[5];
-                ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcolsize\">" : " align=\"right\">",
-                          apr_strfsize(ar[x]->size, buf), NULL);
-            }
-            if (!(autoindex_opts & SUPPRESS_DESC)) {
-                if (ar[x]->desc) {
-                    if (d->desc_adjust == K_ADJUST) {
-                        ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcoldesc\">" : ">", ar[x]->desc, NULL);
-                    }
-                    else {
-                        ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcoldesc\">" : ">",
-                                  terminate_description(d, ar[x]->desc,
-                                                        autoindex_opts,
-                                                        desc_width), NULL);
+            active_children = 0;
+            for (index = 0; index < ap_daemons_limit; ++index) {
+                if (MPM_CHILD_PID(index) != 0) {
+                    if (kill(MPM_CHILD_PID(index), 0) == 0) {
+                            active_children = 1;
+                            /* Having just one child is enough to stay around */
+                            break;
                     }
                 }
-                else {
-                    ap_rputs("</td><td>&nbsp;", r);
-                }
             }
-            ap_rputs("</td></tr>\n", r);
-        }
-        else if (autoindex_opts & FANCY_INDEXING) {
-            if (!(autoindex_opts & SUPPRESS_ICON)) {
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
-                }
-                if ((ar[x]->icon) || d->default_icon) {
-                    ap_rvputs(r, "<img src=\"",
-                              ap_escape_html(scratch,
-                                             ar[x]->icon ? ar[x]->icon
-                                                         : d->default_icon),
-                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-                              "]\"", NULL);
-                    if (d->icon_width) {
-                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                    }
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
+        } while (!shutdown_pending && active_children &&
+                 (!ap_graceful_shutdown_timeout || apr_time_now() < cutoff));
 
-                    if (autoindex_opts & EMIT_XHTML) {
-                        ap_rputs(" /", r);
-                    }
-                    ap_rputs(">", r);
-                }
-                else {
-                    ap_rputs("     ", r);
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a> ", r);
-                }
-                else {
-                    ap_rputc(' ', r);
-                }
-            }
-            nwidth = strlen(t2);
-            if (nwidth > name_width) {
-                memcpy(name_scratch, t2, name_width - 3);
-                name_scratch[name_width - 3] = '.';
-                name_scratch[name_width - 2] = '.';
-                name_scratch[name_width - 1] = '>';
-                name_scratch[name_width] = 0;
-                t2 = name_scratch;
-                nwidth = name_width;
-            }
-            ap_rvputs(r, "<a href=\"", anchor, "\">",
-                      ap_escape_html(scratch, t2),
-                      "</a>", pad_scratch + nwidth, NULL);
-            /*
-             * The blank before the storm.. er, before the next field.
-             */
-            ap_rputs(" ", r);
-            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-                if (ar[x]->lm != -1) {
-                    char time_str[MAX_STRING_LEN];
-                    apr_time_exp_t ts;
-                    apr_time_exp_lt(&ts, ar[x]->lm);
-                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
-                                "%Y-%m-%d %H:%M  ", &ts);
-                    ap_rputs(time_str, r);
-                }
-                else {
-                    /*Length="1975-04-07 01:23  " (see 4 lines above) */
-                    ap_rputs("                   ", r);
-                }
-            }
-            if (!(autoindex_opts & SUPPRESS_SIZE)) {
-                char buf[5];
-                ap_rputs(apr_strfsize(ar[x]->size, buf), r);
-                ap_rputs("  ", r);
-            }
-            if (!(autoindex_opts & SUPPRESS_DESC)) {
-                if (ar[x]->desc) {
-                    ap_rputs(terminate_description(d, ar[x]->desc,
-                                                   autoindex_opts,
-                                                   desc_width), r);
-                }
-            }
-            ap_rputc('\n', r);
-        }
-        else {
-            ap_rvputs(r, "<li><a href=\"", anchor, "\"> ",
-                      ap_escape_html(scratch, t2),
-                      "</a></li>\n", NULL);
-        }
+        /* We might be here because we received SIGTERM, either
+         * way, try and make sure that all of our processes are
+         * really dead.
+         */
+        ap_mpm_pod_killpg(pod, ap_daemons_limit, FALSE);
+        ap_reclaim_child_processes(1);
+
+        return 1;
     }
-    if (autoindex_opts & TABLE_INDEXING) {
-        ap_rvputs(r, breakrow, "</table>\n", NULL);
+
+    /* we've been told to restart */
+    apr_signal(SIGHUP, SIG_IGN);
+
+    if (one_process) {
+        /* not worth thinking about */
+        return 1;
     }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            ap_rputs("<hr", r);
-            if (autoindex_opts & EMIT_XHTML) {
-                ap_rputs(" /", r);
-            }
-            ap_rputs("></pre>\n", r);
-        }
-        else {
-            ap_rputs("</pre>\n", r);
-        }
+
+    /* advance to the next generation */
+    /* XXX: we really need to make sure this new generation number isn't in
+     * use by any of the children.
+     */
+    ++ap_my_generation;
+    ap_scoreboard_image->global->running_generation = ap_my_generation;
+
+    if (is_graceful) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                     AP_SIG_GRACEFUL_STRING
+                     " received.  Doing graceful restart");
+        /* wake up the children...time to die.  But we'll have more soon */
+        ap_mpm_pod_killpg(pod, ap_daemons_limit, TRUE);
+
+
+        /* This is mostly for debugging... so that we know what is still
+         * gracefully dealing with existing request.
+         */
+
     }
     else {
-        ap_rputs("</ul>\n", r);
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+        ap_mpm_pod_killpg(pod, ap_daemons_limit, FALSE);
+
+        ap_reclaim_child_processes(1);  /* Start with SIGTERM */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                     "SIGHUP received.  Attempting to restart");
     }
+
+    return 0;
 }

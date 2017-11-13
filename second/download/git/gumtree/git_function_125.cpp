@@ -1,105 +1,65 @@
-int read_ref_at(const char *refname, unsigned long at_time, int cnt,
-		unsigned char *sha1, char **msg,
-		unsigned long *cutoff_time, int *cutoff_tz, int *cutoff_cnt)
+int cmd_update_ref(int argc, const char **argv, const char *prefix)
 {
-	const char *logfile, *logdata, *logend, *rec, *lastgt, *lastrec;
-	char *tz_c;
-	int logfd, tz, reccnt = 0;
-	struct stat st;
-	unsigned long date;
-	unsigned char logged_sha1[20];
-	void *log_mapped;
-	size_t mapsz;
+	const char *refname, *oldval, *msg = NULL;
+	unsigned char sha1[20], oldsha1[20];
+	int delete = 0, no_deref = 0, read_stdin = 0, end_null = 0, flags = 0;
+	struct option options[] = {
+		OPT_STRING( 'm', NULL, &msg, N_("reason"), N_("reason of the update")),
+		OPT_BOOL('d', NULL, &delete, N_("delete the reference")),
+		OPT_BOOL( 0 , "no-deref", &no_deref,
+					N_("update <refname> not the one it points to")),
+		OPT_BOOL('z', NULL, &end_null, N_("stdin has NUL-terminated arguments")),
+		OPT_BOOL( 0 , "stdin", &read_stdin, N_("read updates from stdin")),
+		OPT_END(),
+	};
 
-	logfile = git_path("logs/%s", refname);
-	logfd = open(logfile, O_RDONLY, 0);
-	if (logfd < 0)
-		die_errno("Unable to read log '%s'", logfile);
-	fstat(logfd, &st);
-	if (!st.st_size)
-		die("Log %s is empty.", logfile);
-	mapsz = xsize_t(st.st_size);
-	log_mapped = xmmap(NULL, mapsz, PROT_READ, MAP_PRIVATE, logfd, 0);
-	logdata = log_mapped;
-	close(logfd);
+	git_config(git_default_config, NULL);
+	argc = parse_options(argc, argv, prefix, options, git_update_ref_usage,
+			     0);
+	if (msg && !*msg)
+		die("Refusing to perform update with empty message.");
 
-	lastrec = NULL;
-	rec = logend = logdata + st.st_size;
-	while (logdata < rec) {
-		reccnt++;
-		if (logdata < rec && *(rec-1) == '\n')
-			rec--;
-		lastgt = NULL;
-		while (logdata < rec && *(rec-1) != '\n') {
-			rec--;
-			if (*rec == '>')
-				lastgt = rec;
-		}
-		if (!lastgt)
-			die("Log %s is corrupt.", logfile);
-		date = strtoul(lastgt + 1, &tz_c, 10);
-		if (date <= at_time || cnt == 0) {
-			tz = strtoul(tz_c, NULL, 10);
-			if (msg)
-				*msg = ref_msg(rec, logend);
-			if (cutoff_time)
-				*cutoff_time = date;
-			if (cutoff_tz)
-				*cutoff_tz = tz;
-			if (cutoff_cnt)
-				*cutoff_cnt = reccnt - 1;
-			if (lastrec) {
-				if (get_sha1_hex(lastrec, logged_sha1))
-					die("Log %s is corrupt.", logfile);
-				if (get_sha1_hex(rec + 41, sha1))
-					die("Log %s is corrupt.", logfile);
-				if (hashcmp(logged_sha1, sha1)) {
-					warning("Log %s has gap after %s.",
-						logfile, show_date(date, tz, DATE_RFC2822));
-				}
-			}
-			else if (date == at_time) {
-				if (get_sha1_hex(rec + 41, sha1))
-					die("Log %s is corrupt.", logfile);
-			}
-			else {
-				if (get_sha1_hex(rec + 41, logged_sha1))
-					die("Log %s is corrupt.", logfile);
-				if (hashcmp(logged_sha1, sha1)) {
-					warning("Log %s unexpectedly ended on %s.",
-						logfile, show_date(date, tz, DATE_RFC2822));
-				}
-			}
-			munmap(log_mapped, mapsz);
-			return 0;
-		}
-		lastrec = rec;
-		if (cnt > 0)
-			cnt--;
+	if (read_stdin) {
+		transaction = ref_transaction_begin();
+		if (delete || no_deref || argc > 0)
+			usage_with_options(git_update_ref_usage, options);
+		if (end_null)
+			line_termination = '\0';
+		update_refs_stdin();
+		if (ref_transaction_commit(transaction, msg, &err))
+			die("%s", err.buf);
+		ref_transaction_free(transaction);
+		return 0;
 	}
 
-	rec = logdata;
-	while (rec < logend && *rec != '>' && *rec != '\n')
-		rec++;
-	if (rec == logend || *rec == '\n')
-		die("Log %s is corrupt.", logfile);
-	date = strtoul(rec + 1, &tz_c, 10);
-	tz = strtoul(tz_c, NULL, 10);
-	if (get_sha1_hex(logdata, sha1))
-		die("Log %s is corrupt.", logfile);
-	if (is_null_sha1(sha1)) {
-		if (get_sha1_hex(logdata + 41, sha1))
-			die("Log %s is corrupt.", logfile);
-	}
-	if (msg)
-		*msg = ref_msg(logdata, logend);
-	munmap(log_mapped, mapsz);
+	if (end_null)
+		usage_with_options(git_update_ref_usage, options);
 
-	if (cutoff_time)
-		*cutoff_time = date;
-	if (cutoff_tz)
-		*cutoff_tz = tz;
-	if (cutoff_cnt)
-		*cutoff_cnt = reccnt;
-	return 1;
+	if (delete) {
+		if (argc < 1 || argc > 2)
+			usage_with_options(git_update_ref_usage, options);
+		refname = argv[0];
+		oldval = argv[1];
+	} else {
+		const char *value;
+		if (argc < 2 || argc > 3)
+			usage_with_options(git_update_ref_usage, options);
+		refname = argv[0];
+		value = argv[1];
+		oldval = argv[2];
+		if (get_sha1(value, sha1))
+			die("%s: not a valid SHA1", value);
+	}
+
+	hashclr(oldsha1); /* all-zero hash in case oldval is the empty string */
+	if (oldval && *oldval && get_sha1(oldval, oldsha1))
+		die("%s: not a valid old SHA1", oldval);
+
+	if (no_deref)
+		flags = REF_NODEREF;
+	if (delete)
+		return delete_ref(refname, oldval ? oldsha1 : NULL, flags);
+	else
+		return update_ref(msg, refname, sha1, oldval ? oldsha1 : NULL,
+				  flags, UPDATE_REFS_DIE_ON_ERR);
 }

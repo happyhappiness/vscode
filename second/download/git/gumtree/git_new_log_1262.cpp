@@ -1,1 +1,1 @@
-die("failed to parse %s", k);
+printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);

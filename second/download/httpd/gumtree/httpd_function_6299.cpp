@@ -1,84 +1,89 @@
-apr_status_t h2_stream_out_prepare(h2_stream *stream, apr_off_t *plen, 
-                                   int *peos, h2_headers **pheaders)
+static void * APR_THREAD_FUNC worker_thread(apr_thread_t *thd, void * dummy)
 {
-    apr_status_t status = APR_SUCCESS;
-    apr_off_t requested, missing, max_chunk = H2_DATA_CHUNK_SIZE;
-    conn_rec *c;
-    int complete;
+    proc_info * ti = dummy;
+    int process_slot = ti->pid;
+    int thread_slot = ti->tid;
+    apr_socket_t *csd = NULL;
+    apr_bucket_alloc_t *bucket_alloc;
+    apr_pool_t *last_ptrans = NULL;
+    apr_pool_t *ptrans;                /* Pool for per-transaction stuff */
+    apr_status_t rv;
+    int is_idle = 0;
 
-    ap_assert(stream);
-    
-    if (stream->rst_error) {
-        *plen = 0;
-        *peos = 1;
-        return APR_ECONNRESET;
-    }
-    
-    c = stream->session->c;
-    prep_output(stream);
+    free(ti);
 
-    /* determine how much we'd like to send. We cannot send more than
-     * is requested. But we can reduce the size in case the master
-     * connection operates in smaller chunks. (TSL warmup) */
-    if (stream->session->io.write_size > 0) {
-        max_chunk = stream->session->io.write_size - 9; /* header bits */ 
-    }
-    requested = (*plen > 0)? H2MIN(*plen, max_chunk) : max_chunk;
-    
-    /* count the buffered data until eos or a headers bucket */
-    status = add_data(stream, requested, plen, peos, &complete, pheaders);
-    
-    if (status == APR_EAGAIN) {
-        /* TODO: ugly, someone needs to retrieve the response first */
-        h2_mplx_keep_active(stream->session->mplx, stream);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      H2_STRM_MSG(stream, "prep, response eagain"));
-        return status;
-    }
-    else if (status != APR_SUCCESS) {
-        return status;
-    }
-    
-    if (pheaders && *pheaders) {
-        return APR_SUCCESS;
-    }
-    
-    missing = H2MIN(requested, stream->max_mem) - *plen;
-    if (complete && !*peos && missing > 0) {
-        if (stream->output) {
-            H2_STREAM_OUT_LOG(APLOG_TRACE2, stream, "pre");
-            status = h2_beam_receive(stream->output, stream->out_buffer, 
-                                     APR_NONBLOCK_READ, 
-                                     stream->max_mem - *plen);
-            H2_STREAM_OUT_LOG(APLOG_TRACE2, stream, "post");
+    ap_scoreboard_image->servers[process_slot][thread_slot].pid = ap_my_pid;
+    ap_scoreboard_image->servers[process_slot][thread_slot].tid = apr_os_thread_current();
+    ap_scoreboard_image->servers[process_slot][thread_slot].generation = retained->my_generation;
+    ap_update_child_status_from_indexes(process_slot, thread_slot, SERVER_STARTING, NULL);
+
+#ifdef HAVE_PTHREAD_KILL
+    unblock_signal(WORKER_SIGNAL);
+    apr_signal(WORKER_SIGNAL, dummy_signal_handler);
+#endif
+
+    while (!workers_may_exit) {
+        if (!is_idle) {
+            rv = ap_queue_info_set_idle(worker_queue_info, last_ptrans);
+            last_ptrans = NULL;
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                             "ap_queue_info_set_idle failed. Attempting to "
+                             "shutdown process gracefully.");
+                signal_threads(ST_GRACEFUL);
+                break;
+            }
+            is_idle = 1;
         }
-        else {
-            status = APR_EOF;
+
+        ap_update_child_status_from_indexes(process_slot, thread_slot, SERVER_READY, NULL);
+worker_pop:
+        if (workers_may_exit) {
+            break;
         }
-        
-        if (APR_STATUS_IS_EOF(status)) {
-            apr_bucket *eos = apr_bucket_eos_create(c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(stream->out_buffer, eos);
-            *peos = 1;
-            status = APR_SUCCESS;
+        rv = ap_queue_pop(worker_queue, &csd, &ptrans);
+
+        if (rv != APR_SUCCESS) {
+            /* We get APR_EOF during a graceful shutdown once all the connections
+             * accepted by this server process have been handled.
+             */
+            if (APR_STATUS_IS_EOF(rv)) {
+                break;
+            }
+            /* We get APR_EINTR whenever ap_queue_pop() has been interrupted
+             * from an explicit call to ap_queue_interrupt_all(). This allows
+             * us to unblock threads stuck in ap_queue_pop() when a shutdown
+             * is pending.
+             *
+             * If workers_may_exit is set and this is ungraceful termination/
+             * restart, we are bound to get an error on some systems (e.g.,
+             * AIX, which sanity-checks mutex operations) since the queue
+             * may have already been cleaned up.  Don't log the "error" if
+             * workers_may_exit is set.
+             */
+            else if (APR_STATUS_IS_EINTR(rv)) {
+                goto worker_pop;
+            }
+            /* We got some other error. */
+            else if (!workers_may_exit) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                             "ap_queue_pop failed");
+            }
+            continue;
         }
-        else if (status == APR_SUCCESS) {
-            /* do it again, now that we have gotten more */
-            status = add_data(stream, requested, plen, peos, &complete, pheaders);
-        }
+        is_idle = 0;
+        worker_sockets[thread_slot] = csd;
+        bucket_alloc = apr_bucket_alloc_create(ptrans);
+        process_socket(thd, ptrans, csd, process_slot, thread_slot, bucket_alloc);
+        worker_sockets[thread_slot] = NULL;
+        requests_this_child--;
+        apr_pool_clear(ptrans);
+        last_ptrans = ptrans;
     }
-    
-    if (status == APR_SUCCESS) {
-        if (*peos || *plen) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                          H2_STRM_MSG(stream, "prepare, len=%ld eos=%d"),
-                          (long)*plen, *peos);
-        }
-        else {
-            status = APR_EAGAIN;
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                          H2_STRM_MSG(stream, "prepare, no data"));
-        }
-    }
-    return status;
+
+    ap_update_child_status_from_indexes(process_slot, thread_slot,
+        (dying) ? SERVER_DEAD : SERVER_GRACEFUL, (request_rec *) NULL);
+
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
 }

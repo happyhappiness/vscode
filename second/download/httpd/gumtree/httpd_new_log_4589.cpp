@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00209) "sigaction(SIGTERM)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01823)
+                "no ciphers returned by APR. "
+                "session encryption not possible");

@@ -1,1 +1,1 @@
-die(_("expected format: %%(color:<color>)"));
+die("Invalid SHA-1: %s", buffer);

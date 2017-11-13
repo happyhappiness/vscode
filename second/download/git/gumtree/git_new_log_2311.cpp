@@ -1,1 +1,0 @@
-error_errno("lstat(%s)", ce->name);

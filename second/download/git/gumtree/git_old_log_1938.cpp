@@ -1,2 +1,1 @@
-fputs(find_unique_abbrev(commit->object.sha1, revs->abbrev),
-		      stdout);
+die("unable to generate diff for %s", pair->one->path);

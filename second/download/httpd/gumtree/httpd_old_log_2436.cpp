@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "index_offset = %u", header->index_offset);
+ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                     0, ap_server_conf,
+                     "seg fault or similar nasty error detected "
+                     "in the parent process");

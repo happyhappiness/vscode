@@ -1,1 +1,1 @@
-status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
+die_errno("%s: index file open failed", path);

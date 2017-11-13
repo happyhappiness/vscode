@@ -1,2 +1,1 @@
-fprintf_or_die(submodule_dot_git, "gitdir: %s\n",
-		       relative_path(sm_gitdir, path, &rel_path));
+die(_("Unusable instruction sheet: %s"), git_path_todo_file());

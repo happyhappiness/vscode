@@ -1,1 +1,1 @@
-die("BUG: bookkeeping is hard");
+die_errno("poll");

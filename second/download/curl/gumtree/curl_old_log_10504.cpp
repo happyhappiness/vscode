@@ -1,11 +1,11 @@
 fputs(
-"              the file requested is larger than this value, the transfer  will\n"
-"              not start and curl will return with exit code 63.\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
-"              NOTE:  The  file size is not always known prior to download, and\n"
-"              for such files this option has no effect even if the file trans-\n"
-"              fer  ends  up  being larger than this given limit. This concerns\n"
-"              both FTP and HTTP transfers.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --mail-rcpt <address>\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
+"              scarce resource that will be busy at times so setting this range\n"
 , stdout);

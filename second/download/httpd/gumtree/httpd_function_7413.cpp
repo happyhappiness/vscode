@@ -18,10 +18,7 @@ static void output_results(int sig)
 #endif
     printf("\n");
     printf("Document Path:          %s\n", path);
-    if (nolength)
-        printf("Document Length:        Variable\n");
-    else
-        printf("Document Length:        %" APR_SIZE_T_FMT " bytes\n", doclen);
+    printf("Document Length:        %" APR_SIZE_T_FMT " bytes\n", doclen);
     printf("\n");
     printf("Concurrency Level:      %d\n", concurrency);
     printf("Time taken for tests:   %.3f seconds\n", timetaken);
@@ -30,8 +27,7 @@ static void output_results(int sig)
     if (bad)
         printf("   (Connect: %d, Receive: %d, Length: %d, Exceptions: %d)\n",
             err_conn, err_recv, err_length, err_except);
-    if (epipe)
-        printf("Write errors:           %d\n", epipe);
+    printf("Write errors:           %d\n", epipe);
     if (err_response)
         printf("Non-2xx responses:      %d\n", err_response);
     if (keepalive)
@@ -54,9 +50,9 @@ static void output_results(int sig)
                (double) totalread / 1024 / timetaken);
         if (send_body) {
             printf("                        %.2f kb/s sent\n",
-               (double) totalposted / 1024 / timetaken);
+               (double) totalposted / timetaken / 1024);
             printf("                        %.2f kb/s total\n",
-               (double) (totalread + totalposted) / 1024 / timetaken);
+               (double) (totalread + totalposted) / timetaken / 1024);
         }
     }
 
@@ -204,8 +200,9 @@ static void output_results(int sig)
             printf("              min   avg   max\n");
 #define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
             printf("Connect:    " CONF_FMT_STRING, mincon, meancon, maxcon);
-            printf("Processing: " CONF_FMT_STRING, mind, meand, maxd);
-            printf("Waiting:    " CONF_FMT_STRING, minwait, meanwait, maxwait);
+            printf("Processing: " CONF_FMT_STRING, mintot - mincon,
+                                                   meantot - meancon,
+                                                   maxtot - maxcon);
             printf("Total:      " CONF_FMT_STRING, mintot, meantot, maxtot);
 #undef CONF_FMT_STRING
         }

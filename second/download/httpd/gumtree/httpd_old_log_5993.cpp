@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, stream->r, APLOGNO(03359)
-                  "h2_proxy_session(%s): pass response data for "
-                  "stream %d, %d bytes", session->id, stream_id, (int)len);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                      "h2_from_h1(%d): err bucket status=%d", 
+                      from_h1->stream_id, st);

@@ -1,208 +1,99 @@
-static int rsync_module(int fd, int i)
+static void
+send_deflated_token(int f, int token,
+		    struct map_struct *buf, int offset, int nb, int toklen)
 {
-	int argc=0;
-	char *argv[MAX_ARGS];
-	char **argp;
-	char line[MAXPATHLEN];
-	uid_t uid = (uid_t)-2;
-	gid_t gid = (gid_t)-2;
-	char *p;
-	char *addr = client_addr(fd);
-	char *host = client_name(fd);
-	char *name = lp_name(i);
-	int use_chroot = lp_use_chroot(i);
-	int start_glob=0;
-	int ret;
-	char *request=NULL;
-	extern int am_sender;
-	extern int remote_version;
-	extern int am_root;
+    int n, r;
+    static int init_done;
 
-	if (!allow_access(addr, host, lp_hosts_allow(i), lp_hosts_deny(i))) {
-		rprintf(FERROR,"rsync denied on module %s from %s (%s)\n",
-			name, client_name(fd), client_addr(fd));
-		io_printf(fd,"@ERROR: access denied to %s from %s (%s)\n",
-			  name, client_name(fd), client_addr(fd));
-		return -1;
-	}
+    if (last_token == -1) {
+	/* initialization */
+	if (!init_done) {
+	    tx_strm.next_in = NULL;
+	    tx_strm.zalloc = z_alloc;
+	    tx_strm.zfree = z_free;
+	    if (deflateInit2(&tx_strm, Z_DEFAULT_COMPRESSION, 8,
+			     -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+		fprintf(FERROR, "compression init failed\n");
+		exit_cleanup(1);
+	    }
+	    if ((obuf = malloc(MAX_DATA_COUNT+2)) == NULL)
+		out_of_memory("send_deflated_token");
+	    init_done = 1;
+	} else
+	    deflateReset(&tx_strm);
+	run_start = token;
+	last_run_end = 0;
 
-	if (!claim_connection(lp_lock_file(), lp_max_connections())) {
-		if (errno) {
-			rprintf(FERROR,"failed to open lock file %s : %s\n",
-				lp_lock_file(), strerror(errno));
-			io_printf(fd,"@ERROR: failed to open lock file %s : %s\n",
-				  lp_lock_file(), strerror(errno));
-		} else {
-			rprintf(FERROR,"max connections (%d) reached\n",
-				lp_max_connections());
-			io_printf(fd,"@ERROR: max connections (%d) reached - try again later\n", lp_max_connections());
-		}
-		return -1;
-	}
-
-	
-	auth_user = auth_server(fd, i, addr, "@RSYNCD: AUTHREQD ");
-
-	if (!auth_user) {
-		rprintf(FERROR,"auth failed on module %s from %s (%s)\n",
-			name, client_name(fd), client_addr(fd));
-		io_printf(fd,"@ERROR: auth failed on module %s\n",name);
-		return -1;		
-	}
-
-	module_id = i;
-
-	if (lp_read_only(i))
-		read_only = 1;
-
-	p = lp_uid(i);
-	if (!name_to_uid(p, &uid)) {
-		if (!isdigit(*p)) {
-			rprintf(FERROR,"Invalid uid %s\n", p);
-			io_printf(fd,"@ERROR: invalid uid\n");
-			return -1;
-		} 
-		uid = atoi(p);
-	}
-
-	p = lp_gid(i);
-	if (!name_to_gid(p, &gid)) {
-		if (!isdigit(*p)) {
-			rprintf(FERROR,"Invalid gid %s\n", p);
-			io_printf(fd,"@ERROR: invalid gid\n");
-			return -1;
-		} 
-		gid = atoi(p);
-	}
-
-	p = lp_exclude_from(i);
-	add_exclude_file(p, 1, 0);
-
-	p = lp_exclude(i);
-	add_exclude_line(p);
-
-	log_open();
-
-	if (use_chroot) {
-		if (chroot(lp_path(i))) {
-			rprintf(FERROR,"chroot %s failed\n", lp_path(i));
-			io_printf(fd,"@ERROR: chroot failed\n");
-			return -1;
-		}
-
-		if (chdir("/")) {
-			rprintf(FERROR,"chdir %s failed\n", lp_path(i));
-			io_printf(fd,"@ERROR: chdir failed\n");
-			return -1;
-		}
-
-		if (setgid(gid) || getgid() != gid) {
-			rprintf(FERROR,"setgid %d failed\n", gid);
-			io_printf(fd,"@ERROR: setgid failed\n");
-			return -1;
-		}
-
-		if (setuid(uid) || getuid() != uid) {
-			rprintf(FERROR,"setuid %d failed\n", uid);
-			io_printf(fd,"@ERROR: setuid failed\n");
-			return -1;
-		}
-
+    } else if (nb != 0 || token != last_token + 1
+	       || token >= run_start + 65536) {
+	/* output previous run */
+	r = run_start - last_run_end;
+	n = last_token - run_start;
+	if (r >= 0 && r <= 63) {
+	    write_byte(f, (n==0? TOKEN_REL: TOKENRUN_REL) + r);
 	} else {
-		if (!push_dir(lp_path(i), 0)) {
-			rprintf(FERROR,"chdir %s failed\n", lp_path(i));
-			io_printf(fd,"@ERROR: chdir failed\n");
-			return -1;
+	    write_byte(f, (n==0? TOKEN_LONG: TOKENRUN_LONG));
+	    write_int(f, run_start);
+	}
+	if (n != 0) {
+	    write_byte(f, n);
+	    write_byte(f, n >> 8);
+	}
+	last_run_end = last_token;
+	run_start = token;
+    }
+
+    last_token = token;
+
+    if (nb != 0) {
+	/* deflate the data starting at offset */
+	tx_strm.avail_in = 0;
+	tx_strm.avail_out = 0;
+	do {
+	    if (tx_strm.avail_in == 0 && nb != 0) {
+		/* give it some more input */
+		n = MIN(nb, CHUNK_SIZE);
+		tx_strm.next_in = (Bytef *)map_ptr(buf, offset, n);
+		tx_strm.avail_in = n;
+		nb -= n;
+		offset += n;
+	    }
+	    if (tx_strm.avail_out == 0) {
+		tx_strm.next_out = (Bytef *)(obuf + 2);
+		tx_strm.avail_out = MAX_DATA_COUNT;
+	    }
+	    r = deflate(&tx_strm, nb? Z_NO_FLUSH: Z_PACKET_FLUSH);
+	    if (r != Z_OK) {
+		fprintf(FERROR, "deflate returned %d\n", r);
+		exit_cleanup(1);
+	    }
+	    if (nb == 0 || tx_strm.avail_out == 0) {
+		n = MAX_DATA_COUNT - tx_strm.avail_out;
+		if (n > 0) {
+		    obuf[0] = DEFLATED_DATA + (n >> 8);
+		    obuf[1] = n;
+		    write_buf(f, obuf, n+2);
 		}
+	    }
+	} while (nb != 0 || tx_strm.avail_out == 0);
+    }
+
+    if (token != -1) {
+	/* add the data in the current block to the compressor's
+	   history and hash table */
+	tx_strm.next_in = (Bytef *)map_ptr(buf, offset, toklen);
+	tx_strm.avail_in = toklen;
+	tx_strm.next_out = NULL;
+	tx_strm.avail_out = 2 * toklen;
+	r = deflate(&tx_strm, Z_INSERT_ONLY);
+	if (r != Z_OK || tx_strm.avail_in != 0) {
+	    fprintf(FERROR, "deflate on token returned %d (%d bytes left)\n",
+		    r, tx_strm.avail_in);
+	    exit_cleanup(1);
 	}
 
-	am_root = (getuid() == 0);
-
-	io_printf(fd,"@RSYNCD: OK\n");
-
-	argv[argc++] = "rsyncd";
-
-	while (1) {
-		if (!read_line(fd, line, sizeof(line)-1)) {
-			return -1;
-		}
-
-		if (!*line) break;
-
-		p = line;
-
-		argv[argc] = strdup(p);
-		if (!argv[argc]) {
-			return -1;
-		}
-
-		if (start_glob) {
-			if (start_glob == 1) {
-				request = strdup(p);
-				start_glob++;
-			}
-			glob_expand(name, argv, &argc, MAX_ARGS);
-		} else {
-			argc++;
-		}
-
-		if (strcmp(line,".") == 0) {
-			start_glob = 1;
-		}
-
-		if (argc == MAX_ARGS) {
-			return -1;
-		}
-	}
-
-	if (!use_chroot) {
-		/*
-		 * Note that this is applied to all parameters, whether or not
-		 *    they are filenames, but no other legal parameters contain
-		 *    the forms that need to be sanitized so it doesn't hurt;
-		 *    it is not known at this point which parameters are files
-		 *    and which aren't.
-		 */
-		for (i = 1; i < argc; i++) {
-			char *copy = sanitize_path(argv[i]);
-			free((void *)argv[i]);
-			argv[i] = copy;
-		}
-	}
-
-	ret = parse_arguments(argc, argv);
-
-	if (request) {
-		if (*auth_user) {
-			rprintf(FINFO,"rsync %s %s from %s@%s (%s)\n",
-				am_sender?"on":"to",
-				request, auth_user, host, addr);
-		} else {
-			rprintf(FINFO,"rsync %s %s from %s (%s)\n",
-				am_sender?"on":"to",
-				request, host, addr);
-		}
-		free(request);
-	}
-
-#if !TRIDGE
-	/* don't allow the logs to be flooded too fast */
-	if (verbose > 1) verbose = 1;
-#endif
-
-	argc -= optind;
-	argp = argv + optind;
-	optind = 0;
-
-	if (remote_version > 17 && am_sender)
-		io_start_multiplex_out(fd);
-
-	if (!ret) {
-		rprintf(FERROR,"Error parsing options (unsupported option?) - aborting\n");
-		exit_cleanup(RERR_SYNTAX);
-	}
-
-	start_server(fd, fd, argc, argp);
-
-	return 0;
+    } else {
+	/* end of file - clean up */
+	write_byte(f, END_FLAG);
+    }
 }

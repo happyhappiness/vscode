@@ -1,1 +1,1 @@
-error_errno(_("could not open '%s'"), todo_file);
+packet_write_fmt(stdin_fd, "%s %s%c", serv, repo, 0);

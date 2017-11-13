@@ -1,1 +1,1 @@
-die(_("Please supply the note contents using either -m or -F option"));
+error(_("unable to read symlink %s"), path);

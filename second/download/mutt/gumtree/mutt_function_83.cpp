@@ -1,63 +1,113 @@
-static int write_one_header (FILE *fp, int pfxw, int max, int wraplen,
-			     const char *pfx, const char *start, const char *end,
-			     int flags)
+int mutt_write_mime_header (BODY *a, FILE *f)
 {
-  char *tagbuf, *valbuf, *t;
-  int is_from = ((end - start) > 5 &&
-		 ascii_strncasecmp (start, "from ", 5) == 0);
+  PARAMETER *p;
+  char buffer[STRING];
+  char *t;
+  char *fn;
+  int len;
+  int tmplen;
+  int encode;
 
-  /* only pass through folding machinery if necessary for sending,
-     never wrap From_ headers on sending */
-  if (!(flags & CH_DISPLAY) && (pfxw + max <= wraplen || is_from))
+  fprintf (f, "Content-Type: %s/%s", TYPE (a), a->subtype);
+
+  if (a->parameter)
   {
-    valbuf = mutt_substrdup (start, end);
-    dprint(4,(debugfile,"mwoh: buf[%s%s] short enough, "
-	      "max width = %d <= %d\n",
-	      NONULL(pfx), valbuf, max, wraplen));
-    if (pfx && *pfx)
-      if (fputs (pfx, fp) == EOF)
-	return -1;
-    if (!(t = strchr (valbuf, ':')))
+    len = 25 + mutt_strlen (a->subtype); /* approximate len. of content-type */
+
+    for(p = a->parameter; p; p = p->next)
     {
-      dprint (1, (debugfile, "mwoh: warning: header not in "
-		  "'key: value' format!\n"));
-      return 0;
+      char *tmp;
+
+      if(!p->value)
+	continue;
+
+      fputc (';', f);
+
+      buffer[0] = 0;
+      tmp = safe_strdup (p->value);
+      encode = rfc2231_encode_string (&tmp);
+      rfc822_cat (buffer, sizeof (buffer), tmp, MimeSpecials);
+
+      /* Dirty hack to make messages readable by Outlook Express
+       * for the Mac: force quotes around the boundary parameter
+       * even when they aren't needed.
+       */
+
+      if (!ascii_strcasecmp (p->attribute, "boundary") && !strcmp (buffer, tmp))
+	snprintf (buffer, sizeof (buffer), "\"%s\"", tmp);
+
+      FREE (&tmp);
+
+      tmplen = mutt_strlen (buffer) + mutt_strlen (p->attribute) + 1;
+
+      if (len + tmplen + 2 > 76)
+      {
+	fputs ("\n\t", f);
+	len = tmplen + 8;
+      }
+      else
+      {
+	fputc (' ', f);
+	len += tmplen + 1;
+      }
+
+      fprintf (f, "%s%s=%s", p->attribute, encode ? "*" : "", buffer);
+
     }
-    if (print_val (fp, pfx, valbuf, flags, mutt_strlen (pfx)) < 0)
-    {
-      FREE(&valbuf);
-      return -1;
-    }
-    FREE(&valbuf);
   }
-  else
+
+  fputc ('\n', f);
+
+  if (a->description)
+    fprintf(f, "Content-Description: %s\n", a->description);
+
+  if (a->disposition != DISPNONE)
   {
-    t = strchr (start, ':');
-    if (!t || t > end)
+    const char *dispstr[] = {
+      "inline",
+      "attachment",
+      "form-data"
+    };
+
+    if (a->disposition < sizeof(dispstr)/sizeof(char*))
     {
-      dprint (1, (debugfile, "mwoh: warning: header not in "
-		  "'key: value' format!\n"));
-      return 0;
-    }
-    if (is_from)
-    {
-      tagbuf = NULL;
-      valbuf = mutt_substrdup (start, end);
+      fprintf (f, "Content-Disposition: %s", dispstr[a->disposition]);
+
+      if (a->use_disp)
+      {
+	if (!(fn = a->d_filename))
+	  fn = a->filename;
+
+	if (fn)
+	{
+	  char *tmp;
+
+	  /* Strip off the leading path... */
+	  if ((t = strrchr (fn, '/')))
+	    t++;
+	  else
+	    t = fn;
+
+	  buffer[0] = 0;
+	  tmp = safe_strdup (t);
+	  encode = rfc2231_encode_string (&tmp);
+	  rfc822_cat (buffer, sizeof (buffer), tmp, MimeSpecials);
+	  FREE (&tmp);
+	  fprintf (f, "; filename%s=%s", encode ? "*" : "", buffer);
+	}
+      }
+
+      fputc ('\n', f);
     }
     else
     {
-      tagbuf = mutt_substrdup (start, t);
-      /* skip over the colon separating the header field name and value */
-      t = skip_email_wsp(t + 1);
-      valbuf = mutt_substrdup (t, end);
+      dprint(1, (debugfile, "ERROR: invalid content-disposition %d\n", a->disposition));
     }
-    dprint(4,(debugfile,"mwoh: buf[%s%s] too long, "
-	      "max width = %d > %d\n",
-	      NONULL(pfx), valbuf, max, wraplen));
-    if (fold_one_header (fp, tagbuf, valbuf, pfx, wraplen, flags) < 0)
-      return -1;
-    FREE (&tagbuf);
-    FREE (&valbuf);
   }
-  return 0;
+
+  if (a->encoding != ENC7BIT)
+    fprintf(f, "Content-Transfer-Encoding: %s\n", ENCODING (a->encoding));
+
+  /* Do NOT add the terminator here!!! */
+  return (ferror (f) ? -1 : 0);
 }

@@ -1,2 +1,2 @@
-apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout.\n");
+apr_file_printf(errfile, "\thtpasswd -b[cmdps] passwordfile username "
+                    "password\n\n");

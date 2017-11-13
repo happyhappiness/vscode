@@ -1,1 +1,1 @@
-die("BUG: prepare called twice on reference transaction");
+packet_buf_write(&req_buf, "%s", item->string);

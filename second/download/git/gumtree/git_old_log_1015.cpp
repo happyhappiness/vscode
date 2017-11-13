@@ -1,1 +1,1 @@
-die("unable to read %s", sha1_to_hex(entry->delta->idx.sha1));
+error("new object is the same as the old one: '%s'", sha1_to_hex(old));

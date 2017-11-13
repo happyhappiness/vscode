@@ -1,1 +1,1 @@
-err(o, _("Unable to write index."));
+die(_("unable to update %s"), head_ref.buf);

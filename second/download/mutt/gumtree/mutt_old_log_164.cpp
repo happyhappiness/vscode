@@ -1,1 +1,1 @@
-state_attach_puts (_("A system error occurred"), s );
+(mutt_yesorno (warning, M_NO);

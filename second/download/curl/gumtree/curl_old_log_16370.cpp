@@ -1,11 +1,9 @@
 fputs(
-"              ate HTTP/2 support with the server during https sessions.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              See also --no-npn  and  --http2.  --no-alpn  requires  that  the\n"
-"              underlying libcurl was built to support TLS. Added in 7.36.0.\n"
-"\n"
-"       -N, --no-buffer\n"
-"              Disables the buffering of the output stream. In normal work sit-\n"
-"              uations, curl will use a standard buffered  output  stream  that\n"
-"              will have the effect that it will output the data in chunks, not\n"
+"       -m, --max-time <time>\n"
+"              Maximum  time  in  seconds that you allow the whole operation to\n"
+"              take.  This is useful for preventing your batch jobs from  hang-\n"
+"              ing  for  hours due to slow networks or links going down.  Since\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
 , stdout);

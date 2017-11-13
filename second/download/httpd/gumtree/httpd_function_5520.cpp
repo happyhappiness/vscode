@@ -1,16 +1,16 @@
-static void h2_session_ev_proto_error(h2_session *session, int arg, const char *msg)
+static void copyright(void)
 {
-    switch (session->state) {
-        case H2_SESSION_ST_DONE:
-        case H2_SESSION_ST_LOCAL_SHUTDOWN:
-            /* just leave */
-            transit(session, "proto error", H2_SESSION_ST_DONE);
-            break;
-        
-        default:
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                          "h2_session(%ld): proto error -> shutdown", session->id);
-            h2_session_shutdown(session, arg, msg, 0);
-            break;
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 986979 $>");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
+        printf("\n");
+    }
+    else {
+        printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 986979 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
+        printf("</p>\n<p>\n");
     }
 }

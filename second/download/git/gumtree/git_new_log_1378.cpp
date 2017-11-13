@@ -1,1 +1,1 @@
-die("Bad type of menu_stuff when print menu");
+warning("object %s has unknown type id %d", oid_to_hex(oid), type);

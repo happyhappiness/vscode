@@ -1,1 +1,1 @@
-warning_errno(_("could not read '%s'"), path);
+error(_("failed to remove 'git notes merge' worktree"));

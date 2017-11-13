@@ -1,11 +1,10 @@
 fputs(
-"              backslash preceding any other letter is ignored.  If  the  first\n"
-"              column of a config line is a '#' character, the rest of the line\n"
-"              will be treated as a comment. Only write one option per physical\n"
-"              line in the config file.\n"
+"              There's  no  attempt to decode %-sequences (yet) in the provided\n"
+"              file name, so this option may provide you with rather unexpected\n"
+"              file names.\n"
 "\n"
-"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
-"              the file from stdin.\n"
-"\n"
-"              Note that to be able to specify a URL in the  config  file,  you\n"
+"       -k, --insecure\n"
+"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
+"              SSL connections and transfers. All SSL connections are attempted\n"
+"              to  be  made secure by using the CA certificate bundle installed\n"
 , stdout);

@@ -1,1 +1,1 @@
-die("--refmap option is only meaningful with command-line refspec(s).");
+warning(_("--local is ignored"));

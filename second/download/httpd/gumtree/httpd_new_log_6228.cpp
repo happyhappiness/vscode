@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      H2_STRM_MSG(stream, "lookup of nghttp2_stream failed"));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(03308)
+                          "ap_proxy_transfer_between_connections: "
+                          "error on %s - ap_get_brigade",
+                          name);

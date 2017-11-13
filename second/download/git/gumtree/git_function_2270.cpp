@@ -1,20 +1,54 @@
-static void print_bases(struct base_tree_info *bases)
+static int process_diff_filepair(struct rev_info *rev,
+				 struct diff_filepair *pair,
+				 struct line_log_data *range,
+				 struct diff_ranges **diff_out)
 {
-	int i;
+	struct line_log_data *rg = range;
+	struct range_set tmp;
+	struct diff_ranges diff;
+	mmfile_t file_parent, file_target;
 
-	/* Only do this once, either for the cover or for the first one */
-	if (is_null_oid(&bases->base_commit))
-		return;
+	assert(pair->two->path);
+	while (rg) {
+		assert(rg->path);
+		if (!strcmp(rg->path, pair->two->path))
+			break;
+		rg = rg->next;
+	}
 
-	/* Show the base commit */
-	printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));
+	if (!rg)
+		return 0;
+	if (rg->ranges.nr == 0)
+		return 0;
 
-	/* Show the prerequisite patches */
-	for (i = bases->nr_patch_id - 1; i >= 0; i--)
-		printf("prerequisite-patch-id: %s\n", oid_to_hex(&bases->patch_id[i]));
+	assert(pair->two->sha1_valid);
+	diff_populate_filespec(pair->two, 0);
+	file_target.ptr = pair->two->data;
+	file_target.size = pair->two->size;
 
-	free(bases->patch_id);
-	bases->nr_patch_id = 0;
-	bases->alloc_patch_id = 0;
-	oidclr(&bases->base_commit);
+	if (pair->one->sha1_valid) {
+		diff_populate_filespec(pair->one, 0);
+		file_parent.ptr = pair->one->data;
+		file_parent.size = pair->one->size;
+	} else {
+		file_parent.ptr = "";
+		file_parent.size = 0;
+	}
+
+	diff_ranges_init(&diff);
+	if (collect_diff(&file_parent, &file_target, &diff))
+		die("unable to generate diff for %s", pair->one->path);
+
+	/* NEEDSWORK should apply some heuristics to prevent mismatches */
+	free(rg->path);
+	rg->path = xstrdup(pair->one->path);
+
+	range_set_init(&tmp, 0);
+	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
+	range_set_release(&rg->ranges);
+	range_set_move(&rg->ranges, &tmp);
+
+	diff_ranges_release(&diff);
+
+	return ((*diff_out)->parent.nr > 0);
 }

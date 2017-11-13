@@ -1,1 +1,2 @@
-error("%s: invalid reflog entry %s", refname, sha1_to_hex(sha1));
+error("BUG: switch '%c' (--%s) %s",
+				     opt->short_name, opt->long_name, reason);

@@ -1,1 +1,2 @@
-die("submodule--helper push-check requires at least 1 argument");
+die(_("Unimplemented pathspec magic '%c' in '%s'"),
+			    ch, elem);

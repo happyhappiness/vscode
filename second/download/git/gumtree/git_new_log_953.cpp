@@ -1,1 +1,1 @@
-die_errno(_("open /dev/null failed"));
+die("strange hostname '%s' blocked", host);

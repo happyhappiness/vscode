@@ -1,1 +1,1 @@
-fprintf(stderr,"failed to create pid file %s\n", pid_file);
+rprintf(FERROR, "inflate init failed\n");

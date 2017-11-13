@@ -1,1 +1,1 @@
-printf("%s", lines[i]->buf);
+printf("\n");

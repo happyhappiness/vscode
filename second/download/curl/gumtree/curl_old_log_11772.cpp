@@ -1,11 +1,10 @@
 fputs(
-"              by default. This makes  all  connections  considered  \"insecure\"\n"
-"              fail unless -k, --insecure is used.\n"
+"       --hostpubmd5 <md5>\n"
+"              (SCP/SFTP) Pass a string containing 32 hexadecimal  digits.  The\n"
+"              string  should  be the 128 bit MD5 checksum of the remote host's\n"
+"              public key, curl will refuse the connection with the host unless\n"
+"              the md5sums match. (Added in 7.17.1)\n"
 "\n"
-"              See     this    online    resource    for    further    details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
-"\n"
-"       -K, --config <config file>\n"
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
+"       --ignore-content-length\n"
+"              For HTTP, Ignore the Content-Length header. This is particularly\n"
 , stdout);

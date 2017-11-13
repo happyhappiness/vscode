@@ -1,1 +1,1 @@
-fprintf(fp, "%s\n", sha1_to_hex(commit));
+fprintf(stderr, "What does '%s' for %s mean?\n", trace, key);

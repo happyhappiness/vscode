@@ -1,23 +1,19 @@
-static void log_backtrace(const request_rec *r)
+static apr_status_t ssl_io_filter_cleanup(void *data)
 {
-    const request_rec *top = r;
+    apr_status_t ret;
+    ssl_filter_ctx_t *filter_ctx = (ssl_filter_ctx_t *)data;
+    conn_rec *c;
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "r->uri = %s", r->uri ? r->uri : "(unexpectedly NULL)");
-
-    while (top && (top->prev || top->main)) {
-        if (top->prev) {
-            top = top->prev;
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "redirected from r->uri = %s",
-                          top->uri ? top->uri : "(unexpectedly NULL)");
-        }
-
-        if (!top->prev && top->main) {
-            top = top->main;
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "subrequested from r->uri = %s",
-                          top->uri ? top->uri : "(unexpectedly NULL)");
-        }
+    if (!filter_ctx->pssl) {
+        /* already been shutdown */
+        return APR_SUCCESS;
     }
+
+    c = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
+    if ((ret = ssl_filter_io_shutdown(filter_ctx, c, 0)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, ret, NULL,
+                     "SSL filter error shutting down I/O");
+    }
+
+    return ret;
 }

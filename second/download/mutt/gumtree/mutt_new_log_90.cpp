@@ -1,1 +1,1 @@
-fprintf (msg->fp, "C<%s>", SmimeCryptAlg);
+fputs (pfx, fp);

@@ -1,1 +1,1 @@
-printf("%s\n", oid_to_hex(&result->item->object.oid));
+error("copy-fd: write returned %s", strerror(errno));

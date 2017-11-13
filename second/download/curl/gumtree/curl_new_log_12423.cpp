@@ -1,11 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              use a default file for this, so this option is typically used to\n"
+"              alter that default file.\n"
 "\n"
-"       --cert-status\n"
-"              (SSL)  Tells curl to verify the status of the server certificate\n"
-"              by using the Certificate Status Request (aka. OCSP stapling) TLS\n"
-"              extension.\n"
+"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
+"              if it is set, and uses the given path as a path  to  a  CA  cert\n"
+"              bundle. This option overrides that variable.\n"
 "\n"
-"              If  this option is enabled and the server sends an invalid (e.g.\n"
-"              expired) response, if the response suggests that the server cer-\n"
+"              The  windows  version  of  curl will automatically look for a CA\n"
+"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
 , stdout);

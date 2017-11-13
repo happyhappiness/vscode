@@ -1,1 +1,1 @@
-die("Too large to be a .git file: '%s'", path);
+die("BUG: create called without valid new_sha1");

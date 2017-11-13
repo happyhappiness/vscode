@@ -1,49 +1,23 @@
-static int open_rewritelog(server_rec *s, apr_pool_t *p)
+static void cgi_child_errfn(apr_pool_t *pool, apr_status_t err,
+                            const char *description)
 {
-    rewrite_server_conf *conf;
-    const char *fname;
-    apr_status_t rc;
-    piped_log *pl;
-    int rewritelog_flags = ( APR_WRITE | APR_APPEND | APR_CREATE );
-    apr_fileperms_t rewritelog_mode = ( APR_UREAD | APR_UWRITE |
-                                        APR_GREAD | APR_WREAD );
+    apr_file_t *stderr_log;
+    char errbuf[200];
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* - no logfile configured
-     * - logfilename empty
-     * - virtual log shared w/ main server
+    apr_file_open_stderr(&stderr_log, pool);
+    /* Escape the logged string because it may be something that
+     * came in over the network.
      */
-    if (!conf->rewritelogfile || !*conf->rewritelogfile || conf->rewritelogfp) {
-        return 1;
-    }
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "mod_rewrite: could not open reliable pipe "
-                         "to RewriteLog filter %s", conf->rewritelogfile+1);
-            return 0;
-        }
-        conf->rewritelogfp = ap_piped_log_write_fd(pl);
-    }
-    else if (*conf->rewritelogfile != '\0') {
-        fname = ap_server_root_relative(p, conf->rewritelogfile);
-        if (!fname) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                         "mod_rewrite: Invalid RewriteLog "
-                         "path %s", conf->rewritelogfile);
-            return 0;
-        }
-        if ((rc = apr_file_open(&conf->rewritelogfp, fname,
-                                rewritelog_flags, rewritelog_mode, p))
-                != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
-                         "mod_rewrite: could not open RewriteLog "
-                         "file %s", fname);
-            return 0;
-        }
-    }
-
-    return 1;
+    apr_file_printf(stderr_log,
+                    "(%d)%s: %s\n",
+                    err,
+                    apr_strerror(err, errbuf, sizeof(errbuf)),
+#ifndef AP_UNSAFE_ERROR_LOG_UNESCAPED
+                    ap_escape_logitem(pool,
+#endif
+                    description
+#ifndef AP_UNSAFE_ERROR_LOG_UNESCAPED
+                    )
+#endif
+                    );
 }

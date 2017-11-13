@@ -1,2 +1,1 @@
-error("poll failed resuming: %s",
-				      strerror(errno));
+error("no signature found");

@@ -1,3 +1,1 @@
-warning("core.untrackedCache is set to false; "
-				"remove or change it, if you really want to "
-				"enable the untracked cache");
+printf(" %s mode %06o %s\n", newdelete, mode, name);

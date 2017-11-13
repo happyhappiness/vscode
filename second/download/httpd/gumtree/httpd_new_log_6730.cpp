@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02585)
-                      "auth_ldap authorize: require user: Can't evaluate expression: %s",
-                      err);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03452)
+                                  "Request header field name presented"
+                                  " invalid whitespace");

@@ -1,1 +1,1 @@
-fprintf(FINFO,"recv_files finished\n");
+fprintf(FINFO,"skipping non-regular file %s\n",fname);

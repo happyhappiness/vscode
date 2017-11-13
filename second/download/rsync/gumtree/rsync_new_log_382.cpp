@@ -1,1 +1,1 @@
-rprintf(FERROR,"%s : %s\n",fname,strerror(errno));
+fprintf(FINFO,"recv_files(%s)\n",fname);

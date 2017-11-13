@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01388)
-                          "Zlib: Invalid flags %02x", ctx->zlib_flags);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      H2_SSSN_LOG(APLOGNO(02935), session, 
+                      "nghttp2_submit_settings: %s"), nghttp2_strerror(*rv));

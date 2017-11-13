@@ -1,10 +1,11 @@
 fputs(
-"              Very similar to --netrc, but this option makes the .netrc  usage\n"
-"              optional and not mandatory as the --netrc option does.\n"
+"              path (absolute or relative) to the netrc file that  Curl  should\n"
+"              use.   You  can  only  specify one netrc file per invocation. If\n"
+"              several --netrc-file options are provided,  only  the  last  one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"       --negotiate\n"
-"              (HTTP)  Enables  GSS-Negotiate authentication. The GSS-Negotiate\n"
-"              method was designed by Microsoft and is used in their web appli-\n"
-"              cations.  It  is  primarily  meant  as  a  support for Kerberos5\n"
-"              authentication but may be also used along with another authenti-\n"
+"              This  option  overrides  any use of --netrc as they are mutually\n"
+"              exclusive.  It will also abide by --netrc-optional if specified.\n"
+"\n"
+"       --netrc-optional\n"
 , stdout);

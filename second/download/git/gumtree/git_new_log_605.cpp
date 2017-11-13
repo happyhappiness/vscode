@@ -1,2 +1,1 @@
-printf("unreachable %s %s\n", printable_type(obj),
-			describe_object(obj));
+error(_("failed to finalize '%s'."), filename);

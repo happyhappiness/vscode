@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, info->r,
-                      "daemon couldn't find CGI process for connection %lu",
-                      info->conn_id);
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                        "setgid: unable to set group id to Group %ld",
+                        (long)ap_unixd_config.group_id);

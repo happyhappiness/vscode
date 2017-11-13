@@ -1,1 +1,1 @@
-fputs("\n", s->fp);
+error(_("submodule '%s' has dirty index"), path);

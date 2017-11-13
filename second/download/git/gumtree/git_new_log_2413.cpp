@@ -1,1 +1,2 @@
-die(_("unknown error occurred while reading the configuration files"));
+warning(_("Missing author: %s"),
+		    oid_to_hex(&commit->object.oid));

@@ -1,1 +1,1 @@
-read_gitfile_error_die(error_code, path, dir);
+strbuf_addstr(err, _("empty filename in tree entry"));

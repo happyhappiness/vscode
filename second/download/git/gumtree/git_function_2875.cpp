@@ -1,115 +1,129 @@
-static int merge(int argc, const char **argv, const char *prefix)
+static void write_pack_file(void)
 {
-	struct strbuf remote_ref = STRBUF_INIT, msg = STRBUF_INIT;
-	unsigned char result_sha1[20];
-	struct notes_tree *t;
-	struct notes_merge_options o;
-	int do_merge = 0, do_commit = 0, do_abort = 0;
-	int verbosity = 0, result;
-	const char *strategy = NULL;
-	struct option options[] = {
-		OPT_GROUP(N_("General options")),
-		OPT__VERBOSITY(&verbosity),
-		OPT_GROUP(N_("Merge options")),
-		OPT_STRING('s', "strategy", &strategy, N_("strategy"),
-			   N_("resolve notes conflicts using the given strategy "
-			      "(manual/ours/theirs/union/cat_sort_uniq)")),
-		OPT_GROUP(N_("Committing unmerged notes")),
-		{ OPTION_SET_INT, 0, "commit", &do_commit, NULL,
-			N_("finalize notes merge by committing unmerged notes"),
-			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, 1},
-		OPT_GROUP(N_("Aborting notes merge resolution")),
-		{ OPTION_SET_INT, 0, "abort", &do_abort, NULL,
-			N_("abort notes merge"),
-			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL, 1},
-		OPT_END()
-	};
+	uint32_t i = 0, j;
+	struct sha1file *f;
+	off_t offset;
+	uint32_t nr_remaining = nr_result;
+	time_t last_mtime = 0;
+	struct object_entry **write_order;
 
-	argc = parse_options(argc, argv, prefix, options,
-			     git_notes_merge_usage, 0);
+	if (progress > pack_to_stdout)
+		progress_state = start_progress(_("Writing objects"), nr_result);
+	ALLOC_ARRAY(written_list, to_pack.nr_objects);
+	write_order = compute_write_order();
 
-	if (strategy || do_commit + do_abort == 0)
-		do_merge = 1;
-	if (do_merge + do_commit + do_abort != 1) {
-		error("cannot mix --commit, --abort or -s/--strategy");
-		usage_with_options(git_notes_merge_usage, options);
-	}
+	do {
+		unsigned char sha1[20];
+		char *pack_tmp_name = NULL;
 
-	if (do_merge && argc != 1) {
-		error("Must specify a notes ref to merge");
-		usage_with_options(git_notes_merge_usage, options);
-	} else if (!do_merge && argc) {
-		error("too many parameters");
-		usage_with_options(git_notes_merge_usage, options);
-	}
+		if (pack_to_stdout)
+			f = sha1fd_throughput(1, "<stdout>", progress_state);
+		else
+			f = create_tmp_packfile(&pack_tmp_name);
 
-	init_notes_merge_options(&o);
-	o.verbosity = verbosity + NOTES_MERGE_VERBOSITY_DEFAULT;
+		offset = write_pack_header(f, nr_remaining);
 
-	if (do_abort)
-		return merge_abort(&o);
-	if (do_commit)
-		return merge_commit(&o);
+		if (reuse_packfile) {
+			off_t packfile_size;
+			assert(pack_to_stdout);
 
-	o.local_ref = default_notes_ref();
-	strbuf_addstr(&remote_ref, argv[0]);
-	expand_loose_notes_ref(&remote_ref);
-	o.remote_ref = remote_ref.buf;
-
-	t = init_notes_check("merge", NOTES_INIT_WRITABLE);
-
-	if (strategy) {
-		if (parse_notes_merge_strategy(strategy, &o.strategy)) {
-			error("Unknown -s/--strategy: %s", strategy);
-			usage_with_options(git_notes_merge_usage, options);
+			packfile_size = write_reused_pack(f);
+			offset += packfile_size;
 		}
-	} else {
-		struct strbuf merge_key = STRBUF_INIT;
-		const char *short_ref = NULL;
 
-		if (!skip_prefix(o.local_ref, "refs/notes/", &short_ref))
-			die("BUG: local ref %s is outside of refs/notes/",
-			    o.local_ref);
+		nr_written = 0;
+		for (; i < to_pack.nr_objects; i++) {
+			struct object_entry *e = write_order[i];
+			if (write_one(f, e, &offset) == WRITE_ONE_BREAK)
+				break;
+			display_progress(progress_state, written);
+		}
 
-		strbuf_addf(&merge_key, "notes.%s.mergeStrategy", short_ref);
+		/*
+		 * Did we write the wrong # entries in the header?
+		 * If so, rewrite it like in fast-import
+		 */
+		if (pack_to_stdout) {
+			sha1close(f, sha1, CSUM_CLOSE);
+		} else if (nr_written == nr_remaining) {
+			sha1close(f, sha1, CSUM_FSYNC);
+		} else {
+			int fd = sha1close(f, sha1, 0);
+			fixup_pack_header_footer(fd, sha1, pack_tmp_name,
+						 nr_written, sha1, offset);
+			close(fd);
+			if (write_bitmap_index) {
+				warning(_(no_split_warning));
+				write_bitmap_index = 0;
+			}
+		}
 
-		if (git_config_get_notes_strategy(merge_key.buf, &o.strategy))
-			git_config_get_notes_strategy("notes.mergeStrategy", &o.strategy);
+		if (!pack_to_stdout) {
+			struct stat st;
+			struct strbuf tmpname = STRBUF_INIT;
 
-		strbuf_release(&merge_key);
-	}
+			/*
+			 * Packs are runtime accessed in their mtime
+			 * order since newer packs are more likely to contain
+			 * younger objects.  So if we are creating multiple
+			 * packs then we should modify the mtime of later ones
+			 * to preserve this property.
+			 */
+			if (stat(pack_tmp_name, &st) < 0) {
+				warning("failed to stat %s: %s",
+					pack_tmp_name, strerror(errno));
+			} else if (!last_mtime) {
+				last_mtime = st.st_mtime;
+			} else {
+				struct utimbuf utb;
+				utb.actime = st.st_atime;
+				utb.modtime = --last_mtime;
+				if (utime(pack_tmp_name, &utb) < 0)
+					warning("failed utime() on %s: %s",
+						pack_tmp_name, strerror(errno));
+			}
 
-	strbuf_addf(&msg, "notes: Merged notes from %s into %s",
-		    remote_ref.buf, default_notes_ref());
-	strbuf_add(&(o.commit_msg), msg.buf + 7, msg.len - 7); /* skip "notes: " */
+			strbuf_addf(&tmpname, "%s-", base_name);
 
-	result = notes_merge(&o, t, result_sha1);
+			if (write_bitmap_index) {
+				bitmap_writer_set_checksum(sha1);
+				bitmap_writer_build_type_index(written_list, nr_written);
+			}
 
-	if (result >= 0) /* Merge resulted (trivially) in result_sha1 */
-		/* Update default notes ref with new commit */
-		update_ref(msg.buf, default_notes_ref(), result_sha1, NULL,
-			   0, UPDATE_REFS_DIE_ON_ERR);
-	else { /* Merge has unresolved conflicts */
-		char *existing;
-		/* Update .git/NOTES_MERGE_PARTIAL with partial merge result */
-		update_ref(msg.buf, "NOTES_MERGE_PARTIAL", result_sha1, NULL,
-			   0, UPDATE_REFS_DIE_ON_ERR);
-		/* Store ref-to-be-updated into .git/NOTES_MERGE_REF */
-		existing = find_shared_symref("NOTES_MERGE_REF", default_notes_ref());
-		if (existing)
-			die(_("A notes merge into %s is already in-progress at %s"),
-			    default_notes_ref(), existing);
-		if (create_symref("NOTES_MERGE_REF", default_notes_ref(), NULL))
-			die("Failed to store link to current notes ref (%s)",
-			    default_notes_ref());
-		printf("Automatic notes merge failed. Fix conflicts in %s and "
-		       "commit the result with 'git notes merge --commit', or "
-		       "abort the merge with 'git notes merge --abort'.\n",
-		       git_path(NOTES_MERGE_WORKTREE));
-	}
+			finish_tmp_packfile(&tmpname, pack_tmp_name,
+					    written_list, nr_written,
+					    &pack_idx_opts, sha1);
 
-	free_notes(t);
-	strbuf_release(&remote_ref);
-	strbuf_release(&msg);
-	return result < 0; /* return non-zero on conflicts */
+			if (write_bitmap_index) {
+				strbuf_addf(&tmpname, "%s.bitmap", sha1_to_hex(sha1));
+
+				stop_progress(&progress_state);
+
+				bitmap_writer_show_progress(progress);
+				bitmap_writer_reuse_bitmaps(&to_pack);
+				bitmap_writer_select_commits(indexed_commits, indexed_commits_nr, -1);
+				bitmap_writer_build(&to_pack);
+				bitmap_writer_finish(written_list, nr_written,
+						     tmpname.buf, write_bitmap_options);
+				write_bitmap_index = 0;
+			}
+
+			strbuf_release(&tmpname);
+			free(pack_tmp_name);
+			puts(sha1_to_hex(sha1));
+		}
+
+		/* mark written objects as written to previous pack */
+		for (j = 0; j < nr_written; j++) {
+			written_list[j]->offset = (off_t)-1;
+		}
+		nr_remaining -= nr_written;
+	} while (nr_remaining && i < to_pack.nr_objects);
+
+	free(written_list);
+	free(write_order);
+	stop_progress(&progress_state);
+	if (written != nr_result)
+		die("wrote %"PRIu32" objects while expecting %"PRIu32,
+			written, nr_result);
 }

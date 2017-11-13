@@ -1,80 +1,214 @@
-static apr_status_t init_filter_instance(ap_filter_t *f)
+static authz_status ldapgroup_check_authorization(request_rec *r,
+                                             const char *require_args)
 {
-    ef_ctx_t *ctx;
-    ef_dir_t *dc;
-    apr_status_t rv;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(ef_ctx_t));
-    dc = ap_get_module_config(f->r->per_dir_config,
-                              &ext_filter_module);
-    ctx->dc = dc;
-    /* look for the user-defined filter */
-    ctx->filter = find_filter_def(f->r->server, f->frec->name);
-    if (!ctx->filter) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                      "couldn't find definition of filter '%s'",
-                      f->frec->name);
-        return APR_EINVAL;
+    util_ldap_connection_t *ldc = NULL;
+
+    const char *t;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+    struct mod_auth_ldap_groupattr_entry_t *ent;
+    int i;
+
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
     }
-    ctx->p = f->r->pool;
-    if (ctx->filter->intype &&
-        ctx->filter->intype != INTYPE_ALL) {
-        const char *ctypes;
 
-        if (ctx->filter->mode == INPUT_FILTER) {
-            ctypes = apr_table_get(f->r->headers_in, "Content-Type");
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
+    }
+
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_COMPARE); /* for the top-level group only */
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "auth_ldap authorize: no sec->host - weird...?");
+        return AUTHZ_DENIED;
+    }
+
+    /*
+     * If there are no elements in the group attribute array, the default should be
+     * member and uniquemember; populate the array now.
+     */
+    if (sec->groupattr->nelts == 0) {
+        struct mod_auth_ldap_groupattr_entry_t *grp;
+#if APR_HAS_THREADS
+        apr_thread_mutex_lock(sec->lock);
+#endif
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "member";
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "uniqueMember";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
+    }
+
+    /*
+     * If there are no elements in the sub group classes array, the default
+     * should be groupOfNames and groupOfUniqueNames; populate the array now.
+     */
+    if (sec->subgroupclasses->nelts == 0) {
+        struct mod_auth_ldap_groupattr_entry_t *grp;
+#if APR_HAS_THREADS
+        apr_thread_mutex_lock(sec->lock);
+#endif
+        grp = apr_array_push(sec->subgroupclasses);
+        grp->name = "groupOfNames";
+        grp = apr_array_push(sec->subgroupclasses);
+        grp->name = "groupOfUniqueNames";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
+    }
+
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
+
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
+
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
         }
-        else {
-            ctypes = f->r->content_type;
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
+
+    ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+
+    if (sec->group_attrib_is_dn) {
+        if (req->dn == NULL || strlen(req->dn) == 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: require group: user's DN has "
+                          "not been defined; failing authorization for user %s",
+                          r->user);
+            return AUTHZ_DENIED;
         }
+    }
+    else {
+        if (req->user == NULL || strlen(req->user) == 0) {
+            /* We weren't called in the authentication phase, so we didn't have a
+             * chance to set the user field. Do so now. */
+            req->user = r->user;
+        }
+    }
 
-        if (ctypes) {
-            const char *ctype = ap_getword(f->r->pool, &ctypes, ';');
+    t = require_args;
 
-            if (strcasecmp(ctx->filter->intype, ctype)) {
-                /* wrong IMT for us; don't mess with the output */
-                ctx->noop = 1;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "auth_ldap authorize: require group: testing for group "
+                  "membership in \"%s\"",
+                  t);
+
+    for (i = 0; i < sec->groupattr->nelts; i++) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: require group: testing for %s: "
+                      "%s (%s)",
+                      ent[i].name,
+                      sec->group_attrib_is_dn ? req->dn : req->user, t);
+
+        result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
+                             sec->group_attrib_is_dn ? req->dn : req->user);
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require group: "
+                              "authorization successful (attribute %s) "
+                              "[%s][%d - %s]",
+                              ent[i].name, ldc->reason, result,
+                              ldap_err2string(result));
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
+            }
+            case LDAP_NO_SUCH_ATTRIBUTE: 
+            case LDAP_COMPARE_FALSE: {
+                /* nested groups need searches and compares, so grab a new handle */
+                authnz_ldap_cleanup_connection_close(ldc);
+                apr_pool_cleanup_kill(r->pool, ldc,authnz_ldap_cleanup_connection_close);
+
+                ldc = get_connection_for_authz(r, LDAP_COMPARE_AND_SEARCH);
+                apr_pool_cleanup_register(r->pool, ldc,
+                                          authnz_ldap_cleanup_connection_close,
+                                          apr_pool_cleanup_null);
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                               "auth_ldap authorise: require group \"%s\": "
+                               "failed [%s][%d - %s], checking sub-groups",
+                               t, ldc->reason, result, ldap_err2string(result));
+
+                result = util_ldap_cache_check_subgroups(r, ldc, sec->url, t, ent[i].name,
+                                                         sec->group_attrib_is_dn ? req->dn : req->user,
+                                                         sec->sgAttributes[0] ? sec->sgAttributes : default_attributes,
+                                                         sec->subgroupclasses,
+                                                         0, sec->maxNestingDepth);
+                if(result == LDAP_COMPARE_TRUE) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "auth_ldap authorise: require group "
+                                  "(sub-group): authorisation successful "
+                                  "(attribute %s) [%s][%d - %s]",
+                                  ent[i].name, ldc->reason, result,
+                                  ldap_err2string(result));
+                    set_request_vars(r, LDAP_AUTHZ);
+                    return AUTHZ_GRANTED;
+                }
+                else {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "auth_ldap authorise: require group "
+                                  "(sub-group) \"%s\": authorisation failed "
+                                  "[%s][%d - %s]",
+                                  t, ldc->reason, result,
+                                  ldap_err2string(result));
+                }
+                break;
+            }
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require group \"%s\": "
+                              "authorization failed [%s][%d - %s]",
+                              t, ldc->reason, result, ldap_err2string(result));
             }
         }
-        else {
-            ctx->noop = 1;
-        }
-    }
-    if (ctx->filter->enable_env &&
-        !apr_table_get(f->r->subprocess_env, ctx->filter->enable_env)) {
-        /* an environment variable that enables the filter isn't set; bail */
-        ctx->noop = 1;
-    }
-    if (ctx->filter->disable_env &&
-        apr_table_get(f->r->subprocess_env, ctx->filter->disable_env)) {
-        /* an environment variable that disables the filter is set; bail */
-        ctx->noop = 1;
-    }
-    if (!ctx->noop) {
-        rv = init_ext_filter_process(f);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-        if (ctx->filter->outtype &&
-            ctx->filter->outtype != OUTTYPE_UNCHANGED) {
-            ap_set_content_type(f->r, ctx->filter->outtype);
-        }
-        if (ctx->filter->preserves_content_length != 1) {
-            /* nasty, but needed to avoid confusing the browser
-             */
-            apr_table_unset(f->r->headers_out, "Content-Length");
-        }
     }
 
-    if (dc->debug >= DBGLVL_SHOWOPTIONS) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                      "%sfiltering `%s' of type `%s' through `%s', cfg %s",
-                      ctx->noop ? "NOT " : "",
-                      f->r->uri ? f->r->uri : f->r->filename,
-                      f->r->content_type ? f->r->content_type : "(unspecified)",
-                      ctx->filter->command,
-                      get_cfg_string(dc, ctx->filter, f->r->pool));
-    }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "auth_ldap authorize group: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);
 
-    return APR_SUCCESS;
+    return AUTHZ_DENIED;
 }

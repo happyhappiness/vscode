@@ -1,1 +1,1 @@
-strbuf_addstr(&sb, path);
+die_errno("sigprocmask");

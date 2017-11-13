@@ -1,17 +1,22 @@
-static void print_tok_val(FILE *outfile, const char *tok, const char *val)
+static void check_safe_crlf(const char *path, enum crlf_action crlf_action,
+			    struct text_stat *old_stats, struct text_stat *new_stats,
+			    enum safe_crlf checksafe)
 {
-	char c;
-
-	if (!tok) {
-		fprintf(outfile, "%s\n", val);
-		return;
+	if (old_stats->crlf && !new_stats->crlf ) {
+		/*
+		 * CRLFs would not be restored by checkout
+		 */
+		if (checksafe == SAFE_CRLF_WARN)
+			warning("CRLF will be replaced by LF in %s.\nThe file will have its original line endings in your working directory.", path);
+		else /* i.e. SAFE_CRLF_FAIL */
+			die("CRLF would be replaced by LF in %s.", path);
+	} else if (old_stats->lonelf && !new_stats->lonelf ) {
+		/*
+		 * CRLFs would be added by checkout
+		 */
+		if (checksafe == SAFE_CRLF_WARN)
+			warning("LF will be replaced by CRLF in %s.\nThe file will have its original line endings in your working directory.", path);
+		else /* i.e. SAFE_CRLF_FAIL */
+			die("LF would be replaced by CRLF in %s", path);
 	}
-
-	c = last_non_space_char(tok);
-	if (!c)
-		return;
-	if (strchr(separators, c))
-		fprintf(outfile, "%s%s\n", tok, val);
-	else
-		fprintf(outfile, "%s%c %s\n", tok, separators[0], val);
 }

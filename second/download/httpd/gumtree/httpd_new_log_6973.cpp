@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(03254)
-                 "%.*s", len, buffer);
+ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, r->server, "%.*s",
+                     len, buffer);

@@ -1,8 +1,11 @@
-static int fsck_error_func(struct object *obj, int type, const char *err, ...)
+static void memory_limit_check(size_t size)
 {
-	va_list params;
-	va_start(params, err);
-	objreport(obj, (type == FSCK_WARN) ? "warning" : "error", err, params);
-	va_end(params);
-	return (type == FSCK_WARN) ? 0 : 1;
+	static int limit = -1;
+	if (limit == -1) {
+		const char *env = getenv("GIT_ALLOC_LIMIT");
+		limit = env ? atoi(env) * 1024 : 0;
+	}
+	if (limit && size > limit)
+		die("attempting to allocate %"PRIuMAX" over limit %d",
+		    (intmax_t)size, limit);
 }

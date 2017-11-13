@@ -1,1 +1,1 @@
-error_errno("Could not write to %s", filename);
+error_errno("Could not close %s", filename);

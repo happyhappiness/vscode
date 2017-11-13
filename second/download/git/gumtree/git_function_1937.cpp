@@ -1,66 +1,98 @@
-int cmd_rerere(int argc, const char **argv, const char *prefix)
+static CURL *get_curl_handle(void)
 {
-	struct string_list merge_rr = STRING_LIST_INIT_DUP;
-	int i, autoupdate = -1, flags = 0;
+	CURL *result = curl_easy_init();
+	long allowed_protocols = 0;
 
-	struct option options[] = {
-		OPT_SET_INT(0, "rerere-autoupdate", &autoupdate,
-			N_("register clean resolutions in index"), 1),
-		OPT_END(),
-	};
+	if (!result)
+		die("curl_easy_init failed");
 
-	argc = parse_options(argc, argv, prefix, options, rerere_usage, 0);
-
-	git_config(git_xmerge_config, NULL);
-
-	if (autoupdate == 1)
-		flags = RERERE_AUTOUPDATE;
-	if (autoupdate == 0)
-		flags = RERERE_NOAUTOUPDATE;
-
-	if (argc < 1)
-		return rerere(flags);
-
-	if (!strcmp(argv[0], "forget")) {
-		struct pathspec pathspec;
-		if (argc < 2)
-			warning("'git rerere forget' without paths is deprecated");
-		parse_pathspec(&pathspec, 0, PATHSPEC_PREFER_CWD,
-			       prefix, argv + 1);
-		return rerere_forget(&pathspec);
+	if (!curl_ssl_verify) {
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 0);
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 0);
+	} else {
+		/* Verify authenticity of the peer's certificate */
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 1);
+		/* The name in the cert must match whom we tried to connect */
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 2);
 	}
 
-	if (!strcmp(argv[0], "clear")) {
-		rerere_clear(&merge_rr);
-	} else if (!strcmp(argv[0], "gc"))
-		rerere_gc(&merge_rr);
-	else if (!strcmp(argv[0], "status")) {
-		if (setup_rerere(&merge_rr, flags | RERERE_READONLY) < 0)
-			return 0;
-		for (i = 0; i < merge_rr.nr; i++)
-			printf("%s\n", merge_rr.items[i].string);
-	} else if (!strcmp(argv[0], "remaining")) {
-		rerere_remaining(&merge_rr);
-		for (i = 0; i < merge_rr.nr; i++) {
-			if (merge_rr.items[i].util != RERERE_RESOLVED)
-				printf("%s\n", merge_rr.items[i].string);
-			else
-				/* prepare for later call to
-				 * string_list_clear() */
-				merge_rr.items[i].util = NULL;
-		}
-	} else if (!strcmp(argv[0], "diff")) {
-		if (setup_rerere(&merge_rr, flags | RERERE_READONLY) < 0)
-			return 0;
-		for (i = 0; i < merge_rr.nr; i++) {
-			const char *path = merge_rr.items[i].string;
-			const char *name = (const char *)merge_rr.items[i].util;
-			if (diff_two(rerere_path(name, "preimage"), path, path, path))
-				die("unable to generate diff for %s", name);
-		}
-	} else
-		usage_with_options(rerere_usage, options);
+#if LIBCURL_VERSION_NUM >= 0x070907
+	curl_easy_setopt(result, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
+#endif
+#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
+	curl_easy_setopt(result, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+#endif
 
-	string_list_clear(&merge_rr, 1);
-	return 0;
+	if (http_proactive_auth)
+		init_curl_http_auth(result);
+
+	if (ssl_cert != NULL)
+		curl_easy_setopt(result, CURLOPT_SSLCERT, ssl_cert);
+	if (has_cert_password())
+		curl_easy_setopt(result, CURLOPT_KEYPASSWD, cert_auth.password);
+#if LIBCURL_VERSION_NUM >= 0x070903
+	if (ssl_key != NULL)
+		curl_easy_setopt(result, CURLOPT_SSLKEY, ssl_key);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x070908
+	if (ssl_capath != NULL)
+		curl_easy_setopt(result, CURLOPT_CAPATH, ssl_capath);
+#endif
+	if (ssl_cainfo != NULL)
+		curl_easy_setopt(result, CURLOPT_CAINFO, ssl_cainfo);
+
+	if (curl_low_speed_limit > 0 && curl_low_speed_time > 0) {
+		curl_easy_setopt(result, CURLOPT_LOW_SPEED_LIMIT,
+				 curl_low_speed_limit);
+		curl_easy_setopt(result, CURLOPT_LOW_SPEED_TIME,
+				 curl_low_speed_time);
+	}
+
+	curl_easy_setopt(result, CURLOPT_FOLLOWLOCATION, 1);
+	curl_easy_setopt(result, CURLOPT_MAXREDIRS, 20);
+#if LIBCURL_VERSION_NUM >= 0x071301
+	curl_easy_setopt(result, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
+#elif LIBCURL_VERSION_NUM >= 0x071101
+	curl_easy_setopt(result, CURLOPT_POST301, 1);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x071304
+	if (is_transport_allowed("http"))
+		allowed_protocols |= CURLPROTO_HTTP;
+	if (is_transport_allowed("https"))
+		allowed_protocols |= CURLPROTO_HTTPS;
+	if (is_transport_allowed("ftp"))
+		allowed_protocols |= CURLPROTO_FTP;
+	if (is_transport_allowed("ftps"))
+		allowed_protocols |= CURLPROTO_FTPS;
+	curl_easy_setopt(result, CURLOPT_REDIR_PROTOCOLS, allowed_protocols);
+#else
+	if (transport_restrict_protocols())
+		warning("protocol restrictions not applied to curl redirects because\n"
+			"your curl version is too old (>= 7.19.4)");
+#endif
+
+	if (getenv("GIT_CURL_VERBOSE"))
+		curl_easy_setopt(result, CURLOPT_VERBOSE, 1);
+
+	curl_easy_setopt(result, CURLOPT_USERAGENT,
+		user_agent ? user_agent : git_user_agent());
+
+	if (curl_ftp_no_epsv)
+		curl_easy_setopt(result, CURLOPT_FTP_USE_EPSV, 0);
+
+#ifdef CURLOPT_USE_SSL
+	if (curl_ssl_try)
+		curl_easy_setopt(result, CURLOPT_USE_SSL, CURLUSESSL_TRY);
+#endif
+
+	if (curl_http_proxy) {
+		curl_easy_setopt(result, CURLOPT_PROXY, curl_http_proxy);
+	}
+#if LIBCURL_VERSION_NUM >= 0x070a07
+	curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+#endif
+
+	set_curl_keepalive(result);
+
+	return result;
 }

@@ -1,1 +1,1 @@
-fprintf(stderr, " '%s'", *avp);
+fprintf(f, "%d\n", pid);

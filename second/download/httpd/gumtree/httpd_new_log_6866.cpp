@@ -1,1 +1,3 @@
-ap_rputs(ap_escape_html(r->pool, lua_response), r);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                          H2_STRM_LOG(APLOGNO(03466), stream, 
+                          "no response, RST_STREAM"));

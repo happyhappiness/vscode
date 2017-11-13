@@ -1,2 +1,1 @@
-die("missing object %s for %s",
-		    sha1_to_hex(ref->objectname), ref->refname);
+error("cannot open '%s' for copying", path);

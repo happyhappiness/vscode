@@ -1,2 +1,1 @@
-die(_("You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists).\n"
-			    "Please, commit your changes before you can merge."));
+die("unknown line in '%s': %s", git_path_merge_head(), line.buf);

@@ -1,3 +1,1 @@
-error((opts->action == REPLAY_REVERT)
-			    ? _("Cannot revert during another revert.")
-			    : _("Cannot revert during a cherry-pick."));
+printf("%6d\t%s\n", (int)UTIL_TO_INT(item), item->string);

@@ -1,11 +1,11 @@
 fputs(
-"              ACCT command. (Added in 7.13.0)\n"
+"              deliver a document, it  returns  an  HTML  document  stating  so\n"
+"              (which  often  also describes why and more). This flag will pre-\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              This method is not fail-safe and there are occasions where  non-\n"
+"              successful  response  codes  will  slip through, especially when\n"
+"              authentication is involved (response codes 401 and 407).\n"
 "\n"
-"       --ftp-alternative-to-user <command>\n"
-"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
-"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
-"              Transport  server  over  FTPS  using a client certificate, using\n"
-"              \"SITE AUTH\" will tell the server to retrieve the  username  from\n"
+"       -F, --form <name=content>\n"
 , stdout);

@@ -1,1 +1,1 @@
-fprintf(stderr, "Error reading command stream\n");
+die("remote error: %s", buffer + 4);

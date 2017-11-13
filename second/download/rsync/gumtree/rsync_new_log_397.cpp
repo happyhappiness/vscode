@@ -1,1 +1,1 @@
-rprintf(FINFO,"done\n");
+fprintf(FINFO,"generate_files phase=%d\n",phase);

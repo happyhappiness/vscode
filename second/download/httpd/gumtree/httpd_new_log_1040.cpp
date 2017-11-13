@@ -1,3 +1,2 @@
-apr_file_printf(errfile,
-                        "%s: cannot modify file %s; use '-c' to create it" NL,
-                        argv[0], pwfilename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                            "Parent: Unable to connect child stderr.");

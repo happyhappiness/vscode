@@ -1,128 +1,121 @@
-static void check_object(struct object_entry *entry)
+static int module_clone(int argc, const char **argv, const char *prefix)
 {
-	if (entry->in_pack) {
-		struct packed_git *p = entry->in_pack;
-		struct pack_window *w_curs = NULL;
-		const unsigned char *base_ref = NULL;
-		struct object_entry *base_entry;
-		unsigned long used, used_0;
-		unsigned long avail;
-		off_t ofs;
-		unsigned char *buf, c;
+	const char *name = NULL, *url = NULL, *depth = NULL;
+	int quiet = 0;
+	int progress = 0;
+	FILE *submodule_dot_git;
+	char *p, *path = NULL, *sm_gitdir;
+	struct strbuf rel_path = STRBUF_INIT;
+	struct strbuf sb = STRBUF_INIT;
+	struct string_list reference = STRING_LIST_INIT_NODUP;
+	char *sm_alternate = NULL, *error_strategy = NULL;
 
-		buf = use_pack(p, &w_curs, entry->in_pack_offset, &avail);
+	struct option module_clone_options[] = {
+		OPT_STRING(0, "prefix", &prefix,
+			   N_("path"),
+			   N_("alternative anchor for relative paths")),
+		OPT_STRING(0, "path", &path,
+			   N_("path"),
+			   N_("where the new submodule will be cloned to")),
+		OPT_STRING(0, "name", &name,
+			   N_("string"),
+			   N_("name of the new submodule")),
+		OPT_STRING(0, "url", &url,
+			   N_("string"),
+			   N_("url where to clone the submodule from")),
+		OPT_STRING_LIST(0, "reference", &reference,
+			   N_("repo"),
+			   N_("reference repository")),
+		OPT_STRING(0, "depth", &depth,
+			   N_("string"),
+			   N_("depth for shallow clones")),
+		OPT__QUIET(&quiet, "Suppress output for cloning a submodule"),
+		OPT_BOOL(0, "progress", &progress,
+			   N_("force cloning progress")),
+		OPT_END()
+	};
 
-		/*
-		 * We want in_pack_type even if we do not reuse delta
-		 * since non-delta representations could still be reused.
-		 */
-		used = unpack_object_header_buffer(buf, avail,
-						   &entry->in_pack_type,
-						   &entry->size);
-		if (used == 0)
-			goto give_up;
+	const char *const git_submodule_helper_usage[] = {
+		N_("git submodule--helper clone [--prefix=<path>] [--quiet] "
+		   "[--reference <repository>] [--name <name>] [--depth <depth>] "
+		   "--url <url> --path <path>"),
+		NULL
+	};
 
-		/*
-		 * Determine if this is a delta and if so whether we can
-		 * reuse it or not.  Otherwise let's find out as cheaply as
-		 * possible what the actual type and size for this object is.
-		 */
-		switch (entry->in_pack_type) {
-		default:
-			/* Not a delta hence we've already got all we need. */
-			entry->type = entry->in_pack_type;
-			entry->in_pack_header_size = used;
-			if (entry->type < OBJ_COMMIT || entry->type > OBJ_BLOB)
-				goto give_up;
-			unuse_pack(&w_curs);
-			return;
-		case OBJ_REF_DELTA:
-			if (reuse_delta && !entry->preferred_base)
-				base_ref = use_pack(p, &w_curs,
-						entry->in_pack_offset + used, NULL);
-			entry->in_pack_header_size = used + 20;
-			break;
-		case OBJ_OFS_DELTA:
-			buf = use_pack(p, &w_curs,
-				       entry->in_pack_offset + used, NULL);
-			used_0 = 0;
-			c = buf[used_0++];
-			ofs = c & 127;
-			while (c & 128) {
-				ofs += 1;
-				if (!ofs || MSB(ofs, 7)) {
-					error("delta base offset overflow in pack for %s",
-					      sha1_to_hex(entry->idx.sha1));
-					goto give_up;
-				}
-				c = buf[used_0++];
-				ofs = (ofs << 7) + (c & 127);
-			}
-			ofs = entry->in_pack_offset - ofs;
-			if (ofs <= 0 || ofs >= entry->in_pack_offset) {
-				error("delta base offset out of bound for %s",
-				      sha1_to_hex(entry->idx.sha1));
-				goto give_up;
-			}
-			if (reuse_delta && !entry->preferred_base) {
-				struct revindex_entry *revidx;
-				revidx = find_pack_revindex(p, ofs);
-				if (!revidx)
-					goto give_up;
-				base_ref = nth_packed_object_sha1(p, revidx->nr);
-			}
-			entry->in_pack_header_size = used + used_0;
-			break;
-		}
+	argc = parse_options(argc, argv, prefix, module_clone_options,
+			     git_submodule_helper_usage, 0);
 
-		if (base_ref && (base_entry = packlist_find(&to_pack, base_ref, NULL))) {
-			/*
-			 * If base_ref was set above that means we wish to
-			 * reuse delta data, and we even found that base
-			 * in the list of objects we want to pack. Goodie!
-			 *
-			 * Depth value does not matter - find_deltas() will
-			 * never consider reused delta as the base object to
-			 * deltify other objects against, in order to avoid
-			 * circular deltas.
-			 */
-			entry->type = entry->in_pack_type;
-			entry->delta = base_entry;
-			entry->delta_size = entry->size;
-			entry->delta_sibling = base_entry->delta_child;
-			base_entry->delta_child = entry;
-			unuse_pack(&w_curs);
-			return;
-		}
+	if (argc || !url || !path || !*path)
+		usage_with_options(git_submodule_helper_usage,
+				   module_clone_options);
 
-		if (entry->type) {
-			/*
-			 * This must be a delta and we already know what the
-			 * final object type is.  Let's extract the actual
-			 * object size from the delta header.
-			 */
-			entry->size = get_size_from_delta(p, &w_curs,
-					entry->in_pack_offset + entry->in_pack_header_size);
-			if (entry->size == 0)
-				goto give_up;
-			unuse_pack(&w_curs);
-			return;
-		}
+	strbuf_addf(&sb, "%s/modules/%s", get_git_dir(), name);
+	sm_gitdir = absolute_pathdup(sb.buf);
+	strbuf_reset(&sb);
 
-		/*
-		 * No choice but to fall back to the recursive delta walk
-		 * with sha1_object_info() to find about the object type
-		 * at this point...
-		 */
-		give_up:
-		unuse_pack(&w_curs);
+	if (!is_absolute_path(path)) {
+		strbuf_addf(&sb, "%s/%s", get_git_work_tree(), path);
+		path = strbuf_detach(&sb, NULL);
+	} else
+		path = xstrdup(path);
+
+	if (!file_exists(sm_gitdir)) {
+		if (safe_create_leading_directories_const(sm_gitdir) < 0)
+			die(_("could not create directory '%s'"), sm_gitdir);
+
+		prepare_possible_alternates(name, &reference);
+
+		if (clone_submodule(path, sm_gitdir, url, depth, &reference,
+				    quiet, progress))
+			die(_("clone of '%s' into submodule path '%s' failed"),
+			    url, path);
+	} else {
+		if (safe_create_leading_directories_const(path) < 0)
+			die(_("could not create directory '%s'"), path);
+		strbuf_addf(&sb, "%s/index", sm_gitdir);
+		unlink_or_warn(sb.buf);
+		strbuf_reset(&sb);
 	}
 
-	entry->type = sha1_object_info(entry->idx.sha1, &entry->size);
-	/*
-	 * The error condition is checked in prepare_pack().  This is
-	 * to permit a missing preferred base object to be ignored
-	 * as a preferred base.  Doing so can result in a larger
-	 * pack file, but the transfer will still take place.
-	 */
+	/* Write a .git file in the submodule to redirect to the superproject. */
+	strbuf_addf(&sb, "%s/.git", path);
+	if (safe_create_leading_directories_const(sb.buf) < 0)
+		die(_("could not create leading directories of '%s'"), sb.buf);
+	submodule_dot_git = fopen(sb.buf, "w");
+	if (!submodule_dot_git)
+		die_errno(_("cannot open file '%s'"), sb.buf);
+
+	fprintf_or_die(submodule_dot_git, "gitdir: %s\n",
+		       relative_path(sm_gitdir, path, &rel_path));
+	if (fclose(submodule_dot_git))
+		die(_("could not close file %s"), sb.buf);
+	strbuf_reset(&sb);
+	strbuf_reset(&rel_path);
+
+	/* Redirect the worktree of the submodule in the superproject's config */
+	p = git_pathdup_submodule(path, "config");
+	if (!p)
+		die(_("could not get submodule directory for '%s'"), path);
+	git_config_set_in_file(p, "core.worktree",
+			       relative_path(path, sm_gitdir, &rel_path));
+
+	/* setup alternateLocation and alternateErrorStrategy in the cloned submodule if needed */
+	git_config_get_string("submodule.alternateLocation", &sm_alternate);
+	if (sm_alternate)
+		git_config_set_in_file(p, "submodule.alternateLocation",
+					   sm_alternate);
+	git_config_get_string("submodule.alternateErrorStrategy", &error_strategy);
+	if (error_strategy)
+		git_config_set_in_file(p, "submodule.alternateErrorStrategy",
+					   error_strategy);
+
+	free(sm_alternate);
+	free(error_strategy);
+
+	strbuf_release(&sb);
+	strbuf_release(&rel_path);
+	free(sm_gitdir);
+	free(path);
+	free(p);
+	return 0;
 }

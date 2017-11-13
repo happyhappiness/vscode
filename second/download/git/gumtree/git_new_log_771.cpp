@@ -1,1 +1,1 @@
-putchar('\n');
+!strcmp(next.buf, ".");

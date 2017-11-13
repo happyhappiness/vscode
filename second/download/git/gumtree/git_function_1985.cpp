@@ -1,53 +1,49 @@
-int finish_http_pack_request(struct http_pack_request *preq)
+static int edit_patch(int argc, const char **argv, const char *prefix)
 {
-	struct packed_git **lst;
-	struct packed_git *p = preq->target;
-	char *tmp_idx;
-	size_t len;
-	struct child_process ip = CHILD_PROCESS_INIT;
-	const char *ip_argv[8];
+	char *file = git_pathdup("ADD_EDIT.patch");
+	const char *apply_argv[] = { "apply", "--recount", "--cached",
+		NULL, NULL };
+	struct child_process child = CHILD_PROCESS_INIT;
+	struct rev_info rev;
+	int out;
+	struct stat st;
 
-	close_pack_index(p);
+	apply_argv[3] = file;
 
-	fclose(preq->packfile);
-	preq->packfile = NULL;
+	git_config(git_diff_basic_config, NULL); /* no "diff" UI options */
 
-	lst = preq->lst;
-	while (*lst != p)
-		lst = &((*lst)->next);
-	*lst = (*lst)->next;
+	if (read_cache() < 0)
+		die(_("Could not read the index"));
 
-	if (!strip_suffix(preq->tmpfile, ".pack.temp", &len))
-		die("BUG: pack tmpfile does not end in .pack.temp?");
-	tmp_idx = xstrfmt("%.*s.idx.temp", (int)len, preq->tmpfile);
+	init_revisions(&rev, prefix);
+	rev.diffopt.context = 7;
 
-	ip_argv[0] = "index-pack";
-	ip_argv[1] = "-o";
-	ip_argv[2] = tmp_idx;
-	ip_argv[3] = preq->tmpfile;
-	ip_argv[4] = NULL;
+	argc = setup_revisions(argc, argv, &rev, NULL);
+	rev.diffopt.output_format = DIFF_FORMAT_PATCH;
+	rev.diffopt.use_color = 0;
+	DIFF_OPT_SET(&rev.diffopt, IGNORE_DIRTY_SUBMODULES);
+	out = open(file, O_CREAT | O_WRONLY, 0666);
+	if (out < 0)
+		die(_("Could not open '%s' for writing."), file);
+	rev.diffopt.file = xfdopen(out, "w");
+	rev.diffopt.close_file = 1;
+	if (run_diff_files(&rev, 0))
+		die(_("Could not write patch"));
 
-	ip.argv = ip_argv;
-	ip.git_cmd = 1;
-	ip.no_stdin = 1;
-	ip.no_stdout = 1;
+	if (launch_editor(file, NULL, NULL))
+		die(_("editing patch failed"));
 
-	if (run_command(&ip)) {
-		unlink(preq->tmpfile);
-		unlink(tmp_idx);
-		free(tmp_idx);
-		return -1;
-	}
+	if (stat(file, &st))
+		die_errno(_("Could not stat '%s'"), file);
+	if (!st.st_size)
+		die(_("Empty patch. Aborted."));
 
-	unlink(sha1_pack_index_name(p->sha1));
+	child.git_cmd = 1;
+	child.argv = apply_argv;
+	if (run_command(&child))
+		die(_("Could not apply '%s'"), file);
 
-	if (finalize_object_file(preq->tmpfile, sha1_pack_name(p->sha1))
-	 || finalize_object_file(tmp_idx, sha1_pack_index_name(p->sha1))) {
-		free(tmp_idx);
-		return -1;
-	}
-
-	install_packed_git(p);
-	free(tmp_idx);
+	unlink(file);
+	free(file);
 	return 0;
 }

@@ -1,1 +1,1 @@
-fprintf(FINFO,"done hash search\n");
+fprintf(FINFO,"skipping directory %s\n",fname);

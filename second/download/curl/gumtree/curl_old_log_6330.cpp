@@ -1,9 +1,10 @@
 fputs(
-"              low the FTP transaction. The default mode is passive. See --ftp-\n"
-"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
+"              This option was  formerly  known  as  --ftp-ssl-reqd  (added  in\n"
+"              7.15.5)  and  that  can  still  be used but will be removed in a\n"
+"              future version.\n"
 "\n"
-"       --ftp-ssl-ccc-mode [active/passive]\n"
-"              (FTP) Use CCC (Clear Command Channel) Sets  the  CCC  mode.  The\n"
-"              passive  mode  will  not initiate the shutdown, but instead wait\n"
-"              for the server to do it, and will not reply to the shutdown from\n"
+"       --ftp-ssl-ccc\n"
+"              (FTP) Use CCC (Clear Command Channel)  Shuts  down  the  SSL/TLS\n"
+"              layer after authenticating. The rest of the control channel com-\n"
+"              munication will be unencrypted. This allows NAT routers to  fol-\n"
 , stdout);

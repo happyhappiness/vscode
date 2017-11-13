@@ -1,1 +1,2 @@
-strbuf_addstr(err, _("unknown repository extensions found:"));
+strbuf_addf(err, "\n\t%s",
+				    format->unknown_extensions.items[i].string);

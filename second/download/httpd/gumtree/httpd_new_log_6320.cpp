@@ -1,1 +1,0 @@
-apr_shm_create(&lua_ivm_shm, sizeof pool, NULL, pconf);

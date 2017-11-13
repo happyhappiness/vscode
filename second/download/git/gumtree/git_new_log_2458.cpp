@@ -1,1 +1,2 @@
-printf(_("Bisecting: a merge base must be tested\n"));
+error("in tree %s: entry %s has bad mode %.6o",
+					oid_to_hex(&tree->object.oid), entry.path, entry.mode);

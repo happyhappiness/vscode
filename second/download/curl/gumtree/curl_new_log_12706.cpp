@@ -1,8 +1,10 @@
 fputs(
-"              Exercise  caution  if  you  are  using  this option and multiple\n"
-"              transfers may occur.  If you use the NAME1=VALUE1; format, or in\n"
-"              a  file  use  the  Set-Cookie format and don't specify a domain,\n"
-"              then the cookie is sent for any domain (even after redirects are\n"
-"              followed)  and cannot be modified by a server-set cookie. If the\n"
-"              cookie engine is enabled and a server sets a cookie of the  same\n"
+"              (FTP/SFTP) When used in an upload, this makes curl append to the\n"
+"              target file instead  of  overwriting  it.  If  the  remote  file\n"
+"              doesn't  exist,  it  will  be  created.   Note that this flag is\n"
+"              ignored by some SFTP servers (including OpenSSH).\n"
+"\n"
+"       -A, --user-agent <agent string>\n"
+"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
+"              Some   badly   done  CGIs  fail  if  this  field  isn't  set  to\n"
 , stdout);

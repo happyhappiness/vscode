@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "[%" APR_PID_T_FMT "] ldap cache: Setting cache TTL to %ld"
-                 " microseconds.", getpid(), st->search_cache_ttl);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());

@@ -1,1 +1,0 @@
-error(_("Could not spawn pack-objects"));

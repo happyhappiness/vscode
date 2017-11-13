@@ -1,1 +1,1 @@
-die("update_treesame %s", oid_to_hex(&commit->object.oid));
+die("unable to generate diff for %s", one->path);

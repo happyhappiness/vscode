@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+die("oops (%s)", oid_to_hex(oid));

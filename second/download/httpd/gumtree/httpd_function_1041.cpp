@@ -1,223 +1,152 @@
-int main(int argc, const char * const argv[])
+static int master_main(server_rec *s, HANDLE shutdown_event, HANDLE restart_event)
 {
-    apr_file_t *fpw = NULL;
-    char record[MAX_STRING_LEN];
-    char line[MAX_STRING_LEN];
-    char *password = NULL;
-    char *pwfilename = NULL;
-    char *user = NULL;
-    char tn[] = "htpasswd.tmp.XXXXXX";
-    char *dirname;
-    char *scratch, cp[MAX_STRING_LEN];
-    int found = 0;
-    int i;
-    int alg = ALG_CRYPT;
-    int mask = 0;
-    apr_pool_t *pool;
-    int existing_file = 0;
-#if APR_CHARSET_EBCDIC
-    apr_status_t rv;
-    apr_xlate_t *to_ascii;
-#endif
+    int rv, cld;
+    int restart_pending;
+    int shutdown_pending;
+    HANDLE child_exit_event;
+    HANDLE event_handles[NUM_WAIT_HANDLES];
+    DWORD child_pid;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate);
-    apr_pool_create(&pool, NULL);
-    apr_file_open_stderr(&errfile, pool);
+    restart_pending = shutdown_pending = 0;
 
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, pool);
-    if (rv) {
-        apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);
-        exit(1);
+    event_handles[SHUTDOWN_HANDLE] = shutdown_event;
+    event_handles[RESTART_HANDLE] = restart_event;
+
+    /* Create a single child process */
+    rv = create_process(pconf, &event_handles[CHILD_HANDLE], 
+                        &child_exit_event, &child_pid);
+    if (rv < 0) 
+    {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: create child process failed. Exiting.");
+        shutdown_pending = 1;
+        goto die_now;
     }
-    rv = apr_SHA1InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d\n", rv);
-        exit(1);
+    if (!strcasecmp(signal_arg, "runservice")) {
+        mpm_service_started();
     }
-    rv = apr_MD5InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d\n", rv);
-        exit(1);
-    }
-#endif /*APR_CHARSET_EBCDIC*/
 
-    check_args(pool, argc, argv, &alg, &mask, &user, &pwfilename, &password);
-
-
-#if defined(WIN32) || defined(NETWARE)
-    if (alg == ALG_CRYPT) {
-        alg = ALG_APMD5;
-        apr_file_printf(errfile, "Automatically using MD5 format.\n");
-    }
-#endif
-
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-    if (alg == ALG_PLAIN) {
-        apr_file_printf(errfile,"Warning: storing passwords as plain text "
-                        "might just not work on this platform.\n");
-    }
-#endif
-
-    /*
-     * Only do the file checks if we're supposed to frob it.
+    /* Update the scoreboard. Note that there is only a single active
+     * child at once.
      */
-    if (!(mask & APHTP_NOFILE)) {
-        existing_file = exists(pwfilename, pool);
-        if (existing_file) {
-            /*
-             * Check that this existing file is readable and writable.
-             */
-            if (!accessible(pool, pwfilename, APR_READ | APR_APPEND)) {
-                apr_file_printf(errfile, "%s: cannot open file %s for "
-                                "read/write access\n", argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
+    ap_scoreboard_image->parent[0].quiescing = 0;
+    ap_scoreboard_image->parent[0].pid = child_pid;
+
+    /* Wait for shutdown or restart events or for child death */
+    winnt_mpm_state = AP_MPMQ_RUNNING;
+    rv = WaitForMultipleObjects(NUM_WAIT_HANDLES, (HANDLE *) event_handles, FALSE, INFINITE);
+    cld = rv - WAIT_OBJECT_0;
+    if (rv == WAIT_FAILED) {
+        /* Something serious is wrong */
+        ap_log_error(APLOG_MARK,APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: WaitForMultipeObjects WAIT_FAILED -- doing server shutdown");
+        shutdown_pending = 1;
+    }
+    else if (rv == WAIT_TIMEOUT) {
+        /* Hey, this cannot happen */
+        ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                     "master_main: WaitForMultipeObjects with INFINITE wait exited with WAIT_TIMEOUT");
+        shutdown_pending = 1;
+    }
+    else if (cld == SHUTDOWN_HANDLE) {
+        /* shutdown_event signalled */
+        shutdown_pending = 1;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s, 
+                     "Parent: Received shutdown signal -- Shutting down the server.");
+        if (ResetEvent(shutdown_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "ResetEvent(shutdown_event)");
+        }
+    }
+    else if (cld == RESTART_HANDLE) {
+        /* Received a restart event. Prepare the restart_event to be reused 
+         * then signal the child process to exit. 
+         */
+        restart_pending = 1;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                     "Parent: Received restart signal -- Restarting the server.");
+        if (ResetEvent(restart_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: ResetEvent(restart_event) failed.");
+        }
+        if (SetEvent(child_exit_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: SetEvent for child process %d failed.", 
+                         event_handles[CHILD_HANDLE]);
+        }
+        /* Don't wait to verify that the child process really exits, 
+         * just move on with the restart.
+         */
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;
+    }
+    else {
+        /* The child process exited prematurely due to a fatal error. */
+        DWORD exitcode;
+        if (!GetExitCodeProcess(event_handles[CHILD_HANDLE], &exitcode)) {
+            /* HUH? We did exit, didn't we? */
+            exitcode = APEXIT_CHILDFATAL;
+        }
+        if (   exitcode == APEXIT_CHILDFATAL 
+            || exitcode == APEXIT_CHILDINIT
+            || exitcode == APEXIT_INIT) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, 
+                         "Parent: child process exited with status %u -- Aborting.", exitcode);
         }
         else {
-            /*
-             * Error out if -c was omitted for this non-existant file.
-             */
-            if (!(mask & APHTP_NEWFILE)) {
-                apr_file_printf(errfile,
-                        "%s: cannot modify file %s; use '-c' to create it\n",
-                        argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
-            /*
-             * As it doesn't exist yet, verify that we can create it.
-             */
-            if (!accessible(pool, pwfilename, APR_CREATE | APR_WRITE)) {
-                apr_file_printf(errfile, "%s: cannot create file %s\n",
-                                argv[0], pwfilename);
-                exit(ERR_FILEPERM);
+            int i;
+            restart_pending = 1;
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                         "Parent: child process exited with status %u -- Restarting.", exitcode);
+            for (i = 0; i < ap_threads_per_child; i++) {
+                ap_update_child_status_from_indexes(0, i, SERVER_DEAD, NULL);
             }
         }
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;
     }
+    if (restart_pending) {
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
+    }
+die_now:
+    if (shutdown_pending) 
+    {
+        int timeout = 30000;  /* Timeout is milliseconds */
+        winnt_mpm_state = AP_MPMQ_STOPPING;
 
-    /*
-     * All the file access checks (if any) have been made.  Time to go to work;
-     * try to create the record for the username in question.  If that
-     * fails, there's no need to waste any time on file manipulations.
-     * Any error message text is returned in the record buffer, since
-     * the mkrecord() routine doesn't have access to argv[].
-     */
-    if (!(mask & APHTP_DELUSER)) {
-        i = mkrecord(user, record, sizeof(record) - 1,
-                     password, alg);
-        if (i != 0) {
-            apr_file_printf(errfile, "%s: %s\n", argv[0], record);
-            exit(i);
+        /* This shutdown is only marginally graceful. We will give the 
+         * child a bit of time to exit gracefully. If the time expires,
+         * the child will be wacked.
+         */
+        if (!strcasecmp(signal_arg, "runservice")) {
+            mpm_service_stopping();
         }
-        if (mask & APHTP_NOFILE) {
-            printf("%s\n", record);
-            exit(0);
+        /* Signal the child processes to exit */
+        if (SetEvent(child_exit_event) == 0) {
+                ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
+                             "Parent: SetEvent for child process %d failed", event_handles[CHILD_HANDLE]);
         }
-    }
-
-    /*
-     * We can access the files the right way, and we have a record
-     * to add or update.  Let's do it..
-     */
-    if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
-        exit(ERR_FILEPERM);
-    }
-    dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
-
-    if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
-                        argv[0], dirname);
-        exit(ERR_FILEPERM);
-    }
-
-    /*
-     * If we're not creating a new file, copy records from the existing
-     * one to the temporary file until we find the specified user.
-     */
-    if (existing_file && !(mask & APHTP_NEWFILE)) {
-        if (apr_file_open(&fpw, pwfilename, APR_READ | APR_BUFFERED,
-                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
-            apr_file_printf(errfile, "%s: unable to read file %s\n", 
-                            argv[0], pwfilename);
-            exit(ERR_FILEPERM);
-        }
-        while (apr_file_gets(line, sizeof(line), fpw) == APR_SUCCESS) {
-            char *colon;
-
-            strcpy(cp, line);
-            scratch = cp;
-            while (apr_isspace(*scratch)) {
-                ++scratch;
-            }
-
-            if (!*scratch || (*scratch == '#')) {
-                putline(ftemp, line);
-                continue;
-            }
-            /*
-             * See if this is our user.
-             */
-            colon = strchr(scratch, ':');
-            if (colon != NULL) {
-                *colon = '\0';
+        if (event_handles[CHILD_HANDLE]) {
+            rv = WaitForSingleObject(event_handles[CHILD_HANDLE], timeout);
+            if (rv == WAIT_OBJECT_0) {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Child process exited successfully.");
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
             }
             else {
-                /*
-                 * If we've not got a colon on the line, this could well 
-                 * not be a valid htpasswd file.
-                 * We should bail at this point.
-                 */
-                apr_file_printf(errfile, "\n%s: The file %s does not appear "
-                                         "to be a valid htpasswd file.\n",
-                                argv[0], pwfilename);
-                apr_file_close(fpw);
-                exit(ERR_INVALID);
-            }
-            if (strcmp(user, scratch) != 0) {
-                putline(ftemp, line);
-                continue;
-            }
-            else {
-                if (!(mask & APHTP_DELUSER)) {
-                    /* We found the user we were looking for.
-                     * Add him to the file.
-                    */
-                    apr_file_printf(errfile, "Updating ");
-                    putline(ftemp, record);
-                    found++;
-                }
-                else {
-                    /* We found the user we were looking for.
-                     * Delete them from the file.
-                     */
-                    apr_file_printf(errfile, "Deleting ");
-                    found++;
-                }
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %d ", event_handles[CHILD_HANDLE]);
+                TerminateProcess(event_handles[CHILD_HANDLE], 1);
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
             }
         }
-        apr_file_close(fpw);
+        CloseHandle(child_exit_event);
+        return 0;  /* Tell the caller we do not want to restart */
     }
-    if (!found && !(mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "Adding ");
-        putline(ftemp, record);
-    }
-    else if (!found && (mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "User %s not found\n", user);
-        exit(0);
-    }
-    apr_file_printf(errfile, "password for user %s\n", user);
-
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
-        APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
-        exit(ERR_FILEPERM);
-    }
-    apr_file_close(ftemp);
-    return 0;
+    winnt_mpm_state = AP_MPMQ_STARTING;
+    CloseHandle(child_exit_event);
+    return 1;      /* Tell the caller we want a restart */
 }

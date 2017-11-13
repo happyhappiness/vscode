@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s_main,
-                         "unable to replace stderr with error_log");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "Unable to set session id context to `%s'", vhost_md5);

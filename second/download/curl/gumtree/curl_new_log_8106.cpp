@@ -1,11 +1,11 @@
 fputs(
-"              the  response  will break Metalink parser and if the headers are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
+"              To use a Metalink file in the local file system, use FILE proto-\n"
+"              col (file://):\n"
 "\n"
-"              (Added in 7.27.0, if built against the libmetalink library.)\n"
+"              curl --metalink file://example.metalink\n"
 "\n"
-"       -n, --netrc\n"
-"              Makes  curl  scan  the  .netrc  (_netrc  on Windows) file in the\n"
-"              user's home directory for login name and password. This is typi-\n"
+"              Please  note  that if FILE protocol is disabled, there is no way\n"
+"              to use a local Metalink file at the time of this  writing.  Also\n"
+"              note  that  if  --metalink  and  --include  are  used  together,\n"
+"              --include will be ignored. This is because including headers  in\n"
 , stdout);

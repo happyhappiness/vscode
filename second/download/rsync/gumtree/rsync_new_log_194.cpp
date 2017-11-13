@@ -1,1 +1,1 @@
-fprintf(FERROR,"send files finished\n");
+fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));

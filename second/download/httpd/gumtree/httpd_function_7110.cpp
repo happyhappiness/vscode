@@ -1,125 +1,138 @@
-static apr_status_t handle_include(include_ctx_t *ctx, ap_filter_t *f,
-                                   apr_bucket_brigade *bb)
+static apr_status_t includes_filter(ap_filter_t *f, apr_bucket_brigade *b)
 {
     request_rec *r = f->r;
-    char *last_error;
+    request_rec *parent;
+    include_dir_config *conf = ap_get_module_config(r->per_dir_config,
+                                                    &include_module);
 
-    if (!ctx->argc) {
-        ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, APLOGNO(01341)
-                      "missing argument for include element in %s",
-                      r->filename);
+    include_server_config *sconf= ap_get_module_config(r->server->module_config,
+                                                       &include_module);
+
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01374)
+                      "mod_include: Options +Includes (or IncludesNoExec) "
+                      "wasn't set, INCLUDES filter removed");
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, b);
     }
 
-    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
-        return APR_SUCCESS;
+    if (!f->ctx) {
+        struct ssi_internal_ctx *intern;
+        include_ctx_t *ctx;
+
+        /* create context for this filter */
+        f->ctx = ctx = apr_palloc(r->pool, sizeof(*ctx));
+        ctx->r = r;
+        ctx->intern = intern = apr_palloc(r->pool, sizeof(*ctx->intern));
+        ctx->pool = r->pool;
+        apr_pool_create(&ctx->dpool, ctx->pool);
+
+        /* runtime data */
+        intern->tmp_bb = apr_brigade_create(ctx->pool, f->c->bucket_alloc);
+        intern->seen_eos = 0;
+        intern->state = PARSE_PRE_HEAD;
+        ctx->flags = (SSI_FLAG_PRINTING | SSI_FLAG_COND_TRUE);
+        if ((ap_allow_options(r) & OPT_INC_WITH_EXEC) == 0) {
+            ctx->flags |= SSI_FLAG_NO_EXEC;
+        }
+        intern->legacy_expr = (conf->legacy_expr > 0);
+        intern->expr_eval_ctx = NULL;
+        intern->expr_err = NULL;
+        intern->expr_vary_this = NULL;
+
+        ctx->if_nesting_level = 0;
+        intern->re = NULL;
+
+        ctx->error_str = conf->default_error_msg ? conf->default_error_msg :
+                         DEFAULT_ERROR_MSG;
+        ctx->time_str = conf->default_time_fmt ? conf->default_time_fmt :
+                        DEFAULT_TIME_FORMAT;
+        intern->start_seq  = sconf->default_start_tag;
+        intern->start_seq_pat = bndm_compile(ctx->pool, intern->start_seq,
+                                             strlen(intern->start_seq));
+        intern->end_seq = sconf->default_end_tag;
+        intern->end_seq_len = strlen(intern->end_seq);
+        intern->undefined_echo = conf->undefined_echo ? conf->undefined_echo :
+                                 DEFAULT_UNDEFINED_ECHO;
+        intern->undefined_echo_len = strlen(intern->undefined_echo);
     }
 
-    if (!ctx->argc) {
-        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-        return APR_SUCCESS;
-    }
-
-    last_error = NULL;
-    while (1) {
-        char *tag     = NULL;
-        char *tag_val = NULL;
-        request_rec *rr = NULL;
-        char *error_fmt = NULL;
-        char *parsed_string;
-
-        ap_ssi_get_tag_and_value(ctx, &tag, &tag_val, SSI_VALUE_DECODED);
-        if (!tag || !tag_val) {
-            break;
-        }
-
-        if (strcmp(tag, "virtual") && strcmp(tag, "file") && strcmp(tag,
-                "onerror")) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01342) "unknown parameter "
-                          "\"%s\" to tag include in %s", tag, r->filename);
-            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-            break;
-        }
-
-        parsed_string = ap_ssi_parse_string(ctx, tag_val, NULL, 0,
-                                            SSI_EXPAND_DROP_NAME);
-        if (tag[0] == 'f') {
-            char *newpath;
-            apr_status_t rv;
-
-            /* be safe; only files in this directory or below allowed */
-            rv = apr_filepath_merge(&newpath, NULL, parsed_string,
-                                    APR_FILEPATH_SECUREROOTTEST |
-                                    APR_FILEPATH_NOTABSOLUTE, ctx->dpool);
-
-            if (rv != APR_SUCCESS) {
-                error_fmt = "unable to include file \"%s\" in parsed file %s";
-            }
-            else {
-                rr = ap_sub_req_lookup_file(newpath, r, f->next);
-            }
-        }
-        else if ((tag[0] == 'v' && !last_error)
-                || (tag[0] == 'o' && last_error)) {
-            if (r->kept_body) {
-                rr = ap_sub_req_method_uri(r->method, parsed_string, r, f->next);
-            }
-            else {
-                rr = ap_sub_req_lookup_uri(parsed_string, r, f->next);
-            }
-        }
-        else {
-            continue;
-        }
-
-        if (!error_fmt && rr->status != HTTP_OK) {
-            error_fmt = "unable to include \"%s\" in parsed file %s";
-        }
-
-        if (!error_fmt && (ctx->flags & SSI_FLAG_NO_EXEC) &&
-            rr->content_type && strncmp(rr->content_type, "text/", 5)) {
-
-            error_fmt = "unable to include potential exec \"%s\" in parsed "
-                        "file %s";
-        }
-
-        /* See the Kludge in includes_filter for why.
-         * Basically, it puts a bread crumb in here, then looks
-         * for the crumb later to see if its been here.
+    if ((parent = ap_get_module_config(r->request_config, &include_module))) {
+        /* Kludge --- for nested includes, we want to keep the subprocess
+         * environment of the base document (for compatibility); that means
+         * torquing our own last_modified date as well so that the
+         * LAST_MODIFIED variable gets reset to the proper value if the
+         * nested document resets <!--#config timefmt -->.
          */
-        if (rr) {
-            ap_set_module_config(rr->request_config, &include_module, r);
-        }
+        r->subprocess_env = r->main->subprocess_env;
+        apr_pool_join(r->main->pool, r->pool);
+        r->finfo.mtime = r->main->finfo.mtime;
+    }
+    else {
+        /* we're not a nested include, so we create an initial
+         * environment */
+        ap_add_common_vars(r);
+        ap_add_cgi_vars(r);
+        add_include_vars(r);
+    }
+    /* Always unset the content-length.  There is no way to know if
+     * the content will be modified at some point by send_parsed_content.
+     * It is very possible for us to not find any content in the first
+     * 9k of the file, but still have to modify the content of the file.
+     * If we are going to pass the file through send_parsed_content, then
+     * the content-length should just be unset.
+     */
+    apr_table_unset(f->r->headers_out, "Content-Length");
 
-        if (!error_fmt && ap_run_sub_req(rr)) {
-            error_fmt = "unable to include \"%s\" in parsed file %s";
-        }
+    /* Always unset the Last-Modified field - see RFC2616 - 13.3.4.
+     * We don't know if we are going to be including a file or executing
+     * a program which may change the Last-Modified header or make the
+     * content completely dynamic.  Therefore, we can't support these
+     * headers.
+     *
+     * Exception: XBitHack full means we *should* set the
+     * Last-Modified field.
+     *
+     * SSILastModified on means we *should* set the Last-Modified field
+     * if not present, or respect an existing value if present.
+     */
 
-        if (error_fmt) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error_fmt, tag_val,
-                    r->filename);
-            if (last_error) {
-                /* onerror threw an error, give up completely */
-                break;
-            }
-            last_error = error_fmt;
-        }
-        else {
-            last_error = NULL;
-        }
+    /* Must we respect the last modified header? By default, no */
+    if (conf->lastmodified > 0) {
 
-        /* Do *not* destroy the subrequest here; it may have allocated
-         * variables in this r->subprocess_env in the subrequest's
-         * r->pool, so that pool must survive as long as this request.
-         * Yes, this is a memory leak. */
+        /* update the last modified if we have a valid time, and only if
+         * we don't already have a valid last modified.
+         */
+        if (r->finfo.valid & APR_FINFO_MTIME
+                && !apr_table_get(f->r->headers_out, "Last-Modified")) {
+            ap_update_mtime(r, r->finfo.mtime);
+            ap_set_last_modified(r);
+        }
 
     }
 
-    if (last_error) {
-        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+    /* Assure the platform supports Group protections */
+    else if (((conf->xbithack == XBITHACK_FULL ||
+               (conf->xbithack == XBITHACK_UNSET &&
+                DEFAULT_XBITHACK == XBITHACK_FULL))
+        && (r->finfo.valid & APR_FINFO_GPROT)
+        && (r->finfo.protection & APR_GEXECUTE))) {
+        ap_update_mtime(r, r->finfo.mtime);
+        ap_set_last_modified(r);
+    }
+    else {
+        apr_table_unset(f->r->headers_out, "Last-Modified");
     }
 
-    return APR_SUCCESS;
+    /* add QUERY stuff to env cause it ain't yet */
+    if (r->args) {
+        char *arg_copy = apr_pstrdup(r->pool, r->args);
+
+        apr_table_setn(r->subprocess_env, "QUERY_STRING", r->args);
+        ap_unescape_url(arg_copy);
+        apr_table_setn(r->subprocess_env, "QUERY_STRING_UNESCAPED",
+                  ap_escape_shell_cmd(r->pool, arg_copy));
+    }
+
+    return send_parsed_content(f, b);
 }

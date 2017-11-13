@@ -1,1 +1,1 @@
-printf("num get patch: %d\n", sb.num_get_patch);
+warning_errno(_(msg_warn_remove_failed), quoted.buf);

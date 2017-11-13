@@ -1,51 +1,85 @@
-static int copy_notes_for_rebase(const struct am_state *state)
+int main(int argc, const char **argv)
 {
-	struct notes_rewrite_cfg *c;
-	struct strbuf sb = STRBUF_INIT;
-	const char *invalid_line = _("Malformed input line: '%s'.");
-	const char *msg = "Notes added by 'git rebase'";
-	FILE *fp;
-	int ret = 0;
+	struct strbuf buf = STRBUF_INIT;
+	int nongit;
 
-	assert(state->rebasing);
-
-	c = init_copy_notes_for_rewrite("rebase");
-	if (!c)
-		return 0;
-
-	fp = xfopen(am_path(state, "rewritten"), "r");
-
-	while (!strbuf_getline_lf(&sb, fp)) {
-		unsigned char from_obj[GIT_SHA1_RAWSZ], to_obj[GIT_SHA1_RAWSZ];
-
-		if (sb.len != GIT_SHA1_HEXSZ * 2 + 1) {
-			ret = error(invalid_line, sb.buf);
-			goto finish;
-		}
-
-		if (get_sha1_hex(sb.buf, from_obj)) {
-			ret = error(invalid_line, sb.buf);
-			goto finish;
-		}
-
-		if (sb.buf[GIT_SHA1_HEXSZ] != ' ') {
-			ret = error(invalid_line, sb.buf);
-			goto finish;
-		}
-
-		if (get_sha1_hex(sb.buf + GIT_SHA1_HEXSZ + 1, to_obj)) {
-			ret = error(invalid_line, sb.buf);
-			goto finish;
-		}
-
-		if (copy_note_for_rewrite(c, from_obj, to_obj))
-			ret = error(_("Failed to copy notes from '%s' to '%s'"),
-					sha1_to_hex(from_obj), sha1_to_hex(to_obj));
+	git_extract_argv0_path(argv[0]);
+	setup_git_directory_gently(&nongit);
+	if (argc < 2) {
+		fprintf(stderr, "Remote needed\n");
+		return 1;
 	}
 
-finish:
-	finish_copy_notes_for_rewrite(c, msg);
-	fclose(fp);
-	strbuf_release(&sb);
-	return ret;
+	options.verbosity = 1;
+	options.progress = !!isatty(2);
+	options.thin = 1;
+
+	remote = remote_get(argv[1]);
+
+	if (argc > 2) {
+		end_url_with_slash(&url, argv[2]);
+	} else {
+		end_url_with_slash(&url, remote->url[0]);
+	}
+
+	http_init(remote, url.buf, 0);
+
+	do {
+		if (strbuf_getline(&buf, stdin, '\n') == EOF) {
+			if (ferror(stdin))
+				fprintf(stderr, "Error reading command stream\n");
+			else
+				fprintf(stderr, "Unexpected end of command stream\n");
+			return 1;
+		}
+		if (buf.len == 0)
+			break;
+		if (starts_with(buf.buf, "fetch ")) {
+			if (nongit)
+				die("Fetch attempted without a local repo");
+			parse_fetch(&buf);
+
+		} else if (!strcmp(buf.buf, "list") || starts_with(buf.buf, "list ")) {
+			int for_push = !!strstr(buf.buf + 4, "for-push");
+			output_refs(get_refs(for_push));
+
+		} else if (starts_with(buf.buf, "push ")) {
+			parse_push(&buf);
+
+		} else if (starts_with(buf.buf, "option ")) {
+			char *name = buf.buf + strlen("option ");
+			char *value = strchr(name, ' ');
+			int result;
+
+			if (value)
+				*value++ = '\0';
+			else
+				value = "true";
+
+			result = set_option(name, value);
+			if (!result)
+				printf("ok\n");
+			else if (result < 0)
+				printf("error invalid value\n");
+			else
+				printf("unsupported\n");
+			fflush(stdout);
+
+		} else if (!strcmp(buf.buf, "capabilities")) {
+			printf("fetch\n");
+			printf("option\n");
+			printf("push\n");
+			printf("check-connectivity\n");
+			printf("\n");
+			fflush(stdout);
+		} else {
+			fprintf(stderr, "Unknown command '%s'\n", buf.buf);
+			return 1;
+		}
+		strbuf_reset(&buf);
+	} while (1);
+
+	http_cleanup();
+
+	return 0;
 }

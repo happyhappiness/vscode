@@ -1,1 +1,1 @@
-printf("%s (%d):\n", item->string, onelines->nr);
+die(_("-b, -B, and --detach are mutually exclusive"));

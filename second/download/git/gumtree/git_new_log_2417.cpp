@@ -1,1 +1,0 @@
-printf("sizeof-long: %d\n", (int)sizeof(long));

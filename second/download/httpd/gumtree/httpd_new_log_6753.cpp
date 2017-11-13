@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01149)
-                     "Sharing worker '%s' instead of creating new worker '%s'",
-                     ap_proxy_worker_name(cmd->pool, worker), name);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, master,
+                  "h2_stream(%ld-%d): create slave", master->id, slave_id);

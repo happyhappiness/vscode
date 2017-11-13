@@ -1,31 +1,28 @@
-static int process_input_file(struct strbuf **lines,
-			      struct trailer_item **in_tok_first,
-			      struct trailer_item **in_tok_last)
+static FILE *create_in_place_tempfile(const char *file)
 {
-	int count = 0;
-	int patch_start, trailer_start, trailer_end, i;
+	struct stat st;
+	struct strbuf template = STRBUF_INIT;
+	const char *tail;
+	FILE *outfile;
 
-	/* Get the line count */
-	while (lines[count])
-		count++;
+	if (stat(file, &st))
+		die_errno(_("could not stat %s"), file);
+	if (!S_ISREG(st.st_mode))
+		die(_("file %s is not a regular file"), file);
+	if (!(st.st_mode & S_IWUSR))
+		die(_("file %s is not writable by user"), file);
 
-	patch_start = find_patch_start(lines, count);
-	trailer_end = find_trailer_end(lines, patch_start);
-	trailer_start = find_trailer_start(lines, trailer_end);
+	/* Create temporary file in the same directory as the original */
+	tail = strrchr(file, '/');
+	if (tail != NULL)
+		strbuf_add(&template, file, tail - file + 1);
+	strbuf_addstr(&template, "git-interpret-trailers-XXXXXX");
 
-	/* Print lines before the trailers as is */
-	print_lines(lines, 0, trailer_start);
+	xmks_tempfile_m(&trailers_tempfile, template.buf, st.st_mode);
+	strbuf_release(&template);
+	outfile = fdopen_tempfile(&trailers_tempfile, "w");
+	if (!outfile)
+		die_errno(_("could not open temporary file"));
 
-	if (!has_blank_line_before(lines, trailer_start - 1))
-		printf("\n");
-
-	/* Parse trailer lines */
-	for (i = trailer_start; i < trailer_end; i++) {
-		if (lines[i]->buf[0] != comment_line_char) {
-			struct trailer_item *new = create_trailer_item(lines[i]->buf);
-			add_trailer_item(in_tok_first, in_tok_last, new);
-		}
-	}
-
-	return trailer_end;
+	return outfile;
 }

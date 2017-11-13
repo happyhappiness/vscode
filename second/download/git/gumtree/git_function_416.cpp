@@ -1,31 +1,59 @@
-static void check_notes_merge_worktree(struct notes_merge_options *o)
+int cmd_merge_recursive(int argc, const char **argv, const char *prefix)
 {
-	if (!o->has_worktree) {
-		/*
-		 * Must establish NOTES_MERGE_WORKTREE.
-		 * Abort if NOTES_MERGE_WORKTREE already exists
-		 */
-		if (file_exists(git_path(NOTES_MERGE_WORKTREE)) &&
-		    !is_empty_dir(git_path(NOTES_MERGE_WORKTREE))) {
-			if (advice_resolve_conflict)
-				die("You have not concluded your previous "
-				    "notes merge (%s exists).\nPlease, use "
-				    "'git notes merge --commit' or 'git notes "
-				    "merge --abort' to commit/abort the "
-				    "previous merge before you start a new "
-				    "notes merge.", git_path("NOTES_MERGE_*"));
-			else
-				die("You have not concluded your notes merge "
-				    "(%s exists).", git_path("NOTES_MERGE_*"));
-		}
+	const struct object_id *bases[21];
+	unsigned bases_count = 0;
+	int i, failed;
+	struct object_id h1, h2;
+	struct merge_options o;
+	struct commit *result;
 
-		if (safe_create_leading_directories_const(git_path(
-				NOTES_MERGE_WORKTREE "/.test")))
-			die_errno("unable to create directory %s",
-				  git_path(NOTES_MERGE_WORKTREE));
-		o->has_worktree = 1;
-	} else if (!file_exists(git_path(NOTES_MERGE_WORKTREE)))
-		/* NOTES_MERGE_WORKTREE should already be established */
-		die("missing '%s'. This should not happen",
-		    git_path(NOTES_MERGE_WORKTREE));
+	init_merge_options(&o);
+	if (argv[0] && ends_with(argv[0], "-subtree"))
+		o.subtree_shift = "";
+
+	if (argc < 4)
+		usagef(builtin_merge_recursive_usage, argv[0]);
+
+	for (i = 1; i < argc; ++i) {
+		const char *arg = argv[i];
+
+		if (starts_with(arg, "--")) {
+			if (!arg[2])
+				break;
+			if (parse_merge_opt(&o, arg + 2))
+				die("Unknown option %s", arg);
+			continue;
+		}
+		if (bases_count < ARRAY_SIZE(bases)-1) {
+			struct object_id *oid = xmalloc(sizeof(struct object_id));
+			if (get_oid(argv[i], oid))
+				die("Could not parse object '%s'", argv[i]);
+			bases[bases_count++] = oid;
+		}
+		else
+			warning("Cannot handle more than %d bases. "
+				"Ignoring %s.",
+				(int)ARRAY_SIZE(bases)-1, argv[i]);
+	}
+	if (argc - i != 3) /* "--" "<head>" "<remote>" */
+		die("Not handling anything other than two heads merge.");
+
+	o.branch1 = argv[++i];
+	o.branch2 = argv[++i];
+
+	if (get_oid(o.branch1, &h1))
+		die("Could not resolve ref '%s'", o.branch1);
+	if (get_oid(o.branch2, &h2))
+		die("Could not resolve ref '%s'", o.branch2);
+
+	o.branch1 = better_branch_name(o.branch1);
+	o.branch2 = better_branch_name(o.branch2);
+
+	if (o.verbosity >= 3)
+		printf("Merging %s with %s\n", o.branch1, o.branch2);
+
+	failed = merge_recursive_generic(&o, &h1, &h2, bases_count, bases, &result);
+	if (failed < 0)
+		return 128; /* die() error code */
+	return failed;
 }

@@ -1,1 +1,1 @@
-error_errno(_("could not write to '%s'"), todo_path);
+die(_("Value '%s' for submodule.alternateLocation is not recognized"), sm_alternate);

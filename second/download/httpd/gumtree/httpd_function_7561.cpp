@@ -1,157 +1,304 @@
-static apr_status_t store_headers(cache_handle_t *h, request_rec *r,
-        cache_info *info)
+static apr_status_t deflate_in_filter(ap_filter_t *f,
+                                      apr_bucket_brigade *bb,
+                                      ap_input_mode_t mode,
+                                      apr_read_type_e block,
+                                      apr_off_t readbytes)
 {
-    cache_socache_dir_conf *dconf =
-            ap_get_module_config(r->per_dir_config, &cache_socache_module);
-    cache_socache_conf *conf = ap_get_module_config(r->server->module_config,
-            &cache_socache_module);
-    apr_size_t slider;
+    apr_bucket *bkt;
+    request_rec *r = f->r;
+    deflate_ctx *ctx = f->ctx;
+    int zRC;
     apr_status_t rv;
-    cache_object_t *obj = h->cache_obj;
-    cache_socache_object_t *sobj = (cache_socache_object_t*) obj->vobj;
-    cache_socache_info_t *socache_info;
+    deflate_filter_config *c;
 
-    memcpy(&h->cache_obj->info, info, sizeof(cache_info));
-
-    if (r->headers_out) {
-        sobj->headers_out = ap_cache_cacheable_headers_out(r);
+    /* just get out of the way of things we don't want. */
+    if (mode != AP_MODE_READBYTES) {
+        return ap_get_brigade(f->next, bb, mode, block, readbytes);
     }
 
-    if (r->headers_in) {
-        sobj->headers_in = ap_cache_cacheable_headers_in(r);
-    }
+    c = ap_get_module_config(r->server->module_config, &deflate_module);
 
-    sobj->expire
-            = obj->info.expire > r->request_time + dconf->maxtime ? r->request_time
-                    + dconf->maxtime
-                    : obj->info.expire + dconf->mintime;
+    if (!ctx) {
+        char deflate_hdr[10];
+        apr_size_t len;
 
-    apr_pool_create(&sobj->pool, r->pool);
-
-    sobj->buffer = apr_palloc(sobj->pool, dconf->max);
-    sobj->buffer_len = dconf->max;
-    socache_info = (cache_socache_info_t *) sobj->buffer;
-
-    if (sobj->headers_out) {
-        const char *vary;
-
-        vary = apr_table_get(sobj->headers_out, "Vary");
-
-        if (vary) {
-            apr_array_header_t* varray;
-            apr_uint32_t format = CACHE_SOCACHE_VARY_FORMAT_VERSION;
-
-            memcpy(sobj->buffer, &format, sizeof(format));
-            slider = sizeof(format);
-
-            memcpy(sobj->buffer + slider, &obj->info.expire,
-                    sizeof(obj->info.expire));
-            slider += sizeof(obj->info.expire);
-
-            varray = apr_array_make(r->pool, 6, sizeof(char*));
-            tokens_to_array(r->pool, vary, varray);
-
-            if (APR_SUCCESS != (rv = store_array(varray, sobj->buffer,
-                    sobj->buffer_len, &slider))) {
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02370)
-                        "buffer too small for Vary array, caching aborted: %s",
-                        obj->key);
-                apr_pool_destroy(sobj->pool);
-                sobj->pool = NULL;
-                return rv;
-            }
-            if (socache_mutex) {
-                apr_status_t status = apr_global_mutex_lock(socache_mutex);
-                if (status != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02371)
-                            "could not acquire lock, ignoring: %s", obj->key);
-                    apr_pool_destroy(sobj->pool);
-                    sobj->pool = NULL;
-                    return status;
-                }
-            }
-            rv = conf->provider->socache_provider->store(
-                    conf->provider->socache_instance, r->server,
-                    (unsigned char *) obj->key, strlen(obj->key), sobj->expire,
-                    (unsigned char *) sobj->buffer, (unsigned int) slider,
-                    sobj->pool);
-            if (socache_mutex) {
-                apr_status_t status = apr_global_mutex_unlock(socache_mutex);
-                if (status != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02372)
-                            "could not release lock, ignoring: %s", obj->key);
-                }
-            }
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02373)
-                        "Vary not written to cache, ignoring: %s", obj->key);
-                apr_pool_destroy(sobj->pool);
-                sobj->pool = NULL;
-                return rv;
-            }
-
-            obj->key = sobj->key = regen_key(r->pool, sobj->headers_in, varray,
-                    sobj->name);
+        /* only work on main request/no subrequests */
+        if (!ap_is_initial_req(r)) {
+            ap_remove_input_filter(f);
+            return ap_get_brigade(f->next, bb, mode, block, readbytes);
         }
-    }
 
-    socache_info->format = CACHE_SOCACHE_DISK_FORMAT_VERSION;
-    socache_info->date = obj->info.date;
-    socache_info->expire = obj->info.expire;
-    socache_info->entity_version = sobj->socache_info.entity_version++;
-    socache_info->request_time = obj->info.request_time;
-    socache_info->response_time = obj->info.response_time;
-    socache_info->status = obj->info.status;
+        /* We can't operate on Content-Ranges */
+        if (apr_table_get(r->headers_in, "Content-Range") != NULL) {
+            ap_remove_input_filter(f);
+            return ap_get_brigade(f->next, bb, mode, block, readbytes);
+        }
 
-    if (r->header_only && r->status != HTTP_NOT_MODIFIED) {
-        socache_info->header_only = 1;
-    }
-    else {
-        socache_info->header_only = sobj->socache_info.header_only;
-    }
+        /* Check whether request body is gzipped.
+         *
+         * If it is, we're transforming the contents, invalidating
+         * some request headers including Content-Encoding.
+         *
+         * If not, we just remove ourself.
+         */
+        if (check_gzip(r, r->headers_in, NULL) == 0) {
+            ap_remove_input_filter(f);
+            return ap_get_brigade(f->next, bb, mode, block, readbytes);
+        }
 
-    socache_info->name_len = strlen(sobj->name);
+        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
+        ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+        ctx->proc_bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
 
-    memcpy(&socache_info->control, &obj->info.control, sizeof(cache_control_t));
-    slider = sizeof(cache_socache_info_t);
+        rv = ap_get_brigade(f->next, ctx->bb, AP_MODE_READBYTES, block, 10);
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
 
-    if (slider + socache_info->name_len >= sobj->buffer_len) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02374)
-                "cache buffer too small for name: %s",
-                sobj->name);
-        apr_pool_destroy(sobj->pool);
-        sobj->pool = NULL;
-        return APR_EGENERAL;
-    }
-    memcpy(sobj->buffer + slider, sobj->name, socache_info->name_len);
-    slider += socache_info->name_len;
+        /* zero length body? step aside */
+        bkt = APR_BRIGADE_FIRST(ctx->bb);
+        if (APR_BUCKET_IS_EOS(bkt)) {
+            ap_remove_input_filter(f);
+            return ap_get_brigade(f->next, bb, mode, block, readbytes);
+        }
 
-    if (sobj->headers_out) {
-        if (APR_SUCCESS != store_table(sobj->headers_out, sobj->buffer,
-                sobj->buffer_len, &slider)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02375)
-                    "out-headers didn't fit in buffer: %s", sobj->name);
-            apr_pool_destroy(sobj->pool);
-            sobj->pool = NULL;
+        apr_table_unset(r->headers_in, "Content-Length");
+        apr_table_unset(r->headers_in, "Content-MD5");
+
+        len = 10;
+        rv = apr_brigade_flatten(ctx->bb, deflate_hdr, &len);
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+
+        /* We didn't get the magic bytes. */
+        if (len != 10 ||
+            deflate_hdr[0] != deflate_magic[0] ||
+            deflate_hdr[1] != deflate_magic[1]) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01387) "Zlib: Invalid header");
             return APR_EGENERAL;
         }
-    }
 
-    /* Parse the vary header and dump those fields from the headers_in. */
-    /* TODO: Make call to the same thing cache_select calls to crack Vary. */
-    if (sobj->headers_in) {
-        if (APR_SUCCESS != store_table(sobj->headers_in, sobj->buffer,
-                sobj->buffer_len, &slider)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, APLOGNO(02376)
-                    "in-headers didn't fit in buffer %s",
-                    sobj->key);
-            apr_pool_destroy(sobj->pool);
-            sobj->pool = NULL;
+        /* We can't handle flags for now. */
+        if (deflate_hdr[3] != 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01388)
+                          "Zlib: Unsupported flags %02x", (int)deflate_hdr[3]);
             return APR_EGENERAL;
         }
+
+        zRC = inflateInit2(&ctx->stream, c->windowSize);
+
+        if (zRC != Z_OK) {
+            f->ctx = NULL;
+            inflateEnd(&ctx->stream);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01389)
+                          "unable to init Zlib: "
+                          "inflateInit2 returned %d: URL %s",
+                          zRC, r->uri);
+            ap_remove_input_filter(f);
+            return ap_get_brigade(f->next, bb, mode, block, readbytes);
+        }
+
+        /* initialize deflate output buffer */
+        ctx->stream.next_out = ctx->buffer;
+        ctx->stream.avail_out = c->bufferSize;
+
+        apr_brigade_cleanup(ctx->bb);
     }
 
-    sobj->body_offset = slider;
+    if (APR_BRIGADE_EMPTY(ctx->proc_bb)) {
+        rv = ap_get_brigade(f->next, ctx->bb, mode, block, readbytes);
+
+        if (rv != APR_SUCCESS) {
+            /* What about APR_EAGAIN errors? */
+            inflateEnd(&ctx->stream);
+            return rv;
+        }
+
+        for (bkt = APR_BRIGADE_FIRST(ctx->bb);
+             bkt != APR_BRIGADE_SENTINEL(ctx->bb);
+             bkt = APR_BUCKET_NEXT(bkt))
+        {
+            const char *data;
+            apr_size_t len;
+
+            if (APR_BUCKET_IS_EOS(bkt)) {
+                if (!ctx->done) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02481)
+                                  "Encountered premature end-of-stream while inflating");
+                    return APR_EGENERAL;
+                }
+
+                /* Move everything to the returning brigade. */
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
+                ap_remove_input_filter(f);
+                break;
+            }
+
+            if (APR_BUCKET_IS_FLUSH(bkt)) {
+                apr_bucket *tmp_heap;
+                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
+                if (zRC != Z_OK) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01391)
+                                  "Zlib error %d inflating data (%s)", zRC,
+                                  ctx->stream.msg);
+                    return APR_EGENERAL;
+                }
+
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                 NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                ctx->stream.avail_out = c->bufferSize;
+
+                /* Move everything to the returning brigade. */
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_CONCAT(bb, ctx->bb);
+                break;
+            }
+
+            /* sanity check - data after completed compressed body and before eos? */
+            if (ctx->done) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02482)
+                              "Encountered extra data after compressed data");
+                return APR_EGENERAL;
+            }
+
+            /* read */
+            apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
+
+            /* pass through zlib inflate. */
+            ctx->stream.next_in = (unsigned char *)data;
+            ctx->stream.avail_in = len;
+
+            zRC = Z_OK;
+
+            while (ctx->stream.avail_in != 0) {
+                if (ctx->stream.avail_out == 0) {
+                    apr_bucket *tmp_heap;
+                    ctx->stream.next_out = ctx->buffer;
+                    len = c->bufferSize - ctx->stream.avail_out;
+
+                    ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                    tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                      NULL, f->c->bucket_alloc);
+                    APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                    ctx->stream.avail_out = c->bufferSize;
+                }
+
+                zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+
+                if (zRC == Z_STREAM_END) {
+                    break;
+                }
+
+                if (zRC != Z_OK) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01392)
+                                  "Zlib error %d inflating data (%s)", zRC,
+                                  ctx->stream.msg);
+                    return APR_EGENERAL;
+                }
+            }
+            if (zRC == Z_STREAM_END) {
+                apr_bucket *tmp_heap;
+                apr_size_t avail;
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
+                              "Zlib: Inflated %ld to %ld : URL %s",
+                              ctx->stream.total_in, ctx->stream.total_out,
+                              r->uri);
+
+                len = c->bufferSize - ctx->stream.avail_out;
+
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                  NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                ctx->stream.avail_out = c->bufferSize;
+
+                avail = ctx->stream.avail_in;
+
+                /* Is the remaining 8 bytes already in the avail stream? */
+                if (avail >= 8) {
+                    unsigned long compCRC, compLen;
+                    compCRC = getLong(ctx->stream.next_in);
+                    if (ctx->crc != compCRC) {
+                        inflateEnd(&ctx->stream);
+                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01394)
+                                      "Zlib: CRC error inflating data");
+                        return APR_EGENERAL;
+                    }
+                    ctx->stream.next_in += 4;
+                    compLen = getLong(ctx->stream.next_in);
+                    if (ctx->stream.total_out != compLen) {
+                        inflateEnd(&ctx->stream);
+                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01395)
+                                      "Zlib: Length %ld of inflated data does "
+                                      "not match expected value %ld",
+                                      ctx->stream.total_out, compLen);
+                        return APR_EGENERAL;
+                    }
+                }
+                else {
+                    /* FIXME: We need to grab the 8 verification bytes
+                     * from the wire! */
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01396)
+                                  "Verification data not available (bug?)");
+                    return APR_EGENERAL;
+                }
+
+                inflateEnd(&ctx->stream);
+
+                ctx->done = 1;
+
+                /* Did we have trailing data behind the closing 8 bytes? */
+                if (avail > 8) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02485)
+                                  "Encountered extra data after compressed data");
+                    return APR_EGENERAL;
+                }
+            }
+
+        }
+        apr_brigade_cleanup(ctx->bb);
+    }
+
+    /* If we are about to return nothing for a 'blocking' read and we have
+     * some data in our zlib buffer, flush it out so we can return something.
+     */
+    if (block == APR_BLOCK_READ &&
+        APR_BRIGADE_EMPTY(ctx->proc_bb) &&
+        ctx->stream.avail_out < c->bufferSize) {
+        apr_bucket *tmp_heap;
+        apr_size_t len;
+        ctx->stream.next_out = ctx->buffer;
+        len = c->bufferSize - ctx->stream.avail_out;
+
+        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+        tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                          NULL, f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+        ctx->stream.avail_out = c->bufferSize;
+    }
+
+    if (!APR_BRIGADE_EMPTY(ctx->proc_bb)) {
+        if (apr_brigade_partition(ctx->proc_bb, readbytes, &bkt) == APR_INCOMPLETE) {
+            APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
+        }
+        else {
+            APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
+            apr_brigade_split_ex(bb, bkt, ctx->proc_bb);
+        }
+    }
 
     return APR_SUCCESS;
 }

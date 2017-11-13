@@ -1,1 +1,1 @@
-fprintf(stderr, "   -s   Force SHA encryption of the password.\n");
+fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");

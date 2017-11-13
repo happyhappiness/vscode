@@ -1,109 +1,163 @@
-static int apprentice(server_rec *s, apr_pool_t *p)
+static void* APR_THREAD_FUNC wd_worker(apr_thread_t *thread, void *data)
 {
-    apr_file_t *f = NULL;
-    apr_status_t result;
-    char line[BUFSIZ + 1];
-    int errs = 0;
-    int lineno;
-#if MIME_MAGIC_DEBUG
-    int rule = 0;
-    struct magic *m, *prevm;
-#endif
-    magic_server_config_rec *conf = (magic_server_config_rec *)
-                    ap_get_module_config(s->module_config, &mime_magic_module);
-    const char *fname = ap_server_root_relative(p, conf->magicfile);
+    ap_watchdog_t *w = (ap_watchdog_t *)data;
+    apr_status_t rv;
+    int locked = 0;
+    int probed = 0;
+    int inited = 0;
+    int mpmq_s = 0;
 
-    if (!fname) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                     MODNAME ": Invalid magic file path %s", conf->magicfile);
-        return -1;
-    }
-    if ((result = apr_file_open(&f, fname, APR_READ | APR_BUFFERED,
-                                APR_OS_DEFAULT, p)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
-                     MODNAME ": can't read magic file %s", fname);
-        return -1;
-    }
+    w->pool = apr_thread_pool_get(thread);
+    w->is_running = 1;
 
-    /* set up the magic list (empty) */
-    conf->magic = conf->last = NULL;
-
-    /* parse it */
-    for (lineno = 1; apr_file_gets(line, BUFSIZ, f) == APR_SUCCESS; lineno++) {
-        int ws_offset;
-        char *last = line + strlen(line) - 1; /* guaranteed that len >= 1 since an
-                                               * "empty" line contains a '\n'
-                                               */
-
-        /* delete newline and any other trailing whitespace */
-        while (last >= line
-               && apr_isspace(*last)) {
-            *last = '\0';
-            --last;
+    apr_thread_mutex_unlock(w->startup);
+    if (w->mutex) {
+        while (w->is_running) {
+            if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpmq_s) != APR_SUCCESS) {
+                w->is_running = 0;
+                break;
+            }
+            if (mpmq_s == AP_MPMQ_STOPPING) {
+                w->is_running = 0;
+                break;
+            }
+            rv = apr_proc_mutex_trylock(w->mutex);
+            if (rv == APR_SUCCESS) {
+                if (probed) {
+                    /* Sleep after we were locked
+                     * up to 1 second. Httpd can be
+                     * in the middle of shutdown, and
+                     * our child didn't yet received
+                     * the shutdown signal.
+                     */
+                    probed = 10;
+                    while (w->is_running && probed > 0) {
+                        apr_sleep(AP_WD_TM_INTERVAL);
+                        probed--;
+                        if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpmq_s) != APR_SUCCESS) {
+                            w->is_running = 0;
+                            break;
+                        }
+                        if (mpmq_s == AP_MPMQ_STOPPING) {
+                            w->is_running = 0;
+                            break;
+                        }
+                    }
+                }
+                locked = 1;
+                break;
+            }
+            probed = 1;
+            apr_sleep(AP_WD_TM_SLICE);
         }
-
-        /* skip leading whitespace */
-        ws_offset = 0;
-        while (line[ws_offset] && apr_isspace(line[ws_offset])) {
-            ws_offset++;
+    }
+    if (w->is_running) {
+        watchdog_list_t *wl = w->callbacks;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
+                     "%sWatchdog (%s) running (%" APR_PID_T_FMT ")",
+                     w->singleton ? "Singleton" : "",
+                     w->name, getpid());
+        apr_time_clock_hires(w->pool);
+        if (wl) {
+            apr_pool_t *ctx = NULL;
+            apr_pool_create(&ctx, w->pool);
+            while (wl && w->is_running) {
+                /* Execute watchdog callback */
+                wl->status = (*wl->callback_fn)(AP_WATCHDOG_STATE_STARTING,
+                                                (void *)wl->data, ctx);
+                wl = wl->next;
+            }
+            apr_pool_destroy(ctx);
         }
-
-        /* skip blank lines */
-        if (line[ws_offset] == 0) {
-            continue;
+        else {
+            ap_run_watchdog_init(wd_server_conf->s, w->name, w->pool);
+            inited = 1;
         }
-
-        /* comment, do not parse */
-        if (line[ws_offset] == '#')
-            continue;
-
-#if MIME_MAGIC_DEBUG
-        /* if we get here, we're going to use it so count it */
-        rule++;
-#endif
-
-        /* parse it */
-        if (parse(s, p, line + ws_offset, lineno) != 0)
-            ++errs;
     }
 
-    (void) apr_file_close(f);
+    /* Main execution loop */
+    while (w->is_running) {
+        apr_pool_t *ctx = NULL;
+        apr_time_t curr;
+        watchdog_list_t *wl = w->callbacks;
 
-#if MIME_MAGIC_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                MODNAME ": apprentice conf=%x file=%s m=%s m->next=%s last=%s",
-                conf,
-                conf->magicfile ? conf->magicfile : "NULL",
-                conf->magic ? "set" : "NULL",
-                (conf->magic && conf->magic->next) ? "set" : "NULL",
-                conf->last ? "set" : "NULL");
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                MODNAME ": apprentice read %d lines, %d rules, %d errors",
-                lineno, rule, errs);
-#endif
-
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-        if (apr_isprint((((unsigned long) m) >> 24) & 255) &&
-            apr_isprint((((unsigned long) m) >> 16) & 255) &&
-            apr_isprint((((unsigned long) m) >> 8) & 255) &&
-            apr_isprint(((unsigned long) m) & 255)) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                        MODNAME ": apprentice: POINTER CLOBBERED! "
-                        "m=\"%c%c%c%c\" line=%d",
-                        (((unsigned long) m) >> 24) & 255,
-                        (((unsigned long) m) >> 16) & 255,
-                        (((unsigned long) m) >> 8) & 255,
-                        ((unsigned long) m) & 255,
-                        prevm ? prevm->lineno : -1);
+        apr_sleep(AP_WD_TM_SLICE);
+        if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpmq_s) != APR_SUCCESS) {
+            w->is_running = 0;
+        }
+        if (mpmq_s == AP_MPMQ_STOPPING) {
+            w->is_running = 0;
+        }
+        if (!w->is_running) {
             break;
         }
-        prevm = m;
+        curr = apr_time_now() - AP_WD_TM_SLICE;
+        while (wl && w->is_running) {
+            if (wl->status == APR_SUCCESS) {
+                wl->step += (apr_time_now() - curr);
+                if (wl->step >= wl->interval) {
+                    if (!ctx)
+                        apr_pool_create(&ctx, w->pool);
+                    wl->step = 0;
+                    /* Execute watchdog callback */
+                    wl->status = (*wl->callback_fn)(AP_WATCHDOG_STATE_RUNNING,
+                                                    (void *)wl->data, ctx);
+                    if (ap_mpm_query(AP_MPMQ_MPM_STATE, &mpmq_s) != APR_SUCCESS) {
+                        w->is_running = 0;
+                    }
+                    if (mpmq_s == AP_MPMQ_STOPPING) {
+                        w->is_running = 0;
+                    }
+                }
+            }
+            wl = wl->next;
+        }
+        if (w->is_running && w->callbacks == NULL) {
+            /* This is hook mode watchdog
+             * running on WatchogInterval
+             */
+            w->step += (apr_time_now() - curr);
+            if (w->step >= wd_interval) {
+                if (!ctx)
+                    apr_pool_create(&ctx, w->pool);
+                w->step = 0;
+                /* Run watchdog step hook */
+                ap_run_watchdog_step(wd_server_conf->s, w->name, ctx);
+            }
+        }
+        if (ctx)
+            apr_pool_destroy(ctx);
+        if (!w->is_running) {
+            break;
+        }
     }
-#endif
+    if (inited) {
+        /* Run the watchdog exit hooks.
+         * If this was singleton watchdog the init hook
+         * might never been called, so skip the exit hook
+         * in that case as well.
+         */
+        ap_run_watchdog_exit(wd_server_conf->s, w->name, w->pool);
+    }
+    else {
+        watchdog_list_t *wl = w->callbacks;
+        while (wl) {
+            if (wl->status == APR_SUCCESS) {
+                /* Execute watchdog callback with STOPPING state */
+                (*wl->callback_fn)(AP_WATCHDOG_STATE_STOPPING,
+                                   (void *)wl->data, w->pool);
+            }
+            wl = wl->next;
+        }
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
+                 "%sWatchdog (%s) stopping (%" APR_PID_T_FMT ")",
+                 w->singleton ? "Singleton" : "",
+                 w->name, getpid());
 
-    return (errs ? -1 : 0);
+    if (locked)
+        apr_proc_mutex_unlock(w->mutex);
+    apr_thread_exit(w->thread, APR_SUCCESS);
+
+    return NULL;
 }

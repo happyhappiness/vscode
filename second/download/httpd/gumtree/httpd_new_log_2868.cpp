@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02157)
-                        "initgroups: unable to set groups for User %s "
-                        "and Group %ld", name, (long)ap_unixd_config.group_id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "for %" APR_SIZE_T_FMT " bytes (%" APR_SIZE_T_FMT 
+                 " including header), recommending %u subcaches, "
+                 "%u indexes each", shm_segsize,
+                 shm_segsize + sizeof(SHMCBHeader), num_subcache, num_idx);

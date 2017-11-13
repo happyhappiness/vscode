@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
-                  "handing out built-in DH parameters for %d-bit authenticated connection", keylen);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO()
+                         "scoreboard is full, not at MaxRequestWorkers."
+                         "Increase ServerLimit.");

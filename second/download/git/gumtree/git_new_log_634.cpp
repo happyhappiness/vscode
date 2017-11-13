@@ -1,1 +1,2 @@
-die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");
+error(_("invalid line %d: %.*s"),
+				i, (int)(eol - p), p);

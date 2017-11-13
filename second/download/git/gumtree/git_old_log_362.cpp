@@ -1,1 +1,1 @@
-die("git fetch-pack: expected shallow list");
+die("--reverse --first-parent together require range along first-parent chain");

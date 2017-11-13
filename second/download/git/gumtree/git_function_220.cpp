@@ -1,54 +1,51 @@
-static void print_object_or_die(struct batch_options *opt, struct expand_data *data)
+static int copy_notes_for_rebase(const struct am_state *state)
 {
-	const struct object_id *oid = &data->oid;
+	struct notes_rewrite_cfg *c;
+	struct strbuf sb = STRBUF_INIT;
+	const char *invalid_line = _("Malformed input line: '%s'.");
+	const char *msg = "Notes added by 'git rebase'";
+	FILE *fp;
+	int ret = 0;
 
-	assert(data->info.typep);
+	assert(state->rebasing);
 
-	if (data->type == OBJ_BLOB) {
-		if (opt->buffer_output)
-			fflush(stdout);
-		if (opt->cmdmode) {
-			char *contents;
-			unsigned long size;
+	c = init_copy_notes_for_rewrite("rebase");
+	if (!c)
+		return 0;
 
-			if (!data->rest)
-				die("missing path for '%s'", oid_to_hex(oid));
+	fp = xfopen(am_path(state, "rewritten"), "r");
 
-			if (opt->cmdmode == 'w') {
-				if (filter_object(data->rest, 0100644, oid,
-						  &contents, &size))
-					die("could not convert '%s' %s",
-					    oid_to_hex(oid), data->rest);
-			} else if (opt->cmdmode == 'c') {
-				enum object_type type;
-				if (!textconv_object(data->rest, 0100644, oid,
-						     1, &contents, &size))
-					contents = read_sha1_file(oid->hash, &type,
-								  &size);
-				if (!contents)
-					die("could not convert '%s' %s",
-					    oid_to_hex(oid), data->rest);
-			} else
-				die("BUG: invalid cmdmode: %c", opt->cmdmode);
-			batch_write(opt, contents, size);
-			free(contents);
-		} else if (stream_blob_to_fd(1, oid, NULL, 0) < 0)
-			die("unable to stream %s to stdout", oid_to_hex(oid));
+	while (!strbuf_getline_lf(&sb, fp)) {
+		unsigned char from_obj[GIT_SHA1_RAWSZ], to_obj[GIT_SHA1_RAWSZ];
+
+		if (sb.len != GIT_SHA1_HEXSZ * 2 + 1) {
+			ret = error(invalid_line, sb.buf);
+			goto finish;
+		}
+
+		if (get_sha1_hex(sb.buf, from_obj)) {
+			ret = error(invalid_line, sb.buf);
+			goto finish;
+		}
+
+		if (sb.buf[GIT_SHA1_HEXSZ] != ' ') {
+			ret = error(invalid_line, sb.buf);
+			goto finish;
+		}
+
+		if (get_sha1_hex(sb.buf + GIT_SHA1_HEXSZ + 1, to_obj)) {
+			ret = error(invalid_line, sb.buf);
+			goto finish;
+		}
+
+		if (copy_note_for_rewrite(c, from_obj, to_obj))
+			ret = error(_("Failed to copy notes from '%s' to '%s'"),
+					sha1_to_hex(from_obj), sha1_to_hex(to_obj));
 	}
-	else {
-		enum object_type type;
-		unsigned long size;
-		void *contents;
 
-		contents = read_sha1_file(oid->hash, &type, &size);
-		if (!contents)
-			die("object %s disappeared", oid_to_hex(oid));
-		if (type != data->type)
-			die("object %s changed type!?", oid_to_hex(oid));
-		if (data->info.sizep && size != data->size)
-			die("object %s changed size!?", oid_to_hex(oid));
-
-		batch_write(opt, contents, size);
-		free(contents);
-	}
+finish:
+	finish_copy_notes_for_rewrite(c, msg);
+	fclose(fp);
+	strbuf_release(&sb);
+	return ret;
 }

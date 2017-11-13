@@ -1,223 +1,72 @@
-int main(int argc, const char * const argv[])
+static unsigned int __stdcall worker_main(void *thread_num_val)
 {
-    apr_file_t *fpw = NULL;
-    char record[MAX_STRING_LEN];
-    char line[MAX_STRING_LEN];
-    char *password = NULL;
-    char *pwfilename = NULL;
-    char *user = NULL;
-    char tn[] = "htpasswd.tmp.XXXXXX";
-    char *dirname;
-    char *scratch, cp[MAX_STRING_LEN];
-    int found = 0;
-    int i;
-    int alg = ALG_CRYPT;
-    int mask = 0;
-    apr_pool_t *pool;
-    int existing_file = 0;
-#if APR_CHARSET_EBCDIC
-    apr_status_t rv;
-    apr_xlate_t *to_ascii;
-#endif
+    static int requests_this_child = 0;
+    PCOMP_CONTEXT context = NULL;
+    int thread_num = (int)thread_num_val;
+    ap_sb_handle_t *sbh;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate);
-    apr_pool_create(&pool, NULL);
-    apr_file_open_stderr(&errfile, pool);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld starting.", my_pid, thread_num);
+    while (1) {
+        conn_rec *c;
+        apr_int32_t disconnected;
 
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, pool);
-    if (rv) {
-        apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);
-        exit(1);
-    }
-    rv = apr_SHA1InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d\n", rv);
-        exit(1);
-    }
-    rv = apr_MD5InitEBCDIC(to_ascii);
-    if (rv) {
-        apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d\n", rv);
-        exit(1);
-    }
-#endif /*APR_CHARSET_EBCDIC*/
+        ap_update_child_status_from_indexes(0, thread_num, SERVER_READY, NULL);
 
-    check_args(pool, argc, argv, &alg, &mask, &user, &pwfilename, &password);
+        /* Grab a connection off the network */
+        if (use_acceptex) {
+            context = winnt_get_connection(context);
+        }
+        else {
+            context = win9x_get_connection(context);
+        }
+        if (!context) {
+            /* Time for the thread to exit */
+            break;
+        }
 
+        /* Have we hit MaxRequestPerChild connections? */
+        if (ap_max_requests_per_child) {
+            requests_this_child++;
+            if (requests_this_child > ap_max_requests_per_child) {
+                SetEvent(max_requests_per_child_event);
+            }
+        }
 
-#if defined(WIN32) || defined(NETWARE)
-    if (alg == ALG_CRYPT) {
-        alg = ALG_APMD5;
-        apr_file_printf(errfile, "Automatically using MD5 format.\n");
-    }
-#endif
+        ap_create_sb_handle(&sbh, context->ptrans, 0, thread_num);
+        c = ap_run_create_connection(context->ptrans, ap_server_conf,
+                                     context->sock, thread_num, sbh,
+                                     context->ba);
 
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-    if (alg == ALG_PLAIN) {
-        apr_file_printf(errfile,"Warning: storing passwords as plain text "
-                        "might just not work on this platform.\n");
-    }
-#endif
-
-    /*
-     * Only do the file checks if we're supposed to frob it.
-     */
-    if (!(mask & APHTP_NOFILE)) {
-        existing_file = exists(pwfilename, pool);
-        if (existing_file) {
-            /*
-             * Check that this existing file is readable and writable.
-             */
-            if (!accessible(pool, pwfilename, APR_READ | APR_APPEND)) {
-                apr_file_printf(errfile, "%s: cannot open file %s for "
-                                "read/write access\n", argv[0], pwfilename);
-                exit(ERR_FILEPERM);
+        if (c) {
+            ap_process_connection(c, context->sock);
+            apr_socket_opt_get(context->sock, APR_SO_DISCONNECTED, 
+                               &disconnected);
+            if (!disconnected) {
+                context->accept_socket = INVALID_SOCKET;
+                ap_lingering_close(c);
+            }
+            else if (!use_acceptex) {
+                /* If the socket is disconnected but we are not using acceptex, 
+                 * we cannot reuse the socket. Disconnected sockets are removed
+                 * from the apr_socket_t struct by apr_sendfile() to prevent the
+                 * socket descriptor from being inadvertently closed by a call 
+                 * to apr_socket_close(), so close it directly.
+                 */
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
             }
         }
         else {
-            /*
-             * Error out if -c was omitted for this non-existant file.
-             */
-            if (!(mask & APHTP_NEWFILE)) {
-                apr_file_printf(errfile,
-                        "%s: cannot modify file %s; use '-c' to create it\n",
-                        argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
-            /*
-             * As it doesn't exist yet, verify that we can create it.
-             */
-            if (!accessible(pool, pwfilename, APR_CREATE | APR_WRITE)) {
-                apr_file_printf(errfile, "%s: cannot create file %s\n",
-                                argv[0], pwfilename);
-                exit(ERR_FILEPERM);
-            }
+            /* ap_run_create_connection closes the socket on failure */
+            context->accept_socket = INVALID_SOCKET;
         }
     }
 
-    /*
-     * All the file access checks (if any) have been made.  Time to go to work;
-     * try to create the record for the username in question.  If that
-     * fails, there's no need to waste any time on file manipulations.
-     * Any error message text is returned in the record buffer, since
-     * the mkrecord() routine doesn't have access to argv[].
-     */
-    if (!(mask & APHTP_DELUSER)) {
-        i = mkrecord(user, record, sizeof(record) - 1,
-                     password, alg);
-        if (i != 0) {
-            apr_file_printf(errfile, "%s: %s\n", argv[0], record);
-            exit(i);
-        }
-        if (mask & APHTP_NOFILE) {
-            printf("%s\n", record);
-            exit(0);
-        }
-    }
+    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
+                                        (request_rec *) NULL);
 
-    /*
-     * We can access the files the right way, and we have a record
-     * to add or update.  Let's do it..
-     */
-    if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
-        exit(ERR_FILEPERM);
-    }
-    dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
-
-    if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
-                        argv[0], dirname);
-        exit(ERR_FILEPERM);
-    }
-
-    /*
-     * If we're not creating a new file, copy records from the existing
-     * one to the temporary file until we find the specified user.
-     */
-    if (existing_file && !(mask & APHTP_NEWFILE)) {
-        if (apr_file_open(&fpw, pwfilename, APR_READ | APR_BUFFERED,
-                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
-            apr_file_printf(errfile, "%s: unable to read file %s\n", 
-                            argv[0], pwfilename);
-            exit(ERR_FILEPERM);
-        }
-        while (apr_file_gets(line, sizeof(line), fpw) == APR_SUCCESS) {
-            char *colon;
-
-            strcpy(cp, line);
-            scratch = cp;
-            while (apr_isspace(*scratch)) {
-                ++scratch;
-            }
-
-            if (!*scratch || (*scratch == '#')) {
-                putline(ftemp, line);
-                continue;
-            }
-            /*
-             * See if this is our user.
-             */
-            colon = strchr(scratch, ':');
-            if (colon != NULL) {
-                *colon = '\0';
-            }
-            else {
-                /*
-                 * If we've not got a colon on the line, this could well 
-                 * not be a valid htpasswd file.
-                 * We should bail at this point.
-                 */
-                apr_file_printf(errfile, "\n%s: The file %s does not appear "
-                                         "to be a valid htpasswd file.\n",
-                                argv[0], pwfilename);
-                apr_file_close(fpw);
-                exit(ERR_INVALID);
-            }
-            if (strcmp(user, scratch) != 0) {
-                putline(ftemp, line);
-                continue;
-            }
-            else {
-                if (!(mask & APHTP_DELUSER)) {
-                    /* We found the user we were looking for.
-                     * Add him to the file.
-                    */
-                    apr_file_printf(errfile, "Updating ");
-                    putline(ftemp, record);
-                    found++;
-                }
-                else {
-                    /* We found the user we were looking for.
-                     * Delete them from the file.
-                     */
-                    apr_file_printf(errfile, "Deleting ");
-                    found++;
-                }
-            }
-        }
-        apr_file_close(fpw);
-    }
-    if (!found && !(mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "Adding ");
-        putline(ftemp, record);
-    }
-    else if (!found && (mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "User %s not found\n", user);
-        exit(0);
-    }
-    apr_file_printf(errfile, "password for user %s\n", user);
-
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
-        APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
-        exit(ERR_FILEPERM);
-    }
-    apr_file_close(ftemp);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
     return 0;
 }

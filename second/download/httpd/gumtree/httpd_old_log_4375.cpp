@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                         "Cannot reinit %s mutex", SSL_STAPLING_MUTEX_TYPE);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "proxy: FCGI: set r->filename to %s", r->filename);

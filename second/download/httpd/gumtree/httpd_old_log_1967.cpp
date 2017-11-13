@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
-                     "Child %lu: Failure releasing the start mutex", my_pid);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+         "proxy: CONNECT: setting up poll()");

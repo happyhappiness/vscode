@@ -1,35 +1,119 @@
-static void show_providers(request_rec *r)
+static void task_done(h2_mplx *m, h2_task *task, h2_req_engine *ngn)
 {
-    apr_array_header_t *groups = ap_list_provider_groups(r->pool);
-    ap_list_provider_groups_t *group;
-    apr_array_header_t *names;
-    ap_list_provider_names_t *name;
-    int i,j;
-    const char *cur_group = NULL;
-
-    qsort(groups->elts, groups->nelts, sizeof(ap_list_provider_groups_t),
-          cmp_provider_groups);
-    ap_rputs("<h2><a name=\"providers\">Providers</a></h2>\n<dl>", r);
-
-    for (i = 0; i < groups->nelts; i++) {
-        group = &APR_ARRAY_IDX(groups, i, ap_list_provider_groups_t);
-        if (!cur_group || strcmp(cur_group, group->provider_group) != 0) {
-            if (cur_group)
-                ap_rputs("\n</dt>\n", r);
-            cur_group = group->provider_group;
-            ap_rprintf(r, "<dt><strong>%s</strong> (version <tt>%s</tt>):"
-                          "\n <br />\n", cur_group, group->provider_version);
+    if (task->frozen) {
+        /* this task was handed over to an engine for processing 
+         * and the original worker has finished. That means the 
+         * engine may start processing now. */
+        h2_task_thaw(task);
+        /* we do not want the task to block on writing response
+         * bodies into the mplx. */
+        h2_task_set_io_blocking(task, 0);
+        apr_thread_cond_broadcast(m->task_thawed);
+        return;
+    }
+    else {
+        h2_stream *stream;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                      "h2_mplx(%ld): task(%s) done", m->id, task->id);
+        out_close(m, task);
+        stream = h2_ihash_get(m->streams, task->stream_id);
+        
+        if (ngn) {
+            apr_off_t bytes = 0;
+            if (task->output.beam) {
+                h2_beam_send(task->output.beam, NULL, APR_NONBLOCK_READ);
+                bytes += h2_beam_get_buffered(task->output.beam);
+            }
+            if (bytes > 0) {
+                /* we need to report consumed and current buffered output
+                 * to the engine. The request will be streamed out or cancelled,
+                 * no more data is coming from it and the engine should update
+                 * its calculations before we destroy this information. */
+                h2_req_engine_out_consumed(ngn, task->c, bytes);
+            }
         }
-        names = ap_list_provider_names(r->pool, group->provider_group,
-                                       group->provider_version);
-        qsort(names->elts, names->nelts, sizeof(ap_list_provider_names_t),
-              cmp_provider_names);
-        for (j = 0; j < names->nelts; j++) {
-            name = &APR_ARRAY_IDX(names, j, ap_list_provider_names_t);
-            ap_rprintf(r, "<tt>&nbsp;&nbsp;%s</tt><br/>", name->provider_name);
+        
+        if (task->engine) {
+            if (!h2_req_engine_is_shutdown(task->engine)) {
+                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,
+                              "h2_mplx(%ld): task(%s) has not-shutdown "
+                              "engine(%s)", m->id, task->id, 
+                              h2_req_engine_get_id(task->engine));
+            }
+            h2_ngn_shed_done_ngn(m->ngn_shed, task->engine);
+        }
+        
+        if (!m->aborted && stream && m->redo_tasks
+            && h2_ihash_get(m->redo_tasks, task->stream_id)) {
+            /* reset and schedule again */
+            h2_task_redo(task);
+            h2_ihash_remove(m->redo_tasks, task->stream_id);
+            h2_iq_add(m->q, task->stream_id, NULL, NULL);
+            return;
+        }
+        
+        task->worker_done = 1;
+        task->done_at = apr_time_now();
+        if (task->output.beam) {
+            h2_beam_on_consumed(task->output.beam, NULL, NULL);
+            h2_beam_mutex_set(task->output.beam, NULL, NULL, NULL);
+        }
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                      "h2_mplx(%s): request done, %f ms elapsed", task->id, 
+                      (task->done_at - task->started_at) / 1000.0);
+        if (task->started_at > m->last_idle_block) {
+            /* this task finished without causing an 'idle block', e.g.
+             * a block by flow control.
+             */
+            if (task->done_at- m->last_limit_change >= m->limit_change_interval
+                && m->workers_limit < m->workers_max) {
+                /* Well behaving stream, allow it more workers */
+                m->workers_limit = H2MIN(m->workers_limit * 2, 
+                                         m->workers_max);
+                m->last_limit_change = task->done_at;
+                m->need_registration = 1;
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                              "h2_mplx(%ld): increase worker limit to %d",
+                              m->id, m->workers_limit);
+            }
+        }
+        
+        if (stream) {
+            /* hang around until the stream deregisters */
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%s): task_done, stream still open", 
+                          task->id);
+            if (h2_stream_is_suspended(stream)) {
+                /* more data will not arrive, resume the stream */
+                h2_ihash_add(m->sresume, stream);
+                have_out_data_for(m, stream->id);
+            }
+        }
+        else {
+            /* stream no longer active, was it placed in hold? */
+            stream = h2_ihash_get(m->shold, task->stream_id);
+            if (stream) {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                              "h2_mplx(%s): task_done, stream in hold", 
+                              task->id);
+                /* We cannot destroy the stream here since this is 
+                 * called from a worker thread and freeing memory pools
+                 * is only safe in the only thread using it (and its
+                 * parent pool / allocator) */
+                h2_ihash_remove(m->shold, stream->id);
+                h2_ihash_add(m->spurge, stream);
+            }
+            else {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                              "h2_mplx(%s): task_done, stream not found", 
+                              task->id);
+                task_destroy(m, task, 0);
+            }
+            
+            if (m->join_wait) {
+                apr_thread_cond_signal(m->join_wait);
+            }
         }
     }
-    if (cur_group)
-        ap_rputs("\n</dt>\n", r);
-    ap_rputs("</dl>\n<hr />\n", r);
 }

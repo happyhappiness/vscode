@@ -1,10 +1,9 @@
 fputs(
-"              This  method is not fail-safe and there are occasions where non-\n"
-"              successful response codes will  slip  through,  especially  when\n"
-"              authentication is involved (response codes 401 and 407).\n"
+"              hashes) to verify the peer. This can be a path to a  file  which\n"
+"              contains a single public key in PEM or DER format, or any number\n"
+"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
+"              rated by ';'\n"
 "\n"
-"       -F, --form <name=content>\n"
-"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
-"              has pressed the submit button. This causes  curl  to  POST  data\n"
-"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
+"              When  negotiating  a  TLS  or SSL connection, the server sends a\n"
+"              certificate indicating its identity. A public key  is  extracted\n"
 , stdout);

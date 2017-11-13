@@ -1,24 +1,34 @@
-static int error_with_patch(struct commit *commit,
-	const char *subject, int subject_len,
-	struct replay_opts *opts, int exit_code, int to_amend)
+static void link_alt_odb_entries(const char *alt, int len, int sep,
+				 const char *relative_base, int depth)
 {
-	if (make_patch(commit, opts))
-		return -1;
+	struct string_list entries = STRING_LIST_INIT_NODUP;
+	char *alt_copy;
+	int i;
+	struct strbuf objdirbuf = STRBUF_INIT;
 
-	if (to_amend) {
-		if (intend_to_amend())
-			return -1;
+	if (depth > 5) {
+		error("%s: ignoring alternate object stores, nesting too deep.",
+				relative_base);
+		return;
+	}
 
-		fprintf(stderr, "You can amend the commit now, with\n"
-			"\n"
-			"  git commit --amend %s\n"
-			"\n"
-			"Once you are satisfied with your changes, run\n"
-			"\n"
-			"  git rebase --continue\n", gpg_sign_opt_quoted(opts));
-	} else if (exit_code)
-		fprintf(stderr, "Could not apply %s... %.*s\n",
-			short_commit_name(commit), subject_len, subject);
+	strbuf_add_absolute_path(&objdirbuf, get_object_directory());
+	normalize_path_copy(objdirbuf.buf, objdirbuf.buf);
 
-	return exit_code;
+	alt_copy = xmemdupz(alt, len);
+	string_list_split_in_place(&entries, alt_copy, sep, -1);
+	for (i = 0; i < entries.nr; i++) {
+		const char *entry = entries.items[i].string;
+		if (entry[0] == '\0' || entry[0] == '#')
+			continue;
+		if (!is_absolute_path(entry) && depth) {
+			error("%s: ignoring relative alternate object store %s",
+					relative_base, entry);
+		} else {
+			link_alt_odb_entry(entry, relative_base, depth, objdirbuf.buf);
+		}
+	}
+	string_list_clear(&entries, 0);
+	free(alt_copy);
+	strbuf_release(&objdirbuf);
 }

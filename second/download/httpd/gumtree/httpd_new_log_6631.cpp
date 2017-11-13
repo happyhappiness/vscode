@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01880)
-                     "Init: Skipping generating temporary "
-                     "%d bit DH parameters in FIPS mode", bits);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03457)
+                  "session(%ld): sent shutdown notice", session->id);

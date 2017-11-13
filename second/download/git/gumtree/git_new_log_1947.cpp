@@ -1,1 +1,2 @@
-memset(&array, 0, sizeof(array));
+error_buf(err, _("no such branch: '%s'"),
+					 branch->name);

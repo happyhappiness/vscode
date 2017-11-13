@@ -1,1 +1,1 @@
-rprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+rprintf(FERROR,"\nError: MDupdate MD already done.");

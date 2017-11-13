@@ -1,1 +1,1 @@
-packet_write(1, "NACK unable to spawn subprocess\n");
+printf(" %s %s\n", newdelete, name);

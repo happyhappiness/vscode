@@ -1,1 +1,1 @@
-error("Failed to delete ref NOTES_MERGE_PARTIAL");
+error(_("failed to read %s"), name);

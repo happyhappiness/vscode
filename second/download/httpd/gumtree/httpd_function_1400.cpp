@@ -1,62 +1,87 @@
-int ssl_callback_SessionTicket(SSL *ssl,
-                               unsigned char *keyname,
-                               unsigned char *iv,
-                               EVP_CIPHER_CTX *cipher_ctx,
-                               HMAC_CTX *hctx,
-                               int mode)
+static apr_status_t reqtimeout_filter(ap_filter_t *f,
+                                      apr_bucket_brigade *bb,
+                                      ap_input_mode_t mode,
+                                      apr_read_type_e block,
+                                      apr_off_t readbytes)
 {
-    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-    server_rec *s = mySrvFromConn(c);
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-    SSLConnRec *sslconn = myConnConfig(c);
-    modssl_ctx_t *mctx = myCtxConfig(sslconn, sc);
-    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
+    reqtimeout_ctx *ctx;
+    apr_time_t time_left;
+    apr_time_t now;
+    apr_status_t rv;
+    apr_interval_time_t saved_sock_timeout = -1;
+    reqtimeout_con_cfg *ccfg;
 
-    if (mode == 1) {
-        /* 
-         * OpenSSL is asking for a key for encrypting a ticket,
-         * see s3_srvr.c:ssl3_send_newsession_ticket()
-         */
+    ctx = f->ctx;
+    AP_DEBUG_ASSERT(ctx != NULL);
 
-        if (ticket_key == NULL) {
-            /* should never happen, but better safe than sorry */
-            return -1;
-        }
+    ccfg = ap_get_module_config(f->c->conn_config, &reqtimeout_module);
+    AP_DEBUG_ASSERT(ccfg != NULL);
 
-        memcpy(keyname, ticket_key->key_name, 16);
-        RAND_pseudo_bytes(iv, EVP_MAX_IV_LENGTH);
-        EVP_EncryptInit_ex(cipher_ctx, EVP_aes_128_cbc(), NULL,
-                           ticket_key->aes_key, iv);
-        HMAC_Init_ex(hctx, ticket_key->hmac_secret, 16, tlsext_tick_md(), NULL);
-
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "TLS session ticket key for %s successfully set, "
-                      "creating new session ticket", sc->vhost_id);
-
-        return 0;
-    }
-    else if (mode == 0) {
-        /* 
-         * OpenSSL is asking for the decryption key,
-         * see t1_lib.c:tls_decrypt_ticket()
-         */
-
-        /* check key name */
-        if (ticket_key == NULL || memcmp(keyname, ticket_key->key_name, 16)) {
-            return 0;
-        }
-
-        EVP_DecryptInit_ex(cipher_ctx, EVP_aes_128_cbc(), NULL,
-                           ticket_key->aes_key, iv);
-        HMAC_Init_ex(hctx, ticket_key->hmac_secret, 16, tlsext_tick_md(), NULL);
-
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "TLS session ticket key for %s successfully set, "
-                      "decrypting existing session ticket", sc->vhost_id);
-
-        return 1;
+    if (ccfg->in_keep_alive) {
+        /* For this read, the normal keep-alive timeout must be used */
+        ccfg->in_keep_alive = 0;
+        return ap_get_brigade(f->next, bb, mode, block, readbytes);
     }
 
-    /* OpenSSL is not expected to call us with modes other than 1 or 0 */
-    return -1;
+    now = apr_time_now();
+    if (ccfg->new_timeout > 0) {
+        /* set new timeout */
+        ccfg->timeout_at = now + apr_time_from_sec(ccfg->new_timeout);
+        ccfg->new_timeout = 0;
+        if (ccfg->new_max_timeout > 0) {
+            ccfg->max_timeout_at = now + apr_time_from_sec(ccfg->new_max_timeout);
+            ccfg->new_max_timeout = 0;
+        }
+    }
+    else if (ccfg->timeout_at == 0) {
+        /* no timeout set */
+        return ap_get_brigade(f->next, bb, mode, block, readbytes);
+    }
+
+    time_left = ccfg->timeout_at - now;
+    if (time_left <= 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                      "Request %s read timeout", ccfg->type);
+        return APR_TIMEUP;
+    }
+
+    if (block == APR_NONBLOCK_READ || mode == AP_MODE_INIT
+        || mode == AP_MODE_EATCRLF) {
+        rv = ap_get_brigade(f->next, bb, mode, block, readbytes);
+        if (ccfg->min_rate > 0 && rv == APR_SUCCESS) {
+            extend_timeout(ccfg, bb);
+        }
+        return rv;
+    }
+
+    if (time_left < apr_time_from_sec(1)) {
+        time_left = apr_time_from_sec(1);
+    }
+
+    rv = apr_socket_timeout_get(ctx->socket, &saved_sock_timeout);
+    AP_DEBUG_ASSERT(rv == APR_SUCCESS);
+
+    if (saved_sock_timeout >= time_left) {
+        rv = apr_socket_timeout_set(ctx->socket, time_left);
+        AP_DEBUG_ASSERT(rv == APR_SUCCESS);
+    }
+    else {
+        saved_sock_timeout = -1;
+    }
+
+    rv = ap_get_brigade(f->next, bb, mode, block, readbytes);
+
+    if (saved_sock_timeout != -1) {
+        apr_socket_timeout_set(ctx->socket, saved_sock_timeout);
+    }
+
+    if (ccfg->min_rate > 0 && rv == APR_SUCCESS) {
+        extend_timeout(ccfg, bb);
+    }
+
+    if (APR_STATUS_IS_TIMEUP(rv)) {
+        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                      "Request %s read timeout", ccfg->type);
+    }
+    return rv;
 }

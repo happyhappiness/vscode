@@ -1,71 +1,89 @@
-static int handle_exec(include_ctx_t *ctx, apr_bucket_brigade **bb,
-                       request_rec *r, ap_filter_t *f, apr_bucket *head_ptr,
-                       apr_bucket **inserted_head)
+static int digest_check_auth(request_rec *r)
 {
-    char *tag     = NULL;
-    char *tag_val = NULL;
-    char *file = r->filename;
-    apr_bucket  *tmp_buck;
-    char parsed_string[MAX_STRING_LEN];
+    const digest_config_rec *conf =
+                (digest_config_rec *) ap_get_module_config(r->per_dir_config,
+                                                           &auth_digest_module);
+    const char *user = r->user;
+    int m = r->method_number;
+    int method_restricted = 0;
+    register int x;
+    const char *t, *w;
+    apr_table_t *grpstatus;
+    const apr_array_header_t *reqs_arr;
+    require_line *reqs;
 
-    *inserted_head = NULL;
-    if (ctx->flags & FLAG_PRINTING) {
-        if (ctx->flags & FLAG_NO_EXEC) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "exec used but not allowed in %s", r->filename);
-            CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest")) {
+        return DECLINED;
+    }
+
+    reqs_arr = ap_requires(r);
+    /* If there is no "requires" directive, then any user will do.
+     */
+    if (!reqs_arr) {
+        return OK;
+    }
+    reqs = (require_line *) reqs_arr->elts;
+
+    if (conf->grpfile) {
+        grpstatus = groups_for_user(r, user, conf->grpfile);
+    }
+    else {
+        grpstatus = NULL;
+    }
+
+    for (x = 0; x < reqs_arr->nelts; x++) {
+
+        if (!(reqs[x].method_mask & (AP_METHOD_BIT << m))) {
+            continue;
         }
-        else {
-            while (1) {
-                cgi_pfn_gtv(ctx, &tag, &tag_val, 1);
-                if (tag_val == NULL) {
-                    if (tag == NULL) {
-                        return 0;
-                    }
-                    else {
-                        return 1;
-                    }
-                }
-                if (!strcmp(tag, "cmd")) {
-                    cgi_pfn_ps(r, ctx, tag_val, parsed_string,
-                               sizeof(parsed_string), 1);
-                    if (include_cmd(ctx, bb, parsed_string, r, f) == -1) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                    "execution failure for parameter \"%s\" "
-                                    "to tag exec in file %s", tag, r->filename);
-                        CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr,
-                                            *inserted_head);
-                    }
-                }
-                else if (!strcmp(tag, "cgi")) {
-                    apr_status_t retval = APR_SUCCESS;
 
-                    cgi_pfn_ps(r, ctx, tag_val, parsed_string,
-                               sizeof(parsed_string), 0);
+        method_restricted = 1;
 
-                    SPLIT_AND_PASS_PRETAG_BUCKETS(*bb, ctx, f->next, retval);
-                    if (retval != APR_SUCCESS) {
-                        return retval;
-                    }
-
-                    if (include_cgi(parsed_string, r, f->next, head_ptr,
-                                    inserted_head) == -1) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "invalid CGI ref \"%s\" in %s",
-                                      tag_val, file);
-                        CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr,
-                                            *inserted_head);
-                    }
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "unknown parameter \"%s\" to tag exec in %s",
-                                  tag, file);
-                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr,
-                                        *inserted_head);
+        t = reqs[x].requirement;
+        w = ap_getword_white(r->pool, &t);
+        if (!strcasecmp(w, "valid-user")) {
+            return OK;
+        }
+        else if (!strcasecmp(w, "user")) {
+            while (t[0]) {
+                w = ap_getword_conf(r->pool, &t);
+                if (!strcmp(user, w)) {
+                    return OK;
                 }
             }
         }
+        else if (!strcasecmp(w, "group")) {
+            if (!grpstatus) {
+                return DECLINED;
+            }
+
+            while (t[0]) {
+                w = ap_getword_conf(r->pool, &t);
+                if (apr_table_get(grpstatus, w)) {
+                    return OK;
+                }
+            }
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: access to %s failed, reason: unknown "
+                          "require directive \"%s\"",
+                          r->uri, reqs[x].requirement);
+            return DECLINED;
+        }
     }
-    return 0;
+
+    if (!method_restricted) {
+        return OK;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Digest: access to %s failed, reason: user %s not "
+                  "allowed access", r->uri, user);
+
+    note_digest_auth_failure(r, conf,
+        (digest_header_rec *) ap_get_module_config(r->request_config,
+                                                   &auth_digest_module),
+        0);
+    return HTTP_UNAUTHORIZED;
 }

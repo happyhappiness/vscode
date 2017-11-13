@@ -1,6 +1,6 @@
 int main(int argc,char *argv[])
 {
-    int pid, status = 0, status2 = 0;
+    int pid, status, status2;
     int opt;
     int option_index;
     char *shell_cmd = NULL;
@@ -12,19 +12,7 @@ int main(int argc,char *argv[])
     struct file_list *flist;
     char *local_name = NULL;
 
-#ifdef SETPGRP_VOID
-    setpgrp();
-#else
-    setpgrp(0,0);
-#endif
-    signal(SIGUSR1, sigusr1_handler);
-
     starttime = time(NULL);
-    am_root = (getuid() == 0);
-
-    /* we set a 0 umask so that correct file permissions can be
-       carried across */
-    orig_umask = umask(0);
 
     while ((opt = getopt_long(argc, argv, 
 			      short_options, long_options, &option_index)) 
@@ -89,23 +77,14 @@ int main(int argc,char *argv[])
 	  break;
 
 	case 'l':
+#if SUPPORT_LINKS
 	  preserve_links=1;
-	  break;
-
-	case 'L':
-	  copy_links=1;
-	  break;
-
-	case 'W':
-	  whole_file=1;
+#endif
 	  break;
 
 	case 'H':
 #if SUPPORT_HARD_LINKS
 	  preserve_hard_links=1;
-#else 
-	  fprintf(FERROR,"ERROR: hard links not supported on this platform\n");
-	  exit_cleanup(1);
 #endif
 	  break;
 
@@ -114,7 +93,12 @@ int main(int argc,char *argv[])
 	  break;
 
 	case 'o':
-	  preserve_uid=1;
+	  if (getuid() == 0) {
+	    preserve_uid=1;
+	  } else {
+	    fprintf(FERROR,"-o only allowed for root\n");
+	    exit_cleanup(1);
+	  }
 	  break;
 
 	case 'g':
@@ -122,7 +106,12 @@ int main(int argc,char *argv[])
 	  break;
 
 	case 'D':
-	  preserve_devices=1;
+	  if (getuid() == 0) {
+	    preserve_devices=1;
+	  } else {
+	    fprintf(FERROR,"-D only allowed for root\n");
+	    exit_cleanup(1);
+	  }
 	  break;
 
 	case 't':
@@ -145,10 +134,10 @@ int main(int argc,char *argv[])
 	  preserve_perms=1;
 	  preserve_times=1;
 	  preserve_gid=1;
-	  if (am_root) {
+	  if (getuid() == 0) {
 	    preserve_devices=1;
 	    preserve_uid=1;
-	  }
+	  }	    
 	  break;
 
 	case OPT_SERVER:
@@ -165,10 +154,6 @@ int main(int argc,char *argv[])
 
 	case 'r':
 	  recurse = 1;
-	  break;
-
-	case 'R':
-	  relative_paths = 1;
 	  break;
 
 	case 'e':
@@ -201,13 +186,6 @@ int main(int argc,char *argv[])
 
     if (dry_run)
       verbose = MAX(verbose,1);
-
-#ifndef SUPPORT_LINKS
-    if (!am_server && preserve_links) {
-	    fprintf(FERROR,"ERROR: symbolic links not supported\n");
-	    exit_cleanup(1);
-    }
-#endif
 
     if (am_server) {
       setup_protocol(STDOUT_FILENO,STDIN_FILENO);
@@ -281,11 +259,6 @@ int main(int argc,char *argv[])
     pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
 
     setup_protocol(f_out,f_in);
-
-#if HAVE_SETLINEBUF
-    setlinebuf(FINFO);
-    setlinebuf(FERROR);
-#endif
 
     if (verbose > 3) 
       fprintf(FERROR,"parent=%d child=%d sender=%d recurse=%d\n",

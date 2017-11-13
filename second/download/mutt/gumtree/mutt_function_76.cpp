@@ -1,112 +1,217 @@
-int mutt_write_rfc822_header (FILE *fp, ENVELOPE *env, BODY *attach, 
-			      int mode, int privacy)
+static pgp_key_t *pgp_select_key (pgp_key_t *keys,
+				  ADDRESS * p, const char *s)
 {
-  char buffer[LONG_STRING];
-  char *p;
-  LIST *tmp = env->userhdrs;
+  int keymax;
+  pgp_uid_t **KeyTable;
+  MUTTMENU *menu;
+  int i, done = 0;
+  char helpstr[SHORT_STRING], buf[LONG_STRING], tmpbuf[STRING];
+  char cmd[LONG_STRING], tempfile[_POSIX_PATH_MAX];
+  FILE *fp, *devnull;
+  pid_t thepid;
+  pgp_key_t *kp;
+  pgp_uid_t *a;
+  int (*f) (const void *, const void *);
+
+  int unusable = 0;
+
+  keymax = 0;
+  KeyTable = NULL;
+
+  for (i = 0, kp = keys; kp; kp = kp->next)
+  {
+    if (!option (OPTPGPSHOWUNUSABLE) && (kp->flags & KEYFLAG_CANTUSE))
+    {
+      unusable = 1;
+      continue;
+    }
+
+    for (a = kp->address; a; a = a->next)
+    {
+      if (!option (OPTPGPSHOWUNUSABLE) && (a->flags & KEYFLAG_CANTUSE))
+      {
+	unusable = 1;
+	continue;
+      }
+      
+      if (i == keymax)
+      {
+	keymax += 5;
+	safe_realloc ((void **) &KeyTable, sizeof (pgp_key_t *) * keymax);
+      }
+      
+      KeyTable[i++] = a;
+    }
+  }
+
+  if (!i && unusable)
+  {
+    mutt_error _("All matching keys are marked expired/revoked.");
+    mutt_sleep (1);
+    return NULL;
+  }
+
+  switch (PgpSortKeys & SORT_MASK)
+  {
+    case SORT_DATE:
+      f = pgp_compare_date;
+      break;
+    case SORT_KEYID:
+      f = pgp_compare_keyid;
+      break;
+    case SORT_ADDRESS:
+      f = pgp_compare_address;
+      break;
+    case SORT_TRUST:
+    default:
+      f = pgp_compare_trust;
+      break;
+  }
+  qsort (KeyTable, i, sizeof (pgp_key_t *), f);
+
+  helpstr[0] = 0;
+  mutt_make_help (buf, sizeof (buf), _("Exit  "), MENU_PGP, OP_EXIT);
+  strcat (helpstr, buf);	/* __STRCAT_CHECKED__ */
+  mutt_make_help (buf, sizeof (buf), _("Select  "), MENU_PGP,
+		  OP_GENERIC_SELECT_ENTRY);
+  strcat (helpstr, buf);	/* __STRCAT_CHECKED__ */
+  mutt_make_help (buf, sizeof (buf), _("Check key  "), MENU_PGP, OP_VERIFY_KEY);
+  strcat (helpstr, buf);	/* __STRCAT_CHECKED__ */
+  mutt_make_help (buf, sizeof (buf), _("Help"), MENU_PGP, OP_HELP);
+  strcat (helpstr, buf);	/* __STRCAT_CHECKED__ */
+
+  menu = mutt_new_menu ();
+  menu->max = i;
+  menu->make_entry = pgp_entry;
+  menu->menu = MENU_PGP;
+  menu->help = helpstr;
+  menu->data = KeyTable;
+
+  if (p)
+    snprintf (buf, sizeof (buf), _("PGP keys matching <%s>."), p->mailbox);
+  else
+    snprintf (buf, sizeof (buf), _("PGP keys matching \"%s\"."), s);
+    
   
-  if (mode == 0 && !privacy)
-    fputs (mutt_make_date (buffer, sizeof(buffer)), fp);
+  menu->title = buf;
 
-  /* OPTUSEFROM is not consulted here so that we can still write a From:
-   * field if the user sets it with the `my_hdr' command
-   */
-  if (env->from && !privacy)
-  {
-    buffer[0] = 0;
-    rfc822_write_address (buffer, sizeof (buffer), env->from);
-    fprintf (fp, "From: %s\n", buffer);
-  }
+  kp = NULL;
 
-  if (env->to)
-  {
-    fputs ("To: ", fp);
-    mutt_write_address_list (env->to, fp, 4);
-  }
-  else if (mode > 0)
-    fputs ("To: \n", fp);
-
-  if (env->cc)
-  {
-    fputs ("Cc: ", fp);
-    mutt_write_address_list (env->cc, fp, 4);
-  }
-  else if (mode > 0)
-    fputs ("Cc: \n", fp);
-
-  if (env->bcc)
-  {
-    if(mode != 0 || option(OPTWRITEBCC))
-    {
-      fputs ("Bcc: ", fp);
-      mutt_write_address_list (env->bcc, fp, 5);
-    }
-  }
-  else if (mode > 0)
-    fputs ("Bcc: \n", fp);
-
-  if (env->subject)
-    fprintf (fp, "Subject: %s\n", env->subject);
-  else if (mode == 1)
-    fputs ("Subject: \n", fp);
-
-  /* save message id if the user has set it */
-  if (env->message_id && !privacy)
-    fprintf (fp, "Message-ID: %s\n", env->message_id);
-
-  if (env->reply_to)
-  {
-    fputs ("Reply-To: ", fp);
-    mutt_write_address_list (env->reply_to, fp, 10);
-  }
-  else if (mode > 0)
-    fputs ("Reply-To: \n", fp);
-
-  if (env->mail_followup_to)
-  {
-    fputs ("Mail-Followup-To: ", fp);
-    mutt_write_address_list (env->mail_followup_to, fp, 18);
-  }
-
-  if (mode <= 0)
-  {
-    if (env->references)
-    {
-      fputs ("References:", fp);
-      write_references (env->references, fp);
-      fputc('\n', fp);
-    }
-
-    /* Add the MIME headers */
-    fputs ("Mime-Version: 1.0\n", fp);
-    mutt_write_mime_header (attach, fp);
-  }
-
-  if (env->in_reply_to)
-  {
-    fputs ("In-Reply-To:", fp);
-    write_references (env->in_reply_to, fp);
-    fputc ('\n', fp);
-  }
+  mutt_clear_error ();
   
-  if (mode == 0 && !privacy && option (OPTXMAILER))
+  while (!done)
   {
-    /* Add a vanity header */
-    fprintf (fp, "User-Agent: Mutt/%s\n", MUTT_VERSION);
-  }
-
-  /* Add any user defined headers */
-  for (; tmp; tmp = tmp->next)
-  {
-    if ((p = strchr (tmp->data, ':')))
+    switch (mutt_menuLoop (menu))
     {
-      p++; SKIPWS (p);
-      if (!*p) 	continue;  /* don't emit empty fields. */
 
-      fputs (tmp->data, fp);
-      fputc ('\n', fp);
+    case OP_VERIFY_KEY:
+
+      mutt_mktemp (tempfile);
+      if ((devnull = fopen ("/dev/null", "w")) == NULL)	/* __FOPEN_CHECKED__ */
+      {
+	mutt_perror _("Can't open /dev/null");
+	break;
+      }
+      if ((fp = safe_fopen (tempfile, "w")) == NULL)
+      {
+	fclose (devnull);
+	mutt_perror _("Can't create temporary file");
+	break;
+      }
+
+      mutt_message _("Invoking PGP...");
+
+      snprintf (tmpbuf, sizeof (tmpbuf), "0x%s", pgp_keyid (pgp_principal_key (KeyTable[menu->current]->parent)));
+
+      if ((thepid = pgp_invoke_verify_key (NULL, NULL, NULL, -1,
+		    fileno (fp), fileno (devnull), tmpbuf)) == -1)
+      {
+	mutt_perror _("Can't create filter");
+	unlink (tempfile);
+	fclose (fp);
+	fclose (devnull);
+      }
+
+      mutt_wait_filter (thepid);
+      fclose (fp);
+      fclose (devnull);
+      mutt_clear_error ();
+      snprintf (cmd, sizeof (cmd), _("Key ID: 0x%s"), 
+		pgp_keyid (pgp_principal_key (KeyTable[menu->current]->parent)));
+      mutt_do_pager (cmd, tempfile, 0, NULL);
+      menu->redraw = REDRAW_FULL;
+
+      break;
+
+    case OP_VIEW_ID:
+
+      mutt_message ("%s", KeyTable[menu->current]->addr);
+      break;
+
+    case OP_GENERIC_SELECT_ENTRY:
+
+
+      /* XXX make error reporting more verbose */
+      
+      if (option (OPTPGPCHECKTRUST))
+	if (!pgp_key_is_valid (KeyTable[menu->current]->parent))
+	{
+	  mutt_error _("This key can't be used: expired/disabled/revoked.");
+	  break;
+	}
+      
+      if (option (OPTPGPCHECKTRUST) &&
+	  (!pgp_id_is_valid (KeyTable[menu->current])
+	   || !pgp_id_is_strong (KeyTable[menu->current])))
+      {
+	char *s = "";
+	char buff[LONG_STRING];
+	
+	if (KeyTable[menu->current]->flags & KEYFLAG_CANTUSE)
+	  s = N_("ID is expired/disabled/revoked.");
+	else switch (KeyTable[menu->current]->trust & 0x03)
+	{
+	  case 0:
+	    s = N_("ID has undefined validity.");
+	    break;
+	  case 1:
+	    s = N_("ID is not valid.");
+	    break;
+	  case 2:
+	    s = N_("ID is only marginally valid.");
+	    break;
+	}
+
+	snprintf (buff, sizeof (buff), _("%s Do you really want to use the key?"),
+		  _(s));
+
+	if (mutt_yesorno (buff, 0) != 1)
+	{
+	  mutt_clear_error ();
+	  break;
+	}
+      }
+
+# if 0
+      kp = pgp_principal_key (KeyTable[menu->current]->parent);
+# else
+      kp = KeyTable[menu->current]->parent;
+# endif
+      done = 1;
+      break;
+
+    case OP_EXIT:
+
+      kp = NULL;
+      done = 1;
+      break;
     }
   }
 
-  return (ferror (fp) == 0 ? 0 : -1);
+  mutt_menuDestroy (&menu);
+  safe_free ((void **) &KeyTable);
+
+  set_option (OPTNEEDREDRAW);
+  
+  return (kp);
 }

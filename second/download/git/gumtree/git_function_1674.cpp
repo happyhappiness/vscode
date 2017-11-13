@@ -1,24 +1,15 @@
-void read_bisect_terms(const char **read_bad, const char **read_good)
+static int add_info_ref(const char *path, const unsigned char *sha1, int flag, void *cb_data)
 {
-	struct strbuf str = STRBUF_INIT;
-	const char *filename = git_path("BISECT_TERMS");
-	FILE *fp = fopen(filename, "r");
+	struct object *o = parse_object(sha1);
+	if (!o)
+		return -1;
 
-	if (!fp) {
-		if (errno == ENOENT) {
-			*read_bad = "bad";
-			*read_good = "good";
-			return;
-		} else {
-			die("could not read file '%s': %s", filename,
-				strerror(errno));
-		}
-	} else {
-		strbuf_getline(&str, fp, '\n');
-		*read_bad = strbuf_detach(&str, NULL);
-		strbuf_getline(&str, fp, '\n');
-		*read_good = strbuf_detach(&str, NULL);
+	fprintf(info_ref_fp, "%s	%s\n", sha1_to_hex(sha1), path);
+	if (o->type == OBJ_TAG) {
+		o = deref_tag(o, path, 0);
+		if (o)
+			fprintf(info_ref_fp, "%s	%s^{}\n",
+				sha1_to_hex(o->sha1), path);
 	}
-	strbuf_release(&str);
-	fclose(fp);
+	return 0;
 }

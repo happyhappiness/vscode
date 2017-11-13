@@ -1,1 +1,1 @@
-fputs(env_hint, stderr);
+die("unable to generate diffstat for %s", one->path);

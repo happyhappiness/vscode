@@ -1,24 +1,43 @@
-static char *get_symlink(const struct object_id *oid, const char *path)
+static int fsck_obj(struct object *obj)
 {
-	char *data;
-	if (is_null_oid(oid)) {
-		/* The symlink is unknown to Git so read from the filesystem */
-		struct strbuf link = STRBUF_INIT;
-		if (has_symlinks) {
-			if (strbuf_readlink(&link, path, strlen(path)))
-				die(_("could not read symlink %s"), path);
-		} else if (strbuf_read_file(&link, path, 128))
-			die(_("could not read symlink file %s"), path);
+	if (obj->flags & SEEN)
+		return 0;
+	obj->flags |= SEEN;
 
-		data = strbuf_detach(&link, NULL);
-	} else {
-		enum object_type type;
-		unsigned long size;
-		data = read_sha1_file(oid->hash, &type, &size);
-		if (!data)
-			die(_("could not read object %s for symlink %s"),
-				oid_to_hex(oid), path);
+	if (verbose)
+		fprintf(stderr, "Checking %s %s\n",
+			typename(obj->type), describe_object(obj));
+
+	if (fsck_walk(obj, NULL, &fsck_obj_options))
+		objerror(obj, "broken links");
+	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
+		return -1;
+
+	if (obj->type == OBJ_TREE) {
+		struct tree *item = (struct tree *) obj;
+
+		free_tree_buffer(item);
 	}
 
-	return data;
+	if (obj->type == OBJ_COMMIT) {
+		struct commit *commit = (struct commit *) obj;
+
+		free_commit_buffer(commit);
+
+		if (!commit->parents && show_root)
+			printf("root %s\n", describe_object(&commit->object));
+	}
+
+	if (obj->type == OBJ_TAG) {
+		struct tag *tag = (struct tag *) obj;
+
+		if (show_tags && tag->tagged) {
+			printf("tagged %s %s", typename(tag->tagged->type),
+				describe_object(tag->tagged));
+			printf(" (%s) in %s\n", tag->tag,
+				describe_object(&tag->object));
+		}
+	}
+
+	return 0;
 }

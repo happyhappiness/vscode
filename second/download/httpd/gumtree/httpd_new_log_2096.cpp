@@ -1,1 +1,6 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 951932 $");
+ap_log_cerror(file, line, APLOG_MODULE_INDEX, level, rv, c,
+                  "%s [subject: %s, issuer: %s, serial: %s]",
+                  buf,
+                  sname ? sname : "-unknown-",
+                  iname ? iname : "-unknown-",
+                  serial ? serial : "-unknown-");

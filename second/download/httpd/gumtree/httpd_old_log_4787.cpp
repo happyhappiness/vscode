@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %d: Child process is exiting", my_pid);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot reinit %s mutex with file `%s'",
+                         SSL_CACHE_MUTEX_TYPE, lockfile);

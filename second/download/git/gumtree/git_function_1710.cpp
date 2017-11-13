@@ -1,227 +1,55 @@
-int git_config_set_multivar_in_file(const char *config_filename,
-				const char *key, const char *value,
-				const char *value_regex, int multi_replace)
+static int handle_commit_msg(struct strbuf *line)
 {
-	int fd = -1, in_fd = -1;
-	int ret;
-	struct lock_file *lock = NULL;
-	char *filename_buf = NULL;
-	char *contents = NULL;
-	size_t contents_sz;
+	static int still_looking = 1;
 
-	/* parse-key returns negative; flip the sign to feed exit(3) */
-	ret = 0 - git_config_parse_key(key, &store.key, &store.baselen);
-	if (ret)
-		goto out_free;
+	if (!cmitmsg)
+		return 0;
 
-	store.multi_replace = multi_replace;
-
-	if (!config_filename)
-		config_filename = filename_buf = git_pathdup("config");
-
-	/*
-	 * The lock serves a purpose in addition to locking: the new
-	 * contents of .git/config will be written into it.
-	 */
-	lock = xcalloc(1, sizeof(struct lock_file));
-	fd = hold_lock_file_for_update(lock, config_filename, 0);
-	if (fd < 0) {
-		error("could not lock config file %s: %s", config_filename, strerror(errno));
-		free(store.key);
-		ret = CONFIG_NO_LOCK;
-		goto out_free;
+	if (still_looking) {
+		if (!line->len || (line->len == 1 && line->buf[0] == '\n'))
+			return 0;
 	}
 
-	/*
-	 * If .git/config does not exist yet, write a minimal version.
-	 */
-	in_fd = open(config_filename, O_RDONLY);
-	if ( in_fd < 0 ) {
-		free(store.key);
+	if (use_inbody_headers && still_looking) {
+		still_looking = check_header(line, s_hdr_data, 0);
+		if (still_looking)
+			return 0;
+	} else
+		/* Only trim the first (blank) line of the commit message
+		 * when ignoring in-body headers.
+		 */
+		still_looking = 0;
 
-		if ( ENOENT != errno ) {
-			error("opening %s: %s", config_filename,
-			      strerror(errno));
-			ret = CONFIG_INVALID_FILE; /* same as "invalid config file" */
-			goto out_free;
-		}
-		/* if nothing to unset, error out */
-		if (value == NULL) {
-			ret = CONFIG_NOTHING_SET;
-			goto out_free;
-		}
+	/* normalize the log message to UTF-8. */
+	if (metainfo_charset)
+		convert_to_utf8(line, charset.buf);
 
-		store.key = (char *)key;
-		if (!store_write_section(fd, key) ||
-		    !store_write_pair(fd, key, value))
-			goto write_err_out;
-	} else {
-		struct stat st;
-		size_t copy_begin, copy_end;
-		int i, new_line = 0;
-
-		if (value_regex == NULL)
-			store.value_regex = NULL;
-		else if (value_regex == CONFIG_REGEX_NONE)
-			store.value_regex = CONFIG_REGEX_NONE;
-		else {
-			if (value_regex[0] == '!') {
-				store.do_not_match = 1;
-				value_regex++;
-			} else
-				store.do_not_match = 0;
-
-			store.value_regex = (regex_t*)xmalloc(sizeof(regex_t));
-			if (regcomp(store.value_regex, value_regex,
-					REG_EXTENDED)) {
-				error("invalid pattern: %s", value_regex);
-				free(store.value_regex);
-				ret = CONFIG_INVALID_PATTERN;
-				goto out_free;
-			}
-		}
-
-		ALLOC_GROW(store.offset, 1, store.offset_alloc);
-		store.offset[0] = 0;
-		store.state = START;
-		store.seen = 0;
+	if (use_scissors && is_scissors_line(line)) {
+		int i;
+		if (fseek(cmitmsg, 0L, SEEK_SET))
+			die_errno("Could not rewind output message file");
+		if (ftruncate(fileno(cmitmsg), 0))
+			die_errno("Could not truncate output message file at scissors");
+		still_looking = 1;
 
 		/*
-		 * After this, store.offset will contain the *end* offset
-		 * of the last match, or remain at 0 if no match was found.
-		 * As a side effect, we make sure to transform only a valid
-		 * existing config file.
+		 * We may have already read "secondary headers"; purge
+		 * them to give ourselves a clean restart.
 		 */
-		if (git_config_from_file(store_aux, config_filename, NULL)) {
-			error("invalid config file %s", config_filename);
-			free(store.key);
-			if (store.value_regex != NULL &&
-			    store.value_regex != CONFIG_REGEX_NONE) {
-				regfree(store.value_regex);
-				free(store.value_regex);
-			}
-			ret = CONFIG_INVALID_FILE;
-			goto out_free;
+		for (i = 0; header[i]; i++) {
+			if (s_hdr_data[i])
+				strbuf_release(s_hdr_data[i]);
+			s_hdr_data[i] = NULL;
 		}
-
-		free(store.key);
-		if (store.value_regex != NULL &&
-		    store.value_regex != CONFIG_REGEX_NONE) {
-			regfree(store.value_regex);
-			free(store.value_regex);
-		}
-
-		/* if nothing to unset, or too many matches, error out */
-		if ((store.seen == 0 && value == NULL) ||
-				(store.seen > 1 && multi_replace == 0)) {
-			ret = CONFIG_NOTHING_SET;
-			goto out_free;
-		}
-
-		fstat(in_fd, &st);
-		contents_sz = xsize_t(st.st_size);
-		contents = xmmap_gently(NULL, contents_sz, PROT_READ,
-					MAP_PRIVATE, in_fd, 0);
-		if (contents == MAP_FAILED) {
-			if (errno == ENODEV && S_ISDIR(st.st_mode))
-				errno = EISDIR;
-			error("unable to mmap '%s': %s",
-			      config_filename, strerror(errno));
-			ret = CONFIG_INVALID_FILE;
-			contents = NULL;
-			goto out_free;
-		}
-		close(in_fd);
-		in_fd = -1;
-
-		if (chmod(lock->filename.buf, st.st_mode & 07777) < 0) {
-			error("chmod on %s failed: %s",
-				lock->filename.buf, strerror(errno));
-			ret = CONFIG_NO_WRITE;
-			goto out_free;
-		}
-
-		if (store.seen == 0)
-			store.seen = 1;
-
-		for (i = 0, copy_begin = 0; i < store.seen; i++) {
-			if (store.offset[i] == 0) {
-				store.offset[i] = copy_end = contents_sz;
-			} else if (store.state != KEY_SEEN) {
-				copy_end = store.offset[i];
-			} else
-				copy_end = find_beginning_of_line(
-					contents, contents_sz,
-					store.offset[i]-2, &new_line);
-
-			if (copy_end > 0 && contents[copy_end-1] != '\n')
-				new_line = 1;
-
-			/* write the first part of the config */
-			if (copy_end > copy_begin) {
-				if (write_in_full(fd, contents + copy_begin,
-						  copy_end - copy_begin) <
-				    copy_end - copy_begin)
-					goto write_err_out;
-				if (new_line &&
-				    write_str_in_full(fd, "\n") != 1)
-					goto write_err_out;
-			}
-			copy_begin = store.offset[i];
-		}
-
-		/* write the pair (value == NULL means unset) */
-		if (value != NULL) {
-			if (store.state == START) {
-				if (!store_write_section(fd, key))
-					goto write_err_out;
-			}
-			if (!store_write_pair(fd, key, value))
-				goto write_err_out;
-		}
-
-		/* write the rest of the config */
-		if (copy_begin < contents_sz)
-			if (write_in_full(fd, contents + copy_begin,
-					  contents_sz - copy_begin) <
-			    contents_sz - copy_begin)
-				goto write_err_out;
-
-		munmap(contents, contents_sz);
-		contents = NULL;
+		return 0;
 	}
 
-	if (commit_lock_file(lock) < 0) {
-		error("could not commit config file %s", config_filename);
-		ret = CONFIG_NO_WRITE;
-		lock = NULL;
-		goto out_free;
+	if (patchbreak(line)) {
+		fclose(cmitmsg);
+		cmitmsg = NULL;
+		return 1;
 	}
 
-	/*
-	 * lock is committed, so don't try to roll it back below.
-	 * NOTE: Since lockfile.c keeps a linked list of all created
-	 * lock_file structures, it isn't safe to free(lock).  It's
-	 * better to just leave it hanging around.
-	 */
-	lock = NULL;
-	ret = 0;
-
-	/* Invalidate the config cache */
-	git_config_clear();
-
-out_free:
-	if (lock)
-		rollback_lock_file(lock);
-	free(filename_buf);
-	if (contents)
-		munmap(contents, contents_sz);
-	if (in_fd >= 0)
-		close(in_fd);
-	return ret;
-
-write_err_out:
-	ret = write_error(lock->filename.buf);
-	goto out_free;
-
+	fputs(line->buf, cmitmsg);
+	return 0;
 }

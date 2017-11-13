@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                      "h2_stream(%ld-%d): send_data_cb, wanted %ld bytes, "
-                      "got %ld from stream",
-                      session->id, (int)stream_id, (long)length, (long)len);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, pool,
+                              APLOGNO(02955) "h2_response: invalid header[%d] '%s'",
+                              i, (char*)hline);

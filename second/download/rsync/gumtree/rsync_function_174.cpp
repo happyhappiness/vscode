@@ -1,17 +1,57 @@
-static void delete_one(struct file_struct *f)
+static void set_perms(char *fname,struct file_struct *file,struct stat *st,
+		      int report)
 {
-  if (!S_ISDIR(f->mode)) {
-    if (!dry_run && unlink(f->name) != 0) {
-      fprintf(stderr,"unlink %s : %s\n",f->name,strerror(errno));
-    } else if (verbose) {
-      fprintf(stderr,"deleting %s\n",f->name);
+  int updated = 0;
+  struct stat st2;
+
+  if (dry_run) return;
+
+  if (!st) {
+    if (stat(fname,&st2) != 0) {
+      fprintf(stderr,"stat %s : %s\n",fname,strerror(errno));
+      return;
     }
-  } else {    
-    if (!dry_run && rmdir(f->name) != 0) {
-      if (errno != ENOTEMPTY)
-	fprintf(stderr,"rmdir %s : %s\n",f->name,strerror(errno));
-    } else if (verbose) {
-      fprintf(stderr,"deleting directory %s\n",f->name);      
+    st = &st2;
+  }
+
+  if (preserve_times && !S_ISLNK(st->st_mode) &&
+      st->st_mtime != file->modtime) {
+    updated = 1;
+    if (set_modtime(fname,file->modtime) != 0) {
+      fprintf(stderr,"failed to set times on %s : %s\n",
+	      fname,strerror(errno));
+      return;
     }
+  }
+
+#ifdef HAVE_CHMOD
+  if (preserve_perms && !S_ISLNK(st->st_mode) &&
+      st->st_mode != file->mode) {
+    updated = 1;
+    if (chmod(fname,file->mode) != 0) {
+      fprintf(stderr,"failed to set permissions on %s : %s\n",
+	      fname,strerror(errno));
+      return;
+    }
+  }
+#endif
+
+  if ((preserve_uid && st->st_uid != file->uid) || 
+      (preserve_gid && st->st_gid != file->gid)) {
+    updated = 1;
+    if (chown(fname,
+	      preserve_uid?file->uid:-1,
+	      preserve_gid?file->gid:-1) != 0) {
+      if (verbose>1 || preserve_uid)
+	fprintf(stderr,"chown %s : %s\n",fname,strerror(errno));
+      return;
+    }
+  }
+    
+  if (verbose > 1 && report) {
+    if (updated)
+      fprintf(am_server?stderr:stdout,"%s\n",fname);
+    else
+      fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);
   }
 }

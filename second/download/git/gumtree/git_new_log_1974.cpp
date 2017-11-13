@@ -1,2 +1,1 @@
-die("unable to parse commit %s",
-		    item ? oid_to_hex(&item->object.oid) : "(null)");
+write_file(buf->buf, 0, "%s\n", oid_to_hex(oid));

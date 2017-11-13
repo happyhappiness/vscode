@@ -1,108 +1,69 @@
-void diff_setup_done(struct diff_options *options)
+static int apply_all_patches(struct apply_state *state,
+			     int argc,
+			     const char **argv,
+			     int options)
 {
-	int count = 0;
+	int i;
+	int errs = 0;
+	int read_stdin = 1;
 
-	if (options->set_default)
-		options->set_default(options);
+	for (i = 0; i < argc; i++) {
+		const char *arg = argv[i];
+		int fd;
 
-	if (options->output_format & DIFF_FORMAT_NAME)
-		count++;
-	if (options->output_format & DIFF_FORMAT_NAME_STATUS)
-		count++;
-	if (options->output_format & DIFF_FORMAT_CHECKDIFF)
-		count++;
-	if (options->output_format & DIFF_FORMAT_NO_OUTPUT)
-		count++;
-	if (count > 1)
-		die("--name-only, --name-status, --check and -s are mutually exclusive");
+		if (!strcmp(arg, "-")) {
+			errs |= apply_patch(state, 0, "<stdin>", options);
+			read_stdin = 0;
+			continue;
+		} else if (0 < state->prefix_length)
+			arg = prefix_filename(state->prefix,
+					      state->prefix_length,
+					      arg);
 
-	/*
-	 * Most of the time we can say "there are changes"
-	 * only by checking if there are changed paths, but
-	 * --ignore-whitespace* options force us to look
-	 * inside contents.
-	 */
-
-	if (DIFF_XDL_TST(options, IGNORE_WHITESPACE) ||
-	    DIFF_XDL_TST(options, IGNORE_WHITESPACE_CHANGE) ||
-	    DIFF_XDL_TST(options, IGNORE_WHITESPACE_AT_EOL))
-		DIFF_OPT_SET(options, DIFF_FROM_CONTENTS);
-	else
-		DIFF_OPT_CLR(options, DIFF_FROM_CONTENTS);
-
-	if (DIFF_OPT_TST(options, FIND_COPIES_HARDER))
-		options->detect_rename = DIFF_DETECT_COPY;
-
-	if (!DIFF_OPT_TST(options, RELATIVE_NAME))
-		options->prefix = NULL;
-	if (options->prefix)
-		options->prefix_length = strlen(options->prefix);
-	else
-		options->prefix_length = 0;
-
-	if (options->output_format & (DIFF_FORMAT_NAME |
-				      DIFF_FORMAT_NAME_STATUS |
-				      DIFF_FORMAT_CHECKDIFF |
-				      DIFF_FORMAT_NO_OUTPUT))
-		options->output_format &= ~(DIFF_FORMAT_RAW |
-					    DIFF_FORMAT_NUMSTAT |
-					    DIFF_FORMAT_DIFFSTAT |
-					    DIFF_FORMAT_SHORTSTAT |
-					    DIFF_FORMAT_DIRSTAT |
-					    DIFF_FORMAT_SUMMARY |
-					    DIFF_FORMAT_PATCH);
-
-	/*
-	 * These cases always need recursive; we do not drop caller-supplied
-	 * recursive bits for other formats here.
-	 */
-	if (options->output_format & (DIFF_FORMAT_PATCH |
-				      DIFF_FORMAT_NUMSTAT |
-				      DIFF_FORMAT_DIFFSTAT |
-				      DIFF_FORMAT_SHORTSTAT |
-				      DIFF_FORMAT_DIRSTAT |
-				      DIFF_FORMAT_SUMMARY |
-				      DIFF_FORMAT_CHECKDIFF))
-		DIFF_OPT_SET(options, RECURSIVE);
-	/*
-	 * Also pickaxe would not work very well if you do not say recursive
-	 */
-	if (options->pickaxe)
-		DIFF_OPT_SET(options, RECURSIVE);
-	/*
-	 * When patches are generated, submodules diffed against the work tree
-	 * must be checked for dirtiness too so it can be shown in the output
-	 */
-	if (options->output_format & DIFF_FORMAT_PATCH)
-		DIFF_OPT_SET(options, DIRTY_SUBMODULES);
-
-	if (options->detect_rename && options->rename_limit < 0)
-		options->rename_limit = diff_rename_limit_default;
-	if (options->setup & DIFF_SETUP_USE_CACHE) {
-		if (!active_cache)
-			/* read-cache does not die even when it fails
-			 * so it is safe for us to do this here.  Also
-			 * it does not smudge active_cache or active_nr
-			 * when it fails, so we do not have to worry about
-			 * cleaning it up ourselves either.
-			 */
-			read_cache();
+		fd = open(arg, O_RDONLY);
+		if (fd < 0)
+			die_errno(_("can't open patch '%s'"), arg);
+		read_stdin = 0;
+		set_default_whitespace_mode(state);
+		errs |= apply_patch(state, fd, arg, options);
+		close(fd);
 	}
-	if (options->abbrev <= 0 || 40 < options->abbrev)
-		options->abbrev = 40; /* full */
+	set_default_whitespace_mode(state);
+	if (read_stdin)
+		errs |= apply_patch(state, 0, "<stdin>", options);
 
-	/*
-	 * It does not make sense to show the first hit we happened
-	 * to have found.  It does not make sense not to return with
-	 * exit code in such a case either.
-	 */
-	if (DIFF_OPT_TST(options, QUICK)) {
-		options->output_format = DIFF_FORMAT_NO_OUTPUT;
-		DIFF_OPT_SET(options, EXIT_WITH_STATUS);
+	if (state->whitespace_error) {
+		if (state->squelch_whitespace_errors &&
+		    state->squelch_whitespace_errors < state->whitespace_error) {
+			int squelched =
+				state->whitespace_error - state->squelch_whitespace_errors;
+			warning(Q_("squelched %d whitespace error",
+				   "squelched %d whitespace errors",
+				   squelched),
+				squelched);
+		}
+		if (state->ws_error_action == die_on_ws_error)
+			die(Q_("%d line adds whitespace errors.",
+			       "%d lines add whitespace errors.",
+			       state->whitespace_error),
+			    state->whitespace_error);
+		if (state->applied_after_fixing_ws && state->apply)
+			warning("%d line%s applied after"
+				" fixing whitespace errors.",
+				state->applied_after_fixing_ws,
+				state->applied_after_fixing_ws == 1 ? "" : "s");
+		else if (state->whitespace_error)
+			warning(Q_("%d line adds whitespace errors.",
+				   "%d lines add whitespace errors.",
+				   state->whitespace_error),
+				state->whitespace_error);
 	}
 
-	options->diff_path_counter = 0;
+	if (state->update_index) {
+		if (write_locked_index(&the_index, state->lock_file, COMMIT_LOCK))
+			die(_("Unable to write new index file"));
+		state->newfd = -1;
+	}
 
-	if (DIFF_OPT_TST(options, FOLLOW_RENAMES) && options->pathspec.nr != 1)
-		die(_("--follow requires exactly one pathspec"));
+	return !!errs;
 }

@@ -1,11 +1,11 @@
 fputs(
-"              you'll instead get the whole document.\n"
+"              entire  operation  will  be aborted. You must send syntactically\n"
+"              correct FTP commands as RFC 959 defines to FTP servers,  or  one\n"
+"              of the commands listed below to SFTP servers.\n"
 "\n"
-"              FTP and SFTP range downloads only  support  the  simple  'start-\n"
-"              stop'  syntax  (optionally with one of the numbers omitted). FTP\n"
-"              use depends on the extended FTP command SIZE.\n"
+"              This  option can be used multiple times. When speaking to an FTP\n"
+"              server, prefix the command with an asterisk  (*)  to  make  curl\n"
+"              continue  even if the command fails as by default curl will stop\n"
+"              at first failure.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --raw  (HTTP) When used, it disables all internal HTTP decoding of con-\n"
 , stdout);

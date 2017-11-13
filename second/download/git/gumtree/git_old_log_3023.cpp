@@ -1,1 +1,0 @@
-die(_("program error"));

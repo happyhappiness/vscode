@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03516)
-                      "h2_mplx(%ld): unexpected %d streams in hold", 
-                      m->id, (int)h2_ihash_count(m->shold));
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                     "h2_worker(%d): looking for work", h2_worker_get_id(worker));

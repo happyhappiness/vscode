@@ -1,1 +1,1 @@
-error("Failed to update conflicted state in '%s'", path);
+strbuf_addstr(path, de->d_name);

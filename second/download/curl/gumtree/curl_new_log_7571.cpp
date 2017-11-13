@@ -1,10 +1,11 @@
 fputs(
-"              there is no file part in the specified URL, Curl will append the\n"
-"              local file name. NOTE that you must use a trailing / on the last\n"
-"              directory  to really prove to Curl that there is no file name or\n"
-"              curl will think that your last directory name is the remote file\n"
-"              name to use. That will most likely cause the upload operation to\n"
-"              fail. If this is used on a HTTP(S) server, the PUT command  will\n"
-"              be used.\n"
+"              ated. RFC 1961 says in section 4.3/4.4 it should  be  protected,\n"
+"              but  the  NEC  reference  implementation  does  not.  The option\n"
+"              --socks5-gssapi-nec allows the unprotected exchange of the  pro-\n"
+"              tection mode negotiation. (Added in 7.19.4).\n"
+"\n"
+"       --stderr <file>\n"
+"              Redirect  all writes to stderr to the specified file instead. If\n"
+"              the file name is a plain '-', it is instead written to stdout.\n"
 "\n"
 , stdout);

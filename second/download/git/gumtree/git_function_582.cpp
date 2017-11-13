@@ -1,47 +1,31 @@
-int sequencer_rollback(struct replay_opts *opts)
+static void check_notes_merge_worktree(struct notes_merge_options *o)
 {
-	FILE *f;
-	unsigned char sha1[20];
-	struct strbuf buf = STRBUF_INIT;
-
-	f = fopen(git_path_head_file(), "r");
-	if (!f && errno == ENOENT) {
+	if (!o->has_worktree) {
 		/*
-		 * There is no multiple-cherry-pick in progress.
-		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
-		 * a single-cherry-pick in progress, abort that.
+		 * Must establish NOTES_MERGE_WORKTREE.
+		 * Abort if NOTES_MERGE_WORKTREE already exists
 		 */
-		return rollback_single_pick();
-	}
-	if (!f)
-		return error_errno(_("cannot open '%s'"), git_path_head_file());
-	if (strbuf_getline_lf(&buf, f)) {
-		error(_("cannot read '%s': %s"), git_path_head_file(),
-		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));
-		fclose(f);
-		goto fail;
-	}
-	fclose(f);
-	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
-		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
-			git_path_head_file());
-		goto fail;
-	}
-	if (is_null_sha1(sha1)) {
-		error(_("cannot abort from a branch yet to be born"));
-		goto fail;
-	}
+		if (file_exists(git_path(NOTES_MERGE_WORKTREE)) &&
+		    !is_empty_dir(git_path(NOTES_MERGE_WORKTREE))) {
+			if (advice_resolve_conflict)
+				die("You have not concluded your previous "
+				    "notes merge (%s exists).\nPlease, use "
+				    "'git notes merge --commit' or 'git notes "
+				    "merge --abort' to commit/abort the "
+				    "previous merge before you start a new "
+				    "notes merge.", git_path("NOTES_MERGE_*"));
+			else
+				die("You have not concluded your notes merge "
+				    "(%s exists).", git_path("NOTES_MERGE_*"));
+		}
 
-	if (!rollback_is_safe()) {
-		/* Do not error, just do not rollback */
-		warning(_("You seem to have moved HEAD. "
-			  "Not rewinding, check your HEAD!"));
-	} else
-	if (reset_for_rollback(sha1))
-		goto fail;
-	strbuf_release(&buf);
-	return sequencer_remove_state(opts);
-fail:
-	strbuf_release(&buf);
-	return -1;
+		if (safe_create_leading_directories_const(git_path(
+				NOTES_MERGE_WORKTREE "/.test")))
+			die_errno("unable to create directory %s",
+				  git_path(NOTES_MERGE_WORKTREE));
+		o->has_worktree = 1;
+	} else if (!file_exists(git_path(NOTES_MERGE_WORKTREE)))
+		/* NOTES_MERGE_WORKTREE should already be established */
+		die("missing '%s'. This should not happen",
+		    git_path(NOTES_MERGE_WORKTREE));
 }

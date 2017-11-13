@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01149)
-                     "Sharing worker '%s' instead of creating new worker '%s'",
-                     worker->s->name, name);
+ap_rputs("<a href=\"#modules\">Loaded Modules</a>, "
+                     "<a href=\"#server\">Server Settings</a>, "
+                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
+                     "<a href=\"#request_hooks\">Request Hooks</a>, "
+                     "<a href=\"#other_hooks\">Other Hooks</a>", r);

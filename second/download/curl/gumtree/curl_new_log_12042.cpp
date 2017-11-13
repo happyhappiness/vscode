@@ -1,8 +1,12 @@
 fputs(
-"              server. Quote commands are sent BEFORE the transfer takes  place\n"
-"              (just  after  the  initial PWD command in an FTP transfer, to be\n"
-"              exact). To make commands take place after a successful transfer,\n"
-"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
-"              curl has changed the working directory, just before the transfer\n"
-"              command(s),  prefix  the  command  with a '+' (this is only sup-\n"
+"              nicating  with  the  given  proxy.  This  might  cause  an extra\n"
+"              request/response round-trip. (Added in 7.13.2)\n"
+"\n"
+"       --proxy-basic\n"
+"              Tells curl to use HTTP Basic authentication  when  communicating\n"
+"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
+"              remote host. Basic is the  default  authentication  method  curl\n"
+"              uses with proxies.\n"
+"\n"
+"       --proxy-digest\n"
 , stdout);

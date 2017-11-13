@@ -1,75 +1,46 @@
-static int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
+static int delete_already_done(struct file_list *flist,int j)
 {
-  char *args[100];
-  int i,argc=0, ret;
-  char *tok,*p,*dir=NULL;
+	int low=0,high=j-1;
+	char *name;
+	char *p;
 
-  if (!local_server) {
-    if (!cmd)
-      cmd = getenv(RSYNC_RSH_ENV);
-    if (!cmd)
-      cmd = RSYNC_RSH;
-    cmd = strdup(cmd);
-    if (!cmd) 
-      goto oom;
+	if (j == 0) return 0;
 
-    for (tok=strtok(cmd," ");tok;tok=strtok(NULL," ")) {
-      args[argc++] = tok;
-    }
+	name = strdup(flist->files[j].name);
 
-#if HAVE_REMSH
-    /* remsh (on HPUX) takes the arguments the other way around */
-    args[argc++] = machine;
-    if (user) {
-      args[argc++] = "-l";
-      args[argc++] = user;
-    }
-#else
-    if (user) {
-      args[argc++] = "-l";
-      args[argc++] = user;
-    }
-    args[argc++] = machine;
-#endif
-  }
+	if (!name) {
+		fprintf(FERROR,"out of memory in delete_already_done");
+		exit_cleanup(1);
+	}
 
-  args[argc++] = rsync_path;
+	p = strrchr(name,'/');
+	if (!p) {
+		free(name);
+		return 0;
+	}
+	*p = 0;
 
-  server_options(args,&argc);
+	while (low != high) {
+		int mid = (low+high)/2;
+		int ret = strcmp(flist->files[flist_up(flist, mid)].name,name);
+		if (ret == 0) {
+			free(name);
+			return 1;
+		}
+		if (ret > 0) {
+			high=mid;
+		} else {
+			low=mid+1;
+		}
+	}
 
-  if (path && *path) {
-    dir = strdup(path);
-    p = strrchr(dir,'/');
-    if (p && !relative_paths) {
-      *p = 0;
-      if (!dir[0])
-	args[argc++] = "/";
-      else
-	args[argc++] = dir;
-      p++;
-    } else {
-      args[argc++] = ".";
-      p = dir;
-    }
-    if (p[0])
-      args[argc++] = path;
-  }
+	low = flist_up(flist, low);
 
-  args[argc] = NULL;
+	if (strcmp(flist->files[low].name,name) == 0) {
+		free(name);
+		return 1;
+	}
 
-  if (verbose > 3) {
-    fprintf(FERROR,"cmd=");
-    for (i=0;i<argc;i++)
-      fprintf(FERROR,"%s ",args[i]);
-    fprintf(FERROR,"\n");
-  }
-
-  ret = piped_child(args,f_in,f_out);
-  if (dir) free(dir);
-
-  return ret;
-
-oom:
-  out_of_memory("do_cmd");
-  return 0; /* not reached */
+	free(name);
+	return 0;
 }

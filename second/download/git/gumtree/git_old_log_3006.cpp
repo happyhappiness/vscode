@@ -1,1 +1,1 @@
-error("cannot read delta preimage: %s", strerror(errno));
+error("cannot write delta postimage: %s", strerror(errno));

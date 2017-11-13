@@ -1,1 +1,1 @@
-fprintf(fp, "%s\n", oid_to_hex(&commit));
+getenv(key->key);

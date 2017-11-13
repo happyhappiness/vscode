@@ -1,78 +1,198 @@
-static int proxy_status_hook(request_rec *r, int flags)
+static int show_server_settings(request_rec * r)
 {
-    int i, n;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf = (proxy_server_conf *)
-        ap_get_module_config(sconf, &proxy_module);
-    proxy_balancer *balancer = NULL;
-    proxy_worker *worker = NULL;
+    server_rec *serv = r->server;
+    int max_daemons, forked, threaded;
 
-    if (flags & AP_STATUS_SHORT || conf->balancers->nelts == 0 ||
-        conf->proxy_status == status_off)
-        return OK;
+    ap_rputs("<h2><a name=\"server\">Server Settings</a></h2>", r);
+    ap_rprintf(r,
+               "<dl><dt><strong>Server Version:</strong> "
+               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
+               ap_get_server_version());
+    ap_rprintf(r,
+               "<dt><strong>Server Built:</strong> "
+               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
+               ap_get_server_built());
+    ap_rprintf(r,
+               "<dt><strong>Module Magic Number:</strong> "
+               "<tt>%d:%d</tt></dt>\n", MODULE_MAGIC_NUMBER_MAJOR,
+               MODULE_MAGIC_NUMBER_MINOR);
+    ap_rprintf(r,
+               "<dt><strong>Hostname/port:</strong> "
+               "<tt>%s:%u</tt></dt>\n", ap_get_server_name(r),
+               ap_get_server_port(r));
+    ap_rprintf(r,
+               "<dt><strong>Timeouts:</strong> "
+               "<tt>connection: %d &nbsp;&nbsp; "
+               "keep-alive: %d</tt></dt>",
+               (int) (apr_time_sec(serv->timeout)),
+               (int) (apr_time_sec(serv->timeout)));
+    ap_mpm_query(AP_MPMQ_MAX_DAEMON_USED, &max_daemons);
+    ap_mpm_query(AP_MPMQ_IS_THREADED, &threaded);
+    ap_mpm_query(AP_MPMQ_IS_FORKED, &forked);
+    ap_rprintf(r, "<dt><strong>MPM Name:</strong> <tt>%s</tt></dt>\n",
+               ap_show_mpm());
+    ap_rprintf(r,
+               "<dt><strong>MPM Information:</strong> "
+               "<tt>Max Daemons: %d Threaded: %s Forked: %s</tt></dt>\n",
+               max_daemons, threaded ? "yes" : "no", forked ? "yes" : "no");
+    ap_rprintf(r,
+               "<dt><strong>Server Architecture:</strong> "
+               "<tt>%ld-bit</tt></dt>\n", 8 * (long) sizeof(void *));
+    ap_rprintf(r,
+               "<dt><strong>Server Root:</strong> "
+               "<tt>%s</tt></dt>\n", ap_server_root);
+    ap_rprintf(r,
+               "<dt><strong>Config File:</strong> "
+               "<tt>%s</tt></dt>\n", ap_conftree->filename);
 
-    balancer = (proxy_balancer *)conf->balancers->elts;
-    for (i = 0; i < conf->balancers->nelts; i++) {
-        ap_rputs("<hr />\n<h1>Proxy LoadBalancer Status for ", r);
-        ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);
-        ap_rputs("\n\n<table border=\"0\"><tr>"
-                 "<th>SSes</th><th>Timeout</th><th>Method</th>"
-                 "</tr>\n<tr>", r);
-        ap_rvputs(r, "<td>", balancer->sticky, NULL);
-        ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
-                   apr_time_sec(balancer->timeout));
-        ap_rprintf(r, "<td>%s</td>\n",
-                   balancer->lbmethod->name);
-        ap_rputs("</table>\n", r);
-        ap_rputs("\n\n<table border=\"0\"><tr>"
-                 "<th>Sch</th><th>Host</th><th>Stat</th>"
-                 "<th>Route</th><th>Redir</th>"
-                 "<th>F</th><th>Acc</th><th>Wr</th><th>Rd</th>"
-                 "</tr>\n", r);
+    ap_rputs("<dt><strong>Server Built With:</strong>\n"
+             "<tt style=\"white-space: pre;\">\n", r);
 
-        worker = (proxy_worker *)balancer->workers->elts;
-        for (n = 0; n < balancer->workers->nelts; n++) {
-            char fbuf[50];
-            ap_rvputs(r, "<tr>\n<td>", worker->scheme, "</td>", NULL);
-            ap_rvputs(r, "<td>", worker->hostname, "</td><td>", NULL);
-            if (worker->s->status & PROXY_WORKER_DISABLED)
-                ap_rputs("Dis", r);
-            else if (worker->s->status & PROXY_WORKER_IN_ERROR)
-                ap_rputs("Err", r);
-            else if (worker->s->status & PROXY_WORKER_INITIALIZED)
-                ap_rputs("Ok", r);
-            else
-                ap_rputs("-", r);
-            ap_rvputs(r, "</td><td>", worker->s->route, NULL);
-            ap_rvputs(r, "</td><td>", worker->s->redirect, NULL);
-            ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
-            ap_rprintf(r, "<td>%d</td><td>", (int)(worker->s->elected));
-            ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
-            ap_rputs("</td><td>", r);
-            ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
-            ap_rputs("</td>\n", r);
+    /* TODO: Not all of these defines are getting set like they do in main.c.
+     *       Missing some headers?
+     */
 
-            /* TODO: Add the rest of dynamic worker data */
-            ap_rputs("</tr>\n", r);
+#ifdef BIG_SECURITY_HOLE
+    ap_rputs(" -D BIG_SECURITY_HOLE\n", r);
+#endif
 
-            ++worker;
-        }
-        ap_rputs("</table>\n", r);
-        ++balancer;
-    }
-    ap_rputs("<hr /><table>\n"
-             "<tr><th>SSes</th><td>Sticky session name</td></tr>\n"
-             "<tr><th>Timeout</th><td>Balancer Timeout</td></tr>\n"
-             "<tr><th>Sch</th><td>Connection scheme</td></tr>\n"
-             "<tr><th>Host</th><td>Backend Hostname</td></tr>\n"
-             "<tr><th>Stat</th><td>Worker status</td></tr>\n"
-             "<tr><th>Route</th><td>Session Route</td></tr>\n"
-             "<tr><th>Redir</th><td>Session Route Redirection</td></tr>\n"
-             "<tr><th>F</th><td>Load Balancer Factor in %</td></tr>\n"
-             "<tr><th>Acc</th><td>Number of requests</td></tr>\n"
-             "<tr><th>Wr</th><td>Number of bytes transferred</td></tr>\n"
-             "<tr><th>Rd</th><td>Number of bytes read</td></tr>\n"
-             "</table>", r);
+#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
+    ap_rputs(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n", r);
+#endif
 
-    return OK;
+#ifdef OS
+    ap_rputs(" -D OS=\"" OS "\"\n", r);
+#endif
+
+#ifdef APACHE_MPM_DIR
+    ap_rputs(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n", r);
+#endif
+
+#ifdef HAVE_SHMGET
+    ap_rputs(" -D HAVE_SHMGET\n", r);
+#endif
+
+#if APR_FILE_BASED_SHM
+    ap_rputs(" -D APR_FILE_BASED_SHM\n", r);
+#endif
+
+#if APR_HAS_SENDFILE
+    ap_rputs(" -D APR_HAS_SENDFILE\n", r);
+#endif
+
+#if APR_HAS_MMAP
+    ap_rputs(" -D APR_HAS_MMAP\n", r);
+#endif
+
+#ifdef NO_WRITEV
+    ap_rputs(" -D NO_WRITEV\n", r);
+#endif
+
+#ifdef NO_LINGCLOSE
+    ap_rputs(" -D NO_LINGCLOSE\n", r);
+#endif
+
+#if APR_HAVE_IPV6
+    ap_rputs(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ", r);
+#ifdef AP_ENABLE_V4_MAPPED
+    ap_rputs("enabled)\n", r);
+#else
+    ap_rputs("disabled)\n", r);
+#endif
+#endif
+
+#if APR_USE_FLOCK_SERIALIZE
+    ap_rputs(" -D APR_USE_FLOCK_SERIALIZE\n", r);
+#endif
+
+#if APR_USE_SYSVSEM_SERIALIZE
+    ap_rputs(" -D APR_USE_SYSVSEM_SERIALIZE\n", r);
+#endif
+
+#if APR_USE_POSIXSEM_SERIALIZE
+    ap_rputs(" -D APR_USE_POSIXSEM_SERIALIZE\n", r);
+#endif
+
+#if APR_USE_FCNTL_SERIALIZE
+    ap_rputs(" -D APR_USE_FCNTL_SERIALIZE\n", r);
+#endif
+
+#if APR_USE_PROC_PTHREAD_SERIALIZE
+    ap_rputs(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n", r);
+#endif
+#if APR_PROCESS_LOCK_IS_GLOBAL
+    ap_rputs(" -D APR_PROCESS_LOCK_IS_GLOBAL\n", r);
+#endif
+
+#ifdef SINGLE_LISTEN_UNSERIALIZED_ACCEPT
+    ap_rputs(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n", r);
+#endif
+
+#if APR_HAS_OTHER_CHILD
+    ap_rputs(" -D APR_HAS_OTHER_CHILD\n", r);
+#endif
+
+#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
+    ap_rputs(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n", r);
+#endif
+
+#ifdef BUFFERED_LOGS
+    ap_rputs(" -D BUFFERED_LOGS\n", r);
+#ifdef PIPE_BUF
+    ap_rputs(" -D PIPE_BUF=%ld\n", (long) PIPE_BUF, r);
+#endif
+#endif
+
+#if APR_CHARSET_EBCDIC
+    ap_rputs(" -D APR_CHARSET_EBCDIC\n", r);
+#endif
+
+#ifdef NEED_HASHBANG_EMUL
+    ap_rputs(" -D NEED_HASHBANG_EMUL\n", r);
+#endif
+
+#ifdef SHARED_CORE
+    ap_rputs(" -D SHARED_CORE\n", r);
+#endif
+
+/* This list displays the compiled in default paths: */
+#ifdef HTTPD_ROOT
+    ap_rputs(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n", r);
+#endif
+
+#ifdef SUEXEC_BIN
+    ap_rputs(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n", r);
+#endif
+
+#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
+    ap_rputs(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n", r);
+#endif
+
+#ifdef DEFAULT_PIDLOG
+    ap_rputs(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n", r);
+#endif
+
+#ifdef DEFAULT_SCOREBOARD
+    ap_rputs(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n", r);
+#endif
+
+#ifdef DEFAULT_LOCKFILE
+    ap_rputs(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n", r);
+#endif
+
+#ifdef DEFAULT_ERRORLOG
+    ap_rputs(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n", r);
+#endif
+
+
+#ifdef AP_TYPES_CONFIG_FILE
+    ap_rputs(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n", r);
+#endif
+
+#ifdef SERVER_CONFIG_FILE
+    ap_rputs(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n", r);
+#endif
+    ap_rputs("</tt></dt>\n", r);
+    ap_rputs("</dl><hr />", r);
+    return 0;
 }

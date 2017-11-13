@@ -1,2 +1,2 @@
-error("unable to mmap '%s': %s",
-			      config_filename, strerror(errno));
+error("chmod on %s failed: %s",
+			      get_lock_file_path(lock), strerror(errno));

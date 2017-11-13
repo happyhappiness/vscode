@@ -1,9 +1,10 @@
 fputs(
-"              Maximum time in seconds that you allow  the  connection  to  the\n"
-"              server  to  take.   This  only limits the connection phase, once\n"
-"              curl has connected this option is of no more use.  Since 7.32.0,\n"
-"              this  option accepts decimal values, but the actual timeout will\n"
-"              decrease in accuracy as the specified timeout increases in deci-\n"
-"              mal precision. See also the -m, --max-time option.\n"
+"              If this option is used several times, the  last  specified  file\n"
+"              name will be used.\n"
 "\n"
+"       -C, --continue-at <offset>\n"
+"              Continue/Resume  a  previous  file transfer at the given offset.\n"
+"              The given offset is the exact  number  of  bytes  that  will  be\n"
+"              skipped,  counting  from the beginning of the source file before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
 , stdout);

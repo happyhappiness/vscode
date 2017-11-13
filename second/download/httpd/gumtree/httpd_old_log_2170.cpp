@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Inflate error %d on flush", zRC);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+            "AcceptMutex: %s (default: %s)",
+            apr_proc_mutex_name(accept_mutex),
+            apr_proc_mutex_defname());

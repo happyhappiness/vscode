@@ -1,2 +1,1 @@
-error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
+die("git-cvsserver only handles server: %s", arg);

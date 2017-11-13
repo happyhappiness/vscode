@@ -1,1 +1,1 @@
-fprintf(stderr, "adding `%s'\n", buf);
+fprintf(out, "#ifdef BYFOUR\n");

@@ -1,1 +1,1 @@
-strbuf_release(&buf);
+error("unable to parse header of %s", path);

@@ -1,21 +1,18 @@
-static int create_symref_locked(struct ref_lock *lock, const char *refname,
-				const char *target, const char *logmsg)
+int create_symref(const char *refname, const char *target, const char *logmsg)
 {
-	if (prefer_symlink_refs && !create_ref_symlink(lock, target)) {
-		update_symref_reflog(lock, refname, target, logmsg);
-		return 0;
+	struct strbuf err = STRBUF_INIT;
+	struct ref_lock *lock;
+	int ret;
+
+	lock = lock_ref_sha1_basic(refname, NULL, NULL, NULL, REF_NODEREF, NULL,
+				   &err);
+	if (!lock) {
+		error("%s", err.buf);
+		strbuf_release(&err);
+		return -1;
 	}
 
-	if (!fdopen_lock_file(lock->lk, "w"))
-		return error("unable to fdopen %s: %s",
-			     lock->lk->tempfile.filename.buf, strerror(errno));
-
-	update_symref_reflog(lock, refname, target, logmsg);
-
-	/* no error check; commit_ref will check ferror */
-	fprintf(lock->lk->tempfile.fp, "ref: %s\n", target);
-	if (commit_ref(lock) < 0)
-		return error("unable to write symref for %s: %s", refname,
-			     strerror(errno));
-	return 0;
+	ret = create_symref_locked(lock, refname, target, logmsg);
+	unlock_ref(lock);
+	return ret;
 }

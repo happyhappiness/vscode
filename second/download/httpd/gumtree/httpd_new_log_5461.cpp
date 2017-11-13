@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                          "h2_mplx(%ld): task(%s) done", m->id, task->id);
+ap_log_error(APLOG_MARK, APLOG_CRIT, APR_EBADPATH, ap_server_conf, APLOGNO(00003)
+                         "Fatal error: Invalid Scoreboard path %s",
+                         ap_scoreboard_fname);

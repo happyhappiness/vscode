@@ -1,1 +1,0 @@
-die("verify %s: extra input: %s", refname, next);

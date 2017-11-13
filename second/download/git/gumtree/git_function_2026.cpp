@@ -1,43 +1,71 @@
-static void do_merge_filter(struct ref_filter_cbdata *ref_cbdata)
+static int fetch_with_import(struct transport *transport,
+			     int nr_heads, struct ref **to_fetch)
 {
-	struct rev_info revs;
-	int i, old_nr;
-	struct ref_filter *filter = ref_cbdata->filter;
-	struct ref_array *array = ref_cbdata->array;
-	struct commit **to_clear = xcalloc(sizeof(struct commit *), array->nr);
+	struct child_process fastimport;
+	struct helper_data *data = transport->data;
+	int i;
+	struct ref *posn;
+	struct strbuf buf = STRBUF_INIT;
 
-	init_revisions(&revs, NULL);
+	get_helper(transport);
 
-	for (i = 0; i < array->nr; i++) {
-		struct ref_array_item *item = array->items[i];
-		add_pending_object(&revs, &item->commit->object, item->refname);
-		to_clear[i] = item->commit;
+	if (get_importer(transport, &fastimport))
+		die("Couldn't run fast-import");
+
+	for (i = 0; i < nr_heads; i++) {
+		posn = to_fetch[i];
+		if (posn->status & REF_STATUS_UPTODATE)
+			continue;
+
+		strbuf_addf(&buf, "import %s\n",
+			    posn->symref ? posn->symref : posn->name);
+		sendline(data, &buf);
+		strbuf_reset(&buf);
 	}
 
-	filter->merge_commit->object.flags |= UNINTERESTING;
-	add_pending_object(&revs, &filter->merge_commit->object, "");
+	write_constant(data->helper->in, "\n");
+	/*
+	 * remote-helpers that advertise the bidi-import capability are required to
+	 * buffer the complete batch of import commands until this newline before
+	 * sending data to fast-import.
+	 * These helpers read back data from fast-import on their stdin, which could
+	 * be mixed with import commands, otherwise.
+	 */
 
-	revs.limited = 1;
-	if (prepare_revision_walk(&revs))
-		die(_("revision walk setup failed"));
+	if (finish_command(&fastimport))
+		die("Error while running fast-import");
 
-	old_nr = array->nr;
-	array->nr = 0;
-
-	for (i = 0; i < old_nr; i++) {
-		struct ref_array_item *item = array->items[i];
-		struct commit *commit = item->commit;
-
-		int is_merged = !!(commit->object.flags & UNINTERESTING);
-
-		if (is_merged == (filter->merge == REF_FILTER_MERGED_INCLUDE))
-			array->items[array->nr++] = array->items[i];
+	/*
+	 * The fast-import stream of a remote helper that advertises
+	 * the "refspec" capability writes to the refs named after the
+	 * right hand side of the first refspec matching each ref we
+	 * were fetching.
+	 *
+	 * (If no "refspec" capability was specified, for historical
+	 * reasons we default to the equivalent of *:*.)
+	 *
+	 * Store the result in to_fetch[i].old_sha1.  Callers such
+	 * as "git fetch" can use the value to write feedback to the
+	 * terminal, populate FETCH_HEAD, and determine what new value
+	 * should be written to peer_ref if the update is a
+	 * fast-forward or this is a forced update.
+	 */
+	for (i = 0; i < nr_heads; i++) {
+		char *private, *name;
+		posn = to_fetch[i];
+		if (posn->status & REF_STATUS_UPTODATE)
+			continue;
+		name = posn->symref ? posn->symref : posn->name;
+		if (data->refspecs)
+			private = apply_refspecs(data->refspecs, data->refspec_nr, name);
 		else
-			free_array_item(item);
+			private = xstrdup(name);
+		if (private) {
+			if (read_ref(private, posn->old_sha1) < 0)
+				die("Could not read ref %s", private);
+			free(private);
+		}
 	}
-
-	for (i = 0; i < old_nr; i++)
-		clear_commit_marks(to_clear[i], ALL_REV_FLAGS);
-	clear_commit_marks(filter->merge_commit, ALL_REV_FLAGS);
-	free(to_clear);
+	strbuf_release(&buf);
+	return 0;
 }

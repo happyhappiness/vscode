@@ -1,11 +1,11 @@
 fputs(
-"              application data before verifying the server's Finished message,\n"
-"              thus saving a round trip when performing a full handshake.\n"
+"  formatted certificates to PEM formatted ones. This kind of converter is\n"
+"  included in recent versions of OpenSSL, and for older versions Dr Stephen\n"
+"  N. Henson has written a patch for SSLeay that adds this functionality. You\n"
+"  can get his patch (that requires an SSLeay installation) from his site at:\n"
+"  http://www.drh-consultancy.demon.co.uk/\n"
 "\n"
-"              This is currently only implemented in the NSS and Secure  Trans-\n"
-"              port  (on  iOS  7.0  or  later, or OS X 10.9 or later) backends.\n"
-"              (Added in 7.42.0)\n"
+"  Example on how to automatically retrieve a document using a certificate with\n"
+"  a personal password:\n"
 "\n"
-"       -f, --fail\n"
-"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
 , stdout);

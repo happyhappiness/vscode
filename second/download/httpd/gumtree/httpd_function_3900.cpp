@@ -1,75 +1,206 @@
-static int proxy_fdpass_handler(request_rec *r, proxy_worker *worker,
-                              proxy_server_conf *conf,
-                              char *url, const char *proxyname,
-                              apr_port_t proxyport)
+static content_type *analyze_ct(request_rec *r, const char *s)
 {
-    apr_status_t rv;
-    apr_socket_t *sock;
-    apr_socket_t *clientsock;
+    const char *cp, *mp;
+    char *attribute, *value;
+    int quoted = 0;
+    server_rec * ss = r->server;
+    apr_pool_t * p = r->pool;
 
-    if (strncasecmp(url, "fd://", 5) == 0) {
-        url += 5;
+    content_type *ctp;
+    param *pp, *npp;
+
+    /* initialize ctp */
+    ctp = (content_type *)apr_palloc(p, sizeof(content_type));
+    ctp->type = NULL;
+    ctp->subtype = NULL;
+    ctp->param = NULL;
+
+    mp = s;
+
+    /* getting a type */
+    cp = mp;
+    while (apr_isspace(*cp)) {
+        cp++;
     }
-    else {
-        return DECLINED;
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                     "mod_mime: analyze_ct: cannot get media type from '%s'",
+                     (const char *) mp);
+        return (NULL);
+    }
+    ctp->type = cp;
+    do {
+        cp++;
+    } while (*cp && (*cp != '/') && !apr_isspace(*cp) && (*cp != ';'));
+    if (!*cp || (*cp == ';')) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                     "Cannot get media type from '%s'",
+                     (const char *) mp);
+        return (NULL);
+    }
+    while (apr_isspace(*cp)) {
+        cp++;
+    }
+    if (*cp != '/') {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                     "mod_mime: analyze_ct: cannot get media type from '%s'",
+                     (const char *) mp);
+        return (NULL);
+    }
+    ctp->type_len = cp - ctp->type;
+
+    cp++; /* skip the '/' */
+
+    /* getting a subtype */
+    while (apr_isspace(*cp)) {
+        cp++;
+    }
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                     "Cannot get media subtype.");
+        return (NULL);
+    }
+    ctp->subtype = cp;
+    do {
+        cp++;
+    } while (*cp && !apr_isspace(*cp) && (*cp != ';'));
+    ctp->subtype_len = cp - ctp->subtype;
+    while (apr_isspace(*cp)) {
+        cp++;
     }
 
-    rv = get_socket_from_path(r->pool, url, &sock);
-
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "proxy: FD: Failed to connect to '%s'",
-                      url);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    if (*cp == '\0') {
+        return (ctp);
     }
 
-    {
-        int status;
-        const char *flush_method = worker->flusher ? worker->flusher : "flush";
+    /* getting parameters */
+    cp++; /* skip the ';' */
+    cp = zap_sp(cp);
+    if (cp == NULL || *cp == '\0') {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                     "Cannot get media parameter.");
+        return (NULL);
+    }
+    mp = cp;
+    attribute = NULL;
+    value = NULL;
 
-        proxy_fdpass_flush *flush = ap_lookup_provider(PROXY_FDPASS_FLUSHER,
-                                                       flush_method, "0");
-
-        if (!flush) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "proxy: FD: Unable to find configured flush "
-                          "provider '%s'", flush_method);
-            return HTTP_INTERNAL_SERVER_ERROR;
+    while (cp != NULL && *cp != '\0') {
+        if (attribute == NULL) {
+            if (is_token(*cp) > 0) {
+                cp++;
+                continue;
+            }
+            else if (*cp == ' ' || *cp == '\t' || *cp == '\n') {
+                cp++;
+                continue;
+            }
+            else if (*cp == '=') {
+                attribute = zap_sp_and_dup(p, mp, cp, NULL);
+                if (attribute == NULL || *attribute == '\0') {
+                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                 "Cannot get media parameter.");
+                    return (NULL);
+                }
+                cp++;
+                cp = zap_sp(cp);
+                if (cp == NULL || *cp == '\0') {
+                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                 "Cannot get media parameter.");
+                    return (NULL);
+                }
+                mp = cp;
+                continue;
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                             "Cannot get media parameter.");
+                return (NULL);
+            }
         }
+        else {
+            if (mp == cp) {
+                if (*cp == '"') {
+                    quoted = 1;
+                    cp++;
+                }
+                else {
+                    quoted = 0;
+                }
+            }
+            if (quoted > 0) {
+                while (quoted && *cp != '\0') {
+                    if (is_qtext(*cp) > 0) {
+                        cp++;
+                    }
+                    else if (is_quoted_pair(cp) > 0) {
+                        cp += 2;
+                    }
+                    else if (*cp == '"') {
+                        cp++;
+                        while (*cp == ' ' || *cp == '\t' || *cp == '\n') {
+                            cp++;
+                        }
+                        if (*cp != ';' && *cp != '\0') {
+                            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                         "Cannot get media parameter.");
+                            return(NULL);
+                        }
+                        quoted = 0;
+                    }
+                    else {
+                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                     "Cannot get media parameter.");
+                        return (NULL);
+                    }
+                }
+            }
+            else {
+                while (1) {
+                    if (is_token(*cp) > 0) {
+                        cp++;
+                    }
+                    else if (*cp == '\0' || *cp == ';') {
+                        break;
+                    }
+                    else {
+                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                     "Cannot get media parameter.");
+                        return (NULL);
+                    }
+                }
+            }
+            value = zap_sp_and_dup(p, mp, cp, NULL);
+            if (value == NULL || *value == '\0') {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                             "Cannot get media parameter.");
+                return (NULL);
+            }
 
-        status = flush->flusher(r);
-        if (status) {
-            return status;
+            pp = apr_palloc(p, sizeof(param));
+            pp->attr = attribute;
+            pp->val = value;
+            pp->next = NULL;
+
+            if (ctp->param == NULL) {
+                ctp->param = pp;
+            }
+            else {
+                npp = ctp->param;
+                while (npp->next) {
+                    npp = npp->next;
+                }
+                npp->next = pp;
+            }
+            quoted = 0;
+            attribute = NULL;
+            value = NULL;
+            if (*cp == '\0') {
+                break;
+            }
+            cp++;
+            mp = cp;
         }
     }
-
-    /* XXXXX: THIS IS AN EVIL HACK */
-    /* There should really be a (documented) public API for this ! */
-    clientsock = ap_get_module_config(r->connection->conn_config, &core_module);
-
-    rv = send_socket(r->pool, sock, clientsock);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "proxy: FD: send_socket failed:");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    {
-        apr_socket_t *dummy;
-        /* Create a dummy unconnected socket, and set it as the one we were 
-         * connected to, so that when the core closes it, it doesn't close 
-         * the tcp connection to the client.
-         */
-        rv = apr_socket_create(&dummy, APR_INET, SOCK_STREAM, APR_PROTO_TCP,
-                               r->connection->pool);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "proxy: FD: failed to create dummy socket");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        ap_set_module_config(r->connection->conn_config, &core_module, dummy);
-    }
-    
-    
-    return OK;
+    return (ctp);
 }

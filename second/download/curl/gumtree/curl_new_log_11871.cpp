@@ -1,10 +1,9 @@
 fputs(
-"              (SCP/SFTP) Pass a string containing 32 hexadecimal  digits.  The\n"
-"              string  should  be the 128 bit MD5 checksum of the remote host's\n"
-"              public key, curl will refuse the connection with the host unless\n"
-"              the md5sums match. (Added in 7.17.1)\n"
+"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
+"              GET request instead of the POST request that otherwise would  be\n"
+"              used. The data will be appended to the URL with a '?' separator.\n"
+"              If  used  in  combination with -I, the POST data will instead be\n"
+"              appended to the URL with a HEAD request.\n"
 "\n"
-"       --ignore-content-length\n"
-"              For HTTP, Ignore the Content-Length header. This is particularly\n"
-"              useful for servers running Apache 1.x, which will report  incor-\n"
+"              If this option is used several times,  only  the  first  one  is\n"
 , stdout);

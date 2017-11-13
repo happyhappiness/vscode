@@ -1,1 +1,1 @@
-die(_("could not parse %s"), git_path_abort_safety_file());
+error(_("unable to write new index file"));

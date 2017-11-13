@@ -1,1 +1,1 @@
-fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");
+fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");

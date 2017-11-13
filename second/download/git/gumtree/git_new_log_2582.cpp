@@ -1,2 +1,3 @@
-fprintf(opt->file, "%s ",
-			diff_unique_abbrev(p->two->oid.hash, opt->abbrev));
+warning("failed utime() on %s: %s",
+			rerere_path(id, "postimage"),
+			strerror(errno));

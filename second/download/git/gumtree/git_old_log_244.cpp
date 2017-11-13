@@ -1,1 +1,2 @@
-die (_("--subject-prefix and -k are mutually exclusive."));
+fprintf(stderr, "%s:%d: %s.\n%.*s\n",
+		state->patch_input_file, linenr, err, len, line);

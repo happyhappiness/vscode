@@ -1,2 +1,1 @@
-die("unable to normalize object directory: %s",
-		    objdirbuf.buf);
+die(_("The remote end hung up upon initial contact"));

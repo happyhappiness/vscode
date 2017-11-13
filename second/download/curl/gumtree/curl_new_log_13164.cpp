@@ -1,10 +1,9 @@
 fputs(
-"              If the cookie jar can't be created or written to, the whole curl\n"
-"              operation  won't  fail or even report an error clearly. Using -v\n"
-"              will get a warning displayed, but that is the only visible feed-\n"
-"              back you get about this possibly lethal situation.\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination  with  the -L, --location option. The file format of\n"
+"              the file to read cookies from should be plain HTTP headers (Set-\n"
+"              Cookie style) or the Netscape/Mozilla cookie file format.\n"
 "\n"
-"              Since 7.43.0 cookies that were imported in the Set-Cookie format\n"
-"              without a domain name are not exported by this option.\n"
-"\n"
+"              The  file  specified with -b, --cookie is only used as input. No\n"
+"              cookies will be written to the file. To store cookies,  use  the\n"
 , stdout);

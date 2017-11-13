@@ -1,1 +1,1 @@
-die("BUG: unpack_entry: left loop at a valid delta");
+die("socket directory must be an absolute path");

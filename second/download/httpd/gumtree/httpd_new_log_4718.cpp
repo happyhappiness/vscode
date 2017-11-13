@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00388)
-                     "Child: Unable to retrieve the scoreboard from the parent");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c, APLOGNO(02008)
+                          "SSL library error %d in handshake "
+                          "(server %s)", ssl_err,
+                          ssl_util_vhostid(c->pool, server));

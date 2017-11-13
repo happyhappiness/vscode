@@ -1,1 +1,0 @@
-fprintf(FERROR,"sender finished %s\n",fname);

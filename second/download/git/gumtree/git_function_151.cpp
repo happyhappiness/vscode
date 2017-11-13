@@ -1,11 +1,7 @@
-static void wt_status_print_other_header(struct wt_status *s,
-					 const char *what,
-					 const char *how)
+NORETURN void unable_to_lock_index_die(const char *path, int err)
 {
-	const char *c = color(WT_STATUS_HEADER, s);
-	status_printf_ln(s, c, "%s:", what);
-	if (!s->hints)
-		return;
-	status_printf_ln(s, c, _("  (use \"git %s <file>...\" to include in what will be committed)"), how);
-	status_printf_ln(s, c, "");
+	struct strbuf buf = STRBUF_INIT;
+
+	unable_to_lock_message(path, err, &buf);
+	die("%s", buf.buf);
 }

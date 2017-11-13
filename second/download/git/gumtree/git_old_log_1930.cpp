@@ -1,1 +1,0 @@
-die("bad %s argument: %s", opt->long_name, arg);

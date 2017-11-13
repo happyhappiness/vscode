@@ -1,1 +1,1 @@
-warning("ignoring broken ref %s", refname);
+error("unable to create directory for %s", git_HEAD);

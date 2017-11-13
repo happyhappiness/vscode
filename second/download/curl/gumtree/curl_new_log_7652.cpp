@@ -1,11 +1,11 @@
 fputs(
-"              Passive mode means that curl will try the EPSV command first and\n"
-"              then PASV, unless --disable-epsv is used.\n"
+"       --ftp-pasv\n"
+"              (FTP) Use passive mode for the data connection. Passive  is  the\n"
+"              internal  default behavior, but using this option can be used to\n"
+"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
 "\n"
-"       --ftp-skip-pasv-ip\n"
-"              (FTP) Tell curl to not use the IP address the server suggests in\n"
-"              its response to curl's PASV command when curl connects the  data\n"
-"              connection.  Instead  curl  will  re-use  the same IP address it\n"
-"              already uses for the control connection. (Added in 7.14.2)\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.  Undoing  an  enforced passive really isn't doable but you\n"
+"              must then instead enforce the correct -P, --ftp-port again.\n"
 "\n"
 , stdout);

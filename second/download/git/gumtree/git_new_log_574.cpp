@@ -1,4 +1,2 @@
-die(_("unable to update url base from redirection:\n"
-		      "  asked for: %s\n"
-		      "   redirect: %s"),
-		    asked, got->buf);
+warning("Unknown delegation method '%s': using default",
+				curl_deleg);

@@ -1,33 +1,67 @@
-static void usage(void)
+static void do_rewritelog(request_rec *r, int level, char *perdir,
+                          const char *fmt, ...)
 {
-    apr_file_printf(errfile, "Usage:" NL);
-    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username" NL);
-    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password" NL NL);
-    apr_file_printf(errfile, "\thtpasswd -n[mdps] username" NL);
-    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
-    apr_file_printf(errfile, " -c  Create a new file." NL);
-    apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout." NL);
-    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-#if defined(WIN32) || defined(TPF) || defined(NETWARE)
-        " (default)"
-#endif
-        "." NL);
-    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-            " (default)"
-#endif
-            "." NL);
-    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
-    apr_file_printf(errfile, " -s  Force SHA encryption of the password." NL);
-    apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it." NL);
-    apr_file_printf(errfile, " -D  Delete the specified user." NL);
-    apr_file_printf(errfile,
-            "On Windows, NetWare and TPF systems the '-m' flag is used by "
-            "default." NL);
-    apr_file_printf(errfile,
-            "On all other systems, the '-p' flag will probably not work." NL);
-    exit(ERR_SYNTAX);
+    rewrite_server_conf *conf;
+    char *logline, *text;
+    const char *rhost, *rname;
+    apr_size_t nbytes;
+    int redir;
+    apr_status_t rv;
+    request_rec *req;
+    va_list ap;
+
+    conf = ap_get_module_config(r->server->module_config, &rewrite_module);
+
+    if (!conf->rewritelogfp || level > conf->rewriteloglevel) {
+        return;
+    }
+
+    rhost = ap_get_remote_host(r->connection, r->per_dir_config,
+                               REMOTE_NOLOOKUP, NULL);
+    rname = ap_get_remote_logname(r);
+
+    for (redir=0, req=r; req->prev; req = req->prev) {
+        ++redir;
+    }
+
+    va_start(ap, fmt);
+    text = apr_pvsprintf(r->pool, fmt, ap);
+    va_end(ap);
+
+    logline = apr_psprintf(r->pool, "%s %s %s %s [%s/sid#%pp][rid#%pp/%s%s%s] "
+                                    "(%d) %s%s%s%s" APR_EOL_STR,
+                           rhost ? rhost : "UNKNOWN-HOST",
+                           rname ? rname : "-",
+                           r->user ? (*r->user ? r->user : "\"\"") : "-",
+                           current_logtime(r),
+                           ap_get_server_name(r),
+                           (void *)(r->server),
+                           (void *)r,
+                           r->main ? "subreq" : "initial",
+                           redir ? "/redir#" : "",
+                           redir ? apr_itoa(r->pool, redir) : "",
+                           level,
+                           perdir ? "[perdir " : "",
+                           perdir ? perdir : "",
+                           perdir ? "] ": "",
+                           text);
+
+    rv = apr_global_mutex_lock(rewrite_log_lock);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "apr_global_mutex_lock(rewrite_log_lock) failed");
+        /* XXX: Maybe this should be fatal? */
+    }
+
+    nbytes = strlen(logline);
+    apr_file_write(conf->rewritelogfp, logline, &nbytes);
+
+    rv = apr_global_mutex_unlock(rewrite_log_lock);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "apr_global_mutex_unlock(rewrite_log_lock) failed");
+        /* XXX: Maybe this should be fatal? */
+    }
+
+    return;
 }

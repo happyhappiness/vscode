@@ -1,1 +1,0 @@
-error(_("could not delete references: %s"), err.buf);
